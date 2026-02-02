@@ -1,0 +1,42 @@
+{DRIVER_NAME}
+{
+ //Driver Info
+ Abbreviation={ABBREVIATION}
+ Nationality={NATIONALITY}
+ NatAbbrev={NAT_ABBREV}
+ 
+ //Driver Stats
+ StartsDry={STARTS_DRY}           //Average number of drivers passed (-4 - 4)
+ StartsWet={STARTS_WET}           
+ StartStalls={START_STALLS}       //% of starts where driver stalled
+ QualifyingAbility={QUALIFYING_ABILITY}  //Average qualifying position
+ RaceAbility={RACE_ABILITY}        //Range 0 - 6.2 (0 is best)
+ Consistency={CONSISTENCY}
+ RainAbility={RAIN_ABILITY}        //Range 0 - 6.2 (0 is best)
+ Passing={PASSING}                //% of times driver completed a successful pass
+ Crash={CRASH}                    //% of times driver crashed
+ Recovery={RECOVERY}              //% of times driver continued after a crash
+ CompletedLaps%={COMPLETED_LAPS}
+ Script={SCRIPT}
+ TrackAggression={TRACK_AGGRESSION}
+
+ // Cornering adjustments
+ CorneringAdd={CORNERING_ADD}
+ CorneringMult={CORNERING_MULT}
+
+ //AI Throttle Control
+ TCGripThreshold={TC_GRIP_THRESHOLD}   // Range: 0.0-1.0
+ TCThrottleFract={TC_THROTTLE_FRACT}   // Range: 0.0-???
+ TCResponse={TC_RESPONSE}              // Range: 0.0-???
+
+ //AI skill mistake variables
+ MinRacingSkill = {MIN_RACING_SKILL}
+ Composure = {COMPOSURE}
+
+ //AI ColdBrain variables
+ RaceColdBrainMin={RACE_COLD_BRAIN_MIN}
+ RaceColdBrainTime={RACE_COLD_BRAIN_TIME}
+ QualColdBrainMin={QUAL_COLD_BRAIN_MIN} 
+ QualColdBrainTime={QUAL_COLD_BRAIN_TIME}
+
+}

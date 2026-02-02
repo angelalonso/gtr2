@@ -1,0 +1,5 @@
+debug: false
+gtr2_install: /home/aaf/Software/000_Recovery_Windows/GTR2/00_COPIES/00_steamonly
+output_file: result.csv
+teams_folder: /home/aaf/Software/000_Recovery_Windows/GTR2/00_COPIES/00_steamonly/GameData/Teams/24H/BMW
+  Teams
