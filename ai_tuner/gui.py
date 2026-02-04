@@ -14,7 +14,7 @@ class DriverExtractorGUI:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("GTR2 Talent Mass-Tweaker")
-        self.root.geometry("500x350")
+        self.root.geometry("500x400")
         self.root.resizable(True, True)
         
         # Variables
