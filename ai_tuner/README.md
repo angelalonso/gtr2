@@ -6,7 +6,7 @@ pipenv install
 pipenv run pip install pyyaml pandas  
   
 # How to run
-pipenv run python3 main.py --gui  
+pipenv run python3 main.py
   
 # What this does
 Choose your GTR2 installation path, choose the folder where the Teams are, then you can edit the drivers all at once.  
@@ -16,4 +16,4 @@ This really needs a better info about what each variable does, and an easier way
 It'd be nice to even create some predefined "skill levels" to easy adapt the drivers to them.  
   
 # Issues
-A LOT. Need to avoid using --gui, need to automate installation of requirements, need to test on windows...  
+A LOT. Need to automate installation of requirements, need to test on windows...  
