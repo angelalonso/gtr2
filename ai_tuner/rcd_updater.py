@@ -12,7 +12,7 @@ class RcdUpdater:
     def __init__(self, install_folder, teams_folder):
         self.install_folder = install_folder
         self.teams_folder = teams_folder
-        self.backup_folder = None
+        self.backup_folder = "originals_backup"
     
     def update_rcd_files(self, csv_data, fieldnames, create_backup=True):
         """
@@ -31,9 +31,9 @@ class RcdUpdater:
         # Create backup folder if needed
         backup_path = None
         if create_backup:
-            backup_path = self.create_backup_folder()
+            backup_path = self.create_or_get_backup_folder()
             if backup_path:
-                logger.info(f"Backup folder created: {backup_path}")
+                logger.info(f"Backup folder: {backup_path}")
         
         # Track statistics
         success_count = 0
@@ -50,9 +50,13 @@ class RcdUpdater:
             rcd_file_path = self.find_rcd_file_for_driver(driver_name)
             
             if rcd_file_path:
-                # Create backup if requested
-                if backup_path:
-                    self.backup_rcd_file(rcd_file_path, backup_path, driver_name)
+                # Create backup if requested and file not already backed up
+                if backup_path and not self.is_file_already_backed_up(rcd_file_path, backup_path):
+                    backup_success = self.backup_rcd_file(rcd_file_path, backup_path)
+                    if backup_success:
+                        logger.debug(f"Backup created for: {driver_name}")
+                    else:
+                        logger.warning(f"Failed to backup: {driver_name}")
                 
                 # Update RCD file
                 if self.update_single_rcd_file(rcd_file_path, driver_data, fieldnames):
@@ -80,32 +84,81 @@ class RcdUpdater:
         
         return success_count, error_count, backup_path
     
-    def create_backup_folder(self):
-        """Create a backup folder with timestamp"""
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_folder = f"rcd_backup_{timestamp}"
-        
+    def create_or_get_backup_folder(self):
+        """Create or get the single backup folder"""
         try:
-            os.makedirs(backup_folder, exist_ok=True)
-            self.backup_folder = backup_folder
-            return os.path.abspath(backup_folder)
+            # Create backup folder if it doesn't exist
+            os.makedirs(self.backup_folder, exist_ok=True)
+            return os.path.abspath(self.backup_folder)
         except Exception as e:
             logger.error(f"Failed to create backup folder: {e}")
             return None
     
-    def backup_rcd_file(self, rcd_file_path, backup_path, driver_name):
-        """Create a backup of an RCD file"""
+    def is_file_already_backed_up(self, rcd_file_path, backup_path):
+        """Check if a file already has a backup in the backup folder"""
         try:
-            # Create safe filename from driver name
-            safe_name = "".join(c if c.isalnum() or c in " _-" else "_" for c in driver_name)
-            backup_file = os.path.join(backup_path, f"{safe_name}.rcd")
+            # Get relative path from GTR2 installation folder
+            rel_path = self.get_relative_path_from_gtr2(rcd_file_path)
+            if not rel_path:
+                return False
+            
+            # Construct backup path
+            backup_file_path = os.path.join(backup_path, rel_path)
+            
+            # Check if backup exists
+            return os.path.exists(backup_file_path)
+        except Exception as e:
+            logger.error(f"Error checking backup status: {e}")
+            return False
+    
+    def get_relative_path_from_gtr2(self, file_path):
+        """Get the relative path from GTR2 installation folder"""
+        try:
+            # Try to find relative path from install folder
+            if self.install_folder and file_path.startswith(self.install_folder):
+                return os.path.relpath(file_path, self.install_folder)
+            
+            # Try to find relative path from teams folder
+            if self.teams_folder and file_path.startswith(self.teams_folder):
+                # For teams folder, we need to reconstruct the path from GameData
+                # Teams folder might be something like: .../GameData/Teams
+                # We want to preserve from GameData onward
+                teams_parent = os.path.dirname(self.teams_folder)
+                if file_path.startswith(teams_parent):
+                    return os.path.relpath(file_path, teams_parent)
+            
+            # If we can't find a relative path, return None
+            return None
+        except Exception as e:
+            logger.error(f"Error getting relative path: {e}")
+            return None
+    
+    def backup_rcd_file(self, rcd_file_path, backup_path):
+        """Create a backup of an RCD file preserving folder structure"""
+        try:
+            # Get relative path from GTR2 installation folder
+            rel_path = self.get_relative_path_from_gtr2(rcd_file_path)
+            if not rel_path:
+                logger.warning(f"Cannot determine relative path for: {rcd_file_path}")
+                return False
+            
+            # Construct backup path preserving folder structure
+            backup_file_path = os.path.join(backup_path, rel_path)
+            
+            # Create parent directories if they don't exist
+            os.makedirs(os.path.dirname(backup_file_path), exist_ok=True)
+            
+            # Check if backup already exists
+            if os.path.exists(backup_file_path):
+                logger.debug(f"Backup already exists for: {rel_path}")
+                return True
             
             # Copy the file
-            shutil.copy2(rcd_file_path, backup_file)
-            logger.debug(f"Backup created: {os.path.basename(backup_file)}")
+            shutil.copy2(rcd_file_path, backup_file_path)
+            logger.debug(f"Backup created: {rel_path}")
             return True
         except Exception as e:
-            logger.error(f"Failed to backup {driver_name}: {e}")
+            logger.error(f"Failed to backup {rcd_file_path}: {e}")
             return False
     
     def find_rcd_file_for_driver(self, driver_name):

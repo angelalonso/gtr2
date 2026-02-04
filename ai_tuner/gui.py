@@ -13,21 +13,14 @@ class DriverExtractorGUI:
     
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title("GTR2 Driver Data Extractor")
-        self.root.geometry("700x500")
+        self.root.title("GTR2 Talent Mass-Tweaker")
+        self.root.geometry("500x350")
         self.root.resizable(True, True)
         
-        # Set icon if available
-        try:
-            self.root.iconbitmap("icon.ico")
-        except:
-            pass
-        
         # Variables
-        self.config_file = tk.StringVar()
+        self.config_file = tk.StringVar(value="cfg.yml")
         self.install_folder = tk.StringVar()
         self.teams_folder = tk.StringVar()
-        self.output_file = tk.StringVar(value="result.csv")
         self.debug_mode = tk.BooleanVar(value=False)
         
         # Store extraction results
@@ -35,7 +28,7 @@ class DriverExtractorGUI:
         self.extraction_fieldnames = None
         
         self.setup_ui()
-        self.load_default_config()
+        self.load_config()
     
     def setup_ui(self):
         """Setup the user interface"""
@@ -46,7 +39,7 @@ class DriverExtractorGUI:
         # Title
         title_label = ttk.Label(
             main_frame, 
-            text="🚗 GTR2 Driver Data Extractor", 
+            text="GTR2 Talent Mass-Tweaker", 
             font=("Arial", 16, "bold")
         )
         title_label.grid(row=0, column=0, columnspan=3, pady=(0, 20))
@@ -54,67 +47,33 @@ class DriverExtractorGUI:
         # Description
         desc_label = ttk.Label(
             main_frame,
-            text="Extract and edit driver data from .car and .rcd files for GTR2",
-            wraplength=600
+            text="Extract and edit driver talent data from .car and .rcd files for GTR2",
+            wraplength=450
         )
-        desc_label.grid(row=1, column=0, columnspan=3, pady=(0, 10))
-        
-        # Config file selection
-        ttk.Label(main_frame, text="Configuration File (cfg.yml):").grid(
-            row=2, column=0, sticky=tk.W, pady=5
-        )
-        
-        config_entry = ttk.Entry(main_frame, textvariable=self.config_file, width=50)
-        config_entry.grid(row=2, column=1, padx=(10, 5), pady=5, sticky=(tk.W, tk.E))
-        
-        ttk.Button(main_frame, text="Load", command=self.load_config).grid(
-            row=2, column=2, padx=(0, 0), pady=5
-        )
-        
-        # Separator
-        ttk.Separator(main_frame, orient='horizontal').grid(
-            row=3, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=15
-        )
+        desc_label.grid(row=1, column=0, columnspan=3, pady=(0, 20))
         
         # GTR2 install folder selection
         ttk.Label(main_frame, text="GTR2 Installation Folder:").grid(
-            row=4, column=0, sticky=tk.W, pady=5
+            row=2, column=0, sticky=tk.W, pady=5
         )
         
-        install_entry = ttk.Entry(main_frame, textvariable=self.install_folder, width=50)
-        install_entry.grid(row=4, column=1, padx=(10, 5), pady=5, sticky=(tk.W, tk.E))
+        install_entry = ttk.Entry(main_frame, textvariable=self.install_folder, width=40)
+        install_entry.grid(row=2, column=1, padx=(10, 5), pady=5, sticky=(tk.W, tk.E))
         
         ttk.Button(main_frame, text="Browse...", command=self.browse_install).grid(
-            row=4, column=2, padx=(0, 0), pady=5
+            row=2, column=2, padx=(0, 0), pady=5
         )
         
         # Teams folder selection
         ttk.Label(main_frame, text="Teams Folder:").grid(
-            row=5, column=0, sticky=tk.W, pady=5
+            row=3, column=0, sticky=tk.W, pady=5
         )
         
-        teams_entry = ttk.Entry(main_frame, textvariable=self.teams_folder, width=50)
-        teams_entry.grid(row=5, column=1, padx=(10, 5), pady=5, sticky=(tk.W, tk.E))
+        teams_entry = ttk.Entry(main_frame, textvariable=self.teams_folder, width=40)
+        teams_entry.grid(row=3, column=1, padx=(10, 5), pady=5, sticky=(tk.W, tk.E))
         
         ttk.Button(main_frame, text="Browse...", command=self.browse_teams).grid(
-            row=5, column=2, padx=(0, 0), pady=5
-        )
-        
-        # Auto-detect button
-        ttk.Button(main_frame, text="Auto-detect GTR2", command=self.auto_detect_gtr2).grid(
-            row=6, column=1, columnspan=2, pady=(5, 15), sticky=tk.W
-        )
-        
-        # Output file
-        ttk.Label(main_frame, text="Output CSV File:").grid(
-            row=7, column=0, sticky=tk.W, pady=5
-        )
-        
-        output_entry = ttk.Entry(main_frame, textvariable=self.output_file, width=50)
-        output_entry.grid(row=7, column=1, padx=(10, 5), pady=5, sticky=(tk.W, tk.E))
-        
-        ttk.Button(main_frame, text="Browse...", command=self.browse_output).grid(
-            row=7, column=2, padx=(0, 0), pady=5
+            row=3, column=2, padx=(0, 0), pady=5
         )
         
         # Debug mode checkbox
@@ -123,36 +82,34 @@ class DriverExtractorGUI:
             text="Enable Debug Mode (verbose output)", 
             variable=self.debug_mode
         )
-        debug_check.grid(row=8, column=0, columnspan=3, pady=10, sticky=tk.W)
+        debug_check.grid(row=4, column=0, columnspan=3, pady=10, sticky=tk.W)
         
         # Status label
         self.status_label = ttk.Label(main_frame, text="Ready", foreground="green")
-        self.status_label.grid(row=9, column=0, columnspan=3, pady=(10, 0))
+        self.status_label.grid(row=5, column=0, columnspan=3, pady=(10, 0))
         
         # Progress bar
         self.progress = ttk.Progressbar(main_frame, mode='indeterminate')
-        self.progress.grid(row=10, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(10, 0))
+        self.progress.grid(row=6, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(10, 0))
+        
+        # Loading message (initially hidden)
+        self.loading_label = ttk.Label(main_frame, text="", font=("Arial", 10, "italic"))
+        self.loading_label.grid(row=7, column=0, columnspan=3, pady=(5, 0))
         
         # Buttons frame
         button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=11, column=0, columnspan=3, pady=(20, 0))
+        button_frame.grid(row=8, column=0, columnspan=3, pady=(20, 0))
         
         # Single main action button
         self.main_action_button = ttk.Button(
             button_frame, 
-            text="Extract & Edit Data", 
+            text="Extract & Edit Talent Data", 
             command=self.extract_and_edit,
             state='normal'
         )
         self.main_action_button.pack(side=tk.LEFT, padx=(0, 10))
         
-        ttk.Button(button_frame, text="Save Config", command=self.save_config).pack(
-            side=tk.LEFT, padx=(10, 10)
-        )
-        ttk.Button(button_frame, text="Clear All", command=self.clear_all).pack(
-            side=tk.LEFT, padx=(10, 10)
-        )
-        ttk.Button(button_frame, text="Exit", command=self.root.quit).pack(
+        ttk.Button(button_frame, text="Exit", command=self.safe_quit).pack(
             side=tk.LEFT, padx=(10, 0)
         )
         
@@ -162,16 +119,27 @@ Common GTR2 folder structure:
   GTR2 Installation: C:/Games/GTR2
   Teams Folder: C:/Games/GTR2/GameData/Teams
 
-Click 'Extract & Edit Data' to extract driver data and open the editor.
+Click 'Extract & Edit Talent Data' to extract driver data and open the editor.
         """
         
         help_label = ttk.Label(main_frame, text=help_text, justify=tk.LEFT)
-        help_label.grid(row=12, column=0, columnspan=3, pady=(20, 0), sticky=tk.W)
+        help_label.grid(row=9, column=0, columnspan=3, pady=(20, 0), sticky=tk.W)
         
         # Configure grid weights
         main_frame.columnconfigure(1, weight=1)
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
+        
+        # Track variable changes to auto-save config
+        self.install_folder.trace_add("write", self.auto_save_config)
+        self.teams_folder.trace_add("write", self.auto_save_config)
+        self.debug_mode.trace_add("write", self.auto_save_config)
+    
+    def auto_save_config(self, *args):
+        """Automatically save config when values change"""
+        config_path = self.config_file.get()
+        if config_path and os.path.exists(os.path.dirname(config_path) if os.path.dirname(config_path) else "."):
+            self.save_config(silent=True)
     
     def extract_and_edit(self):
         """Extract data and then open editor directly"""
@@ -181,18 +149,12 @@ Click 'Extract & Edit Data' to extract driver data and open the editor.
         
         # The editor will be opened from handle_extraction_result
     
-    def load_default_config(self):
-        """Try to load default config file"""
-        default_config = "cfg.yml"
-        if os.path.exists(default_config):
-            self.config_file.set(default_config)
-            self.load_config()
-    
     def load_config(self):
         """Load configuration from YAML file"""
         config_path = self.config_file.get()
         if not config_path or not os.path.exists(config_path):
-            messagebox.showwarning("Warning", f"Config file not found: {config_path}")
+            # Create default config if it doesn't exist
+            self.save_config(silent=True)
             return
         
         try:
@@ -209,34 +171,23 @@ Click 'Extract & Edit Data' to extract driver data and open the editor.
                 teams_path = os.path.join(self.install_folder.get(), "GameData", "Teams")
                 self.teams_folder.set(teams_path)
             
-            if 'output_file' in config:
-                self.output_file.set(config['output_file'])
-            
             if 'debug' in config:
                 self.debug_mode.set(config['debug'])
             
-            self.status_label.config(text=f"Loaded config: {os.path.basename(config_path)}", foreground="green")
+            self.status_label.config(text=f"Loaded config from: {os.path.basename(config_path)}", foreground="green")
             
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load config:\n{str(e)}")
     
-    def save_config(self):
+    def save_config(self, silent=False):
         """Save configuration to YAML file"""
         config_path = self.config_file.get()
         if not config_path:
-            config_path = filedialog.asksaveasfilename(
-                title="Save Configuration",
-                defaultextension=".yml",
-                filetypes=[("YAML files", "*.yml"), ("All files", "*.*")]
-            )
-            if not config_path:
-                return
-            self.config_file.set(config_path)
+            return
         
         config = {
             'gtr2_install': self.install_folder.get(),
             'teams_folder': self.teams_folder.get(),
-            'output_file': self.output_file.get(),
             'debug': self.debug_mode.get()
         }
         
@@ -244,11 +195,13 @@ Click 'Extract & Edit Data' to extract driver data and open the editor.
             with open(config_path, 'w') as f:
                 yaml.dump(config, f, default_flow_style=False)
             
-            self.status_label.config(text=f"Config saved: {os.path.basename(config_path)}", foreground="green")
-            messagebox.showinfo("Success", f"Configuration saved to:\n{config_path}")
+            if not silent:
+                self.status_label.config(text=f"Config saved: {os.path.basename(config_path)}", foreground="green")
+                messagebox.showinfo("Success", f"Configuration saved to:\n{config_path}")
             
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to save config:\n{str(e)}")
+            if not silent:
+                messagebox.showerror("Error", f"Failed to save config:\n{str(e)}")
     
     def browse_install(self):
         """Browse for GTR2 installation folder"""
@@ -260,15 +213,6 @@ Click 'Extract & Edit Data' to extract driver data and open the editor.
             default_teams = os.path.join(folder, "GameData", "Teams")
             if os.path.exists(default_teams):
                 self.teams_folder.set(default_teams)
-            else:
-                # Clear teams folder if default doesn't exist
-                self.teams_folder.set("")
-                
-                # Suggest where it should be
-                self.status_label.config(
-                    text=f"Note: Default Teams folder not found at:\n{default_teams}", 
-                    foreground="orange"
-                )
     
     def browse_teams(self):
         """Browse for teams folder, starting at default GTR2 location"""
@@ -301,104 +245,6 @@ Click 'Extract & Edit Data' to extract driver data and open the editor.
         if folder:
             self.teams_folder.set(folder)
     
-    def browse_output(self):
-        """Browse for output file"""
-        filename = filedialog.asksaveasfilename(
-            title="Save Output CSV File",
-            defaultextension=".csv",
-            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
-        )
-        if filename:
-            self.output_file.set(filename)
-    
-    def auto_detect_gtr2(self):
-        """Try to auto-detect GTR2 installation"""
-        common_paths = [
-            "C:/Program Files/GTR2",
-            "C:/Program Files (x86)/GTR2",
-            "C:/Games/GTR2",
-            "D:/Games/GTR2",
-            os.path.expanduser("~/Games/GTR2"),
-            "/Program Files/GTR2",
-            "/Program Files (x86)/GTR2",
-            "/usr/local/games/GTR2",
-            os.path.expanduser("~/.wine/drive_c/Program Files/GTR2"),
-            os.path.expanduser("~/.wine/drive_c/Program Files (x86)/GTR2"),
-            os.path.expanduser("~/.local/share/Steam/steamapps/common/GTR2"),
-        ]
-        
-        found_paths = []
-        for path in common_paths:
-            if os.path.exists(path):
-                found_paths.append(path)
-        
-        if found_paths:
-            # Let user choose if multiple found
-            if len(found_paths) == 1:
-                selected_path = found_paths[0]
-            else:
-                # Create a simple selection dialog
-                selection_dialog = tk.Toplevel(self.root)
-                selection_dialog.title("Select GTR2 Installation")
-                selection_dialog.geometry("500x300")
-                selection_dialog.transient(self.root)
-                selection_dialog.grab_set()
-                
-                ttk.Label(selection_dialog, text="Multiple GTR2 installations found. Select one:", 
-                         font=("Arial", 10, "bold")).pack(pady=10)
-                
-                selected_path = tk.StringVar(value=found_paths[0])
-                
-                listbox = tk.Listbox(selection_dialog, selectmode=tk.SINGLE, height=min(len(found_paths), 10))
-                for path in found_paths:
-                    listbox.insert(tk.END, path)
-                listbox.pack(pady=10, padx=20, fill=tk.BOTH, expand=True)
-                
-                def on_select():
-                    try:
-                        selected_path.set(listbox.get(listbox.curselection()))
-                        selection_dialog.destroy()
-                    except:
-                        pass
-                
-                def on_cancel():
-                    selected_path.set("")
-                    selection_dialog.destroy()
-                
-                button_frame = ttk.Frame(selection_dialog)
-                button_frame.pack(pady=10)
-                
-                ttk.Button(button_frame, text="Select", command=on_select).pack(side=tk.LEFT, padx=5)
-                ttk.Button(button_frame, text="Cancel", command=on_cancel).pack(side=tk.LEFT, padx=5)
-                
-                # Wait for dialog to close
-                self.root.wait_window(selection_dialog)
-            
-            if selected_path and selected_path.get():
-                self.install_folder.set(selected_path.get())
-                # Auto-set teams folder
-                default_teams = os.path.join(selected_path.get(), "GameData", "Teams")
-                if os.path.exists(default_teams):
-                    self.teams_folder.set(default_teams)
-                    self.status_label.config(text=f"Auto-detected GTR2 at: {selected_path.get()}", foreground="green")
-                else:
-                    self.teams_folder.set("")
-                    self.status_label.config(
-                        text=f"GTR2 found but Teams folder not at:\n{default_teams}", 
-                        foreground="orange"
-                    )
-        else:
-            messagebox.showinfo("Info", "Could not auto-detect GTR2 installation.")
-    
-    def clear_all(self):
-        """Clear all fields"""
-        self.config_file.set("")
-        self.install_folder.set("")
-        self.teams_folder.set("")
-        self.output_file.set("result.csv")
-        self.debug_mode.set(False)
-        self.status_label.config(text="Ready", foreground="green")
-    
     def start_extraction(self):
         """Start the extraction process"""
         # Validate inputs
@@ -410,10 +256,6 @@ Click 'Extract & Edit Data' to extract driver data and open the editor.
             messagebox.showerror("Error", "Please select the teams folder")
             return False
         
-        if not self.output_file.get():
-            messagebox.showerror("Error", "Please specify an output file")
-            return False
-        
         # Check if folders exist
         if not os.path.exists(self.install_folder.get()):
             messagebox.showerror("Error", f"GTR2 folder does not exist:\n{self.install_folder.get()}")
@@ -423,7 +265,8 @@ Click 'Extract & Edit Data' to extract driver data and open the editor.
             messagebox.showerror("Error", f"Teams folder does not exist:\n{self.teams_folder.get()}")
             return False
         
-        # Start extraction in background thread to keep GUI responsive
+        # Show loading message and start progress bar
+        self.loading_label.config(text="Processing data, please wait...", foreground="blue")
         self.status_label.config(text="Processing...", foreground="blue")
         self.progress.start()
         
@@ -442,7 +285,7 @@ Click 'Extract & Edit Data' to extract driver data and open the editor.
         self.main_action_button.state(['disabled'])
         for widget in self.root.winfo_children():
             for child in widget.winfo_children():
-                if isinstance(child, ttk.Button) and child != self.main_action_button:
+                if isinstance(child, ttk.Button):
                     child.state(['disabled'])
     
     def enable_buttons(self):
@@ -450,7 +293,7 @@ Click 'Extract & Edit Data' to extract driver data and open the editor.
         self.main_action_button.state(['!disabled'])
         for widget in self.root.winfo_children():
             for child in widget.winfo_children():
-                if isinstance(child, ttk.Button) and child != self.main_action_button:
+                if isinstance(child, ttk.Button):
                     child.state(['!disabled'])
     
     def run_extraction(self):
@@ -474,7 +317,9 @@ Click 'Extract & Edit Data' to extract driver data and open the editor.
             if result:
                 data, fieldnames = result
                 if data:
-                    csv_success = CSVWriter.write_drivers_to_csv(data, fieldnames, self.output_file.get())
+                    # Use default output filename
+                    output_file = "result.csv"
+                    csv_success = CSVWriter.write_drivers_to_csv(data, fieldnames, output_file)
                     
                     # Store results for viewer
                     self.extraction_result = data
@@ -496,26 +341,52 @@ Click 'Extract & Edit Data' to extract driver data and open the editor.
         self.progress.stop()
         
         if csv_success and data:
-            self.status_label.config(text="Extraction completed! Opening editor...", foreground="green")
+            # Update loading message to show we're preparing the editor
+            self.loading_label.config(text="Preparing talent editor...", foreground="green")
+            self.status_label.config(text="Extraction completed!", foreground="green")
             
-            # Open editor directly without asking for confirmation
-            self.root.after(100, lambda: self.open_viewer(data, fieldnames))
+            # Schedule the editor to open after a brief pause
+            self.root.after(100, lambda: self.prepare_and_open_viewer(data, fieldnames))
         else:
+            self.loading_label.config(text="", foreground="")
             self.status_label.config(text="Extraction failed", foreground="red")
             messagebox.showerror("Error", "Extraction process failed or no data found")
             self.enable_buttons()
     
-    def open_viewer(self, data=None, fieldnames=None):
-        """Open the driver data editor directly"""
+    def prepare_and_open_viewer(self, data=None, fieldnames=None):
+        """Prepare and open the editor with smoother transition"""
+        try:
+            # Update loading message
+            self.loading_label.config(text="Opening talent editor...", foreground="green")
+            
+            # Force GUI update to show the message
+            self.root.update_idletasks()
+            
+            # Create the editor in the background
+            threading.Thread(target=self.create_and_show_editor, 
+                           args=(data, fieldnames), 
+                           daemon=True).start()
+            
+        except Exception as e:
+            logger.error(f"Error preparing editor: {e}")
+            messagebox.showerror("Error", f"Error preparing editor:\n{str(e)}")
+            self.root.deiconify()
+            self.loading_label.config(text="", foreground="")
+            self.enable_buttons()
+    
+    def create_and_show_editor(self, data=None, fieldnames=None):
+        """Create and show the editor in a separate thread"""
         try:
             from driver_table_editor import DriverTableEditor
             
             # Use provided data or load from file
             if data is None or fieldnames is None:
-                output_file = self.output_file.get()
+                output_file = "result.csv"
                 if not os.path.exists(output_file):
-                    messagebox.showwarning("Warning", f"Output file doesn't exist:\n{output_file}")
-                    self.enable_buttons()
+                    self.root.after(0, lambda: messagebox.showwarning("Warning", 
+                        f"Output file doesn't exist:\n{output_file}"))
+                    self.root.after(0, lambda: self.loading_label.config(text="", foreground=""))
+                    self.root.after(0, self.enable_buttons)
                     return
                 
                 # Load data from CSV
@@ -524,42 +395,83 @@ Click 'Extract & Edit Data' to extract driver data and open the editor.
                 data = df.to_dict('records')
                 fieldnames = list(df.columns)
             
-            # Hide main window while editor is open
-            self.root.withdraw()
-            
-            # Open editor with installation folders
+            # Create the editor (this can take a moment with large datasets)
             editor = DriverTableEditor(
                 data, 
                 fieldnames, 
-                self.output_file.get(),
+                "result.csv",
                 self.install_folder.get(),
                 self.teams_folder.get()
             )
-            editor.run()
             
-            # Show main window again after editor closes
-            self.root.deiconify()
-            self.enable_buttons()
+            # Schedule on main thread: hide main window and show editor
+            self.root.after(0, self.show_editor, editor)
             
         except Exception as e:
-            logger.error(f"Error opening editor: {e}")
-            messagebox.showerror("Error", f"Error opening editor:\n{str(e)}")
+            logger.error(f"Error creating editor: {e}")
+            self.root.after(0, lambda: messagebox.showerror("Error", 
+                f"Error creating editor:\n{str(e)}"))
+            self.root.after(0, lambda: self.root.deiconify())
+            self.root.after(0, lambda: self.loading_label.config(text="", foreground=""))
+            self.root.after(0, self.enable_buttons)
+    
+    def show_editor(self, editor):
+        """Show the editor and hide the main window"""
+        try:
+            # Hide main window
+            self.root.withdraw()
+            
+            # Clear loading message
+            self.loading_label.config(text="", foreground="")
+            
+            # Set focus to editor
+            editor.root.focus_set()
+            
+            # Use wait_window to wait for the editor to close
+            self.root.wait_window(editor.root)
+            
+            # When editor closes, show main window again
+            self.root.deiconify()
             self.enable_buttons()
+            self.status_label.config(text="Ready to extract again", foreground="green")
+            
+        except Exception as e:
+            logger.error(f"Error showing editor: {e}")
+            self.root.deiconify()
+            self.loading_label.config(text="", foreground="")
+            self.enable_buttons()
+            messagebox.showerror("Error", f"Error showing editor:\n{str(e)}")
     
     def handle_extraction_error(self, error):
         """Handle extraction error on the main GUI thread"""
         self.progress.stop()
+        self.loading_label.config(text="", foreground="")
         self.enable_buttons()
         
         logger.error(f"GUI extraction error: {error}")
         self.status_label.config(text=f"Error: {str(error)[:50]}...", foreground="red")
         messagebox.showerror("Error", f"An error occurred:\n{str(error)}")
     
+    def safe_quit(self):
+        """Safely quit the application"""
+        try:
+            self.root.quit()
+            self.root.destroy()
+        except:
+            pass
+    
     def run(self):
         """Run the GUI application"""
         self.root.mainloop()
 
+
+# ADD THIS FUNCTION AT THE MODULE LEVEL
 def run_gui():
     """Run the GUI version of the application"""
     gui = DriverExtractorGUI()
     gui.run()
+
+
+# Optional: Add this to run the GUI if this file is executed directly
+if __name__ == "__main__":
+    run_gui()

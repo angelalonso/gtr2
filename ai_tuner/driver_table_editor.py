@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-# driver_table_editor.py - Editable driver data table
+# driver_table_editor.py - Editable driver data table (VIRTUAL VERSION - FAST)
 
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, simpledialog
 import pandas as pd
 import os
 import threading
 from debug_logger import logger
 
 class DriverTableEditor:
-    """Editable driver data table with variables as rows and drivers as columns"""
+    """Editable driver data table with virtual scrolling for performance"""
     
     def __init__(self, data, fieldnames, csv_file_path, install_folder=None, teams_folder=None):
         self.data = data  # List of dictionaries
@@ -26,109 +26,55 @@ class DriverTableEditor:
         
         # Track changes
         self.changes_made = False
-        self.cell_widgets = {}  # Store references to cell widgets
         
         self.root = tk.Toplevel()
         self.root.title(f"GTR2 Driver Data Editor - {os.path.basename(csv_file_path)}")
         self.root.geometry("1400x800")
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         
+        # Pre-calculate data
+        self.prepare_data()
+        
         self.setup_ui()
     
-    def setup_ui(self):
-        """Setup the user interface"""
-        # Main container
-        main_frame = ttk.Frame(self.root, padding="10")
-        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+    def prepare_data(self):
+        """Pre-calculate and prepare data for faster access"""
+        # Get all drivers and variables
+        self.all_drivers = list(self.df['Driver'])
+        self.all_variables = self.get_variables()
         
-        # Title and buttons frame
-        header_frame = ttk.Frame(main_frame)
-        header_frame.grid(row=0, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 10))
+        # Create dictionaries for faster lookup
+        self.driver_to_index = {driver: idx for idx, driver in enumerate(self.all_drivers)}
+        self.variable_to_index = {variable: idx for idx, variable in enumerate(self.all_variables)}
         
-        # Title
-        title_label = ttk.Label(
-            header_frame, 
-            text=f"🚗 GTR2 Driver Data Editor", 
-            font=("Arial", 14, "bold")
-        )
-        title_label.pack(side=tk.LEFT)
+        # Store original values for change tracking
+        self.original_values = {}
+        self.current_values = {}
         
-        # Control buttons
-        button_frame = ttk.Frame(header_frame)
-        button_frame.pack(side=tk.RIGHT)
+        for variable in self.all_variables:
+            for driver in self.all_drivers:
+                value = self.df.loc[self.df['Driver'] == driver, variable]
+                cell_value = ""
+                if not value.empty:
+                    cell_value = str(value.iloc[0])
+                    # Format numeric values for display
+                    try:
+                        float_val = float(cell_value)
+                        cell_value = f"{float_val:.3f}".rstrip('0').rstrip('.')
+                    except (ValueError, TypeError):
+                        pass
+                
+                key = (variable, driver)
+                self.original_values[key] = cell_value
+                self.current_values[key] = cell_value
         
-        # Single Save button that does both CSV and RCD updates
-        self.save_button = ttk.Button(
-            button_frame, 
-            text="Save", 
-            command=self.save_all,
-            state='normal'
-        )
-        self.save_button.pack(side=tk.LEFT, padx=2)
+        # Track visibility state
+        self.driver_visible = {driver: True for driver in self.all_drivers}
+        self.variable_visible = {variable: True for variable in self.all_variables}
+        self.is_filtered = False
         
-        ttk.Button(button_frame, text="Close", command=self.on_close).pack(side=tk.LEFT, padx=2)
-        
-        # Statistics
-        stats_text = f"Drivers: {len(self.df)} | Editable Variables: {len(self.get_variables())}"
-        stats_label = ttk.Label(main_frame, text=stats_text)
-        stats_label.grid(row=1, column=0, columnspan=3, pady=(0, 10))
-        
-        # Filter frame
-        filter_frame = ttk.Frame(main_frame)
-        filter_frame.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 10))
-        
-        ttk.Label(filter_frame, text="Filter:").pack(side=tk.LEFT, padx=(0, 5))
-        self.filter_var = tk.StringVar()
-        filter_entry = ttk.Entry(filter_frame, textvariable=self.filter_var, width=30)
-        filter_entry.pack(side=tk.LEFT, padx=(0, 5))
-        
-        ttk.Button(filter_frame, text="Apply", command=self.apply_filter).pack(side=tk.LEFT, padx=(0, 5))
-        ttk.Button(filter_frame, text="Clear", command=self.clear_filter).pack(side=tk.LEFT)
-        
-        # Table frame with scrollbars
-        table_frame = ttk.Frame(main_frame)
-        table_frame.grid(row=3, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S))
-        
-        # Create canvas and scrollbars
-        canvas = tk.Canvas(table_frame, bg='white')
-        h_scrollbar = ttk.Scrollbar(table_frame, orient="horizontal", command=canvas.xview)
-        v_scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=canvas.yview)
-        
-        # Configure canvas
-        canvas.configure(xscrollcommand=h_scrollbar.set, yscrollcommand=v_scrollbar.set)
-        
-        # Create inner frame for table
-        self.table_inner = ttk.Frame(canvas)
-        
-        # Create window in canvas
-        canvas_window = canvas.create_window((0, 0), window=self.table_inner, anchor="nw")
-        
-        # Grid scrollbars and canvas
-        canvas.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        v_scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
-        h_scrollbar.grid(row=1, column=0, sticky=(tk.W, tk.E))
-        
-        # Configure grid weights
-        table_frame.columnconfigure(0, weight=1)
-        table_frame.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(0, weight=1)
-        main_frame.rowconfigure(3, weight=1)
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
-        
-        # Bind events for scrolling
-        self.table_inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.bind("<Configure>", lambda e: self.on_canvas_configure(canvas, canvas_window))
-        
-        # Create table
-        self.create_table()
-        
-        # Status bar
-        self.status_label = ttk.Label(main_frame, text="Ready", foreground="green")
-        self.status_label.grid(row=4, column=0, columnspan=3, pady=(10, 0))
-        
-        # Bind filter entry to apply on Enter key
-        filter_entry.bind("<Return>", lambda e: self.apply_filter())
+        # Get filtered lists
+        self.update_filtered_lists()
     
     def get_variables(self):
         """Get the list of variables to display (excluding metadata and excluded fields)"""
@@ -162,213 +108,302 @@ class DriverTableEditor:
         
         return sorted_vars
     
-    def create_table(self):
-        """Create the editable table with variables as rows and drivers as columns"""
-        # Clear existing widgets
-        for widget in self.table_inner.winfo_children():
-            widget.destroy()
+    def update_filtered_lists(self):
+        """Update lists of visible drivers and variables"""
+        self.visible_drivers = [d for d in self.all_drivers if self.driver_visible[d]]
+        self.visible_variables = [v for v in self.all_variables if self.variable_visible[v]]
+    
+    def setup_ui(self):
+        """Setup the user interface"""
+        # Main container
+        main_frame = ttk.Frame(self.root, padding="10")
+        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
-        # Clear cell widgets dictionary
-        self.cell_widgets.clear()
+        # Title and buttons frame
+        header_frame = ttk.Frame(main_frame)
+        header_frame.grid(row=0, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 10))
         
-        # Get drivers and variables
-        drivers = list(self.df['Driver'])
-        variables = self.get_variables()
+        # Title
+        title_label = ttk.Label(
+            header_frame, 
+            text="GTR2 Driver Data Editor", 
+            font=("Arial", 14, "bold")
+        )
+        title_label.pack(side=tk.LEFT)
         
-        # Create header row with driver names
-        ttk.Label(self.table_inner, text="Variable", font=("Arial", 10, "bold"), 
-                 relief="solid", borderwidth=1, width=20, background="#f0f0f0").grid(
-                     row=0, column=0, sticky="nsew")
+        # Control buttons
+        button_frame = ttk.Frame(header_frame)
+        button_frame.pack(side=tk.RIGHT)
         
-        for col, driver in enumerate(drivers, 1):
-            # Truncate long driver names
-            display_name = driver[:20] + "..." if len(driver) > 20 else driver
-            ttk.Label(self.table_inner, text=display_name, font=("Arial", 10, "bold"),
-                     relief="solid", borderwidth=1, width=15, anchor="center", 
-                     background="#f0f0f0").grid(row=0, column=col, sticky="nsew")
-            
-            # Store full name as tooltip
-            label = self.table_inner.grid_slaves(row=0, column=col)[0]
-            self.create_tooltip(label, driver)
+        # Single Save button that does both CSV and RCD updates
+        self.save_button = ttk.Button(
+            button_frame, 
+            text="Save", 
+            command=self.save_all,
+            state='normal'
+        )
+        self.save_button.pack(side=tk.LEFT, padx=2)
         
-        # Create data rows
-        for row, variable in enumerate(variables, 1):
-            # Variable name cell
-            ttk.Label(self.table_inner, text=variable, font=("Arial", 9, "bold"),
-                     relief="solid", borderwidth=1, anchor="w", 
-                     background="#f0f0f0").grid(row=row, column=0, sticky="nsew")
-            
-            # Data cells for each driver
-            for col, driver in enumerate(drivers, 1):
-                value = self.df.loc[self.df['Driver'] == driver, variable]
-                cell_value = ""
-                if not value.empty:
-                    cell_value = str(value.iloc[0])
-                    # Format numeric values for display
-                    try:
-                        float_val = float(cell_value)
-                        cell_value = f"{float_val:.3f}".rstrip('0').rstrip('.')
-                    except (ValueError, TypeError):
-                        pass
-                
-                # Create editable entry widget
-                var = tk.StringVar(value=cell_value)
-                entry = ttk.Entry(self.table_inner, textvariable=var, 
-                                 font=("Arial", 9), width=15, justify='center')
-                entry.grid(row=row, column=col, sticky="nsew", padx=1, pady=1)
-                
-                # Store reference to track changes
+        ttk.Button(button_frame, text="Close", command=self.on_close).pack(side=tk.LEFT, padx=2)
+        
+        # Statistics
+        self.stats_label = ttk.Label(main_frame, text="")
+        self.stats_label.grid(row=1, column=0, columnspan=3, pady=(0, 10))
+        self.update_stats()
+        
+        # Filter frame
+        filter_frame = ttk.Frame(main_frame)
+        filter_frame.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 10))
+        
+        ttk.Label(filter_frame, text="Filter:").pack(side=tk.LEFT, padx=(0, 5))
+        self.filter_var = tk.StringVar()
+        filter_entry = ttk.Entry(filter_frame, textvariable=self.filter_var, width=30)
+        filter_entry.pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(filter_frame, text="Apply", command=self.apply_filter).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Button(filter_frame, text="Clear", command=self.clear_filter).pack(side=tk.LEFT)
+        
+        # Table container
+        table_container = ttk.Frame(main_frame)
+        table_container.grid(row=3, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
+        
+        # Create Treeview with scrollbars - store column IDs
+        columns = ["Variable"] + self.all_drivers
+        self.tree = ttk.Treeview(table_container, columns=columns, show="headings", height=25)
+        
+        # Store column IDs for easy reference
+        self.column_ids = columns
+        
+        # Configure scrollbars
+        v_scrollbar = ttk.Scrollbar(table_container, orient="vertical", command=self.tree.yview)
+        h_scrollbar = ttk.Scrollbar(table_container, orient="horizontal", command=self.tree.xview)
+        self.tree.configure(yscrollcommand=v_scrollbar.set, xscrollcommand=h_scrollbar.set)
+        
+        # Grid everything
+        self.tree.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        v_scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        h_scrollbar.grid(row=1, column=0, sticky=(tk.W, tk.E))
+        
+        # Configure weights
+        table_container.columnconfigure(0, weight=1)
+        table_container.rowconfigure(0, weight=1)
+        main_frame.columnconfigure(0, weight=1)
+        main_frame.rowconfigure(3, weight=1)
+        self.root.columnconfigure(0, weight=1)
+        self.root.rowconfigure(0, weight=1)
+        
+        # Configure tree columns
+        self.tree.heading("Variable", text="Variable")
+        self.tree.column("Variable", width=200, minwidth=150)
+        
+        for driver in self.all_drivers:
+            display_name = driver[:15] + "..." if len(driver) > 15 else driver
+            self.tree.heading(driver, text=display_name)
+            self.tree.column(driver, width=100, minwidth=80)
+        
+        # Populate tree with data
+        self.populate_tree()
+        
+        # Bind cell editing
+        self.tree.bind("<Double-1>", self.on_cell_double_click)
+        
+        # Status bar
+        self.status_label = ttk.Label(main_frame, text="Ready", foreground="green")
+        self.status_label.grid(row=4, column=0, columnspan=3, pady=(10, 0))
+        
+        # Bind filter entry to apply on Enter key
+        filter_entry.bind("<Return>", lambda e: self.apply_filter())
+    
+    def populate_tree(self):
+        """Populate the tree with data from visible variables"""
+        # Clear existing items
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        
+        # Add rows for visible variables
+        for variable in self.visible_variables:
+            values = [variable]
+            for driver in self.visible_drivers:
                 key = (variable, driver)
-                self.cell_widgets[key] = {
-                    'widget': entry,
-                    'var': var,
-                    'original': cell_value
-                }
-                
-                # Bind change event
-                var.trace_add('write', lambda *args, k=key: self.on_cell_change(k))
-        
-        # Configure grid weights for resizing
-        for i in range(len(variables) + 1):
-            self.table_inner.rowconfigure(i, weight=1, minsize=30)
-        for i in range(len(drivers) + 1):
-            self.table_inner.columnconfigure(i, weight=1, minsize=100)
-    
-    def create_tooltip(self, widget, text):
-        """Create a tooltip for a widget"""
-        def on_enter(event):
-            x, y, _, _ = widget.bbox("insert")
-            x += widget.winfo_rootx() + 25
-            y += widget.winfo_rooty() + 20
+                values.append(self.current_values.get(key, ""))
             
-            # Create tooltip window
-            self.tooltip = tk.Toplevel(widget)
-            self.tooltip.wm_overrideredirect(True)
-            self.tooltip.wm_geometry(f"+{x}+{y}")
-            
-            label = ttk.Label(self.tooltip, text=text, background="#ffffe0", 
-                            relief="solid", borderwidth=1, padding=(5, 2))
-            label.pack()
-        
-        def on_leave(event):
-            if hasattr(self, 'tooltip'):
-                self.tooltip.destroy()
-        
-        widget.bind("<Enter>", on_enter)
-        widget.bind("<Leave>", on_leave)
+            item_id = self.tree.insert("", "end", values=values)
+            # Store variable name in item for reference
+            self.tree.set(item_id, "Variable", variable)
     
-    def on_cell_change(self, key):
-        """Handle cell value change"""
-        variable, driver = key
-        widget_info = self.cell_widgets[key]
-        new_value = widget_info['var'].get()
+    def update_stats(self):
+        """Update statistics label"""
+        visible_drivers = sum(1 for v in self.driver_visible.values() if v)
+        visible_variables = sum(1 for v in self.variable_visible.values() if v)
         
-        # Compare with original value
-        if new_value != widget_info['original']:
-            # Update cell background to indicate change
-            widget_info['widget'].configure(style='Changed.TEntry')
-            self.changes_made = True
-            self.status_label.config(text="Unsaved changes", foreground="orange")
+        if self.is_filtered:
+            stats_text = f"Drivers: {visible_drivers}/{len(self.all_drivers)} | Variables: {visible_variables}/{len(self.all_variables)} (Filtered)"
         else:
-            # Revert to normal style
-            widget_info['widget'].configure(style='TEntry')
-            
-            # Check if all changes are reverted
-            if not any(info['var'].get() != info['original'] 
-                      for info in self.cell_widgets.values()):
-                self.changes_made = False
-                self.status_label.config(text="Ready", foreground="green")
+            stats_text = f"Drivers: {len(self.all_drivers)} | Variables: {len(self.all_variables)}"
+        
+        self.stats_label.config(text=stats_text)
     
     def apply_filter(self):
         """Apply filter to the data"""
-        filter_text = self.filter_var.get().lower()
+        filter_text = self.filter_var.get().strip().lower()
         
         if not filter_text:
             self.clear_filter()
             return
         
-        # Get filtered drivers and variables
-        drivers = list(self.df['Driver'])
-        variables = self.get_variables()
+        import time
+        start_time = time.time()
         
-        # Filter drivers by name
-        filtered_drivers = [d for d in drivers if filter_text in d.lower()]
+        # Reset all to visible first
+        for driver in self.all_drivers:
+            self.driver_visible[driver] = False
+        for variable in self.all_variables:
+            self.variable_visible[variable] = False
         
-        # Filter variables by name
-        filtered_variables = [v for v in variables if filter_text in v.lower()]
+        # Find matches
+        filtered_drivers = [d for d in self.all_drivers if filter_text in d.lower()]
+        filtered_variables = [v for v in self.all_variables if filter_text in v.lower()]
         
-        # If no filtered variables, show all variables for filtered drivers
-        if not filtered_variables:
-            filtered_variables = variables
+        # Determine what to show
+        if filtered_drivers:
+            # Show matching drivers with all variables
+            for driver in filtered_drivers:
+                self.driver_visible[driver] = True
+            for variable in self.all_variables:
+                self.variable_visible[variable] = True
+        elif filtered_variables:
+            # Show matching variables with all drivers
+            for driver in self.all_drivers:
+                self.driver_visible[driver] = True
+            for variable in filtered_variables:
+                self.variable_visible[variable] = True
+        else:
+            # No matches
+            self.status_label.config(text=f"No matches found for: {filter_text}", foreground="orange")
+            return
         
-        # Create filtered table
-        self.create_filtered_table(filtered_drivers, filtered_variables)
+        self.is_filtered = True
+        self.update_filtered_lists()
+        
+        # Update tree columns based on visible drivers
+        self.update_tree_columns()
+        
+        # Repopulate tree with filtered data
+        self.populate_tree()
+        
+        # Update status
+        elapsed = time.time() - start_time
+        visible_drivers_count = len(self.visible_drivers)
+        visible_variables_count = len(self.visible_variables)
+        self.status_label.config(
+            text=f"Showing {visible_drivers_count} drivers, {visible_variables_count} variables in {elapsed:.2f}s", 
+            foreground="blue"
+        )
+        self.update_stats()
     
-    def create_filtered_table(self, drivers, variables):
-        """Create table with filtered drivers and variables"""
-        # Clear current table
-        for widget in self.table_inner.winfo_children():
-            widget.destroy()
-        
-        # Clear cell widgets dictionary
-        self.cell_widgets.clear()
-        
-        # Create header row
-        ttk.Label(self.table_inner, text="Variable", font=("Arial", 10, "bold"), 
-                 relief="solid", borderwidth=1, width=20, background="#f0f0f0").grid(
-                     row=0, column=0, sticky="nsew")
-        
-        for col, driver in enumerate(drivers, 1):
-            display_name = driver[:20] + "..." if len(driver) > 20 else driver
-            ttk.Label(self.table_inner, text=display_name, font=("Arial", 10, "bold"),
-                     relief="solid", borderwidth=1, width=15, anchor="center", 
-                     background="#f0f0f0").grid(row=0, column=col, sticky="nsew")
+    def update_tree_columns(self):
+        """Update tree columns based on visible drivers"""
+        # Show/hide columns
+        for col in self.column_ids:
+            if col == "Variable":
+                continue
             
-            # Store full name as tooltip
-            label = self.table_inner.grid_slaves(row=0, column=col)[0]
-            self.create_tooltip(label, driver)
-        
-        # Create data rows
-        for row, variable in enumerate(variables, 1):
-            ttk.Label(self.table_inner, text=variable, font=("Arial", 9, "bold"),
-                     relief="solid", borderwidth=1, anchor="w", 
-                     background="#f0f0f0").grid(row=row, column=0, sticky="nsew")
-            
-            for col, driver in enumerate(drivers, 1):
-                value = self.df.loc[self.df['Driver'] == driver, variable]
-                cell_value = ""
-                if not value.empty:
-                    cell_value = str(value.iloc[0])
-                    try:
-                        float_val = float(cell_value)
-                        cell_value = f"{float_val:.3f}".rstrip('0').rstrip('.')
-                    except (ValueError, TypeError):
-                        pass
-                
-                var = tk.StringVar(value=cell_value)
-                entry = ttk.Entry(self.table_inner, textvariable=var, 
-                                 font=("Arial", 9), width=15, justify='center')
-                entry.grid(row=row, column=col, sticky="nsew", padx=1, pady=1)
-                
-                key = (variable, driver)
-                self.cell_widgets[key] = {
-                    'widget': entry,
-                    'var': var,
-                    'original': cell_value
-                }
-                
-                var.trace_add('write', lambda *args, k=key: self.on_cell_change(k))
-        
-        # Configure grid
-        for i in range(len(variables) + 1):
-            self.table_inner.rowconfigure(i, weight=1, minsize=30)
-        for i in range(len(drivers) + 1):
-            self.table_inner.columnconfigure(i, weight=1, minsize=100)
+            if self.driver_visible.get(col, False):
+                self.tree.column(col, stretch=True, width=100)
+            else:
+                self.tree.column(col, stretch=False, minwidth=0, width=0)
     
     def clear_filter(self):
         """Clear filter and show all data"""
         self.filter_var.set("")
-        self.create_table()
+        self.is_filtered = False
+        
+        # Set all to visible
+        for driver in self.all_drivers:
+            self.driver_visible[driver] = True
+        for variable in self.all_variables:
+            self.variable_visible[variable] = True
+        
+        self.update_filtered_lists()
+        
+        # Show all columns
+        for col in self.column_ids:
+            if col != "Variable":
+                self.tree.column(col, stretch=True, width=100)
+        
+        # Repopulate tree
+        self.populate_tree()
+        
+        self.status_label.config(text="Filter cleared", foreground="green")
+        self.update_stats()
+    
+    def on_cell_double_click(self, event):
+        """Handle double-click on cell for editing"""
+        # Identify region
+        region = self.tree.identify_region(event.x, event.y)
+        
+        if region == "cell":
+            # Get item and column
+            item = self.tree.identify_row(event.y)
+            column = self.tree.identify_column(event.x)
+            
+            if item and column != "#0":  # Not the tree column
+                # Get column index and name
+                col_index = int(column[1:]) - 1  # Convert "#1" to 0, "#2" to 1, etc.
+                
+                # Get variable from the item
+                variable = self.tree.item(item)['values'][0]
+                
+                # If clicking on Variable column (index 0), don't edit
+                if col_index == 0:
+                    return
+                
+                # Get driver name for this column
+                if col_index - 1 < len(self.visible_drivers):
+                    driver = self.visible_drivers[col_index - 1]
+                else:
+                    return
+                
+                # Get current value
+                key = (variable, driver)
+                current_value = self.current_values.get(key, "")
+                
+                # Edit cell using simpledialog (no grab issues)
+                self.edit_cell_simple(item, driver, variable, current_value)
+    
+    def edit_cell_simple(self, item, driver, variable, current_value):
+        """Edit cell using tkinter's simpledialog (reliable and simple)"""
+        # Use tkinter's built-in simpledialog for reliable editing
+        new_value = simpledialog.askstring(
+            f"Edit {variable}",
+            f"Driver: {driver}\nVariable: {variable}\n\nEnter new value:",
+            initialvalue=current_value,
+            parent=self.root
+        )
+        
+        if new_value is not None and new_value != current_value:
+            # Update value
+            key = (variable, driver)
+            self.current_values[key] = new_value
+            self.changes_made = True
+            self.status_label.config(text="Unsaved changes", foreground="orange")
+            
+            # Update tree display
+            self.update_tree_cell(item, driver, new_value)
+    
+    def update_tree_cell(self, item, driver, new_value):
+        """Update a single cell in the tree"""
+        # Get current values
+        values = list(self.tree.item(item)['values'])
+        
+        # Find driver index in visible_drivers
+        try:
+            driver_index = self.visible_drivers.index(driver)
+            # Update value (add 1 for Variable column)
+            values[driver_index + 1] = new_value
+            self.tree.item(item, values=values)
+        except (ValueError, IndexError):
+            pass  # Driver not in visible list
     
     def save_all(self):
         """Save changes to CSV and update RCD files in one operation"""
@@ -415,11 +450,11 @@ class DriverTableEditor:
     def save_csv_changes(self):
         """Save changes to CSV file"""
         # Update DataFrame with changed values
-        for (variable, driver), info in self.cell_widgets.items():
-            new_value = info['var'].get()
+        for (variable, driver), new_value in self.current_values.items():
+            original_value = self.original_values.get((variable, driver), "")
             
             # Only update if changed
-            if new_value != info['original']:
+            if new_value != original_value:
                 # Find the row index for this driver
                 row_idx = self.df.index[self.df['Driver'] == driver].tolist()[0]
                 
@@ -460,10 +495,7 @@ class DriverTableEditor:
     def handle_save_success(self):
         """Handle successful save operation"""
         # Reset change tracking
-        for info in self.cell_widgets.values():
-            info['original'] = info['var'].get()
-            info['widget'].configure(style='TEntry')
-        
+        self.original_values = self.current_values.copy()
         self.changes_made = False
         self.save_button.state(['!disabled'])
         self.status_label.config(text="Saved successfully", foreground="green")
@@ -481,17 +513,12 @@ class DriverTableEditor:
                     f"CSV saved successfully, but {error_count} RCD files failed to update.\n\n"
                     f"Backup created at:\n{backup_path}"
                 )
-            # No success message for RCD updates - only show on error
     
     def handle_save_error(self, error):
         """Handle save error on main thread"""
         self.save_button.state(['!disabled'])
         self.status_label.config(text=f"Save error: {str(error)[:50]}...", foreground="red")
         messagebox.showerror("Error", f"Error saving changes:\n{str(error)}")
-    
-    def on_canvas_configure(self, canvas, canvas_window):
-        """Handle canvas resize"""
-        canvas.itemconfig(canvas_window, width=canvas.winfo_width())
     
     def on_close(self):
         """Handle window close event"""
@@ -509,11 +536,3 @@ class DriverTableEditor:
                 return
         
         self.root.destroy()
-    
-    def run(self):
-        """Run the editor application"""
-        # Create custom style for changed cells
-        style = ttk.Style()
-        style.configure('Changed.TEntry', fieldbackground='#fffacd')  # Light yellow
-        
-        self.root.mainloop()

@@ -1,0 +1,5 @@
+cfg.yml
+originals_backup/**
+Pipfile
+result.csv
+
