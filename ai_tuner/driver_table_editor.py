@@ -7,6 +7,7 @@ import pandas as pd
 import os
 import threading
 from debug_logger import logger
+from rcd_handler import RcdHandler  # Changed import
 
 class DriverTableEditor:
     """Editable driver data table with virtual scrolling for performance"""
@@ -17,6 +18,11 @@ class DriverTableEditor:
         self.csv_file_path = csv_file_path
         self.install_folder = install_folder
         self.teams_folder = teams_folder
+        
+        # Initialize RCD handler if we have folders
+        self.rcd_handler = None
+        if self.install_folder and self.teams_folder:
+            self.rcd_handler = RcdHandler(install_folder, teams_folder)
         
         # Fields to exclude
         self.excluded_fields = ['Abbreviation', 'Nationality', 'NatAbbrev', 'Script']
@@ -437,8 +443,8 @@ class DriverTableEditor:
             # First save CSV changes
             self.save_csv_changes()
             
-            # Then update RCD files if we have installation folders
-            if self.install_folder and self.teams_folder:
+            # Then update RCD files if we have a handler
+            if self.rcd_handler:
                 self.update_rcd_files_silent()
             
             # Schedule success update on main thread
@@ -467,12 +473,6 @@ class DriverTableEditor:
     def update_rcd_files_silent(self):
         """Update RCD files without showing success dialog"""
         try:
-            # Import here to avoid circular imports
-            from rcd_updater import RcdUpdater
-            
-            # Create updater
-            updater = RcdUpdater(self.install_folder, self.teams_folder)
-            
             # Get current data from DataFrame
             data = self.df.to_dict('records')
             
@@ -481,8 +481,8 @@ class DriverTableEditor:
                              if f not in ['Driver', 'Source_CAR_File', 'CAR_File_Path', 'Original_CAR_Name']
                              and f not in self.excluded_fields]
             
-            # Update RCD files
-            success_count, error_count, backup_path = updater.update_rcd_files(
+            # Update RCD files using the unified handler
+            success_count, error_count, backup_path = self.rcd_handler.update_rcd_files(
                 data, editable_fields, create_backup=True
             )
             

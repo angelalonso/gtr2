@@ -12,6 +12,9 @@ class DriverProcessor:
         self.teams_folder = os.path.abspath(teams_folder)
         self.debug_mode = debug_mode
         logger.debug_mode = debug_mode
+        
+        # Initialize handlers
+        self.rcd_handler = None
     
     def process(self):
         """Main processing pipeline"""
@@ -67,10 +70,13 @@ class DriverProcessor:
     
     def _process_rcd_files(self, RcdHandler):
         """Process .rcd files to extract driver data"""
-        # Get RCD folders
-        rcd_folders = RcdHandler.find_rcd_folders(self.install_folder, self.teams_folder)
+        # Create RCD handler instance
+        self.rcd_handler = RcdHandler(self.install_folder, self.teams_folder)
         
-        # Find .rcd files
+        # Get RCD folders for checking
+        rcd_folders = self.rcd_handler.get_search_folders()
+        
+        # Check RCD folders
         logger.section("CHECKING RCD FOLDERS")
         for folder in rcd_folders:
             if os.path.exists(folder):
@@ -78,13 +84,9 @@ class DriverProcessor:
             else:
                 logger.warning(f"Folder does not exist: {folder}")
         
-        rcd_files = RcdHandler.find_rcd_files(rcd_folders, self.debug_mode)
-        if not rcd_files:
-            logger.error("No .rcd files found. Cannot continue.")
-            return None
+        # Find and parse .rcd files in one step
+        rcd_data = self.rcd_handler.parse_rcd_files(debug=self.debug_mode)
         
-        # Parse .rcd files
-        rcd_data = RcdHandler.parse_rcd_files(rcd_files, self.debug_mode)
         if not rcd_data:
             logger.error("No driver data found in RCD files. Cannot continue.")
             return None
