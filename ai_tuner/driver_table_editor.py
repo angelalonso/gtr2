@@ -91,20 +91,14 @@ class DriverTableEditor:
         variables = [col for col in all_columns 
                     if col not in metadata_columns and col not in self.excluded_fields]
         
-        # Sort in logical order (GTR2 variable order)
-        standard_order = [
-            'StartsDry', 'StartsWet', 'StartStalls', 
-            'QualifyingAbility', 'RaceAbility', 'Consistency', 'RainAbility',
-            'Passing', 'Crash', 'Recovery', 'CompletedLaps%',
-            'TrackAggression', 'CorneringAdd', 'CorneringMult',
-            'TCGripThreshold', 'TCThrottleFract', 'TCResponse',
-            'MinRacingSkill', 'Composure',
-            'RaceColdBrainMin', 'RaceColdBrainTime', 'QualColdBrainMin', 'QualColdBrainTime'
-        ]
+        # Import RCD_FIELD_MAP from config
+        from config import RCD_FIELD_MAP
         
-        # Sort variables: standard ones first in order, then others alphabetically
+        # Sort variables: RCD field map order first, then others alphabetically
         sorted_vars = []
-        for var in standard_order:
+        
+        # First, add variables from RCD_FIELD_MAP in their defined order
+        for var in RCD_FIELD_MAP:
             if var in variables:
                 sorted_vars.append(var)
                 variables.remove(var)
@@ -113,7 +107,7 @@ class DriverTableEditor:
         sorted_vars.extend(sorted(variables))
         
         return sorted_vars
-    
+
     def update_filtered_lists(self):
         """Update lists of visible drivers and variables"""
         self.visible_drivers = [d for d in self.all_drivers if self.driver_visible[d]]

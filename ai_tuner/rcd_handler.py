@@ -4,38 +4,7 @@
 import os
 import shutil
 from debug_logger import logger
-from config import RCD_EXTENSIONS, ENCODINGS
-
-# RCD field mapping using ONLY fields from the provided RCD example
-RCD_FIELD_MAP = {
-    'Abbreviation': 'Abbreviation',
-    'Nationality': 'Nationality',
-    'NatAbbrev': 'NatAbbrev',
-    'StartsDry': 'StartsDry',
-    'StartsWet': 'StartsWet',
-    'StartStalls': 'StartStalls',
-    'QualifyingAbility': 'QualifyingAbility',
-    'RaceAbility': 'RaceAbility',
-    'Consistency': 'Consistency',
-    'RainAbility': 'RainAbility',
-    'Passing': 'Passing',
-    'Crash': 'Crash',
-    'Recovery': 'Recovery',
-    'CompletedLaps%': 'CompletedLaps%',
-    'Script': 'Script',
-    'TrackAggression': 'TrackAggression',
-    'CorneringAdd': 'CorneringAdd',
-    'CorneringMult': 'CorneringMult',
-    'TCGripThreshold': 'TCGripThreshold',
-    'TCThrottleFract': 'TCThrottleFract',
-    'TCResponse': 'TCResponse',
-    'MinRacingSkill': 'MinRacingSkill',
-    'Composure': 'Composure',
-    'RaceColdBrainMin': 'RaceColdBrainMin',
-    'RaceColdBrainTime': 'RaceColdBrainTime',
-    'QualColdBrainMin': 'QualColdBrainMin',
-    'QualColdBrainTime': 'QualColdBrainTime',
-}
+from config import RCD_EXTENSIONS, ENCODINGS, RCD_FIELD_MAP
 
 class RcdHandler:
     """Unified handler for all RCD file operations (find, parse, update)"""
@@ -45,6 +14,9 @@ class RcdHandler:
         self.teams_folder = teams_folder
         self.backup_folder = "originals_backup"
         self._rcd_file_cache = {}  # Cache for faster lookups
+        
+        # Use RCD_FIELD_MAP from config
+        self.field_map = RCD_FIELD_MAP
     
     # =========================================================================
     # FINDING METHODS
@@ -201,8 +173,8 @@ class RcdHandler:
                 if len(parts) == 2:
                     key = parts[0].strip()
                     
-                    # Fast lookup in predefined patterns
-                    if key in RCD_FIELD_MAP:
+                    # Fast lookup in field map from config
+                    if key in self.field_map:
                         value = parts[1].split('//')[0].strip()
                         driver_data[current_driver][key] = value
         
@@ -241,11 +213,12 @@ class RcdHandler:
         error_count = 0
         updated_drivers = []
         
-        # Filter fieldnames to only include valid RCD fields
-        valid_fieldnames = [field for field in fieldnames if field in RCD_FIELD_MAP]
+        # Filter fieldnames to only include valid RCD fields from config
+        valid_fieldnames = [field for field in fieldnames if field in self.field_map]
         if valid_fieldnames != fieldnames:
-            logger.warning(f"Some fieldnames are not valid RCD fields and will be ignored: "
-                          f"{set(fieldnames) - set(valid_fieldnames)}")
+            invalid_fields = set(fieldnames) - set(valid_fieldnames)
+            if invalid_fields:
+                logger.warning(f"Some fieldnames are not valid RCD fields and will be ignored: {invalid_fields}")
         
         # Process each driver
         for driver_data in csv_data:
