@@ -627,9 +627,21 @@ class PointEditorWidget(QWidget):
         btn_layout.addWidget(self.delete_btn)
         layout.addLayout(btn_layout, 5, 0, 1, 4)
         
-        # Navigation hint
-        hint = QLabel("←/→: Select point\n↑/↓: Adjust drive torque\nShift+↑/↓: Adjust braking\nDouble-click parameters to edit")
-        hint.setStyleSheet("color: #888; font-size: 10px; padding: 5px; background-color: #3c3c3c; border-radius: 3px;")
+        # Navigation hint - MADE YELLOW AND MORE VISIBLE
+        hint = QLabel("←/→: Select point • ↑/↓: Adjust drive torque • Shift+↑: More braking (more negative) • Shift+↓: Less braking (less negative)")
+        hint.setStyleSheet("""
+            QLabel {
+                color: #FFD700;  /* Bright yellow */
+                font-size: 11px;
+                font-weight: bold;
+                padding: 8px;
+                background-color: #3c3c3c;
+                border-radius: 4px;
+                border: 1px solid #FFD700;
+            }
+        """)
+        hint.setWordWrap(True)
+        hint.setAlignment(Qt.AlignCenter)
         layout.addWidget(hint, 6, 0, 1, 4)
         
         self.setLayout(layout)
@@ -929,30 +941,32 @@ class MainWindow(QMainWindow):
             self.status_bar.showMessage(f"Drive torque: {torque_display:.1f} {unit}", 1000)
             
         elif key == Qt.Key_Up and modifiers == Qt.ShiftModifier:
-            # Increase braking torque (more negative)
+            # INCREASE braking torque (more negative) - FIXED
             selected = self.editor.points[self.editor.selected_point_idx]
             if self.plot_widget.use_lbft:
-                selected.braking_torque_nm = (selected.braking_torque_lbft - 5) / NM_TO_LBFT
-            else:
-                selected.braking_torque_nm -= 5
-            self.point_editor.update_from_selected()
-            self.plot_widget.update_plot()
-            unit = "lb-ft" if self.plot_widget.use_lbft else "Nm"
-            torque_display = selected.braking_torque_lbft if self.plot_widget.use_lbft else selected.braking_torque_nm
-            self.status_bar.showMessage(f"Braking torque: {torque_display:.1f} {unit}", 1000)
-            
-        elif key == Qt.Key_Down and modifiers == Qt.ShiftModifier:
-            # Decrease braking torque (less negative)
-            selected = self.editor.points[self.editor.selected_point_idx]
-            if self.plot_widget.use_lbft:
-                selected.braking_torque_nm = (selected.braking_torque_lbft + 5) / NM_TO_LBFT
+                # More negative = subtract from current value (since it's negative)
+                selected.braking_torque_nm = selected.braking_torque_nm + 5 / NM_TO_LBFT
             else:
                 selected.braking_torque_nm += 5
             self.point_editor.update_from_selected()
             self.plot_widget.update_plot()
             unit = "lb-ft" if self.plot_widget.use_lbft else "Nm"
             torque_display = selected.braking_torque_lbft if self.plot_widget.use_lbft else selected.braking_torque_nm
-            self.status_bar.showMessage(f"Braking torque: {torque_display:.1f} {unit}", 1000)
+            self.status_bar.showMessage(f"Braking torque: {torque_display:.1f} {unit} (more engine braking)", 1000)
+            
+        elif key == Qt.Key_Down and modifiers == Qt.ShiftModifier:
+            # DECREASE braking torque (less negative) - FIXED
+            selected = self.editor.points[self.editor.selected_point_idx]
+            if self.plot_widget.use_lbft:
+                # Less negative = add to current value (since it's negative)
+                selected.braking_torque_nm = selected.braking_torque_nm - 5 / NM_TO_LBFT
+            else:
+                selected.braking_torque_nm -= 5
+            self.point_editor.update_from_selected()
+            self.plot_widget.update_plot()
+            unit = "lb-ft" if self.plot_widget.use_lbft else "Nm"
+            torque_display = selected.braking_torque_lbft if self.plot_widget.use_lbft else selected.braking_torque_nm
+            self.status_bar.showMessage(f"Braking torque: {torque_display:.1f} {unit} (less engine braking)", 1000)
         
         else:
             super().keyPressEvent(event)
