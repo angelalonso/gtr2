@@ -1,4 +1,4 @@
-# pipenv install; pipenv run pip install matplotlib numpy scipy
+# pipenv install; pipenv run pip install PyQt5 pyqtgraph numpy scipy 
 # pipenv run python3 eng_editor <path to .eng file>
 import sys
 import re
@@ -11,11 +11,14 @@ from PyQt5.QtGui import *
 import pyqtgraph as pg
 from scipy import interpolate
 
+# Conversion factor: 1 Nm = 0.73756214927727 lb-ft
+NM_TO_LBFT = 0.73756214927727
+
 @dataclass
 class TorquePoint:
     rpm: float
-    drive_torque: float
-    braking_torque: float
+    drive_torque_nm: float  # Store in Nm internally
+    braking_torque_nm: float  # Store in Nm internally
     power: float = None
     
     def __post_init__(self):
@@ -24,18 +27,31 @@ class TorquePoint:
     
     def calculate_power(self):
         if self.rpm > 0:
-            self.power = self.drive_torque * self.rpm / 7127
+            self.power = self.drive_torque_nm * self.rpm / 7127
         else:
             self.power = 0.0
     
-    def update_from_drive_torque(self, new_torque):
-        self.drive_torque = new_torque
+    def update_from_drive_torque_nm(self, new_torque_nm):
+        self.drive_torque_nm = new_torque_nm
         self.calculate_power()
     
     def update_from_power(self, new_power):
         self.power = new_power
         if self.rpm > 0:
-            self.drive_torque = new_power * 7127 / self.rpm
+            self.drive_torque_nm = new_power * 7127 / self.rpm
+    
+    # Convenience methods for lb-ft
+    @property
+    def drive_torque_lbft(self):
+        return self.drive_torque_nm * NM_TO_LBFT
+    
+    @property
+    def braking_torque_lbft(self):
+        return self.braking_torque_nm * NM_TO_LBFT
+    
+    def update_from_drive_torque_lbft(self, new_torque_lbft):
+        self.drive_torque_nm = new_torque_lbft / NM_TO_LBFT
+        self.calculate_power()
 
 class ParameterEditDialog(QDialog):
     """Dialog for editing parameter values"""
@@ -249,6 +265,14 @@ class TorqueCurveEditor:
         
         for line in lines:
             line = line.rstrip()
+            
+            # Remove comments (everything after //)
+            if '//' in line:
+                line = line.split('//', 1)[0].rstrip()
+                # If line becomes empty after removing comment, skip it
+                if not line:
+                    continue
+            
             rpm_match = re.search(r'RPMTORQUE=\(\s*(\d+)\s*,\s*(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)\s*\)', line, re.IGNORECASE)
             if rpm_match:
                 rpm = float(rpm_match.group(1))
@@ -256,6 +280,7 @@ class TorqueCurveEditor:
                 drive_torque = float(rpm_match.group(3))
                 self.points.append(TorquePoint(rpm, drive_torque, braking_torque))
             elif '=' in line and not line.startswith('//'):
+                # Check again for comments (though we already removed them)
                 comment = ''
                 if '//' in line:
                     line_part, comment = line.split('//', 1)
@@ -270,7 +295,9 @@ class TorqueCurveEditor:
                     if comment:
                         self.comments[key.strip()] = comment.strip()
             else:
-                self.header_lines.append(line)
+                # Only add non-empty lines to header
+                if line.strip():
+                    self.header_lines.append(line)
         
         self.points.sort(key=lambda p: p.rpm)
     
@@ -280,7 +307,8 @@ class TorqueCurveEditor:
                 f.write(line + '\n')
             
             for point in self.points:
-                f.write(f"RPMTORQUE=(\t{int(point.rpm)}\t,\t{point.braking_torque:.1f}\t,\t{point.drive_torque:.1f}\t)\n")
+                # Always save in Nm (internal storage)
+                f.write(f"RPMTORQUE=(\t{int(point.rpm)}\t,\t{point.braking_torque_nm:.1f}\t,\t{point.drive_torque_nm:.1f}\t)\n")
             
             for key, value in self.other_params.items():
                 line = f"{key}={value}"
@@ -378,6 +406,7 @@ class TorqueCurveWidget(QWidget):
         super().__init__()
         self.editor = editor
         self.show_braking = False
+        self.use_lbft = False  # Toggle for units
         self.selected_point = None
         self.setup_ui()
         self.update_plot()
@@ -388,7 +417,6 @@ class TorqueCurveWidget(QWidget):
         
         # Create plot widget
         self.plot_widget = pg.PlotWidget(title="Torque & Power Curves")
-        self.plot_widget.setLabel('left', 'Torque (Nm) / Power (HP)')
         self.plot_widget.setLabel('bottom', 'RPM')
         self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
         self.plot_widget.setMouseEnabled(x=True, y=False)
@@ -416,13 +444,36 @@ class TorqueCurveWidget(QWidget):
         # Connect mouse click
         self.plot_widget.scene().sigMouseClicked.connect(self.on_mouse_click)
         
-        # Add toggle button
+        # Add control buttons
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
+        
         self.toggle_braking_btn = QPushButton("Show Braking Torque")
         self.toggle_braking_btn.setCheckable(True)
         self.toggle_braking_btn.toggled.connect(self.toggle_braking)
         btn_layout.addWidget(self.toggle_braking_btn)
+        
+        # Add unit toggle button
+        self.unit_toggle_btn = QPushButton("Switch to lb-ft")
+        self.unit_toggle_btn.setCheckable(True)
+        self.unit_toggle_btn.toggled.connect(self.toggle_units)
+        self.unit_toggle_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                font-weight: bold;
+                padding: 5px 10px;
+                border-radius: 3px;
+            }
+            QPushButton:checked {
+                background-color: #FF9800;
+            }
+            QPushButton:hover {
+                opacity: 0.9;
+            }
+        """)
+        btn_layout.addWidget(self.unit_toggle_btn)
+        
         btn_layout.addStretch()
         
         layout.addWidget(self.plot_widget)
@@ -433,14 +484,31 @@ class TorqueCurveWidget(QWidget):
         self.show_braking = checked
         self.update_plot()
     
+    def toggle_units(self, checked):
+        self.use_lbft = checked
+        if checked:
+            self.unit_toggle_btn.setText("Switch to Nm")
+            self.plot_widget.setLabel('left', 'Torque (lb-ft) / Power (HP)')
+        else:
+            self.unit_toggle_btn.setText("Switch to lb-ft")
+            self.plot_widget.setLabel('left', 'Torque (Nm) / Power (HP)')
+        self.update_plot()
+    
     def update_plot(self):
         if not self.editor.points:
             return
         
         rpms = [p.rpm for p in self.editor.points]
-        torques = [p.drive_torque for p in self.editor.points]
+        
+        # Get torque values in appropriate units
+        if self.use_lbft:
+            torques = [p.drive_torque_lbft for p in self.editor.points]
+            brakings = [p.braking_torque_lbft for p in self.editor.points]
+        else:
+            torques = [p.drive_torque_nm for p in self.editor.points]
+            brakings = [p.braking_torque_nm for p in self.editor.points]
+        
         powers = [p.power for p in self.editor.points]
-        brakings = [p.braking_torque for p in self.editor.points]
         
         # Update curves
         self.torque_curve.setData(rpms, torques)
@@ -463,7 +531,8 @@ class TorqueCurveWidget(QWidget):
         # Update selected point marker
         if self.editor.points and self.editor.selected_point_idx < len(self.editor.points):
             selected = self.editor.points[self.editor.selected_point_idx]
-            self.selected_point_marker.setData([selected.rpm], [selected.drive_torque])
+            selected_torque = selected.drive_torque_lbft if self.use_lbft else selected.drive_torque_nm
+            self.selected_point_marker.setData([selected.rpm], [selected_torque])
         
         # Auto-range
         self.plot_widget.autoRange()
@@ -486,6 +555,7 @@ class PointEditorWidget(QWidget):
     def __init__(self, editor):
         super().__init__()
         self.editor = editor
+        self.use_lbft = False
         self.setup_ui()
     
     def setup_ui(self):
@@ -519,6 +589,11 @@ class PointEditorWidget(QWidget):
         self.torque_spin.valueChanged.connect(self.on_torque_changed)
         layout.addWidget(self.torque_spin, 2, 1, 1, 2)
         
+        # Unit label for torque
+        self.torque_unit_label = QLabel("Nm")
+        self.torque_unit_label.setStyleSheet("color: #888;")
+        layout.addWidget(self.torque_unit_label, 2, 3)
+        
         # Power
         layout.addWidget(QLabel("Power:"), 3, 0)
         self.power_spin = QDoubleSpinBox()
@@ -537,6 +612,11 @@ class PointEditorWidget(QWidget):
         self.braking_spin.valueChanged.connect(self.on_braking_changed)
         layout.addWidget(self.braking_spin, 4, 1, 1, 2)
         
+        # Unit label for braking torque
+        self.braking_unit_label = QLabel("Nm")
+        self.braking_unit_label.setStyleSheet("color: #888;")
+        layout.addWidget(self.braking_unit_label, 4, 3)
+        
         # Add/Delete buttons
         btn_layout = QHBoxLayout()
         self.add_btn = QPushButton("+ Add Point")
@@ -545,14 +625,25 @@ class PointEditorWidget(QWidget):
         self.delete_btn.clicked.connect(self.delete_point)
         btn_layout.addWidget(self.add_btn)
         btn_layout.addWidget(self.delete_btn)
-        layout.addLayout(btn_layout, 5, 0, 1, 3)
+        layout.addLayout(btn_layout, 5, 0, 1, 4)
         
         # Navigation hint
         hint = QLabel("←/→: Select point\n↑/↓: Adjust drive torque\nShift+↑/↓: Adjust braking\nDouble-click parameters to edit")
         hint.setStyleSheet("color: #888; font-size: 10px; padding: 5px; background-color: #3c3c3c; border-radius: 3px;")
-        layout.addWidget(hint, 6, 0, 1, 3)
+        layout.addWidget(hint, 6, 0, 1, 4)
         
         self.setLayout(layout)
+        self.update_from_selected()
+    
+    def set_units(self, use_lbft):
+        """Update UI for unit display"""
+        self.use_lbft = use_lbft
+        if use_lbft:
+            self.torque_unit_label.setText("lb-ft")
+            self.braking_unit_label.setText("lb-ft")
+        else:
+            self.torque_unit_label.setText("Nm")
+            self.braking_unit_label.setText("Nm")
         self.update_from_selected()
     
     def update_from_selected(self):
@@ -573,9 +664,16 @@ class PointEditorWidget(QWidget):
         self.point_spin.setValue(self.editor.selected_point_idx + 1)
         self.point_count_label.setText(f"of {len(self.editor.points)}")
         self.rpm_label.setText(f"{selected.rpm:.0f}")
-        self.torque_spin.setValue(selected.drive_torque)
+        
+        # Set torque values in appropriate units
+        if self.use_lbft:
+            self.torque_spin.setValue(selected.drive_torque_lbft)
+            self.braking_spin.setValue(selected.braking_torque_lbft)
+        else:
+            self.torque_spin.setValue(selected.drive_torque_nm)
+            self.braking_spin.setValue(selected.braking_torque_nm)
+        
         self.power_spin.setValue(selected.power)
-        self.braking_spin.setValue(selected.braking_torque)
         
         self.torque_spin.blockSignals(False)
         self.power_spin.blockSignals(False)
@@ -589,7 +687,10 @@ class PointEditorWidget(QWidget):
     
     def on_torque_changed(self, value):
         selected = self.editor.points[self.editor.selected_point_idx]
-        selected.update_from_drive_torque(value)
+        if self.use_lbft:
+            selected.update_from_drive_torque_lbft(value)
+        else:
+            selected.update_from_drive_torque_nm(value)
         self.power_spin.blockSignals(True)
         self.power_spin.setValue(selected.power)
         self.power_spin.blockSignals(False)
@@ -599,13 +700,19 @@ class PointEditorWidget(QWidget):
         selected = self.editor.points[self.editor.selected_point_idx]
         selected.update_from_power(value)
         self.torque_spin.blockSignals(True)
-        self.torque_spin.setValue(selected.drive_torque)
+        if self.use_lbft:
+            self.torque_spin.setValue(selected.drive_torque_lbft)
+        else:
+            self.torque_spin.setValue(selected.drive_torque_nm)
         self.torque_spin.blockSignals(False)
         self.valueChanged.emit()
     
     def on_braking_changed(self, value):
         selected = self.editor.points[self.editor.selected_point_idx]
-        selected.braking_torque = value
+        if self.use_lbft:
+            selected.braking_torque_nm = value / NM_TO_LBFT
+        else:
+            selected.braking_torque_nm = value
         self.valueChanged.emit()
     
     def add_point(self):
@@ -623,12 +730,12 @@ class PointEditorWidget(QWidget):
                 max_gap = gap
                 insert_rpm = (rpms[i] + rpms[i+1]) / 2
         
-        # Interpolate
-        drive_torques = [p.drive_torque for p in self.editor.points]
-        braking_torques = [p.braking_torque for p in self.editor.points]
+        # Interpolate using Nm values
+        drive_torques_nm = [p.drive_torque_nm for p in self.editor.points]
+        braking_torques_nm = [p.braking_torque_nm for p in self.editor.points]
         
-        f_drive = interpolate.interp1d(rpms, drive_torques, kind='linear', fill_value='extrapolate')
-        f_brake = interpolate.interp1d(rpms, braking_torques, kind='linear', fill_value='extrapolate')
+        f_drive = interpolate.interp1d(rpms, drive_torques_nm, kind='linear', fill_value='extrapolate')
+        f_brake = interpolate.interp1d(rpms, braking_torques_nm, kind='linear', fill_value='extrapolate')
         
         new_point = TorquePoint(insert_rpm, float(f_drive(insert_rpm)), float(f_brake(insert_rpm)))
         self.editor.points.append(new_point)
@@ -679,6 +786,9 @@ class MainWindow(QMainWindow):
         self.point_editor = PointEditorWidget(self.editor)
         self.point_editor.valueChanged.connect(self.on_data_changed)
         left_layout.addWidget(self.point_editor, 1)
+        
+        # Connect unit toggle between plot and point editor
+        self.plot_widget.unit_toggle_btn.toggled.connect(self.on_units_toggled)
         
         # Right side - Parameters with filtering
         right_widget = QWidget()
@@ -762,6 +872,10 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self.status_bar)
         self.update_status()
     
+    def on_units_toggled(self, checked):
+        """Handle unit toggle between plot and point editor"""
+        self.point_editor.set_units(checked)
+    
     def update_status(self):
         self.status_bar.showMessage(
             f"Points: {len(self.editor.points)} | Parameters: {len(self.editor.other_params)} | File: {self.editor.filename}"
@@ -791,34 +905,54 @@ class MainWindow(QMainWindow):
         elif key == Qt.Key_Up and modifiers == Qt.NoModifier:
             # Increase drive torque
             selected = self.editor.points[self.editor.selected_point_idx]
-            selected.update_from_drive_torque(selected.drive_torque + 5)
+            if self.plot_widget.use_lbft:
+                selected.update_from_drive_torque_lbft(selected.drive_torque_lbft + 5)
+            else:
+                selected.update_from_drive_torque_nm(selected.drive_torque_nm + 5)
             self.point_editor.update_from_selected()
             self.plot_widget.update_plot()
-            self.status_bar.showMessage(f"Drive torque: {selected.drive_torque:.1f} Nm", 1000)
+            unit = "lb-ft" if self.plot_widget.use_lbft else "Nm"
+            torque_display = selected.drive_torque_lbft if self.plot_widget.use_lbft else selected.drive_torque_nm
+            self.status_bar.showMessage(f"Drive torque: {torque_display:.1f} {unit}", 1000)
             
         elif key == Qt.Key_Down and modifiers == Qt.NoModifier:
             # Decrease drive torque
             selected = self.editor.points[self.editor.selected_point_idx]
-            selected.update_from_drive_torque(max(0, selected.drive_torque - 5))
+            if self.plot_widget.use_lbft:
+                selected.update_from_drive_torque_lbft(max(0, selected.drive_torque_lbft - 5))
+            else:
+                selected.update_from_drive_torque_nm(max(0, selected.drive_torque_nm - 5))
             self.point_editor.update_from_selected()
             self.plot_widget.update_plot()
-            self.status_bar.showMessage(f"Drive torque: {selected.drive_torque:.1f} Nm", 1000)
+            unit = "lb-ft" if self.plot_widget.use_lbft else "Nm"
+            torque_display = selected.drive_torque_lbft if self.plot_widget.use_lbft else selected.drive_torque_nm
+            self.status_bar.showMessage(f"Drive torque: {torque_display:.1f} {unit}", 1000)
             
         elif key == Qt.Key_Up and modifiers == Qt.ShiftModifier:
             # Increase braking torque (more negative)
             selected = self.editor.points[self.editor.selected_point_idx]
-            selected.braking_torque -= 5
+            if self.plot_widget.use_lbft:
+                selected.braking_torque_nm = (selected.braking_torque_lbft - 5) / NM_TO_LBFT
+            else:
+                selected.braking_torque_nm -= 5
             self.point_editor.update_from_selected()
             self.plot_widget.update_plot()
-            self.status_bar.showMessage(f"Braking torque: {selected.braking_torque:.1f} Nm", 1000)
+            unit = "lb-ft" if self.plot_widget.use_lbft else "Nm"
+            torque_display = selected.braking_torque_lbft if self.plot_widget.use_lbft else selected.braking_torque_nm
+            self.status_bar.showMessage(f"Braking torque: {torque_display:.1f} {unit}", 1000)
             
         elif key == Qt.Key_Down and modifiers == Qt.ShiftModifier:
             # Decrease braking torque (less negative)
             selected = self.editor.points[self.editor.selected_point_idx]
-            selected.braking_torque += 5
+            if self.plot_widget.use_lbft:
+                selected.braking_torque_nm = (selected.braking_torque_lbft + 5) / NM_TO_LBFT
+            else:
+                selected.braking_torque_nm += 5
             self.point_editor.update_from_selected()
             self.plot_widget.update_plot()
-            self.status_bar.showMessage(f"Braking torque: {selected.braking_torque:.1f} Nm", 1000)
+            unit = "lb-ft" if self.plot_widget.use_lbft else "Nm"
+            torque_display = selected.braking_torque_lbft if self.plot_widget.use_lbft else selected.braking_torque_nm
+            self.status_bar.showMessage(f"Braking torque: {torque_display:.1f} {unit}", 1000)
         
         else:
             super().keyPressEvent(event)
