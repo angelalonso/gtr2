@@ -37,6 +37,202 @@ class TorquePoint:
         if self.rpm > 0:
             self.drive_torque = new_power * 7127 / self.rpm
 
+class ParameterEditDialog(QDialog):
+    """Dialog for editing parameter values"""
+    
+    def __init__(self, key, value, parent=None):
+        super().__init__(parent)
+        self.key = key
+        self.original_value = value
+        self.new_value = value
+        self.setup_ui()
+        
+    def setup_ui(self):
+        self.setWindowTitle(f"Edit Parameter: {self.key}")
+        self.setModal(True)
+        self.setMinimumWidth(500)
+        
+        layout = QVBoxLayout()
+        
+        # Key display
+        key_layout = QHBoxLayout()
+        key_layout.addWidget(QLabel("Parameter:"))
+        key_label = QLabel(self.key)
+        key_label.setStyleSheet("font-weight: bold; color: #4CAF50; font-size: 12px;")
+        key_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        key_layout.addWidget(key_label)
+        key_layout.addStretch()
+        layout.addLayout(key_layout)
+        
+        # Current value
+        current_layout = QHBoxLayout()
+        current_layout.addWidget(QLabel("Current:"))
+        current_label = QLabel(self.original_value)
+        current_label.setStyleSheet("color: #888; font-family: monospace;")
+        current_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        current_layout.addWidget(current_label)
+        current_layout.addStretch()
+        layout.addLayout(current_layout)
+        
+        # Separator
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Sunken)
+        layout.addWidget(line)
+        
+        # New value input
+        layout.addWidget(QLabel("New Value:"))
+        
+        # Check if it's a tuple
+        if self.original_value.startswith('(') and self.original_value.endswith(')'):
+            # Tuple editor
+            inner = self.original_value[1:-1]
+            values = [v.strip() for v in inner.split(',')]
+            
+            self.tuple_editors = []
+            tuple_widget = QWidget()
+            tuple_layout = QHBoxLayout(tuple_widget)
+            tuple_layout.setContentsMargins(0, 0, 0, 0)
+            
+            for i, val in enumerate(values):
+                editor = QLineEdit(val)
+                editor.setPlaceholderText(f"Value {i+1}")
+                editor.textChanged.connect(lambda text, idx=i: self.update_tuple_value(idx, text))
+                editor.setMinimumWidth(100)
+                tuple_layout.addWidget(editor)
+                self.tuple_editors.append(editor)
+            
+            layout.addWidget(tuple_widget)
+            self.value_editor = None
+            
+        else:
+            # Try to determine if it's a number
+            try:
+                float(self.original_value)
+                # Number editor
+                self.value_editor = QDoubleSpinBox()
+                self.value_editor.setRange(-1e12, 1e12)
+                self.value_editor.setDecimals(6)
+                self.value_editor.setValue(float(self.original_value))
+                self.value_editor.valueChanged.connect(self.on_value_changed)
+                self.value_editor.setMinimumWidth(200)
+                layout.addWidget(self.value_editor)
+            except ValueError:
+                # String editor
+                self.value_editor = QLineEdit(self.original_value)
+                self.value_editor.textChanged.connect(self.on_text_changed)
+                self.value_editor.setMinimumWidth(300)
+                layout.addWidget(self.value_editor)
+        
+        # Preview of new value (for complex edits)
+        self.preview_label = QLabel()
+        self.preview_label.setStyleSheet("color: #4CAF50; font-family: monospace; padding: 5px;")
+        layout.addWidget(self.preview_label)
+        self.update_preview()
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        
+        self.save_btn = QPushButton("💾 Save")
+        self.save_btn.clicked.connect(self.accept)
+        self.save_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                padding: 8px 15px;
+                font-weight: bold;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
+        
+        self.revert_btn = QPushButton("↺ Revert to Original")
+        self.revert_btn.clicked.connect(self.revert_to_original)
+        self.revert_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #ff9800;
+                color: white;
+                padding: 8px 15px;
+                font-weight: bold;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #f57c00;
+            }
+        """)
+        
+        self.cancel_btn = QPushButton("✖ Cancel")
+        self.cancel_btn.clicked.connect(self.reject)
+        self.cancel_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f44336;
+                color: white;
+                padding: 8px 15px;
+                font-weight: bold;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #da190b;
+            }
+        """)
+        
+        button_layout.addWidget(self.save_btn)
+        button_layout.addWidget(self.revert_btn)
+        button_layout.addWidget(self.cancel_btn)
+        
+        layout.addLayout(button_layout)
+        self.setLayout(layout)
+    
+    def update_tuple_value(self, index, text):
+        """Update tuple value at index"""
+        values = []
+        for i, editor in enumerate(self.tuple_editors):
+            val = editor.text()
+            if i == index:
+                val = text
+            values.append(val)
+        
+        self.new_value = f"({', '.join(values)})"
+        self.update_preview()
+    
+    def on_value_changed(self, value):
+        self.new_value = str(value)
+        self.update_preview()
+    
+    def on_text_changed(self, text):
+        self.new_value = text
+        self.update_preview()
+    
+    def update_preview(self):
+        """Update the preview label"""
+        if self.new_value != self.original_value:
+            self.preview_label.setText(f"Preview: {self.new_value}")
+            self.preview_label.show()
+        else:
+            self.preview_label.hide()
+    
+    def revert_to_original(self):
+        """Revert to original value"""
+        if self.value_editor:
+            if isinstance(self.value_editor, QDoubleSpinBox):
+                self.value_editor.setValue(float(self.original_value))
+            else:
+                self.value_editor.setText(self.original_value)
+        else:
+            # Tuple editor
+            inner = self.original_value[1:-1]
+            values = [v.strip() for v in inner.split(',')]
+            for i, val in enumerate(values):
+                self.tuple_editors[i].setText(val)
+        
+        self.new_value = self.original_value
+        self.update_preview()
+    
+    def get_value(self):
+        return self.new_value
+
 class TorqueCurveEditor:
     def __init__(self, filename):
         self.filename = filename
@@ -112,11 +308,19 @@ class ParameterModel(QAbstractListModel):
         value = self.editor.other_params[key]
         
         if role == Qt.DisplayRole:
-            return f"{key} = {value}"
+            # Truncate long values for display
+            if len(value) > 30:
+                display_value = value[:27] + "..."
+            else:
+                display_value = value
+            return f"{key} = {display_value}"
         elif role == Qt.UserRole:
             return key
         elif role == Qt.EditRole:
             return value
+        elif role == Qt.ToolTipRole:
+            # Full value in tooltip
+            return f"Key: {key}\nValue: {value}"
         return QVariant()
     
     def setData(self, index, value, role=Qt.EditRole):
@@ -126,6 +330,11 @@ class ParameterModel(QAbstractListModel):
             self.dataChanged.emit(index, index)
             return True
         return False
+    
+    def flags(self, index):
+        if not index.isValid():
+            return Qt.NoItemFlags
+        return Qt.ItemIsEnabled | Qt.ItemIsSelectable
     
     def filter(self, text="", category="All"):
         self.filter_text = text.lower()
@@ -175,14 +384,15 @@ class TorqueCurveWidget(QWidget):
     
     def setup_ui(self):
         layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
         
         # Create plot widget
         self.plot_widget = pg.PlotWidget(title="Torque & Power Curves")
         self.plot_widget.setLabel('left', 'Torque (Nm) / Power (HP)')
         self.plot_widget.setLabel('bottom', 'RPM')
         self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
-        self.plot_widget.setMouseEnabled(x=True, y=False)  # Disable y-zoom for performance
-        self.plot_widget.setMenuEnabled(False)  # Disable right-click menu
+        self.plot_widget.setMouseEnabled(x=True, y=False)
+        self.plot_widget.setMenuEnabled(False)
         
         # Create curves
         self.torque_curve = self.plot_widget.plot(pen=pg.mkPen('b', width=2), name='Drive Torque')
@@ -208,10 +418,12 @@ class TorqueCurveWidget(QWidget):
         
         # Add toggle button
         btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
         self.toggle_braking_btn = QPushButton("Show Braking Torque")
         self.toggle_braking_btn.setCheckable(True)
         self.toggle_braking_btn.toggled.connect(self.toggle_braking)
         btn_layout.addWidget(self.toggle_braking_btn)
+        btn_layout.addStretch()
         
         layout.addWidget(self.plot_widget)
         layout.addLayout(btn_layout)
@@ -278,6 +490,7 @@ class PointEditorWidget(QWidget):
     
     def setup_ui(self):
         layout = QGridLayout()
+        layout.setVerticalSpacing(10)
         
         # Point navigation
         layout.addWidget(QLabel("Point:"), 0, 0)
@@ -287,11 +500,15 @@ class PointEditorWidget(QWidget):
         self.point_spin.valueChanged.connect(self.on_point_changed)
         layout.addWidget(self.point_spin, 0, 1)
         
+        # Point count
+        self.point_count_label = QLabel(f"of {len(self.editor.points)}")
+        layout.addWidget(self.point_count_label, 0, 2)
+        
         # RPM (read-only display)
         layout.addWidget(QLabel("RPM:"), 1, 0)
         self.rpm_label = QLabel("0")
-        self.rpm_label.setStyleSheet("font-weight: bold")
-        layout.addWidget(self.rpm_label, 1, 1)
+        self.rpm_label.setStyleSheet("font-weight: bold; color: #4CAF50;")
+        layout.addWidget(self.rpm_label, 1, 1, 1, 2)
         
         # Drive Torque
         layout.addWidget(QLabel("Drive Torque:"), 2, 0)
@@ -300,7 +517,7 @@ class PointEditorWidget(QWidget):
         self.torque_spin.setSingleStep(5)
         self.torque_spin.setDecimals(1)
         self.torque_spin.valueChanged.connect(self.on_torque_changed)
-        layout.addWidget(self.torque_spin, 2, 1)
+        layout.addWidget(self.torque_spin, 2, 1, 1, 2)
         
         # Power
         layout.addWidget(QLabel("Power:"), 3, 0)
@@ -309,7 +526,7 @@ class PointEditorWidget(QWidget):
         self.power_spin.setSingleStep(5)
         self.power_spin.setDecimals(1)
         self.power_spin.valueChanged.connect(self.on_power_changed)
-        layout.addWidget(self.power_spin, 3, 1)
+        layout.addWidget(self.power_spin, 3, 1, 1, 2)
         
         # Braking Torque
         layout.addWidget(QLabel("Braking Torque:"), 4, 0)
@@ -318,22 +535,22 @@ class PointEditorWidget(QWidget):
         self.braking_spin.setSingleStep(5)
         self.braking_spin.setDecimals(1)
         self.braking_spin.valueChanged.connect(self.on_braking_changed)
-        layout.addWidget(self.braking_spin, 4, 1)
+        layout.addWidget(self.braking_spin, 4, 1, 1, 2)
         
         # Add/Delete buttons
         btn_layout = QHBoxLayout()
-        self.add_btn = QPushButton("Add Point")
+        self.add_btn = QPushButton("+ Add Point")
         self.add_btn.clicked.connect(self.add_point)
-        self.delete_btn = QPushButton("Delete Point")
+        self.delete_btn = QPushButton("- Delete Point")
         self.delete_btn.clicked.connect(self.delete_point)
         btn_layout.addWidget(self.add_btn)
         btn_layout.addWidget(self.delete_btn)
-        layout.addLayout(btn_layout, 5, 0, 1, 2)
+        layout.addLayout(btn_layout, 5, 0, 1, 3)
         
         # Navigation hint
-        hint = QLabel("←/→: Select point\n↑/↓: Adjust drive torque\nShift+↑/↓: Adjust braking")
-        hint.setStyleSheet("color: gray; font-size: 10px; padding: 5px;")
-        layout.addWidget(hint, 6, 0, 1, 2)
+        hint = QLabel("←/→: Select point\n↑/↓: Adjust drive torque\nShift+↑/↓: Adjust braking\nDouble-click parameters to edit")
+        hint.setStyleSheet("color: #888; font-size: 10px; padding: 5px; background-color: #3c3c3c; border-radius: 3px;")
+        layout.addWidget(hint, 6, 0, 1, 3)
         
         self.setLayout(layout)
         self.update_from_selected()
@@ -354,6 +571,7 @@ class PointEditorWidget(QWidget):
         self.point_spin.blockSignals(True)
         
         self.point_spin.setValue(self.editor.selected_point_idx + 1)
+        self.point_count_label.setText(f"of {len(self.editor.points)}")
         self.rpm_label.setText(f"{selected.rpm:.0f}")
         self.torque_spin.setValue(selected.drive_torque)
         self.power_spin.setValue(selected.power)
@@ -431,21 +649,6 @@ class PointEditorWidget(QWidget):
         self.update_from_selected()
         self.valueChanged.emit()
 
-class ParameterDelegate(QStyledItemDelegate):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-    
-    def createEditor(self, parent, option, index):
-        editor = QLineEdit(parent)
-        return editor
-    
-    def setEditorData(self, editor, index):
-        value = index.data(Qt.EditRole)
-        editor.setText(value)
-    
-    def setModelData(self, editor, model, index):
-        model.setData(index, editor.text())
-
 class MainWindow(QMainWindow):
     def __init__(self, filename):
         super().__init__()
@@ -454,7 +657,7 @@ class MainWindow(QMainWindow):
     
     def setup_ui(self):
         self.setWindowTitle(f"Torque Curve Editor - {self.editor.filename}")
-        self.setGeometry(100, 100, 1400, 800)
+        self.setGeometry(100, 100, 1600, 900)
         
         # Create central widget with splitter
         central_widget = QWidget()
@@ -463,33 +666,35 @@ class MainWindow(QMainWindow):
         main_layout = QHBoxLayout(central_widget)
         main_layout.setContentsMargins(5, 5, 5, 5)
         
-        # Left side - Plot
+        # Left side - Plot and point editor
         left_widget = QWidget()
         left_layout = QVBoxLayout(left_widget)
         left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(5)
         
         self.plot_widget = TorqueCurveWidget(self.editor)
         self.plot_widget.pointSelected.connect(self.on_point_selected)
-        left_layout.addWidget(self.plot_widget)
+        left_layout.addWidget(self.plot_widget, 3)  # Give plot more space
         
-        # Point editor below plot
         self.point_editor = PointEditorWidget(self.editor)
         self.point_editor.valueChanged.connect(self.on_data_changed)
-        left_layout.addWidget(self.point_editor)
+        left_layout.addWidget(self.point_editor, 1)
         
         # Right side - Parameters with filtering
         right_widget = QWidget()
         right_layout = QVBoxLayout(right_widget)
         right_layout.setContentsMargins(5, 5, 5, 5)
+        right_layout.setSpacing(5)
         
         # Filter controls
         filter_group = QGroupBox("Parameter Filter")
+        filter_group.setStyleSheet("QGroupBox { font-weight: bold; }")
         filter_layout = QVBoxLayout()
         
         search_layout = QHBoxLayout()
-        search_layout.addWidget(QLabel("Search:"))
+        search_layout.addWidget(QLabel("🔍"))
         self.search_box = QLineEdit()
-        self.search_box.setPlaceholderText("Type to filter...")
+        self.search_box.setPlaceholderText("Type to filter parameters...")
         self.search_box.textChanged.connect(self.filter_params)
         search_layout.addWidget(self.search_box)
         filter_layout.addLayout(search_layout)
@@ -502,6 +707,10 @@ class MainWindow(QMainWindow):
         category_layout.addWidget(self.category_combo)
         filter_layout.addLayout(category_layout)
         
+        # Parameter count label
+        self.param_count_label = QLabel("")
+        filter_layout.addWidget(self.param_count_label)
+        
         filter_group.setLayout(filter_layout)
         right_layout.addWidget(filter_group)
         
@@ -510,25 +719,27 @@ class MainWindow(QMainWindow):
         
         self.param_view = QListView()
         self.param_view.setModel(self.param_model)
-        self.param_view.setEditTriggers(QAbstractItemView.DoubleClicked | QAbstractItemView.SelectedClicked)
+        self.param_view.setEditTriggers(QAbstractItemView.NoEditTriggers)  # Disable inline editing
         self.param_view.setAlternatingRowColors(True)
+        self.param_view.setSelectionMode(QListView.SingleSelection)
+        self.param_view.doubleClicked.connect(self.edit_parameter)
         
-        # Custom delegate for editing
-        delegate = ParameterDelegate(self.param_view)
-        self.param_view.setItemDelegate(delegate)
+        # Enable tooltips
+        self.param_view.setToolTip("Double-click to edit parameter")
         
-        right_layout.addWidget(self.param_view)
+        right_layout.addWidget(self.param_view, 1)
         
         # Save button
-        self.save_btn = QPushButton("Save File")
+        self.save_btn = QPushButton("💾 Save File")
         self.save_btn.clicked.connect(self.save_file)
         self.save_btn.setStyleSheet("""
             QPushButton {
                 background-color: #4CAF50;
                 color: white;
-                padding: 8px;
+                padding: 10px;
                 font-weight: bold;
                 border-radius: 4px;
+                font-size: 12px;
             }
             QPushButton:hover {
                 background-color: #45a049;
@@ -536,20 +747,25 @@ class MainWindow(QMainWindow):
         """)
         right_layout.addWidget(self.save_btn)
         
-        # Status bar
-        self.status_bar = QStatusBar()
-        self.setStatusBar(self.status_bar)
-        self.status_bar.showMessage(f"Loaded {len(self.editor.points)} points and {len(self.editor.other_params)} parameters")
-        
         # Add widgets to splitter
         splitter = QSplitter(Qt.Horizontal)
         splitter.addWidget(left_widget)
         splitter.addWidget(right_widget)
-        splitter.setSizes([900, 500])
+        splitter.setSizes([1000, 600])
         splitter.setStretchFactor(0, 2)
         splitter.setStretchFactor(1, 1)
         
         main_layout.addWidget(splitter)
+        
+        # Status bar
+        self.status_bar = QStatusBar()
+        self.setStatusBar(self.status_bar)
+        self.update_status()
+    
+    def update_status(self):
+        self.status_bar.showMessage(
+            f"Points: {len(self.editor.points)} | Parameters: {len(self.editor.other_params)} | File: {self.editor.filename}"
+        )
     
     def keyPressEvent(self, event):
         if not self.editor.points:
@@ -612,6 +828,7 @@ class MainWindow(QMainWindow):
             self.search_box.text(),
             self.category_combo.currentText()
         )
+        self.param_count_label.setText(f"Showing {len(self.param_model.filtered_keys)} parameters")
     
     def on_point_selected(self, idx):
         self.editor.selected_point_idx = idx
@@ -621,15 +838,36 @@ class MainWindow(QMainWindow):
     
     def on_data_changed(self):
         self.plot_widget.update_plot()
+        self.update_status()
         self.status_bar.showMessage("Unsaved changes", 2000)
+    
+    def edit_parameter(self, index):
+        """Open dialog to edit parameter"""
+        key = self.param_model.filtered_keys[index.row()]
+        value = self.editor.other_params[key]
+        
+        dialog = ParameterEditDialog(key, value, self)
+        if dialog.exec_() == QDialog.Accepted:
+            new_value = dialog.get_value()
+            if new_value != value:
+                self.editor.other_params[key] = new_value
+                self.param_model.dataChanged.emit(index, index)
+                self.on_parameter_changed()
+    
+    def on_parameter_changed(self):
+        """Called when a parameter is edited"""
+        self.update_status()
+        self.status_bar.showMessage("Parameter updated - Unsaved changes", 2000)
     
     def save_file(self):
         try:
             self.editor.save_file()
-            self.status_bar.showMessage(f"File saved: {self.editor.filename}", 3000)
+            self.update_status()
+            self.status_bar.showMessage(f"✅ File saved: {self.editor.filename}", 3000)
             QMessageBox.information(self, "Success", "File saved successfully!")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save file: {str(e)}")
+            self.status_bar.showMessage(f"❌ Error saving file", 3000)
 
 def main():
     if len(sys.argv) != 2:
@@ -637,61 +875,96 @@ def main():
         sys.exit(1)
     
     app = QApplication(sys.argv)
-    app.setStyle('Fusion')  # Modern look
+    app.setStyle('Fusion')
     
-    # Set dark theme for better visibility
+    # Set dark theme
     app.setStyleSheet("""
-        QMainWindow {
+        QMainWindow, QDialog {
             background-color: #2b2b2b;
         }
         QGroupBox {
-            color: white;
+            color: #ffffff;
             border: 1px solid #555;
             border-radius: 5px;
             margin-top: 1ex;
-            font-weight: bold;
+            font-weight: normal;
         }
         QGroupBox::title {
             subcontrol-origin: margin;
             left: 10px;
             padding: 0 5px 0 5px;
+            color: #4CAF50;
         }
         QLabel {
-            color: white;
+            color: #ffffff;
         }
         QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {
             background-color: #3c3c3c;
-            color: white;
+            color: #ffffff;
             border: 1px solid #555;
             border-radius: 3px;
-            padding: 3px;
+            padding: 4px;
+            selection-background-color: #4CAF50;
+        }
+        QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+            border: 1px solid #4CAF50;
         }
         QListView {
             background-color: #2b2b2b;
-            color: white;
+            color: #ffffff;
             border: 1px solid #555;
             border-radius: 3px;
+            outline: none;
+        }
+        QListView::item {
+            padding: 6px;
+            border-bottom: 1px solid #3c3c3c;
         }
         QListView::item:selected {
-            background-color: #3c3c3c;
+            background-color: #4CAF50;
             color: white;
         }
         QListView::item:alternate {
             background-color: #333333;
+        }
+        QListView::item:hover {
+            background-color: #3c3c3c;
         }
         QPushButton {
             background-color: #3c3c3c;
             color: white;
             border: 1px solid #555;
             border-radius: 3px;
-            padding: 5px;
+            padding: 5px 10px;
         }
         QPushButton:hover {
             background-color: #4c4c4c;
+            border: 1px solid #4CAF50;
+        }
+        QPushButton:pressed {
+            background-color: #2c2c2c;
         }
         QStatusBar {
-            color: white;
+            color: #ffffff;
             background-color: #3c3c3c;
+            border-top: 1px solid #555;
+        }
+        QScrollBar:vertical {
+            background-color: #2b2b2b;
+            width: 12px;
+            border-radius: 6px;
+        }
+        QScrollBar::handle:vertical {
+            background-color: #555;
+            border-radius: 6px;
+            min-height: 20px;
+        }
+        QScrollBar::handle:vertical:hover {
+            background-color: #4CAF50;
+        }
+        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+            border: none;
+            background: none;
         }
     """)
     
