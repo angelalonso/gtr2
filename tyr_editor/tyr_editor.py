@@ -472,6 +472,176 @@ class ParameterEditDialog(QDialog):
     def get_value(self):
         return self.new_value
 
+class CompareFileDialog(QDialog):
+    """Dialog for loading comparison curves from another file"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.selected_file = None
+        self.selected_curve_index = 0
+        self.comparison_curves = []
+        self.setup_ui()
+        
+    def setup_ui(self):
+        self.setWindowTitle("Load Comparison Curve")
+        self.setModal(True)
+        self.setMinimumWidth(500)
+        
+        layout = QVBoxLayout()
+        
+        # File selection
+        file_group = QGroupBox("Select File")
+        file_layout = QHBoxLayout()
+        
+        self.file_path_edit = QLineEdit()
+        self.file_path_edit.setReadOnly(True)
+        self.file_path_edit.setPlaceholderText("No file selected")
+        
+        browse_btn = QPushButton("Browse...")
+        browse_btn.clicked.connect(self.browse_file)
+        
+        file_layout.addWidget(self.file_path_edit)
+        file_layout.addWidget(browse_btn)
+        file_group.setLayout(file_layout)
+        layout.addWidget(file_group)
+        
+        # Curve selection
+        curve_group = QGroupBox("Select Curve")
+        curve_layout = QVBoxLayout()
+        
+        self.curve_combo = QComboBox()
+        self.curve_combo.setEnabled(False)
+        self.curve_combo.currentIndexChanged.connect(self.on_curve_selected)
+        
+        curve_layout.addWidget(self.curve_combo)
+        
+        # Curve info
+        self.info_label = QLabel("No curves loaded")
+        self.info_label.setStyleSheet("color: #888; font-style: italic;")
+        curve_layout.addWidget(self.info_label)
+        
+        curve_group.setLayout(curve_layout)
+        layout.addWidget(curve_group)
+        
+        # Preview plot
+        preview_group = QGroupBox("Preview")
+        preview_layout = QVBoxLayout()
+        
+        self.preview_plot = pg.PlotWidget()
+        self.preview_plot.setLabel('left', 'Force')
+        self.preview_plot.setLabel('bottom', 'Slip')
+        self.preview_plot.showGrid(x=True, y=True, alpha=0.3)
+        self.preview_plot.setFixedHeight(150)
+        preview_layout.addWidget(self.preview_plot)
+        
+        preview_group.setLayout(preview_layout)
+        layout.addWidget(preview_group)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        
+        self.show_btn = QPushButton("Show Curve")
+        self.show_btn.clicked.connect(self.accept)
+        self.show_btn.setEnabled(False)
+        self.show_btn.setStyleSheet("background-color: #4CAF50; color: white;")
+        
+        self.cancel_btn = QPushButton("Cancel")
+        self.cancel_btn.clicked.connect(self.reject)
+        
+        button_layout.addWidget(self.show_btn)
+        button_layout.addWidget(self.cancel_btn)
+        
+        layout.addLayout(button_layout)
+        self.setLayout(layout)
+    
+    def browse_file(self):
+        """Browse for a tire file"""
+        filename, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Tire File",
+            str(Path.home()),
+            "Tire files (*.tbc *.tyr);;All files (*.*)"
+        )
+        
+        if filename:
+            self.load_file(filename)
+    
+    def load_file(self, filename):
+        """Load curves from selected file"""
+        try:
+            self.comparison_curves = self.parse_tire_file(filename)
+            
+            if self.comparison_curves:
+                self.file_path_edit.setText(filename)
+                self.selected_file = filename
+                
+                # Update curve combo
+                self.curve_combo.clear()
+                self.curve_combo.addItems([c['name'] for c in self.comparison_curves])
+                self.curve_combo.setEnabled(True)
+                
+                # Update info
+                self.info_label.setText(f"Loaded {len(self.comparison_curves)} curves")
+                self.info_label.setStyleSheet("color: #4CAF50;")
+                
+                # Enable show button
+                self.show_btn.setEnabled(True)
+                
+                # Show first curve preview
+                self.on_curve_selected(0)
+            else:
+                QMessageBox.warning(self, "No Curves", "No slip curves found in the selected file.")
+                
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to load file: {e}")
+    
+    def parse_tire_file(self, filename):
+        """Parse tire file and extract slip curves"""
+        curves = []
+        
+        with open(filename, 'r') as f:
+            content = f.read()
+        
+        # Parse slip curves
+        slip_curve_pattern = r'(\[SLIPCURVE\]\s*Name="([^"]+)"\s*Step=([0-9.e+-]+)[^\n]*\s*DropoffFunction=([0-9.e+-]+)[^\n]*\s*Data:\s*((?:\d+\.\d+\s*)+))'
+        
+        for match in re.finditer(slip_curve_pattern, content, re.MULTILINE | re.DOTALL):
+            name = match.group(2)
+            step = float(match.group(3))
+            dropoff = float(match.group(4))
+            
+            # Parse the data values
+            data_str = match.group(5).strip()
+            values = [float(x) for x in data_str.split()]
+            
+            curves.append({
+                'name': name,
+                'step': step,
+                'dropoff_function': dropoff,
+                'values': values,
+                'x_values': [i * step for i in range(len(values))]
+            })
+        
+        return curves
+    
+    def on_curve_selected(self, index):
+        """Handle curve selection change"""
+        if index >= 0 and index < len(self.comparison_curves):
+            self.selected_curve_index = index
+            curve = self.comparison_curves[index]
+            
+            # Update preview plot
+            self.preview_plot.clear()
+            self.preview_plot.plot(curve['x_values'], curve['values'], 
+                                   pen=pg.mkPen('y', width=2))
+            self.preview_plot.autoRange()
+    
+    def get_selected_curve(self):
+        """Get the selected curve data"""
+        if self.comparison_curves and self.selected_curve_index < len(self.comparison_curves):
+            return self.comparison_curves[self.selected_curve_index]
+        return None
+
 class TireCurveEditor:
     def __init__(self, filename):
         self.filename = filename
@@ -482,10 +652,13 @@ class TireCurveEditor:
         self.current_curve_index = 0
         self.show_all_curves = False
         self.all_curves_plots = []  # Store all curve plot items
+        self.comparison_curve = None  # Store comparison curve data
+        self.comparison_plot = None  # Store comparison curve plot item
         self.preview_curve = None  # Store preview curve item
         self.preview_values = None  # Store current preview values
         self.point_highlight = None  # Store point highlight item
         self.point_edit_widget = None  # Store point edit widget
+        self.legend = None  # Store legend widget
         
         self.parse_tire_file(filename)
         self.setup_ui()
@@ -599,6 +772,24 @@ class TireCurveEditor:
         self.show_all_checkbox.stateChanged.connect(self.toggle_show_all_curves)
         control_layout.addWidget(self.show_all_checkbox)
         
+        # Comparison controls
+        compare_separator = QFrame()
+        compare_separator.setFrameShape(QFrame.VLine)
+        compare_separator.setFrameShadow(QFrame.Sunken)
+        compare_separator.setStyleSheet("color: #555;")
+        control_layout.addWidget(compare_separator)
+        
+        self.load_compare_btn = QPushButton("📊 Load Comparison")
+        self.load_compare_btn.clicked.connect(self.load_comparison_curve)
+        self.load_compare_btn.setStyleSheet("background-color: #ff9800;")
+        control_layout.addWidget(self.load_compare_btn)
+        
+        self.hide_compare_btn = QPushButton("❌ Hide Comparison")
+        self.hide_compare_btn.clicked.connect(self.hide_comparison_curve)
+        self.hide_compare_btn.setEnabled(False)
+        self.hide_compare_btn.setStyleSheet("background-color: #f44336;")
+        control_layout.addWidget(self.hide_compare_btn)
+        
         control_layout.addWidget(QLabel("Step:"))
         self.step_spin = QDoubleSpinBox()
         self.step_spin.setRange(0.0001, 1.0)
@@ -642,9 +833,18 @@ class TireCurveEditor:
         self.plot_widget.setMinimumHeight(500)  # Set minimum height
         self.plot_widget.setFocusPolicy(Qt.StrongFocus)  # Allow plot to receive focus
         
+        # Add legend and store reference
+        self.legend = self.plot_widget.addLegend()
+        
         # Create curves
         self.curve_plot = self.plot_widget.plot(pen=pg.mkPen('b', width=2), name='Slip Curve')
         self.original_curve_plot = self.plot_widget.plot(pen=pg.mkPen('gray', width=1, style=Qt.DashLine), name='Original')
+        
+        # Create comparison plot with a name
+        self.comparison_plot = self.plot_widget.plot(pen=pg.mkPen('orange', width=2, style=Qt.DashLine), 
+                                                      name='Comparison')
+        self.comparison_plot.hide()  # Hide initially
+        
         self.preview_curve = self.plot_widget.plot(pen=pg.mkPen('y', width=2, style=Qt.DashLine), name='Preview')
         self.preview_curve.hide()  # Hide initially
         
@@ -655,7 +855,6 @@ class TireCurveEditor:
         
         self.plot_widget.addItem(self.peak_marker)
         self.plot_widget.addItem(self.point_highlight)
-        self.plot_widget.addLegend()
         
         left_layout.addWidget(self.plot_widget, 2)  # Give plot more stretch
         
@@ -873,6 +1072,58 @@ class TireCurveEditor:
         clipboard.setText(self.data_display.toPlainText())
         self.status_bar.showMessage("Data copied to clipboard", 2000)
     
+    def load_comparison_curve(self):
+        """Load a comparison curve from another file"""
+        dialog = CompareFileDialog(self.window)
+        
+        if dialog.exec_() == QDialog.Accepted:
+            curve = dialog.get_selected_curve()
+            if curve:
+                self.comparison_curve = curve
+                self.show_comparison_curve()
+                self.status_bar.showMessage(f"Loaded comparison curve: {curve['name']}", 3000)
+    
+    def show_comparison_curve(self):
+        """Show the comparison curve on the plot"""
+        if self.comparison_curve and not self.show_all_curves:
+            # Plot the comparison curve
+            self.comparison_plot.setData(
+                self.comparison_curve['x_values'],
+                self.comparison_curve['values']
+            )
+            self.comparison_plot.show()
+            
+            # Update legend using self.legend
+            if hasattr(self, 'legend') and self.legend is not None:
+                # Remove old item from legend if it exists
+                try:
+                    self.legend.removeItem(self.comparison_plot)
+                except:
+                    pass  # Item might not be in legend yet
+                # Add back with new name
+                self.legend.addItem(self.comparison_plot, f"Comparison: {self.comparison_curve['name']}")
+            
+            # Enable hide button
+            self.hide_compare_btn.setEnabled(True)
+            
+            # Auto-range to include comparison curve
+            self.plot_widget.autoRange()
+    
+    def hide_comparison_curve(self):
+        """Hide the comparison curve"""
+        if self.comparison_plot:
+            self.comparison_plot.hide()
+            self.hide_compare_btn.setEnabled(False)
+            
+            # Also remove from legend
+            if hasattr(self, 'legend') and self.legend is not None:
+                try:
+                    self.legend.removeItem(self.comparison_plot)
+                except:
+                    pass
+            
+            self.status_bar.showMessage("Comparison curve hidden", 2000)
+    
     def show_preview_dialog(self, operation_type):
         """Show preview dialog for operations"""
         if self.show_all_curves:
@@ -977,6 +1228,12 @@ class TireCurveEditor:
             # Hide preview if showing
             self.preview_curve.hide()
             
+            # Show comparison curve if available
+            if self.comparison_curve:
+                self.show_comparison_curve()
+            else:
+                self.comparison_plot.hide()
+            
             # Mark peak
             peak_idx = np.argmax(values)
             peak_x = x_values[peak_idx]
@@ -1027,8 +1284,13 @@ class TireCurveEditor:
         self.curve_plot.hide()
         self.original_curve_plot.hide()
         self.preview_curve.hide()
+        self.comparison_plot.hide()
         self.peak_marker.hide()
         self.point_highlight.hide()
+        
+        # Clear legend
+        if hasattr(self, 'legend') and self.legend is not None:
+            self.legend.clear()
         
         # Generate colors for curves
         colors = [
@@ -1074,6 +1336,10 @@ class TireCurveEditor:
                 name=curve['name']
             )
             self.all_curves_plots.append(plot)
+            
+            # Add to legend
+            if hasattr(self, 'legend') and self.legend is not None:
+                self.legend.addItem(plot, curve['name'])
     
     def toggle_show_all_curves(self, state):
         """Toggle between showing all curves or single curve"""
@@ -1087,6 +1353,8 @@ class TireCurveEditor:
             self.multiply_btn.setEnabled(False)
             self.offset_btn.setEnabled(False)
             self.smooth_btn.setEnabled(False)
+            self.load_compare_btn.setEnabled(False)
+            self.hide_compare_btn.setEnabled(False)
             if self.point_edit_widget:
                 self.point_edit_widget.setEnabled(False)
             self.status_bar.showMessage("Showing all curves - editing disabled", 3000)
@@ -1107,8 +1375,16 @@ class TireCurveEditor:
             self.multiply_btn.setEnabled(True)
             self.offset_btn.setEnabled(True)
             self.smooth_btn.setEnabled(True)
+            self.load_compare_btn.setEnabled(True)
             if self.point_edit_widget:
                 self.point_edit_widget.setEnabled(True)
+            
+            # Show comparison curve if available
+            if self.comparison_curve:
+                self.show_comparison_curve()
+            else:
+                self.comparison_plot.hide()
+                self.hide_compare_btn.setEnabled(False)
             
             # Reload current curve
             self.load_curve(self.current_curve_index)
