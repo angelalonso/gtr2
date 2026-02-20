@@ -3,8 +3,8 @@
 
 import sys
 import numpy as np
-from dataclasses import dataclass, asdict
-from typing import List, Dict, Optional
+from dataclasses import dataclass
+from typing import List
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -36,43 +36,26 @@ class FFBParameters:
         # Clamp gamma to [0.5, 1.0]
         self.gamma = np.clip(self.gamma, 0.5, 1.0)
 
-class ParameterSpinBox(QWidget):
-    """Custom spin box with label and edit button"""
-    valueChanged = pyqtSignal(str, float)
-    
-    def __init__(self, param_name, display_name, value, min_val=-1e6, max_val=1e6, decimals=6, step=0.1):
+class ParameterSpinBox(QDoubleSpinBox):
+    """Custom spin box with double-click edit"""
+    def __init__(self, param_name, value, min_val=-1e6, max_val=1e6, decimals=6, step=0.1):
         super().__init__()
         self.param_name = param_name
-        self.display_name = display_name
-        self.min_val = min_val
-        self.max_val = max_val
-        self.decimals = decimals
-        
-        layout = QHBoxLayout()
-        layout.setContentsMargins(0, 0, 0, 0)
-        
-        # Label
-        self.label = QLabel(display_name)
-        self.label.setMinimumWidth(150)
-        self.label.setStyleSheet("color: #ffffff; font-weight: bold;")
-        layout.addWidget(self.label)
-        
-        # Spin box
-        self.spinbox = QDoubleSpinBox()
-        self.spinbox.setRange(min_val, max_val)
-        self.spinbox.setDecimals(decimals)
-        self.spinbox.setSingleStep(step)
-        self.spinbox.setValue(value)
-        self.spinbox.setButtonSymbols(QDoubleSpinBox.UpDownArrows)
-        self.spinbox.setMinimumWidth(120)
-        self.spinbox.setStyleSheet("""
+        self.setRange(min_val, max_val)
+        self.setDecimals(decimals)
+        self.setSingleStep(step)
+        self.setValue(value)
+        self.setButtonSymbols(QDoubleSpinBox.UpDownArrows)
+        self.setMinimumWidth(150)
+        self.setStyleSheet("""
             QDoubleSpinBox {
                 background-color: #3c3c3c;
                 color: #ffffff;
                 border: 1px solid #555;
                 border-radius: 3px;
-                padding: 4px;
+                padding: 6px;
                 font-weight: bold;
+                font-size: 12px;
             }
             QDoubleSpinBox:focus {
                 border: 1px solid #4CAF50;
@@ -86,70 +69,6 @@ class ParameterSpinBox(QWidget):
                 background-color: #45a049;
             }
         """)
-        self.spinbox.valueChanged.connect(self.on_value_changed)
-        layout.addWidget(self.spinbox)
-        
-        # Edit button for detailed edit
-        self.edit_btn = QPushButton("✎")
-        self.edit_btn.setMaximumWidth(30)
-        self.edit_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #2196F3;
-                color: white;
-                font-weight: bold;
-                border-radius: 3px;
-            }
-            QPushButton:hover {
-                background-color: #1976D2;
-            }
-        """)
-        self.edit_btn.clicked.connect(self.open_edit_dialog)
-        layout.addWidget(self.edit_btn)
-        
-        # Current value label (for display, hidden by default)
-        self.value_label = QLabel(f"{value:.6f}")
-        self.value_label.setStyleSheet("background-color: #3c3c3c; padding: 4px; border-radius: 3px;")
-        self.value_label.hide()
-        
-        layout.addStretch()
-        self.setLayout(layout)
-    
-    def on_value_changed(self, value):
-        self.valueChanged.emit(self.param_name, value)
-    
-    def open_edit_dialog(self):
-        dialog = QDialog(self)
-        dialog.setWindowTitle(f"Edit {self.display_name}")
-        dialog.setModal(True)
-        dialog.setMinimumWidth(300)
-        
-        layout = QVBoxLayout()
-        
-        layout.addWidget(QLabel(f"Parameter: {self.display_name}"))
-        layout.addWidget(QLabel(f"Current: {self.spinbox.value():.6f}"))
-        
-        input_field = QDoubleSpinBox()
-        input_field.setRange(self.min_val, self.max_val)
-        input_field.setDecimals(self.decimals)
-        input_field.setValue(self.spinbox.value())
-        layout.addWidget(input_field)
-        
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.accepted.connect(dialog.accept)
-        buttons.rejected.connect(dialog.reject)
-        layout.addWidget(buttons)
-        
-        dialog.setLayout(layout)
-        
-        if dialog.exec_() == QDialog.Accepted:
-            new_value = input_field.value()
-            self.spinbox.setValue(new_value)
-    
-    def setValue(self, value):
-        self.spinbox.setValue(value)
-    
-    def value(self):
-        return self.spinbox.value()
 
 class FFBSimulator:
     """Simulates Force Feedback based on tire model"""
@@ -432,8 +351,9 @@ class FFBSimulatorWidget(QMainWindow):
                 padding: 0 5px 0 5px;
             }
         """)
-        param_layout = QVBoxLayout()
-        param_layout.setSpacing(10)
+        param_layout = QGridLayout()
+        param_layout.setVerticalSpacing(10)
+        param_layout.setHorizontalSpacing(15)
         
         # Create parameter spinboxes
         self.param_spinboxes = {}
@@ -449,10 +369,20 @@ class FFBSimulatorWidget(QMainWindow):
             ("steering_arm_length_m", "Steering Arm Length (m)", 0.15, 0.01, 1, 6, 0.01)
         ]
         
-        for attr, display, default, min_val, max_val, decimals, step in params:
-            spinbox = ParameterSpinBox(attr, display, default, min_val, max_val, decimals, step)
-            spinbox.valueChanged.connect(self.on_parameter_changed)
-            param_layout.addWidget(spinbox)
+        for i, (attr, display, default, min_val, max_val, decimals, step) in enumerate(params):
+            row = i // 2
+            col = (i % 2) * 2
+            
+            # Label
+            label = QLabel(display)
+            label.setStyleSheet("color: #ffffff; font-weight: bold; font-size: 12px;")
+            label.setMinimumWidth(150)
+            param_layout.addWidget(label, row, col)
+            
+            # Spinbox
+            spinbox = ParameterSpinBox(attr, default, min_val, max_val, decimals, step)
+            spinbox.valueChanged.connect(lambda value, a=attr: self.on_parameter_changed(a, value))
+            param_layout.addWidget(spinbox, row, col + 1)
             self.param_spinboxes[attr] = spinbox
         
         param_group.setLayout(param_layout)
@@ -514,25 +444,6 @@ class FFBSimulatorWidget(QMainWindow):
         sheet_group.setLayout(sheet_layout)
         right_layout.addWidget(sheet_group)
         
-        # Update button
-        update_btn = QPushButton("🔄 Update Graph")
-        update_btn.clicked.connect(self.update_graph)
-        update_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                padding: 12px;
-                font-weight: bold;
-                font-size: 14px;
-                border-radius: 5px;
-                margin-top: 10px;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-        """)
-        right_layout.addWidget(update_btn)
-        
         # Add to main layout
         splitter = QSplitter(Qt.Horizontal)
         splitter.addWidget(left_widget)
@@ -544,13 +455,13 @@ class FFBSimulatorWidget(QMainWindow):
         # Status bar
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
-        self.status_bar.showMessage("Ready - Double-click values or use arrows to edit parameters")
+        self.status_bar.showMessage("Ready - Edit parameters to update graph automatically")
         
         # Initial plot update
         self.update_plot()
     
     def on_parameter_changed(self, param_name, value):
-        """Handle parameter changes"""
+        """Handle parameter changes and auto-update graph"""
         setattr(self.simulator.params, param_name, value)
         
         # Update angles in radians
@@ -559,13 +470,15 @@ class FFBSimulatorWidget(QMainWindow):
         elif param_name == "kpi_angle_deg":
             self.simulator.params.kpi_angle_rad = np.radians(value)
         
-        self.update_copy_text()
-        self.status_bar.showMessage(f"Parameter {param_name} updated to {value:.6f}", 2000)
+        # Auto-update graph
+        self.update_graph()
     
     def on_auto_gain_changed(self, state):
         self.simulator.params.auto_gain = (state == Qt.Checked)
         self.update_copy_text()
         self.status_bar.showMessage(f"Auto Gain {'enabled' if state == Qt.Checked else 'disabled'}", 2000)
+        # Auto-update graph
+        self.update_graph()
     
     def update_copy_text(self):
         """Update the CCGEP.in copy text"""
