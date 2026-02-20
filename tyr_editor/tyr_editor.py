@@ -475,11 +475,12 @@ class ParameterEditDialog(QDialog):
 class CompareFileDialog(QDialog):
     """Dialog for loading comparison curves from another file"""
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, last_file=None):
         super().__init__(parent)
         self.selected_file = None
         self.selected_curve_index = 0
         self.comparison_curves = []
+        self.last_file = last_file  # Store the last used file path
         self.setup_ui()
         
     def setup_ui(self):
@@ -497,11 +498,12 @@ class CompareFileDialog(QDialog):
         self.file_path_edit.setReadOnly(True)
         self.file_path_edit.setPlaceholderText("No file selected")
         
-        browse_btn = QPushButton("Browse...")
-        browse_btn.clicked.connect(self.browse_file)
+        # Add a "Change File" button
+        self.browse_btn = QPushButton("Browse...")
+        self.browse_btn.clicked.connect(self.browse_file)
         
         file_layout.addWidget(self.file_path_edit)
-        file_layout.addWidget(browse_btn)
+        file_layout.addWidget(self.browse_btn)
         file_group.setLayout(file_layout)
         layout.addWidget(file_group)
         
@@ -509,14 +511,29 @@ class CompareFileDialog(QDialog):
         curve_group = QGroupBox("Select Curve")
         curve_layout = QVBoxLayout()
         
+        # Add radio buttons for "Use same file" vs "Load different file"
+        self.file_selection_group = QButtonGroup()
+        
+        self.same_file_radio = QRadioButton("Use current comparison file")
+        self.same_file_radio.setChecked(True)
+        self.same_file_radio.toggled.connect(self.on_file_selection_changed)
+        
+        self.different_file_radio = QRadioButton("Load different file")
+        self.different_file_radio.toggled.connect(self.on_file_selection_changed)
+        
+        curve_layout.addWidget(self.same_file_radio)
+        curve_layout.addWidget(self.different_file_radio)
+        
+        # Curve combo box
         self.curve_combo = QComboBox()
-        self.curve_combo.setEnabled(False)
+        self.curve_combo.setEnabled(True)
         self.curve_combo.currentIndexChanged.connect(self.on_curve_selected)
         
+        curve_layout.addWidget(QLabel("Select curve:"))
         curve_layout.addWidget(self.curve_combo)
         
         # Curve info
-        self.info_label = QLabel("No curves loaded")
+        self.info_label = QLabel("")
         self.info_label.setStyleSheet("color: #888; font-style: italic;")
         curve_layout.addWidget(self.info_label)
         
@@ -553,18 +570,57 @@ class CompareFileDialog(QDialog):
         
         layout.addLayout(button_layout)
         self.setLayout(layout)
+        
+        # If we have a last file, load it automatically
+        if self.last_file and Path(self.last_file).exists():
+            self.load_file(self.last_file)
+            self.same_file_radio.setChecked(True)
+        else:
+            # Disable same file radio if no last file
+            self.same_file_radio.setEnabled(False)
+            self.different_file_radio.setChecked(True)
+    
+    def on_file_selection_changed(self):
+        """Handle file selection radio button changes"""
+        if self.same_file_radio.isChecked():
+            # Use the last file
+            if self.last_file and Path(self.last_file).exists():
+                self.load_file(self.last_file)
+                self.browse_btn.setEnabled(False)
+                self.file_path_edit.setEnabled(False)
+            else:
+                # Fall back to different file if last file doesn't exist
+                self.different_file_radio.setChecked(True)
+        else:
+            # Allow browsing for a different file
+            self.browse_btn.setEnabled(True)
+            self.file_path_edit.setEnabled(True)
+            # Clear current selection if no file is loaded
+            if not self.file_path_edit.text():
+                self.curve_combo.clear()
+                self.curve_combo.setEnabled(False)
+                self.show_btn.setEnabled(False)
+                self.info_label.setText("No file selected")
+                self.preview_plot.clear()
     
     def browse_file(self):
         """Browse for a tire file"""
+        # Start from the last file's directory if available
+        start_dir = str(Path.home())
+        if self.last_file:
+            start_dir = str(Path(self.last_file).parent)
+        
         filename, _ = QFileDialog.getOpenFileName(
             self,
             "Select Tire File",
-            str(Path.home()),
+            start_dir,
             "Tire files (*.tbc *.tyr);;All files (*.*)"
         )
         
         if filename:
             self.load_file(filename)
+            # Automatically switch to "different file" mode when browsing
+            self.different_file_radio.setChecked(True)
     
     def load_file(self, filename):
         """Load curves from selected file"""
@@ -581,7 +637,7 @@ class CompareFileDialog(QDialog):
                 self.curve_combo.setEnabled(True)
                 
                 # Update info
-                self.info_label.setText(f"Loaded {len(self.comparison_curves)} curves")
+                self.info_label.setText(f"Loaded {len(self.comparison_curves)} curves from {Path(filename).name}")
                 self.info_label.setStyleSheet("color: #4CAF50;")
                 
                 # Enable show button
@@ -641,6 +697,10 @@ class CompareFileDialog(QDialog):
         if self.comparison_curves and self.selected_curve_index < len(self.comparison_curves):
             return self.comparison_curves[self.selected_curve_index]
         return None
+    
+    def get_selected_file(self):
+        """Get the selected file path"""
+        return self.selected_file
 
 class TireCurveEditor:
     def __init__(self, filename):
@@ -659,6 +719,7 @@ class TireCurveEditor:
         self.point_highlight = None  # Store point highlight item
         self.point_edit_widget = None  # Store point edit widget
         self.legend = None  # Store legend widget
+        self.last_comparison_file = None  # Store last used comparison file
         
         self.parse_tire_file(filename)
         self.setup_ui()
@@ -1074,14 +1135,19 @@ class TireCurveEditor:
     
     def load_comparison_curve(self):
         """Load a comparison curve from another file"""
-        dialog = CompareFileDialog(self.window)
+        # Pass the last used comparison file to the dialog
+        dialog = CompareFileDialog(self.window, self.last_comparison_file)
         
         if dialog.exec_() == QDialog.Accepted:
             curve = dialog.get_selected_curve()
-            if curve:
+            selected_file = dialog.get_selected_file()
+            
+            if curve and selected_file:
+                # Store the selected file for next time
+                self.last_comparison_file = selected_file
                 self.comparison_curve = curve
                 self.show_comparison_curve()
-                self.status_bar.showMessage(f"Loaded comparison curve: {curve['name']}", 3000)
+                self.status_bar.showMessage(f"Loaded comparison curve: {curve['name']} from {Path(selected_file).name}", 3000)
     
     def show_comparison_curve(self):
         """Show the comparison curve on the plot"""
