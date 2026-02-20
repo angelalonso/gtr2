@@ -10,6 +10,135 @@ from PyQt5.QtGui import *
 import pyqtgraph as pg
 from scipy.ndimage import gaussian_filter1d
 
+class PointEditWidget(QWidget):
+    """Widget for editing individual data points with arrow keys"""
+    
+    def __init__(self, editor, parent=None):
+        super().__init__(parent)
+        self.editor = editor  # Store reference to TireCurveEditor
+        self.current_point_index = 0
+        self.current_values = []
+        self.setup_ui()
+        
+    def setup_ui(self):
+        layout = QHBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Current point indicator
+        self.point_label = QLabel("Point: 0/0")
+        self.point_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
+        layout.addWidget(self.point_label)
+        
+        # Value display/edit
+        layout.addWidget(QLabel("Value:"))
+        self.value_spin = QDoubleSpinBox()
+        self.value_spin.setRange(-10.0, 10.0)
+        self.value_spin.setDecimals(6)
+        self.value_spin.setSingleStep(0.001)
+        self.value_spin.valueChanged.connect(self.on_value_changed)
+        
+        # Install event filter to catch arrow keys before the spinbox does
+        self.value_spin.installEventFilter(self)
+        
+        layout.addWidget(self.value_spin)
+        
+        # Instructions
+        instr_label = QLabel("←/→: Select point, ↑/↓: Change value")
+        instr_label.setStyleSheet("color: #888; font-style: italic;")
+        layout.addWidget(instr_label)
+        
+        layout.addStretch()
+        self.setLayout(layout)
+        
+        # Make sure the widget can receive focus
+        self.setFocusPolicy(Qt.StrongFocus)
+    
+    def eventFilter(self, obj, event):
+        """Filter events to catch arrow keys before they're processed by the spinbox"""
+        if obj == self.value_spin and event.type() == QEvent.KeyPress:
+            if event.key() == Qt.Key_Left:
+                self.select_previous_point()
+                return True  # Event handled, don't pass to spinbox
+            elif event.key() == Qt.Key_Right:
+                self.select_next_point()
+                return True  # Event handled, don't pass to spinbox
+            elif event.key() == Qt.Key_Up:
+                self.increase_value()
+                return True  # Event handled, don't pass to spinbox
+            elif event.key() == Qt.Key_Down:
+                self.decrease_value()
+                return True  # Event handled, don't pass to spinbox
+        return super().eventFilter(obj, event)
+    
+    def set_values(self, values):
+        """Set the current values array"""
+        self.current_values = values.copy() if values else []
+        self.current_point_index = 0
+        self.update_display()
+    
+    def update_display(self):
+        """Update the display with current point"""
+        if self.current_values:
+            self.point_label.setText(f"Point: {self.current_point_index + 1}/{len(self.current_values)}")
+            self.value_spin.blockSignals(True)
+            self.value_spin.setValue(self.current_values[self.current_point_index])
+            self.value_spin.blockSignals(False)
+    
+    def on_value_changed(self, value):
+        """Handle value change from spinbox"""
+        if self.current_values and self.current_point_index < len(self.current_values):
+            self.current_values[self.current_point_index] = value
+            self.editor.update_point_value(self.current_point_index, value)
+    
+    def select_previous_point(self):
+        """Select the previous point"""
+        if self.current_values and self.current_point_index > 0:
+            self.current_point_index -= 1
+            self.update_display()
+            self.editor.highlight_point(self.current_point_index)
+    
+    def select_next_point(self):
+        """Select the next point"""
+        if self.current_values and self.current_point_index < len(self.current_values) - 1:
+            self.current_point_index += 1
+            self.update_display()
+            self.editor.highlight_point(self.current_point_index)
+    
+    def increase_value(self):
+        """Increase current point value"""
+        if self.current_values:
+            current_val = self.current_values[self.current_point_index]
+            self.value_spin.setValue(current_val + 0.001)
+    
+    def decrease_value(self):
+        """Decrease current point value"""
+        if self.current_values:
+            current_val = self.current_values[self.current_point_index]
+            self.value_spin.setValue(current_val - 0.001)
+    
+    def keyPressEvent(self, event):
+        """Handle key press events when the widget itself has focus"""
+        if event.key() == Qt.Key_Left:
+            self.select_previous_point()
+            event.accept()
+        elif event.key() == Qt.Key_Right:
+            self.select_next_point()
+            event.accept()
+        elif event.key() == Qt.Key_Up:
+            self.increase_value()
+            event.accept()
+        elif event.key() == Qt.Key_Down:
+            self.decrease_value()
+            event.accept()
+        else:
+            super().keyPressEvent(event)
+    
+    def focusInEvent(self, event):
+        """Handle focus in event"""
+        super().focusInEvent(event)
+        # Optionally highlight the current point when widget gets focus
+        self.editor.highlight_point(self.current_point_index)
+
 class PreviewDialog(QDialog):
     """Dialog for previewing operations with real-time updates"""
     
@@ -355,6 +484,8 @@ class TireCurveEditor:
         self.all_curves_plots = []  # Store all curve plot items
         self.preview_curve = None  # Store preview curve item
         self.preview_values = None  # Store current preview values
+        self.point_highlight = None  # Store point highlight item
+        self.point_edit_widget = None  # Store point edit widget
         
         self.parse_tire_file(filename)
         self.setup_ui()
@@ -497,6 +628,11 @@ class TireCurveEditor:
         
         left_layout.addWidget(control_bar)
         
+        # Point edit widget - pass left_panel as parent (which is a QWidget)
+        self.point_edit_widget = PointEditWidget(self, left_panel)
+        self.point_edit_widget.setFocusPolicy(Qt.ClickFocus)  # Allow focus by clicking
+        left_layout.addWidget(self.point_edit_widget)
+        
         # Plot widget - made larger with stretch factor
         self.plot_widget = pg.PlotWidget(title="Slip Curve")
         self.plot_widget.setLabel('left', 'Normalized Force')
@@ -504,15 +640,21 @@ class TireCurveEditor:
         self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
         self.plot_widget.setMouseEnabled(x=True, y=True)
         self.plot_widget.setMinimumHeight(500)  # Set minimum height
+        self.plot_widget.setFocusPolicy(Qt.StrongFocus)  # Allow plot to receive focus
         
         # Create curves
         self.curve_plot = self.plot_widget.plot(pen=pg.mkPen('b', width=2), name='Slip Curve')
         self.original_curve_plot = self.plot_widget.plot(pen=pg.mkPen('gray', width=1, style=Qt.DashLine), name='Original')
         self.preview_curve = self.plot_widget.plot(pen=pg.mkPen('y', width=2, style=Qt.DashLine), name='Preview')
         self.preview_curve.hide()  # Hide initially
+        
+        # Point highlight (red circle)
+        self.point_highlight = pg.ScatterPlotItem(pen='r', brush=None, size=15, symbol='o', name='Selected Point')
+        
         self.peak_marker = pg.ScatterPlotItem(pen='r', brush='r', size=15, symbol='star', name='Peak')
         
         self.plot_widget.addItem(self.peak_marker)
+        self.plot_widget.addItem(self.point_highlight)
         self.plot_widget.addLegend()
         
         left_layout.addWidget(self.plot_widget, 2)  # Give plot more stretch
@@ -660,6 +802,51 @@ class TireCurveEditor:
             }
         """)
     
+    def update_point_value(self, index, value):
+        """Update a single point value (called from PointEditWidget)"""
+        if self.show_all_curves:
+            return
+        
+        # Store modified curve if not already modified
+        curve = self.slip_curves[self.current_curve_index]
+        if self.current_curve_index not in self.modified_curves:
+            self.modified_curves[self.current_curve_index] = {
+                'values': curve['values'].copy(),
+                'step': curve['step']
+            }
+        
+        # Update the value
+        self.modified_curves[self.current_curve_index]['values'][index] = value
+        
+        # Reload the curve to update display
+        self.load_curve(self.current_curve_index)
+        
+        # Keep the same point selected
+        if self.point_edit_widget:
+            self.point_edit_widget.current_point_index = index
+            self.point_edit_widget.update_display()
+            self.highlight_point(index)
+        
+        self.status_bar.showMessage(f"Point {index+1} updated", 1000)
+    
+    def highlight_point(self, index):
+        """Highlight a specific point on the curve"""
+        if self.show_all_curves:
+            return
+        
+        curve = self.slip_curves[self.current_curve_index]
+        if self.current_curve_index in self.modified_curves:
+            values = self.modified_curves[self.current_curve_index]['values']
+            step = self.modified_curves[self.current_curve_index]['step']
+        else:
+            values = curve['values']
+            step = curve['step']
+        
+        x = index * step
+        y = values[index]
+        
+        self.point_highlight.setData([x], [y])
+    
     def update_data_display(self):
         """Update the data display with current curve values"""
         curve = self.slip_curves[self.current_curve_index]
@@ -795,6 +982,13 @@ class TireCurveEditor:
             peak_x = x_values[peak_idx]
             peak_y = values[peak_idx]
             self.peak_marker.setData([peak_x], [peak_y])
+            
+            # Update point edit widget
+            if self.point_edit_widget:
+                self.point_edit_widget.set_values(values)
+            
+            # Highlight first point
+            self.highlight_point(0)
         else:
             # Show all curves mode
             self.update_all_curves_display()
@@ -834,6 +1028,7 @@ class TireCurveEditor:
         self.original_curve_plot.hide()
         self.preview_curve.hide()
         self.peak_marker.hide()
+        self.point_highlight.hide()
         
         # Generate colors for curves
         colors = [
@@ -892,6 +1087,8 @@ class TireCurveEditor:
             self.multiply_btn.setEnabled(False)
             self.offset_btn.setEnabled(False)
             self.smooth_btn.setEnabled(False)
+            if self.point_edit_widget:
+                self.point_edit_widget.setEnabled(False)
             self.status_bar.showMessage("Showing all curves - editing disabled", 3000)
         else:
             # Back to single curve mode
@@ -903,12 +1100,15 @@ class TireCurveEditor:
             # Show individual curve plots
             self.curve_plot.show()
             self.peak_marker.show()
+            self.point_highlight.show()
             
             # Re-enable controls
             self.step_spin.setEnabled(True)
             self.multiply_btn.setEnabled(True)
             self.offset_btn.setEnabled(True)
             self.smooth_btn.setEnabled(True)
+            if self.point_edit_widget:
+                self.point_edit_widget.setEnabled(True)
             
             # Reload current curve
             self.load_curve(self.current_curve_index)
@@ -1061,9 +1261,10 @@ class TireCurveEditor:
     def save_to_file(self, filename):
         """Save the modified curves to a file"""
         try:
+            # Start with original content
             new_content = self.original_content
             
-            # Apply modifications in reverse order to maintain string positions
+            # Apply modifications - process in reverse order to maintain indices
             for idx in sorted(self.modified_curves.keys(), reverse=True):
                 mod = self.modified_curves[idx]
                 original_curve = self.slip_curves[idx]
@@ -1076,14 +1277,67 @@ class TireCurveEditor:
                 data_lines = []
                 for i in range(0, len(values), 10):
                     line_values = values[i:i+10]
-                    data_lines.append(' '.join(f"{v:.6f}" for v in line_values))
+                    formatted_line = ' '.join(f"{v:.6f}" for v in line_values)
+                    data_lines.append(formatted_line)
                 new_data_str = '\n'.join(data_lines)
                 
-                # Create new block
-                new_block = f'[SLIPCURVE]\nName="{original_curve["name"]}"\nStep={step:.6f}            // Slip step\nDropoffFunction={original_curve["dropoff_function"]:.1f}      // see above            \nData:\n{new_data_str}'
+                # Create new block with proper formatting - ensure it ends with newline
+                new_block = f'[SLIPCURVE]\nName="{original_curve["name"]}"\nStep={step:.6f}            // Slip step\nDropoffFunction={original_curve["dropoff_function"]:.1f}      // see above            \nData:\n{new_data_str}\n'
                 
-                # Replace in content
-                new_content = new_content.replace(original_curve['full_match'], new_block)
+                # Get the original block
+                old_block = original_curve['full_match']
+                
+                # Find the position of this block in the content
+                pos = new_content.find(old_block)
+                if pos >= 0:
+                    # Find where this block ends
+                    end_pos = pos + len(old_block)
+                    
+                    # Look ahead to find the next section marker ([SLIPCURVE] or [COMPOUND])
+                    next_section_pos = -1
+                    
+                    # Try to find next [SLIPCURVE]
+                    next_curve_pos = new_content.find('[SLIPCURVE]', end_pos)
+                    # Try to find next [COMPOUND]
+                    next_compound_pos = new_content.find('[COMPOUND]', end_pos)
+                    
+                    # Find the closest next section
+                    if next_curve_pos >= 0 and next_compound_pos >= 0:
+                        next_section_pos = min(next_curve_pos, next_compound_pos)
+                    elif next_curve_pos >= 0:
+                        next_section_pos = next_curve_pos
+                    elif next_compound_pos >= 0:
+                        next_section_pos = next_compound_pos
+                    
+                    if next_section_pos >= 0:
+                        # Capture everything between this block and the next section
+                        between_content = new_content[end_pos:next_section_pos]
+                        
+                        # Ensure we have at least one newline between blocks
+                        # But preserve the original formatting
+                        if not between_content.startswith('\n'):
+                            between_content = '\n' + between_content
+                        
+                        # Replace with new block + the preserved between content
+                        new_content = new_content[:pos] + new_block + between_content + new_content[next_section_pos:]
+                    else:
+                        # This is the last block, replace it and keep everything after
+                        trailing_content = new_content[end_pos:]
+                        
+                        # Ensure the file ends with a newline
+                        if trailing_content and not trailing_content.endswith('\n'):
+                            trailing_content += '\n'
+                        
+                        new_content = new_content[:pos] + new_block + trailing_content
+                else:
+                    # Fallback to simple replace if position not found
+                    # Ensure we add a newline after the block
+                    if not old_block.endswith('\n'):
+                        old_block_with_newline = old_block + '\n'
+                        new_block_with_newline = new_block + '\n' if not new_block.endswith('\n') else new_block
+                        new_content = new_content.replace(old_block_with_newline, new_block_with_newline)
+                    else:
+                        new_content = new_content.replace(old_block, new_block)
             
             # Write to file
             with open(filename, 'w') as f:
@@ -1106,6 +1360,8 @@ class TireCurveEditor:
             
         except Exception as e:
             QMessageBox.critical(self.window, "Error", f"Failed to save: {e}")
+            import traceback
+            traceback.print_exc()
     
     def run(self):
         """Start the application"""
