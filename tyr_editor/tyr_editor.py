@@ -10,6 +10,208 @@ from PyQt5.QtGui import *
 import pyqtgraph as pg
 from scipy.ndimage import gaussian_filter1d
 
+class PreviewDialog(QDialog):
+    """Dialog for previewing operations with real-time updates"""
+    
+    def __init__(self, title, operation_type, current_values, plot_widget, parent=None):
+        super().__init__(parent)
+        self.operation_type = operation_type
+        self.original_values = current_values.copy()
+        self.current_values = current_values.copy()
+        self.preview_values = current_values.copy()
+        self.plot_widget = plot_widget
+        self.preview_curve = None
+        self.setup_ui(title)
+        
+    def setup_ui(self, title):
+        self.setWindowTitle(title)
+        self.setModal(True)
+        self.setMinimumWidth(450)
+        
+        layout = QVBoxLayout()
+        
+        # Preview label
+        preview_label = QLabel("Preview - Changes will show in real-time")
+        preview_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
+        layout.addWidget(preview_label)
+        
+        # Mini preview plot
+        self.preview_plot = pg.PlotWidget(title="Preview")
+        self.preview_plot.setLabel('left', 'Force')
+        self.preview_plot.setLabel('bottom', 'Slip')
+        self.preview_plot.showGrid(x=True, y=True, alpha=0.3)
+        self.preview_plot.setFixedHeight(150)
+        layout.addWidget(self.preview_plot)
+        
+        # Original curve (gray dashed)
+        x_values = list(range(len(self.original_values)))
+        self.preview_plot.plot(x_values, self.original_values, 
+                               pen=pg.mkPen('gray', width=1, style=Qt.DashLine), 
+                               name='Original')
+        
+        # Preview curve (yellow)
+        self.preview_curve = self.preview_plot.plot(x_values, self.original_values,
+                                                     pen=pg.mkPen('y', width=2),
+                                                     name='Preview')
+        
+        # Operation-specific controls
+        control_group = QGroupBox("Parameters")
+        control_layout = QVBoxLayout()
+        
+        if self.operation_type == "multiply":
+            control_layout.addWidget(QLabel("Multiplication Factor:"))
+            self.param_input = QDoubleSpinBox()
+            self.param_input.setRange(0.0, 10.0)
+            self.param_input.setValue(1.0)
+            self.param_input.setSingleStep(0.1)
+            self.param_input.setDecimals(3)
+            self.param_input.valueChanged.connect(self.update_preview)
+            
+        elif self.operation_type == "offset":
+            control_layout.addWidget(QLabel("Offset Value:"))
+            self.param_input = QDoubleSpinBox()
+            self.param_input.setRange(-10.0, 10.0)
+            self.param_input.setValue(0.0)
+            self.param_input.setSingleStep(0.1)
+            self.param_input.setDecimals(3)
+            self.param_input.valueChanged.connect(self.update_preview)
+            
+        elif self.operation_type == "smooth":
+            control_layout.addWidget(QLabel("Smoothing Sigma:"))
+            self.param_input = QDoubleSpinBox()
+            self.param_input.setRange(0.1, 5.0)
+            self.param_input.setValue(1.0)
+            self.param_input.setSingleStep(0.1)
+            self.param_input.setDecimals(1)
+            self.param_input.valueChanged.connect(self.update_preview)
+        
+        control_layout.addWidget(self.param_input)
+        control_group.setLayout(control_layout)
+        layout.addWidget(control_group)
+        
+        # Statistics comparison
+        stats_group = QGroupBox("Statistics Comparison")
+        stats_layout = QGridLayout()
+        
+        # Headers
+        stats_layout.addWidget(QLabel("Metric"), 0, 0)
+        stats_layout.addWidget(QLabel("Original"), 0, 1)
+        stats_layout.addWidget(QLabel("Preview"), 0, 2)
+        
+        # Statistics rows
+        metrics = ['Min:', 'Max:', 'Mean:', 'Peak:']
+        self.stats_labels = {}
+        for i, metric in enumerate(metrics):
+            stats_layout.addWidget(QLabel(metric), i+1, 0)
+            
+            # Original value
+            orig_label = QLabel("0.000")
+            orig_label.setStyleSheet("color: #888;")
+            stats_layout.addWidget(orig_label, i+1, 1)
+            
+            # Preview value
+            preview_label = QLabel("0.000")
+            preview_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
+            stats_layout.addWidget(preview_label, i+1, 2)
+            
+            self.stats_labels[metric] = {'original': orig_label, 'preview': preview_label}
+        
+        stats_group.setLayout(stats_layout)
+        layout.addWidget(stats_group)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        
+        self.apply_btn = QPushButton("✅ Apply Changes")
+        self.apply_btn.clicked.connect(self.accept)
+        self.apply_btn.setStyleSheet("background-color: #4CAF50; color: white;")
+        
+        self.revert_btn = QPushButton("↺ Revert to Original")
+        self.revert_btn.clicked.connect(self.revert_to_original)
+        
+        self.cancel_btn = QPushButton("✖ Cancel")
+        self.cancel_btn.clicked.connect(self.reject)
+        
+        button_layout.addWidget(self.apply_btn)
+        button_layout.addWidget(self.revert_btn)
+        button_layout.addWidget(self.cancel_btn)
+        
+        layout.addLayout(button_layout)
+        self.setLayout(layout)
+        
+        # Initial preview update
+        self.update_preview()
+    
+    def update_preview(self):
+        """Update preview based on current parameter"""
+        param_value = self.param_input.value()
+        
+        if self.operation_type == "multiply":
+            self.preview_values = [v * param_value for v in self.original_values]
+        elif self.operation_type == "offset":
+            self.preview_values = [v + param_value for v in self.original_values]
+        elif self.operation_type == "smooth":
+            values = np.array(self.original_values)
+            self.preview_values = gaussian_filter1d(values, sigma=param_value).tolist()
+        
+        # Update preview plot
+        x_values = list(range(len(self.preview_values)))
+        self.preview_curve.setData(x_values, self.preview_values)
+        
+        # Update statistics
+        self.update_statistics()
+        
+        # Update main plot preview if parent has the method
+        if self.parent() and hasattr(self.parent(), 'update_preview_curve'):
+            self.parent().update_preview_curve(self.preview_values)
+    
+    def update_statistics(self):
+        """Update statistics comparison"""
+        if self.preview_values:
+            # Original stats
+            orig_min = min(self.original_values)
+            orig_max = max(self.original_values)
+            orig_mean = np.mean(self.original_values)
+            orig_peak_idx = np.argmax(self.original_values)
+            orig_peak = self.original_values[orig_peak_idx]
+            
+            # Preview stats
+            preview_min = min(self.preview_values)
+            preview_max = max(self.preview_values)
+            preview_mean = np.mean(self.preview_values)
+            preview_peak_idx = np.argmax(self.preview_values)
+            preview_peak = self.preview_values[preview_peak_idx]
+            
+            # Update labels
+            self.stats_labels['Min:']['original'].setText(f"{orig_min:.3f}")
+            self.stats_labels['Max:']['original'].setText(f"{orig_max:.3f}")
+            self.stats_labels['Mean:']['original'].setText(f"{orig_mean:.3f}")
+            self.stats_labels['Peak:']['original'].setText(f"{orig_peak:.3f}")
+            
+            self.stats_labels['Min:']['preview'].setText(f"{preview_min:.3f}")
+            self.stats_labels['Max:']['preview'].setText(f"{preview_max:.3f}")
+            self.stats_labels['Mean:']['preview'].setText(f"{preview_mean:.3f}")
+            self.stats_labels['Peak:']['preview'].setText(f"{preview_peak:.3f}")
+    
+    def revert_to_original(self):
+        """Revert to original values"""
+        self.param_input.setValue(1.0 if self.operation_type == "multiply" else 
+                                  0.0 if self.operation_type == "offset" else
+                                  1.0)
+        self.preview_values = self.original_values.copy()
+        self.update_preview()
+        if self.parent() and hasattr(self.parent(), 'clear_preview'):
+            self.parent().clear_preview()
+    
+    def get_values(self):
+        return self.preview_values
+    
+    def closeEvent(self, event):
+        """Clean up when dialog closes"""
+        if self.parent() and hasattr(self.parent(), 'clear_preview'):
+            self.parent().clear_preview()
+        event.accept()
+
 class ParameterEditDialog(QDialog):
     """Dialog for editing parameter values"""
     
@@ -149,6 +351,10 @@ class TireCurveEditor:
         self.curve_matches = []
         self.modified_curves = {}
         self.current_curve_index = 0
+        self.show_all_curves = False
+        self.all_curves_plots = []  # Store all curve plot items
+        self.preview_curve = None  # Store preview curve item
+        self.preview_values = None  # Store current preview values
         
         self.parse_tire_file(filename)
         self.setup_ui()
@@ -186,7 +392,7 @@ class TireCurveEditor:
         self.app = QApplication.instance() or QApplication(sys.argv)
         self.window = QMainWindow()
         self.window.setWindowTitle(f"Tire Curve Editor - {Path(self.filename).name}")
-        self.window.setGeometry(100, 100, 1400, 900)
+        self.window.setGeometry(100, 100, 1600, 1000)  # Larger window
         
         # Apply dark theme
         self.apply_dark_theme()
@@ -205,12 +411,62 @@ class TireCurveEditor:
         control_layout = QHBoxLayout(control_bar)
         control_layout.setContentsMargins(0, 0, 0, 0)
         
-        # Curve selection
+        # Curve selection - IMPROVED VISIBILITY
         control_layout.addWidget(QLabel("Curve:"))
         self.curve_combo = QComboBox()
         self.curve_combo.addItems([c['name'] for c in self.slip_curves])
         self.curve_combo.currentIndexChanged.connect(self.on_curve_selected)
+        # Make the combo box more visible
+        self.curve_combo.setStyleSheet("""
+            QComboBox {
+                background-color: #3c3c3c;
+                color: #ffffff;
+                border: 2px solid #4CAF50;
+                border-radius: 3px;
+                padding: 4px;
+                min-width: 150px;
+            }
+            QComboBox::drop-down {
+                border: none;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid #4CAF50;
+                margin-right: 5px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #2b2b2b;
+                color: #ffffff;
+                selection-background-color: #4CAF50;
+                border: 1px solid #4CAF50;
+            }
+        """)
         control_layout.addWidget(self.curve_combo)
+        
+        # Show all curves checkbox
+        self.show_all_checkbox = QCheckBox("Show All Curves")
+        self.show_all_checkbox.setStyleSheet("""
+            QCheckBox {
+                color: #ffffff;
+                spacing: 5px;
+            }
+            QCheckBox::indicator {
+                width: 18px;
+                height: 18px;
+            }
+            QCheckBox::indicator:unchecked {
+                border: 2px solid #888;
+                background-color: #3c3c3c;
+            }
+            QCheckBox::indicator:checked {
+                border: 2px solid #4CAF50;
+                background-color: #4CAF50;
+            }
+        """)
+        self.show_all_checkbox.stateChanged.connect(self.toggle_show_all_curves)
+        control_layout.addWidget(self.show_all_checkbox)
         
         control_layout.addWidget(QLabel("Step:"))
         self.step_spin = QDoubleSpinBox()
@@ -224,15 +480,15 @@ class TireCurveEditor:
         
         # Operation buttons
         self.multiply_btn = QPushButton("✕ Multiply")
-        self.multiply_btn.clicked.connect(self.multiply_curve)
+        self.multiply_btn.clicked.connect(lambda: self.show_preview_dialog("multiply"))
         control_layout.addWidget(self.multiply_btn)
         
         self.offset_btn = QPushButton("➕ Add Offset")
-        self.offset_btn.clicked.connect(self.add_offset)
+        self.offset_btn.clicked.connect(lambda: self.show_preview_dialog("offset"))
         control_layout.addWidget(self.offset_btn)
         
         self.smooth_btn = QPushButton("〰 Smooth")
-        self.smooth_btn.clicked.connect(self.smooth_curve)
+        self.smooth_btn.clicked.connect(lambda: self.show_preview_dialog("smooth"))
         control_layout.addWidget(self.smooth_btn)
         
         self.reset_btn = QPushButton("↺ Reset")
@@ -241,22 +497,25 @@ class TireCurveEditor:
         
         left_layout.addWidget(control_bar)
         
-        # Plot widget
+        # Plot widget - made larger with stretch factor
         self.plot_widget = pg.PlotWidget(title="Slip Curve")
         self.plot_widget.setLabel('left', 'Normalized Force')
         self.plot_widget.setLabel('bottom', 'Slip')
         self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
         self.plot_widget.setMouseEnabled(x=True, y=True)
+        self.plot_widget.setMinimumHeight(500)  # Set minimum height
         
         # Create curves
         self.curve_plot = self.plot_widget.plot(pen=pg.mkPen('b', width=2), name='Slip Curve')
         self.original_curve_plot = self.plot_widget.plot(pen=pg.mkPen('gray', width=1, style=Qt.DashLine), name='Original')
+        self.preview_curve = self.plot_widget.plot(pen=pg.mkPen('y', width=2, style=Qt.DashLine), name='Preview')
+        self.preview_curve.hide()  # Hide initially
         self.peak_marker = pg.ScatterPlotItem(pen='r', brush='r', size=15, symbol='star', name='Peak')
         
         self.plot_widget.addItem(self.peak_marker)
         self.plot_widget.addLegend()
         
-        left_layout.addWidget(self.plot_widget, 1)
+        left_layout.addWidget(self.plot_widget, 2)  # Give plot more stretch
         
         # Statistics panel
         stats_group = QGroupBox("Curve Statistics")
@@ -273,9 +532,9 @@ class TireCurveEditor:
         stats_group.setLayout(stats_layout)
         left_layout.addWidget(stats_group)
         
-        # Right panel - Parameters
+        # Right panel - Parameters and Data
         right_panel = QWidget()
-        right_panel.setMaximumWidth(400)
+        right_panel.setMaximumWidth(450)
         right_layout = QVBoxLayout(right_panel)
         
         # File operations
@@ -304,23 +563,39 @@ class TireCurveEditor:
         
         # Parameter list
         self.param_list = QListWidget()
+        self.param_list.setMaximumHeight(120)
         self.param_list.itemDoubleClicked.connect(self.edit_parameter)
         params_layout.addWidget(self.param_list)
         
-        # Add new parameter button
-        self.add_param_btn = QPushButton("➕ Add Parameter")
-        self.add_param_btn.clicked.connect(self.add_parameter)
-        params_layout.addWidget(self.add_param_btn)
-        
         params_group.setLayout(params_layout)
         right_layout.addWidget(params_group)
+        
+        # Data display
+        data_group = QGroupBox("Curve Data")
+        data_layout = QVBoxLayout()
+        
+        # Data text edit with monospace font
+        self.data_display = QTextEdit()
+        self.data_display.setFont(QFont("Courier New", 9))
+        self.data_display.setReadOnly(True)
+        self.data_display.setLineWrapMode(QTextEdit.NoWrap)
+        self.data_display.setMinimumHeight(300)
+        data_layout.addWidget(self.data_display)
+        
+        # Copy data button
+        copy_data_btn = QPushButton("📋 Copy Data to Clipboard")
+        copy_data_btn.clicked.connect(self.copy_data_to_clipboard)
+        data_layout.addWidget(copy_data_btn)
+        
+        data_group.setLayout(data_layout)
+        right_layout.addWidget(data_group, 1)  # Give data display stretch
         
         # Status bar
         self.status_bar = QStatusBar()
         self.window.setStatusBar(self.status_bar)
         
         # Add panels to main layout
-        main_layout.addWidget(left_panel, 2)
+        main_layout.addWidget(left_panel, 3)  # Left panel gets more space
         main_layout.addWidget(right_panel, 1)
         
         # Load first curve
@@ -349,7 +624,7 @@ class TireCurveEditor:
             QLabel {
                 color: #ffffff;
             }
-            QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QListWidget {
+            QLineEdit, QSpinBox, QDoubleSpinBox, QListWidget, QTextEdit {
                 background-color: #3c3c3c;
                 color: #ffffff;
                 border: 1px solid #555;
@@ -357,11 +632,15 @@ class TireCurveEditor:
                 padding: 4px;
                 selection-background-color: #4CAF50;
             }
-            QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+            QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus {
                 border: 1px solid #4CAF50;
             }
             QListWidget::item:selected {
                 background-color: #4CAF50;
+            }
+            QTextEdit {
+                background-color: #1e1e1e;
+                color: #d4d4d4;
             }
             QPushButton {
                 background-color: #3c3c3c;
@@ -381,6 +660,101 @@ class TireCurveEditor:
             }
         """)
     
+    def update_data_display(self):
+        """Update the data display with current curve values"""
+        curve = self.slip_curves[self.current_curve_index]
+        
+        # Get current values (modified or original)
+        if self.current_curve_index in self.modified_curves:
+            values = self.modified_curves[self.current_curve_index]['values']
+        else:
+            values = curve['values']
+        
+        # Format the data with 6 decimal places, 10 values per line
+        data_lines = []
+        for i in range(0, len(values), 10):
+            line_values = values[i:i+10]
+            formatted_line = ' '.join(f"{v:.6f}" for v in line_values)
+            data_lines.append(formatted_line)
+        
+        data_text = '\n'.join(data_lines)
+        self.data_display.setText(data_text)
+    
+    def copy_data_to_clipboard(self):
+        """Copy the data display content to clipboard"""
+        clipboard = QApplication.clipboard()
+        clipboard.setText(self.data_display.toPlainText())
+        self.status_bar.showMessage("Data copied to clipboard", 2000)
+    
+    def show_preview_dialog(self, operation_type):
+        """Show preview dialog for operations"""
+        if self.show_all_curves:
+            QMessageBox.warning(self.window, "Editing Disabled", 
+                               "Editing is disabled when showing all curves. Please uncheck 'Show All Curves' to edit.")
+            return
+        
+        # Get current curve values
+        curve = self.slip_curves[self.current_curve_index]
+        if self.current_curve_index in self.modified_curves:
+            current_values = self.modified_curves[self.current_curve_index]['values']
+        else:
+            current_values = curve['values'].copy()
+        
+        # Create and show preview dialog with self.window as parent
+        dialog = PreviewDialog(
+            f"{operation_type.capitalize()} Curve - Preview",
+            operation_type,
+            current_values,
+            self.plot_widget,
+            self.window  # Pass the main window as parent
+        )
+        
+        if dialog.exec_() == QDialog.Accepted:
+            # Apply the changes
+            new_values = dialog.get_values()
+            
+            # Store modified curve
+            if self.current_curve_index not in self.modified_curves:
+                self.modified_curves[self.current_curve_index] = {
+                    'values': curve['values'].copy(),
+                    'step': curve['step']
+                }
+            
+            self.modified_curves[self.current_curve_index]['values'] = new_values
+            self.load_curve(self.current_curve_index)
+            self.status_bar.showMessage(f"{operation_type.capitalize()} applied", 2000)
+        
+        # Clear preview
+        self.clear_preview()
+    
+    def update_preview_curve(self, preview_values):
+        """Update the preview curve with new values (called from dialog)"""
+        if self.show_all_curves:
+            return
+        
+        curve = self.slip_curves[self.current_curve_index]
+        step = curve['step']
+        if self.current_curve_index in self.modified_curves:
+            step = self.modified_curves[self.current_curve_index]['step']
+        
+        x_values = [i * step for i in range(len(preview_values))]
+        
+        # Show preview curve
+        self.preview_curve.setData(x_values, preview_values)
+        self.preview_curve.show()
+        
+        # Dim the main curve slightly to highlight preview
+        self.curve_plot.setPen(pg.mkPen('b', width=2, style=Qt.DashLine))
+        
+        # Store preview values
+        self.preview_values = preview_values
+    
+    def clear_preview(self):
+        """Clear the preview curve"""
+        self.preview_curve.hide()
+        self.curve_plot.setPen(pg.mkPen('b', width=2))
+        self.preview_values = None
+    
     def load_curve(self, index):
         """Load and display a curve"""
         self.current_curve_index = index
@@ -397,21 +771,33 @@ class TireCurveEditor:
         x_values = [i * step for i in range(len(values))]
         
         # Update plots
-        self.curve_plot.setData(x_values, values)
-        
-        # Show original for comparison if modified
-        if index in self.modified_curves:
-            orig_x = [i * curve['step'] for i in range(len(curve['values']))]
-            self.original_curve_plot.setData(orig_x, curve['values'])
-            self.original_curve_plot.show()
+        if not self.show_all_curves:
+            # Normal mode - show only selected curve
+            self.curve_plot.setData(x_values, values)
+            
+            # Show original for comparison if modified
+            if index in self.modified_curves:
+                orig_x = [i * curve['step'] for i in range(len(curve['values']))]
+                self.original_curve_plot.setData(orig_x, curve['values'])
+                self.original_curve_plot.show()
+            else:
+                self.original_curve_plot.hide()
+            
+            # Hide all all-curves plots
+            for plot in self.all_curves_plots:
+                plot.hide()
+            
+            # Hide preview if showing
+            self.preview_curve.hide()
+            
+            # Mark peak
+            peak_idx = np.argmax(values)
+            peak_x = x_values[peak_idx]
+            peak_y = values[peak_idx]
+            self.peak_marker.setData([peak_x], [peak_y])
         else:
-            self.original_curve_plot.hide()
-        
-        # Mark peak
-        peak_idx = np.argmax(values)
-        peak_x = x_values[peak_idx]
-        peak_y = values[peak_idx]
-        self.peak_marker.setData([peak_x], [peak_y])
+            # Show all curves mode
+            self.update_all_curves_display()
         
         # Auto-range
         self.plot_widget.autoRange()
@@ -427,11 +813,105 @@ class TireCurveEditor:
         # Update parameters list
         self.update_parameters_list()
         
+        # Update data display
+        self.update_data_display()
+        
         # Update status
         if index in self.modified_curves:
             self.status_bar.showMessage(f"Curve modified (unsaved changes)", 3000)
         else:
             self.status_bar.showMessage(f"Original curve", 3000)
+    
+    def update_all_curves_display(self):
+        """Update the display when showing all curves"""
+        # Clear existing all-curves plots
+        for plot in self.all_curves_plots:
+            self.plot_widget.removeItem(plot)
+        self.all_curves_plots.clear()
+        
+        # Hide individual curve plots
+        self.curve_plot.hide()
+        self.original_curve_plot.hide()
+        self.preview_curve.hide()
+        self.peak_marker.hide()
+        
+        # Generate colors for curves
+        colors = [
+            (255, 0, 0),    # Red
+            (0, 255, 0),    # Green
+            (0, 0, 255),    # Blue
+            (255, 255, 0),  # Yellow
+            (255, 0, 255),  # Magenta
+            (0, 255, 255),  # Cyan
+            (255, 128, 0),  # Orange
+            (128, 0, 255),  # Purple
+            (255, 128, 128), # Light Red
+            (128, 255, 128), # Light Green
+        ]
+        
+        # Plot all curves
+        for i, curve in enumerate(self.slip_curves):
+            # Use modified values if available
+            if i in self.modified_curves:
+                values = self.modified_curves[i]['values']
+                step = self.modified_curves[i]['step']
+            else:
+                values = curve['values']
+                step = curve['step']
+            
+            x_values = [j * step for j in range(len(values))]
+            
+            # Select color (cycle through colors if more curves than colors)
+            color = colors[i % len(colors)]
+            
+            # Determine line style: dashed for all except current curve
+            if i == self.current_curve_index:
+                # Current curve - solid line, thicker
+                pen = pg.mkPen(color=color, width=3, style=Qt.SolidLine)
+            else:
+                # Other curves - dashed lines
+                pen = pg.mkPen(color=color, width=1.5, style=Qt.DashLine)
+            
+            # Create plot with name
+            plot = self.plot_widget.plot(
+                x_values, values,
+                pen=pen,
+                name=curve['name']
+            )
+            self.all_curves_plots.append(plot)
+    
+    def toggle_show_all_curves(self, state):
+        """Toggle between showing all curves or single curve"""
+        self.show_all_curves = (state == Qt.Checked)
+        
+        if self.show_all_curves:
+            # Show all curves
+            self.update_all_curves_display()
+            # Disable step spin and some operations when showing all curves
+            self.step_spin.setEnabled(False)
+            self.multiply_btn.setEnabled(False)
+            self.offset_btn.setEnabled(False)
+            self.smooth_btn.setEnabled(False)
+            self.status_bar.showMessage("Showing all curves - editing disabled", 3000)
+        else:
+            # Back to single curve mode
+            # Hide all all-curves plots
+            for plot in self.all_curves_plots:
+                self.plot_widget.removeItem(plot)
+            self.all_curves_plots.clear()
+            
+            # Show individual curve plots
+            self.curve_plot.show()
+            self.peak_marker.show()
+            
+            # Re-enable controls
+            self.step_spin.setEnabled(True)
+            self.multiply_btn.setEnabled(True)
+            self.offset_btn.setEnabled(True)
+            self.smooth_btn.setEnabled(True)
+            
+            # Reload current curve
+            self.load_curve(self.current_curve_index)
     
     def update_statistics(self, values, x_values, step):
         """Update statistics display"""
@@ -472,6 +952,11 @@ class TireCurveEditor:
     
     def edit_parameter(self, item):
         """Edit a parameter when double-clicked"""
+        if self.show_all_curves:
+            QMessageBox.warning(self.window, "Editing Disabled", 
+                               "Editing is disabled when showing all curves. Please uncheck 'Show All Curves' to edit.")
+            return
+            
         text = item.text()
         if '=' not in text:
             return
@@ -505,17 +990,20 @@ class TireCurveEditor:
                     self.status_bar.showMessage("Parameter updated - Unsaved changes", 2000)
                     self.update_parameters_list()
     
-    def add_parameter(self):
-        """Add a new parameter"""
-        # This could be expanded to add new parameters
-        QMessageBox.information(self.window, "Info", "Adding new parameters is not supported yet.")
-    
     def on_curve_selected(self, index):
         """Handle curve selection change"""
-        self.load_curve(index)
+        self.current_curve_index = index
+        if self.show_all_curves:
+            # Just highlight the selected curve in the all-curves view
+            self.update_all_curves_display()
+        else:
+            self.load_curve(index)
     
     def on_step_changed(self, value):
         """Handle step size change"""
+        if self.show_all_curves:
+            return
+            
         curve = self.slip_curves[self.current_curve_index]
         
         # Store modified curve
@@ -528,86 +1016,32 @@ class TireCurveEditor:
         self.modified_curves[self.current_curve_index]['step'] = value
         self.load_curve(self.current_curve_index)
     
-    def multiply_curve(self):
-        """Multiply curve values by a factor"""
-        factor, ok = QInputDialog.getDouble(self.window, "Multiply", 
-                                           "Enter multiplication factor:",
-                                           value=1.0, min=0.0, max=10.0, decimals=2)
-        if ok:
-            curve = self.slip_curves[self.current_curve_index]
-            
-            # Store modified curve
-            if self.current_curve_index not in self.modified_curves:
-                self.modified_curves[self.current_curve_index] = {
-                    'values': curve['values'].copy(),
-                    'step': curve['step']
-                }
-            
-            # Apply multiplication
-            self.modified_curves[self.current_curve_index]['values'] = [
-                v * factor for v in self.modified_curves[self.current_curve_index]['values']
-            ]
-            
-            self.load_curve(self.current_curve_index)
-    
-    def add_offset(self):
-        """Add offset to curve values"""
-        offset, ok = QInputDialog.getDouble(self.window, "Add Offset",
-                                           "Enter offset value:",
-                                           value=0.0, decimals=3)
-        if ok:
-            curve = self.slip_curves[self.current_curve_index]
-            
-            # Store modified curve
-            if self.current_curve_index not in self.modified_curves:
-                self.modified_curves[self.current_curve_index] = {
-                    'values': curve['values'].copy(),
-                    'step': curve['step']
-                }
-            
-            # Apply offset
-            self.modified_curves[self.current_curve_index]['values'] = [
-                v + offset for v in self.modified_curves[self.current_curve_index]['values']
-            ]
-            
-            self.load_curve(self.current_curve_index)
-    
-    def smooth_curve(self):
-        """Apply smoothing to the curve"""
-        sigma, ok = QInputDialog.getDouble(self.window, "Smooth",
-                                          "Enter smoothing sigma:",
-                                          value=1.0, min=0.1, max=5.0, decimals=1)
-        if ok:
-            curve = self.slip_curves[self.current_curve_index]
-            
-            # Store modified curve
-            if self.current_curve_index not in self.modified_curves:
-                self.modified_curves[self.current_curve_index] = {
-                    'values': curve['values'].copy(),
-                    'step': curve['step']
-                }
-            
-            # Apply Gaussian smoothing
-            values = np.array(self.modified_curves[self.current_curve_index]['values'])
-            smoothed = gaussian_filter1d(values, sigma=sigma)
-            
-            self.modified_curves[self.current_curve_index]['values'] = smoothed.tolist()
-            self.load_curve(self.current_curve_index)
-    
     def reset_curve(self):
         """Reset current curve to original"""
+        if self.show_all_curves:
+            QMessageBox.warning(self.window, "Editing Disabled", 
+                               "Editing is disabled when showing all curves. Please uncheck 'Show All Curves' to edit.")
+            return
+            
         if self.current_curve_index in self.modified_curves:
             del self.modified_curves[self.current_curve_index]
             self.load_curve(self.current_curve_index)
+            self.status_bar.showMessage("Curve reset to original", 2000)
     
     def revert_all(self):
         """Revert all curves to original"""
+        if self.show_all_curves:
+            QMessageBox.warning(self.window, "Editing Disabled", 
+                               "Editing is disabled when showing all curves. Please uncheck 'Show All Curves' to edit.")
+            return
+            
         reply = QMessageBox.question(self.window, "Confirm",
                                     "Revert all changes?",
                                     QMessageBox.Yes | QMessageBox.No)
         if reply == QMessageBox.Yes:
             self.modified_curves.clear()
             self.load_curve(self.current_curve_index)
+            self.status_bar.showMessage("All curves reverted to original", 3000)
     
     def save_changes(self):
         """Save changes to the current file"""
