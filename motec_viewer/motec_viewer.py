@@ -1,8 +1,7 @@
-# pipenv install
 #!/usr/bin/env python3
 """
 SimHub-style Telemetry Overlay
-Visualize throttle, brake, gear, speed, and RPM from MoTeC .ld or .csv files
+Visualize throttle, brake, gear, speed, RPM, and steering from MoTeC .ld or .csv files
 """
 
 import sys
@@ -14,6 +13,7 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 import pyqtgraph as pg
+import math
 
 
 class MoTeCDataReader:
@@ -148,7 +148,7 @@ class MoTeCDataReader:
             self.sample_count = len(self.time_data)
             print(f"Loaded {self.sample_count} samples from CSV")
             print(f"Channels found: {list(self.data.keys())}")
-            print(f"Time range: {self.time_data[0]:.3f} to {self.time_data[-1]:.3f}")
+            print(f"Time range: {self.time_data[0]:.3f} to {self.time_data[-1]:.3f} seconds")
             
         except Exception as e:
             print(f"Error reading CSV: {e}")
@@ -255,6 +255,7 @@ class MoTeCDataReader:
         brake = np.zeros_like(t)
         rpm = np.zeros_like(t)
         gear = np.zeros_like(t, dtype=int)
+        steering = np.zeros_like(t)
         
         # Simulate a lap
         lap_time = 100  # seconds
@@ -275,6 +276,7 @@ class MoTeCDataReader:
                 speed[idx] = 200 * (lap_t[accel_mask] / 30)
                 throttle[idx] = 100 * (1 - lap_t[accel_mask] / 60)
                 rpm[idx] = 5000 + 3000 * (lap_t[accel_mask] / 30)
+                steering[idx] = 0
             
             # Braking phase (30-40s)
             brake_mask = (lap_t >= 30) & (lap_t < 40)
@@ -282,6 +284,7 @@ class MoTeCDataReader:
                 idx = np.where(brake_mask)[0] + start
                 brake[idx] = 100 * ((lap_t[brake_mask] - 30) / 10)
                 speed[idx] = 200 * (1 - (lap_t[brake_mask] - 30) / 10)
+                steering[idx] = 0
             
             # Cornering phase (40-60s)
             corner_mask = (lap_t >= 40) & (lap_t < 60)
@@ -289,6 +292,8 @@ class MoTeCDataReader:
                 idx = np.where(corner_mask)[0] + start
                 speed[idx] = 80 + 20 * np.sin(2 * np.pi * (lap_t[corner_mask] - 40) / 20)
                 throttle[idx] = 30 + 20 * np.sin(2 * np.pi * (lap_t[corner_mask] - 40) / 20 + 1)
+                # Simulate steering through corners
+                steering[idx] = 30 * np.sin(2 * np.pi * (lap_t[corner_mask] - 40) / 20)
             
             # Acceleration out of corner (60-80s)
             accel2_mask = (lap_t >= 60) & (lap_t < 80)
@@ -297,6 +302,7 @@ class MoTeCDataReader:
                 speed[idx] = 100 + 100 * ((lap_t[accel2_mask] - 60) / 20)
                 throttle[idx] = 80 + 20 * (1 - (lap_t[accel2_mask] - 60) / 20)
                 rpm[idx] = 6000 + 2000 * ((lap_t[accel2_mask] - 60) / 20)
+                steering[idx] = 0
             
             # Braking for next corner (80-90s)
             brake2_mask = (lap_t >= 80) & (lap_t < 90)
@@ -304,6 +310,7 @@ class MoTeCDataReader:
                 idx = np.where(brake2_mask)[0] + start
                 brake[idx] = 100 * ((lap_t[brake2_mask] - 80) / 10)
                 speed[idx] = 200 * (1 - (lap_t[brake2_mask] - 80) / 10)
+                steering[idx] = 0
             
             # Rest of lap...
             other_mask = lap_t >= 90
@@ -312,6 +319,7 @@ class MoTeCDataReader:
                 speed[idx] = 180
                 throttle[idx] = 60
                 rpm[idx] = 7000
+                steering[idx] = 0
         
         # Calculate gear based on RPM
         gear[:] = 1
@@ -324,15 +332,73 @@ class MoTeCDataReader:
         # Add noise
         speed += np.random.normal(0, 1, self.sample_count)
         rpm += np.random.normal(0, 50, self.sample_count)
+        steering += np.random.normal(0, 0.5, self.sample_count)
         
         self.data = {
             'Throttle Position': throttle,
             'Brake Pedal Position': brake,
             'Ground Speed': speed,
             'Engine RPM': rpm,
-            'Gear': gear.astype(float)
+            'Gear': gear.astype(float),
+            'Steering Wheel Angle': steering
         }
         self.time_data = t
+
+
+class SteeringWheel(QWidget):
+    """Simple widget to display steering wheel angle (0° = straight up)"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.angle = 0
+        self.setMinimumSize(120, 120)
+        self.setMaximumSize(150, 150)
+        
+    def set_angle(self, angle):
+        """Set the current steering angle in degrees (0° = straight up)"""
+        self.angle = angle
+        self.update()  # Trigger a repaint
+    
+    def paintEvent(self, event):
+        # Create painter for this widget only
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        # Get widget dimensions (as integers)
+        width = self.width()
+        height = self.height()
+        center_x = width // 2
+        center_y = height // 2
+        radius = min(width, height) // 3  # Use integer division
+        
+        # Draw background circle
+        painter.setPen(QPen(QColor('#00ff00'), 2))
+        painter.setBrush(QBrush(QColor(0, 0, 0, 200)))
+        painter.drawEllipse(center_x - radius, center_y - radius, radius * 2, radius * 2)
+        
+        # Draw reference line (straight up) - dashed
+        painter.setPen(QPen(QColor('#00ff00'), 1, Qt.DashLine))
+        painter.drawLine(center_x, center_y - radius, center_x, center_y + radius)
+        
+        # Draw steering line (rotated, starting from straight up)
+        painter.save()
+        painter.translate(center_x, center_y)
+        painter.rotate(self.angle)  # Apply steering angle directly
+        
+        painter.setPen(QPen(QColor('#ffffff'), 3))
+        painter.drawLine(0, 0, 0, -(radius - 5))  # Draw upward line
+        
+        painter.restore()
+        
+        # Draw angle text
+        painter.setPen(QPen(QColor('#00ff00')))
+        painter.setFont(QFont("Arial", 10))
+        angle_text = f"{self.angle:.0f}°"
+        text_width = painter.fontMetrics().horizontalAdvance(angle_text)
+        painter.drawText(center_x - text_width // 2, center_y + radius + 15, angle_text)
+        
+        # End painting
+        painter.end()
 
 
 class SimHubOverlay(QWidget):
@@ -341,7 +407,14 @@ class SimHubOverlay(QWidget):
     def __init__(self, reader, parent=None):
         super().__init__(parent)
         self.reader = reader
-        self.current_index = 0  # Use index instead of time
+        self.current_index = 0  # Current sample index
+        
+        # Playback speed control - extended for slower speeds
+        self.frame_delay = 100  # milliseconds between frames (default slower)
+        self.frames_per_step = 1  # Number of frames to advance per timer tick
+        self.frame_skip_counter = 0  # Counter for frame skipping
+        self.frame_skip_mod = 1  # Skip frames (1 = no skip, 2 = show every 2nd frame, etc.)
+        
         self.setup_ui()
         
         # Set window flags for overlay style
@@ -351,7 +424,7 @@ class SimHubOverlay(QWidget):
         # Timer for playback
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_frame)
-        self.timer.setInterval(16)  # ~60 fps for smooth playback
+        self.update_timer_interval()
         
         # Enable/disable buttons based on data availability
         self.update_button_states()
@@ -365,7 +438,7 @@ class SimHubOverlay(QWidget):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(15)
         
-        # Top row: Gear and Speed
+        # Top row: Gear, Speed, RPM
         top_row = QWidget()
         top_layout = QHBoxLayout(top_row)
         top_layout.setContentsMargins(0, 0, 0, 0)
@@ -417,6 +490,22 @@ class SimHubOverlay(QWidget):
         
         layout.addWidget(top_row)
         
+        # Middle row: Steering wheel and bars
+        middle_row = QWidget()
+        middle_layout = QHBoxLayout(middle_row)
+        middle_layout.setContentsMargins(0, 0, 0, 0)
+        middle_layout.setSpacing(20)
+        
+        # Steering wheel
+        self.steering_wheel = SteeringWheel()
+        middle_layout.addWidget(self.steering_wheel)
+        
+        # Bars container
+        bars_container = QWidget()
+        bars_layout = QVBoxLayout(bars_container)
+        bars_layout.setContentsMargins(0, 0, 0, 0)
+        bars_layout.setSpacing(15)
+        
         # Throttle bar with percentage
         throttle_widget = QWidget()
         throttle_layout = QVBoxLayout(throttle_widget)
@@ -456,7 +545,7 @@ class SimHubOverlay(QWidget):
         """)
         throttle_layout.addWidget(self.throttle_bar)
         
-        layout.addWidget(throttle_widget)
+        bars_layout.addWidget(throttle_widget)
         
         # Brake bar with percentage
         brake_widget = QWidget()
@@ -496,7 +585,12 @@ class SimHubOverlay(QWidget):
         """)
         brake_layout.addWidget(self.brake_bar)
         
-        layout.addWidget(brake_widget)
+        bars_layout.addWidget(brake_widget)
+        
+        middle_layout.addWidget(bars_container)
+        middle_layout.setStretchFactor(bars_container, 1)
+        
+        layout.addWidget(middle_row)
         
         # Throttle/Brake graph
         graph_widget = QWidget()
@@ -509,8 +603,7 @@ class SimHubOverlay(QWidget):
         self.plot_widget.setFixedHeight(150)
         self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
         self.plot_widget.setLabel('left', '%')
-        self.plot_widget.setLabel('bottom', 'Samples ago')
-        self.plot_widget.setXRange(-100, 0)  # Show last 100 samples
+        self.plot_widget.setLabel('bottom', 'Time (s)')
         
         # Throttle curve (green)
         self.throttle_curve = self.plot_widget.plot(pen=pg.mkPen('#00ff00', width=2))
@@ -521,7 +614,7 @@ class SimHubOverlay(QWidget):
         graph_layout.addWidget(self.plot_widget)
         layout.addWidget(graph_widget)
         
-        # Position slider (by sample index)
+        # Position slider (by time)
         slider_widget = QWidget()
         slider_layout = QHBoxLayout(slider_widget)
         slider_layout.setContentsMargins(0, 0, 0, 0)
@@ -531,9 +624,11 @@ class SimHubOverlay(QWidget):
         self.position_slider.valueChanged.connect(self.on_slider_changed)
         slider_layout.addWidget(self.position_slider)
         
-        self.position_label = QLabel("0 / 0")
-        self.position_label.setStyleSheet("color: white; background-color: rgba(0,0,0,0.7); padding: 5px; border-radius: 3px; min-width: 100px;")
-        slider_layout.addWidget(self.position_label)
+        # Time display (minutes:seconds)
+        self.time_label = QLabel("00:00.0")
+        self.time_label.setStyleSheet("color: white; background-color: rgba(0,0,0,0.7); padding: 5px; border-radius: 3px; min-width: 80px;")
+        self.time_label.setAlignment(Qt.AlignCenter)
+        slider_layout.addWidget(self.time_label)
         
         layout.addWidget(slider_widget)
         
@@ -583,16 +678,45 @@ class SimHubOverlay(QWidget):
         """)
         controls_layout.addWidget(self.reset_btn)
         
-        # Speed control
-        self.speed_label_control = QLabel("Speed:")
-        self.speed_label_control.setStyleSheet("color: white; background-color: rgba(0,0,0,0.7); padding: 8px; border-radius: 3px;")
-        controls_layout.addWidget(self.speed_label_control)
+        # Speed control panel
+        speed_panel = QWidget()
+        speed_layout = QHBoxLayout(speed_panel)
+        speed_layout.setContentsMargins(0, 0, 0, 0)
+        speed_layout.setSpacing(10)
         
-        self.speed_combo = QComboBox()
-        self.speed_combo.addItems(["1x", "2x", "5x", "10x", "20x", "50x", "100x", "200x", "500x", "1000x"])
-        self.speed_combo.setCurrentText("1x")
-        self.speed_combo.setStyleSheet("""
-            QComboBox {
+        # Frame delay control (with wider range)
+        delay_label = QLabel("Delay:")
+        delay_label.setStyleSheet("color: white; background-color: rgba(0,0,0,0.7); padding: 8px; border-radius: 3px;")
+        speed_layout.addWidget(delay_label)
+        
+        self.delay_spin = QSpinBox()
+        self.delay_spin.setRange(1, 2000)  # Up to 2 seconds between frames
+        self.delay_spin.setValue(self.frame_delay)
+        self.delay_spin.setSuffix(" ms")
+        self.delay_spin.valueChanged.connect(self.on_delay_changed)
+        self.delay_spin.setStyleSheet("""
+            QSpinBox {
+                background-color: rgba(0, 0, 0, 0.7);
+                color: white;
+                border: 2px solid #00ff00;
+                border-radius: 5px;
+                padding: 5px;
+                min-width: 80px;
+            }
+        """)
+        speed_layout.addWidget(self.delay_spin)
+        
+        # Frames per step control
+        step_label = QLabel("Step:")
+        step_label.setStyleSheet("color: white; background-color: rgba(0,0,0,0.7); padding: 8px; border-radius: 3px;")
+        speed_layout.addWidget(step_label)
+        
+        self.step_spin = QSpinBox()
+        self.step_spin.setRange(1, 100)
+        self.step_spin.setValue(self.frames_per_step)
+        self.step_spin.valueChanged.connect(self.on_step_changed)
+        self.step_spin.setStyleSheet("""
+            QSpinBox {
                 background-color: rgba(0, 0, 0, 0.7);
                 color: white;
                 border: 2px solid #00ff00;
@@ -601,13 +725,45 @@ class SimHubOverlay(QWidget):
                 min-width: 60px;
             }
         """)
-        controls_layout.addWidget(self.speed_combo)
+        speed_layout.addWidget(self.step_spin)
         
+        # Frame skip control (for very slow playback)
+        skip_label = QLabel("Skip:")
+        skip_label.setStyleSheet("color: white; background-color: rgba(0,0,0,0.7); padding: 8px; border-radius: 3px;")
+        speed_layout.addWidget(skip_label)
+        
+        self.skip_spin = QSpinBox()
+        self.skip_spin.setRange(1, 100)
+        self.skip_spin.setValue(self.frame_skip_mod)
+        self.skip_spin.setToolTip("Show every Nth frame (1 = all frames, 2 = every other frame, etc.)")
+        self.skip_spin.valueChanged.connect(self.on_skip_changed)
+        self.skip_spin.setStyleSheet("""
+            QSpinBox {
+                background-color: rgba(0, 0, 0, 0.7);
+                color: white;
+                border: 2px solid #00ff00;
+                border-radius: 5px;
+                padding: 5px;
+                min-width: 60px;
+            }
+        """)
+        speed_layout.addWidget(self.skip_spin)
+        
+        # Estimated FPS display
+        self.fps_label = QLabel("~10 FPS")
+        self.fps_label.setStyleSheet("color: #00ff00; background-color: rgba(0,0,0,0.7); padding: 8px; border-radius: 3px; min-width: 80px;")
+        self.fps_label.setAlignment(Qt.AlignCenter)
+        speed_layout.addWidget(self.fps_label)
+        
+        controls_layout.addWidget(speed_panel)
         controls_layout.addStretch()
         layout.addWidget(controls_widget)
         
         self.setLayout(layout)
-        self.setFixedSize(800, 600)
+        self.setFixedSize(1000, 750)  # Wider for new controls
+        
+        # Update FPS display
+        self.update_fps_display()
     
     def update_button_states(self):
         """Enable/disable buttons based on data availability"""
@@ -616,36 +772,66 @@ class SimHubOverlay(QWidget):
         self.reset_btn.setEnabled(has_data)
         self.position_slider.setEnabled(has_data)
     
-    def get_playback_speed(self):
-        """Get the current playback speed multiplier"""
-        speed_text = self.speed_combo.currentText()
-        return float(speed_text.replace('x', ''))
+    def update_timer_interval(self):
+        """Update timer interval based on frame delay"""
+        self.timer.setInterval(self.frame_delay)
+    
+    def update_fps_display(self):
+        """Update the estimated FPS display"""
+        if self.frame_delay > 0:
+            base_fps = 1000.0 / self.frame_delay
+            # Effective FPS is base_fps divided by skip factor (since we skip frames)
+            effective_fps = base_fps / self.frame_skip_mod
+            self.fps_label.setText(f"~{effective_fps:.1f} FPS")
+    
+    def on_delay_changed(self, value):
+        """Handle frame delay change"""
+        self.frame_delay = value
+        if self.play_btn.isChecked():
+            self.timer.setInterval(self.frame_delay)
+        self.update_fps_display()
+    
+    def on_step_changed(self, value):
+        """Handle frames per step change"""
+        self.frames_per_step = value
+    
+    def on_skip_changed(self, value):
+        """Handle frame skip change"""
+        self.frame_skip_mod = value
+        self.frame_skip_counter = 0  # Reset counter
+        self.update_fps_display()
+    
+    def format_time(self, seconds):
+        """Format time as MM:SS.t"""
+        minutes = int(seconds // 60)
+        secs = seconds % 60
+        return f"{minutes:02d}:{secs:04.1f}"
     
     def update_frame(self):
-        """Update current frame for playback"""
+        """Update current frame for playback with frame skipping"""
         if not self.play_btn.isChecked() or self.reader.sample_count == 0:
             return
-            
-        # Move to next frame based on speed
-        speed = self.get_playback_speed()
         
-        # For high speeds, we can advance multiple frames at once
-        # But we need to ensure we don't overshoot
-        new_index = self.current_index + int(speed)
+        # Frame skipping logic
+        self.frame_skip_counter += 1
+        if self.frame_skip_counter < self.frame_skip_mod:
+            return  # Skip this frame
+        
+        self.frame_skip_counter = 0  # Reset counter
+        
+        # Advance by configured number of frames
+        new_index = self.current_index + self.frames_per_step
         
         if new_index >= self.reader.sample_count:
-            # Loop back to start if at end
+            # Loop back to start
             self.current_index = 0
-            # Optionally stop playback at end (uncomment to stop instead of loop)
-            # self.play_btn.setChecked(False)
-            # self.play_btn.setText("▶")
-            # self.timer.stop()
         else:
             self.current_index = new_index
         
         # Update slider
         if self.reader.sample_count > 1:
-            slider_value = int((self.current_index / (self.reader.sample_count - 1)) * 1000)
+            current_time = self.reader.time_data[self.current_index]
+            slider_value = int((current_time / self.reader.time_data[-1]) * 1000)
             self.position_slider.blockSignals(True)
             self.position_slider.setValue(slider_value)
             self.position_slider.blockSignals(False)
@@ -655,16 +841,21 @@ class SimHubOverlay(QWidget):
     def on_slider_changed(self, value):
         """Handle slider movement"""
         if self.reader.sample_count > 1:
-            self.current_index = int((value / 1000.0) * (self.reader.sample_count - 1))
+            # Convert slider value to time
+            target_time = (value / 1000.0) * self.reader.time_data[-1]
+            # Find closest index to that time
+            self.current_index = np.argmin(np.abs(self.reader.time_data - target_time))
             self.update_display()
     
     def update_display(self):
         """Update all display elements with current values"""
         if self.reader.sample_count == 0:
             return
-            
-        # Update position label
-        self.position_label.setText(f"{self.current_index} / {self.reader.sample_count - 1}")
+        
+        # Get current time
+        if self.current_index < len(self.reader.time_data):
+            current_time = self.reader.time_data[self.current_index]
+            self.time_label.setText(self.format_time(current_time))
         
         # Get current values
         throttle = 0
@@ -672,6 +863,7 @@ class SimHubOverlay(QWidget):
         speed = 0
         rpm = 0
         gear = 0
+        steering = 0
         
         # Try different possible channel names
         throttle_keys = ['Throttle Position', 'Throttle Pos']
@@ -679,6 +871,7 @@ class SimHubOverlay(QWidget):
         speed_keys = ['Ground Speed', 'Ground Speed']
         rpm_keys = ['Engine RPM', 'Engine RPM']
         gear_keys = ['Gear', 'Gear']
+        steering_keys = ['Steering Wheel Angle', 'Steering Wheel Angle', 'Steering']
         
         for key in throttle_keys:
             if key in self.reader.data and self.current_index < len(self.reader.data[key]):
@@ -706,6 +899,11 @@ class SimHubOverlay(QWidget):
                 gear = int(gear_val) if not np.isnan(gear_val) else 0
                 break
         
+        for key in steering_keys:
+            if key in self.reader.data and self.current_index < len(self.reader.data[key]):
+                steering = self.reader.data[key][self.current_index]
+                break
+        
         # Update displays
         self.gear_label.setText(str(gear))
         self.speed_label.setText(f"{speed:.0f}")
@@ -721,27 +919,32 @@ class SimHubOverlay(QWidget):
         self.brake_percent.setText(f"{brake:.0f}%")
         self.brake_bar.setValue(int(brake))
         
-        # Update graph with last 100 samples
-        if self.current_index > 0:
-            start_idx = max(0, self.current_index - 100)
+        # Update steering wheel (0° = straight up)
+        self.steering_wheel.set_angle(steering)
+        
+        # Update graph with last 10 seconds of data
+        if self.current_index > 0 and len(self.reader.time_data) > 0:
+            current_time = self.reader.time_data[self.current_index]
+            start_time = max(0, current_time - 10)
+            start_idx = np.searchsorted(self.reader.time_data, start_time)
             end_idx = self.current_index + 1
             
             if end_idx > start_idx:
-                # X-axis is samples ago (negative values)
-                sample_range = np.arange(start_idx - self.current_index, end_idx - self.current_index)
+                # X-axis is time relative to current
+                time_range = self.reader.time_data[start_idx:end_idx] - current_time
                 
                 # Throttle data
                 for key in throttle_keys:
                     if key in self.reader.data:
                         throttle_data = self.reader.data[key][start_idx:end_idx]
-                        self.throttle_curve.setData(sample_range, throttle_data)
+                        self.throttle_curve.setData(time_range, throttle_data)
                         break
                 
                 # Brake data
                 for key in brake_keys:
                     if key in self.reader.data:
                         brake_data = self.reader.data[key][start_idx:end_idx]
-                        self.brake_curve.setData(sample_range, brake_data)
+                        self.brake_curve.setData(time_range, brake_data)
                         break
     
     def toggle_playback(self):
@@ -759,13 +962,16 @@ class SimHubOverlay(QWidget):
                     self.position_slider.blockSignals(False)
                 self.update_display()
             
+            # Reset frame skip counter
+            self.frame_skip_counter = 0
+            
             # Start the timer
             self.timer.start()
-            print("Playback started")  # Debug output
+            print(f"Playback started: delay={self.frame_delay}ms, step={self.frames_per_step}, skip={self.frame_skip_mod}")
         else:
             self.play_btn.setText("▶")
             self.timer.stop()
-            print("Playback stopped")  # Debug output
+            print("Playback stopped")
     
     def reset_position(self):
         """Reset position to beginning"""
@@ -785,30 +991,42 @@ class SimHubOverlay(QWidget):
             self.reset_position()
         elif event.key() == Qt.Key_Right:
             if self.reader.sample_count > 0:
-                self.current_index = min(self.current_index + 1, self.reader.sample_count - 1)
+                # Move forward 1 second
+                current_time = self.reader.time_data[self.current_index]
+                target_time = min(current_time + 1.0, self.reader.time_data[-1])
+                self.current_index = np.argmin(np.abs(self.reader.time_data - target_time))
                 if self.reader.sample_count > 1:
-                    slider_value = int((self.current_index / (self.reader.sample_count - 1)) * 1000)
+                    slider_value = int((self.reader.time_data[self.current_index] / self.reader.time_data[-1]) * 1000)
                     self.position_slider.setValue(slider_value)
                 self.update_display()
         elif event.key() == Qt.Key_Left:
             if self.reader.sample_count > 0:
-                self.current_index = max(self.current_index - 1, 0)
+                # Move backward 1 second
+                current_time = self.reader.time_data[self.current_index]
+                target_time = max(current_time - 1.0, 0)
+                self.current_index = np.argmin(np.abs(self.reader.time_data - target_time))
                 if self.reader.sample_count > 1:
-                    slider_value = int((self.current_index / (self.reader.sample_count - 1)) * 1000)
+                    slider_value = int((self.reader.time_data[self.current_index] / self.reader.time_data[-1]) * 1000)
                     self.position_slider.setValue(slider_value)
                 self.update_display()
         elif event.key() == Qt.Key_PageUp:
             if self.reader.sample_count > 0:
-                self.current_index = min(self.current_index + 10, self.reader.sample_count - 1)
+                # Move forward 10 seconds
+                current_time = self.reader.time_data[self.current_index]
+                target_time = min(current_time + 10.0, self.reader.time_data[-1])
+                self.current_index = np.argmin(np.abs(self.reader.time_data - target_time))
                 if self.reader.sample_count > 1:
-                    slider_value = int((self.current_index / (self.reader.sample_count - 1)) * 1000)
+                    slider_value = int((self.reader.time_data[self.current_index] / self.reader.time_data[-1]) * 1000)
                     self.position_slider.setValue(slider_value)
                 self.update_display()
         elif event.key() == Qt.Key_PageDown:
             if self.reader.sample_count > 0:
-                self.current_index = max(self.current_index - 10, 0)
+                # Move backward 10 seconds
+                current_time = self.reader.time_data[self.current_index]
+                target_time = max(current_time - 10.0, 0)
+                self.current_index = np.argmin(np.abs(self.reader.time_data - target_time))
                 if self.reader.sample_count > 1:
-                    slider_value = int((self.current_index / (self.reader.sample_count - 1)) * 1000)
+                    slider_value = int((self.reader.time_data[self.current_index] / self.reader.time_data[-1]) * 1000)
                     self.position_slider.setValue(slider_value)
                 self.update_display()
         elif event.key() == Qt.Key_Escape:
@@ -836,7 +1054,7 @@ def main():
         print(f"Sample count: {reader.sample_count}")
         print(f"Channels found: {list(reader.data.keys())}")
         if reader.time_data is not None:
-            print(f"Time range: {reader.time_data[0]:.3f} to {reader.time_data[-1]:.3f}")
+            print(f"Time range: {reader.time_data[0]:.3f} to {reader.time_data[-1]:.3f} seconds")
         
         # Create and show the overlay
         overlay = SimHubOverlay(reader)
