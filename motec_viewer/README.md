@@ -14,7 +14,13 @@ Obviously the track should also be very precisely built, but hopefully this tool
 
 # How to use
 
+(temporary solution, see ISSUES below) Get to motec and export your file as CSV.
+
 pipenv install; pipenv run pip install 
 pipenv run python3 motec_viewer.py <path to motec file>
 
 , then you can adapt the speed at which the data is shown, play it or move the silder to the point in time you want.
+
+# ISSUES
+
+I did not manage to make this work with autosaved Motec data yet.
