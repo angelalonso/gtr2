@@ -618,7 +618,7 @@ class CompoundEditWidget(QWidget):
         layout.addLayout(select_layout)
         
         self.param_list = QListWidget()
-        self.param_list.setMaximumHeight(200)
+        self.param_list.setMinimumHeight(300)
         self.param_list.itemDoubleClicked.connect(self.edit_parameter)
         layout.addWidget(self.param_list)
         
@@ -1062,7 +1062,7 @@ class TireCurveEditor:
         compound_layout.addWidget(self.compound_edit_widget)
         
         compound_group.setLayout(compound_layout)
-        right_layout.addWidget(compound_group, 1)
+        right_layout.addWidget(compound_group, 3)
         
         self.status_bar = QStatusBar()
         self.window.setStatusBar(self.status_bar)
