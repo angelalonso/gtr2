@@ -1,3 +1,5 @@
+# pipenv install; pipenv run pip install PyQt5 pyqtgraph
+# pipenv run python3 ai_editor
 import sys
 import re
 import numpy as np
@@ -396,15 +398,18 @@ class CompareFileDialog(QDialog):
         super().__init__(parent)
         self.selected_file = None
         self.selected_curve_index = 0
+        self.selected_compound_index = 0
+        self.selected_axle = "FRONT"
         self.comparison_curves = []
+        self.comparison_compounds = []
         self.last_file = last_file
         self.start_dir = start_dir
         self.setup_ui()
         
     def setup_ui(self):
-        self.setWindowTitle("Load Comparison Curve")
+        self.setWindowTitle("Load Comparison File")
         self.setModal(True)
-        self.setMinimumWidth(500)
+        self.setMinimumWidth(600)
         
         layout = QVBoxLayout()
         
@@ -423,7 +428,8 @@ class CompareFileDialog(QDialog):
         file_group.setLayout(file_layout)
         layout.addWidget(file_group)
         
-        curve_group = QGroupBox("Select Curve")
+        # Curve selection group
+        curve_group = QGroupBox("Select Curve for Comparison")
         curve_layout = QVBoxLayout()
         
         self.file_selection_group = QButtonGroup()
@@ -445,13 +451,40 @@ class CompareFileDialog(QDialog):
         curve_layout.addWidget(QLabel("Select curve:"))
         curve_layout.addWidget(self.curve_combo)
         
-        self.info_label = QLabel("")
-        self.info_label.setStyleSheet("color: #888; font-style: italic;")
-        curve_layout.addWidget(self.info_label)
-        
         curve_group.setLayout(curve_layout)
         layout.addWidget(curve_group)
         
+        # Compound selection group
+        compound_group = QGroupBox("Select Compound for Comparison")
+        compound_layout = QVBoxLayout()
+        
+        compound_info = QLabel("Compare compound parameters (read-only)")
+        compound_info.setStyleSheet("color: #FFA500; font-style: italic;")
+        compound_layout.addWidget(compound_info)
+        
+        compound_select_layout = QHBoxLayout()
+        compound_select_layout.addWidget(QLabel("Compound:"))
+        self.compound_combo = QComboBox()
+        self.compound_combo.currentIndexChanged.connect(self.on_compound_selected)
+        compound_select_layout.addWidget(self.compound_combo)
+        
+        compound_select_layout.addWidget(QLabel("Axle:"))
+        self.axle_combo = QComboBox()
+        self.axle_combo.addItems(["FRONT", "REAR"])
+        self.axle_combo.currentTextChanged.connect(self.on_axle_selected)
+        compound_select_layout.addWidget(self.axle_combo)
+        
+        compound_select_layout.addStretch()
+        compound_layout.addLayout(compound_select_layout)
+        
+        self.compound_info_label = QLabel("")
+        self.compound_info_label.setStyleSheet("color: #888; font-style: italic;")
+        compound_layout.addWidget(self.compound_info_label)
+        
+        compound_group.setLayout(compound_layout)
+        layout.addWidget(compound_group)
+        
+        # Preview group
         preview_group = QGroupBox("Preview")
         preview_layout = QVBoxLayout()
         
@@ -467,7 +500,7 @@ class CompareFileDialog(QDialog):
         
         button_layout = QHBoxLayout()
         
-        self.show_btn = QPushButton("Show Curve")
+        self.show_btn = QPushButton("Show Curves & Compounds")
         self.show_btn.clicked.connect(self.accept)
         self.show_btn.setEnabled(False)
         self.show_btn.setStyleSheet("background-color: #4CAF50; color: white;")
@@ -502,8 +535,11 @@ class CompareFileDialog(QDialog):
             if not self.file_path_edit.text():
                 self.curve_combo.clear()
                 self.curve_combo.setEnabled(False)
+                self.compound_combo.clear()
+                self.compound_combo.setEnabled(False)
+                self.axle_combo.setEnabled(False)
                 self.show_btn.setEnabled(False)
-                self.info_label.setText("No file selected")
+                self.compound_info_label.setText("No file selected")
                 self.preview_plot.clear()
     
     def browse_file(self):
@@ -524,34 +560,61 @@ class CompareFileDialog(QDialog):
     
     def load_file(self, filename):
         try:
-            self.comparison_curves = self.parse_tire_file(filename)
+            self.comparison_curves, self.comparison_compounds = self.parse_tire_file(filename)
             
-            if self.comparison_curves:
+            if self.comparison_curves or self.comparison_compounds:
                 self.file_path_edit.setText(filename)
                 self.selected_file = filename
                 
+                # Update curve combo
                 self.curve_combo.clear()
-                self.curve_combo.addItems([c['name'] for c in self.comparison_curves])
-                self.curve_combo.setEnabled(True)
+                if self.comparison_curves:
+                    self.curve_combo.addItems([c['name'] for c in self.comparison_curves])
+                    self.curve_combo.setEnabled(True)
+                else:
+                    self.curve_combo.addItem("No curves found")
+                    self.curve_combo.setEnabled(False)
                 
-                self.info_label.setText(f"Loaded {len(self.comparison_curves)} curves from {Path(filename).name}")
-                self.info_label.setStyleSheet("color: #4CAF50;")
+                # Update compound combo
+                self.compound_combo.clear()
+                if self.comparison_compounds:
+                    self.compound_combo.addItems([c['name'] for c in self.comparison_compounds])
+                    self.compound_combo.setEnabled(True)
+                    self.axle_combo.setEnabled(True)
+                    
+                    info_text = f"Loaded {len(self.comparison_compounds)} compounds from {Path(filename).name}"
+                    self.compound_info_label.setText(info_text)
+                    self.compound_info_label.setStyleSheet("color: #4CAF50;")
+                else:
+                    self.compound_combo.addItem("No compounds found")
+                    self.compound_combo.setEnabled(False)
+                    self.axle_combo.setEnabled(False)
+                    self.compound_info_label.setText("No compounds in file")
+                    self.compound_info_label.setStyleSheet("color: #888;")
                 
                 self.show_btn.setEnabled(True)
                 
-                self.on_curve_selected(0)
+                if self.comparison_curves:
+                    self.on_curve_selected(0)
+                else:
+                    self.preview_plot.clear()
+                    self.preview_plot.setLabel('bottom', 'No curves to preview')
+                
+                self.info_label = QLabel(f"Loaded {len(self.comparison_curves)} curves, {len(self.comparison_compounds)} compounds")
             else:
-                QMessageBox.warning(self, "No Curves", "No slip curves found in the selected file.")
+                QMessageBox.warning(self, "No Data", "No curves or compounds found in the selected file.")
                 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to load file: {e}")
     
     def parse_tire_file(self, filename):
         curves = []
+        compounds = []
         
         with open(filename, 'r') as f:
             content = f.read()
         
+        # Parse slip curves
         slip_curve_pattern = r'(\[SLIPCURVE\]\s*Name="([^"]+)"\s*Step=([0-9.e+-]+)[^\n]*\s*DropoffFunction=([0-9.e+-]+)[^\n]*\s*Data:\s*((?:\d+\.\d+\s*)+))'
         
         for match in re.finditer(slip_curve_pattern, content, re.MULTILINE | re.DOTALL):
@@ -570,7 +633,88 @@ class CompareFileDialog(QDialog):
                 'x_values': [i * step for i in range(len(values))]
             })
         
-        return curves
+        # Parse compounds
+        parts = content.split('[COMPOUND]')
+        
+        for i in range(1, len(parts)):
+            compound_content = '[COMPOUND]' + parts[i]
+            
+            end_pos = len(compound_content)
+            
+            full_pos = content.find(compound_content.strip())
+            if full_pos >= 0:
+                next_compound = content.find('[COMPOUND]', full_pos + 1)
+                next_slipcurve = content.find('[SLIPCURVE]', full_pos + 1)
+                
+                if next_compound >= 0 and next_slipcurve >= 0:
+                    end_pos = min(next_compound, next_slipcurve) - full_pos
+                elif next_compound >= 0:
+                    end_pos = next_compound - full_pos
+                elif next_slipcurve >= 0:
+                    end_pos = next_slipcurve - full_pos
+            
+            full_match = compound_content[:end_pos].strip()
+            
+            name_match = re.search(r'Name="([^"]+)"', full_match)
+            if not name_match:
+                continue
+            name = name_match.group(1)
+            
+            wet_weather = None
+            wet_match = re.search(r'WetWeather\s*=\s*(\d+)', full_match)
+            if wet_match:
+                wet_weather = int(wet_match.group(1))
+            
+            axles = {}
+            
+            lines = full_match.split('\n')
+            current_axle = None
+            current_axle_lines = []
+            
+            for line in lines:
+                clean_line = line.split('//')[0].strip()
+                if not clean_line:
+                    continue
+                
+                if clean_line.startswith('FRONT:'):
+                    if current_axle and current_axle_lines:
+                        axles[current_axle] = self._parse_axle_params('\n'.join(current_axle_lines))
+                    current_axle = 'FRONT'
+                    current_axle_lines = []
+                elif clean_line.startswith('REAR:'):
+                    if current_axle and current_axle_lines:
+                        axles[current_axle] = self._parse_axle_params('\n'.join(current_axle_lines))
+                    current_axle = 'REAR'
+                    current_axle_lines = []
+                elif current_axle and '=' in clean_line:
+                    current_axle_lines.append(line)
+            
+            if current_axle and current_axle_lines:
+                axles[current_axle] = self._parse_axle_params('\n'.join(current_axle_lines))
+            
+            compounds.append({
+                'name': name,
+                'wet_weather': wet_weather,
+                'axles': axles
+            })
+        
+        return curves, compounds
+    
+    def _parse_axle_params(self, axle_content):
+        params = {}
+        
+        for line in axle_content.split('\n'):
+            clean_line = line.split('//')[0].strip()
+            if not clean_line or '=' not in clean_line:
+                continue
+            
+            parts = clean_line.split('=', 1)
+            if len(parts) == 2:
+                key = parts[0].strip()
+                value = parts[1].strip()
+                params[key] = value
+        
+        return params
     
     def on_curve_selected(self, index):
         if index >= 0 and index < len(self.comparison_curves):
@@ -582,13 +726,227 @@ class CompareFileDialog(QDialog):
                                    pen=pg.mkPen('y', width=2))
             self.preview_plot.autoRange()
     
+    def on_compound_selected(self, index):
+        if index >= 0 and index < len(self.comparison_compounds):
+            self.selected_compound_index = index
+    
+    def on_axle_selected(self, axle):
+        self.selected_axle = axle
+    
     def get_selected_curve(self):
         if self.comparison_curves and self.selected_curve_index < len(self.comparison_curves):
             return self.comparison_curves[self.selected_curve_index]
         return None
     
+    def get_selected_compound(self):
+        if self.comparison_compounds and self.selected_compound_index < len(self.comparison_compounds):
+            return self.comparison_compounds[self.selected_compound_index]
+        return None
+    
+    def get_selected_axle(self):
+        return self.selected_axle
+    
     def get_selected_file(self):
         return self.selected_file
+
+class CompoundParameterTableWidget(QTableWidget):
+    """Custom table widget for displaying compound parameters in two columns"""
+    
+    parameter_edited = pyqtSignal(str, str, str)  # axle, key, new_value
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.current_axle = "FRONT"
+        self.current_compound_index = -1
+        self.comparison_compound = None
+        self.comparison_axle = "FRONT"
+        self.setup_ui()
+        
+    def setup_ui(self):
+        self.setColumnCount(3)
+        self.setHorizontalHeaderLabels(["Parameter", "Value", "Comparison"])
+        self.horizontalHeader().setStretchLastSection(True)
+        self.verticalHeader().setVisible(False)
+        self.setAlternatingRowColors(True)
+        self.setEditTriggers(QAbstractItemView.DoubleClicked)
+        
+        # Set column widths
+        self.setColumnWidth(0, 180)
+        self.setColumnWidth(1, 130)
+        self.setColumnWidth(2, 130)
+        
+        # Style the table with two shades of grey for alternating rows
+        self.setStyleSheet("""
+            QTableWidget {
+                background-color: #2b2b2b;
+                alternate-background-color: #3a3a3a;
+                gridline-color: #444;
+            }
+            QTableWidget::item {
+                padding: 4px;
+                color: #ffffff;
+                border: none;
+            }
+            QTableWidget::item:selected {
+                background-color: #4CAF50;
+                color: #ffffff;
+            }
+            QTableWidget::item:selected:!active {
+                background-color: #4CAF50;
+            }
+            QHeaderView::section {
+                background-color: #1e1e1e;
+                color: #4CAF50;
+                padding: 6px;
+                border: 1px solid #444;
+                font-weight: bold;
+            }
+        """)
+        
+        self.itemDoubleClicked.connect(self.on_item_double_clicked)
+    
+    def set_comparison_compound(self, compound, axle):
+        self.comparison_compound = compound
+        self.comparison_axle = axle
+        self.update_table()
+    
+    def clear_comparison(self):
+        self.comparison_compound = None
+        self.update_table()
+    
+    def update_table(self):
+        self.clearContents()
+        self.setRowCount(0)
+        
+        if self.current_compound_index < 0:
+            return
+            
+        # Get the compound data
+        compound = self.parent().editor.compounds[self.current_compound_index]
+        
+        # Add name row (not editable)
+        row = self.rowCount()
+        self.insertRow(row)
+        
+        name_item = QTableWidgetItem("Name")
+        name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
+        name_item.setForeground(QBrush(QColor("#888")))
+        self.setItem(row, 0, name_item)
+        
+        value_item = QTableWidgetItem(compound['name'])
+        value_item.setFlags(value_item.flags() & ~Qt.ItemIsEditable)
+        value_item.setForeground(QBrush(QColor("#4CAF50")))
+        value_item.setFont(QFont("", -1, QFont.Bold))
+        self.setItem(row, 1, value_item)
+        
+        # Add comparison value if available
+        if self.comparison_compound:
+            comp_value = self.comparison_compound['name']
+            comp_item = QTableWidgetItem(comp_value)
+            comp_item.setFlags(comp_item.flags() & ~Qt.ItemIsEditable)
+            comp_item.setForeground(QBrush(QColor("#FFA500")))
+            comp_item.setFont(QFont("", -1, QFont.Bold))
+            self.setItem(row, 2, comp_item)
+        else:
+            empty_item = QTableWidgetItem("")
+            empty_item.setFlags(empty_item.flags() & ~Qt.ItemIsEditable)
+            self.setItem(row, 2, empty_item)
+        
+        # Add wet weather if exists
+        if compound.get('wet_weather') is not None:
+            row = self.rowCount()
+            self.insertRow(row)
+            
+            wet_item = QTableWidgetItem("WetWeather")
+            wet_item.setFlags(wet_item.flags() & ~Qt.ItemIsEditable)
+            wet_item.setForeground(QBrush(QColor("#888")))
+            self.setItem(row, 0, wet_item)
+            
+            value_item = QTableWidgetItem(str(compound['wet_weather']))
+            value_item.setFlags(value_item.flags() & ~Qt.ItemIsEditable)
+            self.setItem(row, 1, value_item)
+            
+            if self.comparison_compound and self.comparison_compound.get('wet_weather') is not None:
+                comp_item = QTableWidgetItem(str(self.comparison_compound['wet_weather']))
+                comp_item.setFlags(comp_item.flags() & ~Qt.ItemIsEditable)
+                comp_item.setForeground(QBrush(QColor("#FFA500")))
+                self.setItem(row, 2, comp_item)
+            else:
+                empty_item = QTableWidgetItem("")
+                empty_item.setFlags(empty_item.flags() & ~Qt.ItemIsEditable)
+                self.setItem(row, 2, empty_item)
+        
+        # Add axle data
+        if self.current_axle in compound['axles']:
+            axle_data = compound['axles'][self.current_axle]
+            
+            # Add separator row
+            row = self.rowCount()
+            self.insertRow(row)
+            
+            sep_item = QTableWidgetItem(f"--- {self.current_axle} Parameters ---")
+            sep_item.setFlags(sep_item.flags() & ~Qt.ItemIsEditable)
+            sep_item.setForeground(QBrush(QColor("#4CAF50")))
+            sep_item.setFont(QFont("", -1, QFont.Bold))
+            sep_item.setTextAlignment(Qt.AlignCenter)
+            self.setItem(row, 0, sep_item)
+            self.setSpan(row, 0, 1, 3)
+            
+            # Add parameters
+            for key, value in axle_data.items():
+                row = self.rowCount()
+                self.insertRow(row)
+                
+                key_item = QTableWidgetItem(key)
+                key_item.setFlags(key_item.flags() & ~Qt.ItemIsEditable)
+                key_item.setForeground(QBrush(QColor("#aaa")))
+                self.setItem(row, 0, key_item)
+                
+                value_item = QTableWidgetItem(value)
+                value_item.setFlags(value_item.flags() | Qt.ItemIsEditable)
+                value_item.setForeground(QBrush(QColor("#ffffff")))
+                self.setItem(row, 1, value_item)
+                
+                # Add comparison value if available
+                if (self.comparison_compound and 
+                    self.comparison_axle in self.comparison_compound['axles'] and
+                    key in self.comparison_compound['axles'][self.comparison_axle]):
+                    
+                    comp_value = self.comparison_compound['axles'][self.comparison_axle][key]
+                    comp_item = QTableWidgetItem(comp_value)
+                    comp_item.setFlags(comp_item.flags() & ~Qt.ItemIsEditable)
+                    comp_item.setForeground(QBrush(QColor("#FFA500")))
+                    self.setItem(row, 2, comp_item)
+                else:
+                    empty_item = QTableWidgetItem("")
+                    empty_item.setFlags(empty_item.flags() & ~Qt.ItemIsEditable)
+                    self.setItem(row, 2, empty_item)
+        
+        self.resizeColumnsToContents()
+        self.horizontalHeader().setStretchLastSection(True)
+    
+    def set_current_compound(self, index):
+        self.current_compound_index = index
+        self.update_table()
+    
+    def set_current_axle(self, axle):
+        self.current_axle = axle
+        self.update_table()
+    
+    def on_item_double_clicked(self, item):
+        if item.column() == 1 and item.flags() & Qt.ItemIsEditable:
+            key = self.item(item.row(), 0).text()
+            if key and not key.startswith('---') and key != "Name" and key != "WetWeather":
+                current_value = item.text()
+                self.edit_parameter(key, current_value)
+    
+    def edit_parameter(self, key, current_value):
+        dialog = ParameterEditDialog(key, current_value, self.window())
+        if dialog.exec_() == QDialog.Accepted:
+            new_value = dialog.get_value()
+            if new_value != current_value:
+                self.parameter_edited.emit(self.current_axle, key, new_value)
+                self.update_table()
 
 class CompoundEditWidget(QWidget):
     def __init__(self, editor, parent=None):
@@ -596,12 +954,16 @@ class CompoundEditWidget(QWidget):
         self.editor = editor
         self.current_compound_index = 0
         self.current_axle = "FRONT"
+        self.comparison_compound = None
+        self.comparison_axle = "FRONT"
+        self.comparison_compounds_list = []
         self.setup_ui()
         
     def setup_ui(self):
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
         
+        # Selection controls
         select_layout = QHBoxLayout()
         select_layout.addWidget(QLabel("Compound:"))
         self.compound_combo = QComboBox()
@@ -617,10 +979,43 @@ class CompoundEditWidget(QWidget):
         select_layout.addStretch()
         layout.addLayout(select_layout)
         
-        self.param_list = QListWidget()
-        self.param_list.setMinimumHeight(300)
-        self.param_list.itemDoubleClicked.connect(self.edit_parameter)
-        layout.addWidget(self.param_list)
+        # Comparison controls (initially hidden)
+        self.comparison_widget = QWidget()
+        comparison_layout = QHBoxLayout(self.comparison_widget)
+        comparison_layout.setContentsMargins(0, 0, 0, 0)
+        
+        comparison_label = QLabel("Compare with:")
+        comparison_label.setStyleSheet("color: #FFA500; font-weight: bold;")
+        comparison_layout.addWidget(comparison_label)
+        
+        self.comparison_compound_combo = QComboBox()
+        self.comparison_compound_combo.setEnabled(False)
+        self.comparison_compound_combo.currentIndexChanged.connect(self.on_comparison_compound_selected)
+        comparison_layout.addWidget(self.comparison_compound_combo)
+        
+        self.comparison_axle_combo = QComboBox()
+        self.comparison_axle_combo.addItems(["FRONT", "REAR"])
+        self.comparison_axle_combo.setEnabled(False)
+        self.comparison_axle_combo.currentTextChanged.connect(self.on_comparison_axle_selected)
+        comparison_layout.addWidget(self.comparison_axle_combo)
+        
+        self.clear_comparison_btn = QPushButton("✕")
+        self.clear_comparison_btn.setMaximumWidth(30)
+        self.clear_comparison_btn.setToolTip("Clear comparison")
+        self.clear_comparison_btn.clicked.connect(self.clear_comparison)
+        self.clear_comparison_btn.setEnabled(False)
+        comparison_layout.addWidget(self.clear_comparison_btn)
+        
+        comparison_layout.addStretch()
+        
+        self.comparison_widget.hide()
+        layout.addWidget(self.comparison_widget)
+        
+        # Parameter table
+        self.param_table = CompoundParameterTableWidget(self)
+        self.param_table.setMinimumHeight(350)
+        self.param_table.parameter_edited.connect(self.on_parameter_edited)
+        layout.addWidget(self.param_table)
         
         self.setLayout(layout)
     
@@ -633,44 +1028,77 @@ class CompoundEditWidget(QWidget):
         
         if compounds:
             self.current_compound_index = 0
-            self.load_compound(0)
+            self.param_table.set_current_compound(0)
         else:
-            self.param_list.clear()
-            self.param_list.addItem("No compounds found in file")
+            self.param_table.clearContents()
+            self.param_table.setRowCount(1)
+            self.param_table.setItem(0, 0, QTableWidgetItem("No compounds found in file"))
     
-    def load_compound(self, index):
-        if index >= 0 and index < len(self.editor.compounds):
-            self.current_compound_index = index
-            compound = self.editor.compounds[index]
-            self.update_parameters_list()
-            return True
-        return False
-    
-    def update_parameters_list(self):
-        self.param_list.clear()
+    def set_comparison_data(self, compounds, selected_compound, selected_axle):
+        """Set the list of available comparison compounds and select the specified one"""
+        self.comparison_compounds_list = compounds
         
-        if self.current_compound_index < len(self.editor.compounds):
-            compound = self.editor.compounds[self.current_compound_index]
+        self.comparison_compound_combo.blockSignals(True)
+        self.comparison_compound_combo.clear()
+        
+        if compounds:
+            self.comparison_compound_combo.addItems([c['name'] for c in compounds])
             
-            items = [f"Name = {compound['name']}"]
+            # Find and select the specified compound
+            if selected_compound:
+                for i, c in enumerate(compounds):
+                    if c['name'] == selected_compound['name']:
+                        self.comparison_compound_combo.setCurrentIndex(i)
+                        self.comparison_compound = selected_compound
+                        break
             
-            if 'wet_weather' in compound and compound['wet_weather'] is not None:
-                items.append(f"WetWeather = {compound['wet_weather']}")
+            self.comparison_axle_combo.setCurrentText(selected_axle)
+            self.comparison_axle = selected_axle
             
-            if self.current_axle in compound['axles']:
-                axle_data = compound['axles'][self.current_axle]
-                for key, value in axle_data.items():
-                    items.append(f"{key} = {value}")
-            else:
-                items.append(f"No {self.current_axle} section found")
+            self.comparison_compound_combo.setEnabled(True)
+            self.comparison_axle_combo.setEnabled(True)
+            self.clear_comparison_btn.setEnabled(True)
             
-            for item in items:
-                self.param_list.addItem(item)
+            self.comparison_widget.show()
+            
+            # Update the table with comparison data
+            self.param_table.set_comparison_compound(self.comparison_compound, self.comparison_axle)
         else:
-            self.param_list.addItem("No compound selected")
+            self.clear_comparison()
+    
+    def on_comparison_compound_selected(self, index):
+        if index >= 0 and index < len(self.comparison_compounds_list):
+            self.comparison_compound = self.comparison_compounds_list[index]
+            self.param_table.set_comparison_compound(self.comparison_compound, self.comparison_axle)
+            self.editor.status_bar.showMessage(
+                f"Comparing with compound: {self.comparison_compound['name']} - {self.comparison_axle}", 
+                2000
+            )
+    
+    def on_comparison_axle_selected(self, axle):
+        self.comparison_axle = axle
+        if self.comparison_compound:
+            self.param_table.set_comparison_compound(self.comparison_compound, axle)
+            self.editor.status_bar.showMessage(
+                f"Comparing with compound: {self.comparison_compound['name']} - {axle}", 
+                2000
+            )
+    
+    def clear_comparison(self):
+        self.comparison_compound = None
+        self.comparison_compounds_list = []
+        self.comparison_compound_combo.clear()
+        self.comparison_compound_combo.setEnabled(False)
+        self.comparison_axle_combo.setEnabled(False)
+        self.clear_comparison_btn.setEnabled(False)
+        self.comparison_widget.hide()
+        self.param_table.clear_comparison()
+        self.editor.status_bar.showMessage("Comparison cleared", 2000)
     
     def on_compound_selected(self, index):
-        if index >= 0 and self.load_compound(index):
+        if index >= 0:
+            self.current_compound_index = index
+            self.param_table.set_current_compound(index)
             self.editor.status_bar.showMessage(
                 f"Editing compound: {self.editor.compounds[index]['name']} - {self.current_axle}", 
                 2000
@@ -678,38 +1106,15 @@ class CompoundEditWidget(QWidget):
     
     def on_axle_selected(self, axle):
         self.current_axle = axle
-        self.update_parameters_list()
+        self.param_table.set_current_axle(axle)
         if self.current_compound_index < len(self.editor.compounds):
             self.editor.status_bar.showMessage(
                 f"Editing compound: {self.editor.compounds[self.current_compound_index]['name']} - {axle}", 
                 2000
             )
     
-    def edit_parameter(self, item):
-        text = item.text()
-        if '=' not in text:
-            return
-        
-        key, value = text.split('=', 1)
-        key = key.strip()
-        value = value.strip()
-        
-        if key == 'Name':
-            QMessageBox.information(self, "Info", "Compound name cannot be edited here")
-            return
-        
-        dialog = ParameterEditDialog(key, value, self.window())
-        if dialog.exec_() == QDialog.Accepted:
-            new_value = dialog.get_value()
-            
-            if new_value != value:
-                self.editor.update_compound_parameter(
-                    self.current_compound_index,
-                    self.current_axle,
-                    key,
-                    new_value
-                )
-                self.update_parameters_list()
+    def on_parameter_edited(self, axle, key, new_value):
+        self.editor.update_compound_parameter(self.current_compound_index, axle, key, new_value)
 
 class TireCurveEditor:
     def __init__(self, filename):
@@ -725,6 +1130,9 @@ class TireCurveEditor:
         self.show_all_curves = False
         self.all_curves_plots = []
         self.comparison_curve = None
+        self.comparison_compound = None
+        self.comparison_axle = "FRONT"
+        self.comparison_compounds_list = []
         self.comparison_plot = None
         self.preview_curve = None
         self.preview_values = None
@@ -850,7 +1258,7 @@ class TireCurveEditor:
         self.app = QApplication.instance() or QApplication(sys.argv)
         self.window = QMainWindow()
         self.window.setWindowTitle(f"Tire Curve Editor - {Path(self.filename).name}")
-        self.window.setGeometry(100, 100, 1600, 1000)
+        self.window.setGeometry(100, 100, 1700, 1000)  # Slightly wider
         
         self.apply_dark_theme()
         
@@ -926,12 +1334,12 @@ class TireCurveEditor:
         control_layout.addWidget(compare_separator)
         
         self.load_compare_btn = QPushButton("📊 Load Comparison")
-        self.load_compare_btn.clicked.connect(self.load_comparison_curve)
+        self.load_compare_btn.clicked.connect(self.load_comparison)
         self.load_compare_btn.setStyleSheet("background-color: #ff9800;")
         control_layout.addWidget(self.load_compare_btn)
         
         self.hide_compare_btn = QPushButton("❌ Hide Comparison")
-        self.hide_compare_btn.clicked.connect(self.hide_comparison_curve)
+        self.hide_compare_btn.clicked.connect(self.hide_comparison)
         self.hide_compare_btn.setEnabled(False)
         self.hide_compare_btn.setStyleSheet("background-color: #f44336;")
         control_layout.addWidget(self.hide_compare_btn)
@@ -1032,7 +1440,7 @@ class TireCurveEditor:
         left_layout.addWidget(params_group)
         
         right_panel = QWidget()
-        right_panel.setMaximumWidth(450)
+        right_panel.setMaximumWidth(600)  # Increased width for compound editor
         right_layout = QVBoxLayout(right_panel)
         
         file_group = QGroupBox("File Operations")
@@ -1207,7 +1615,7 @@ class TireCurveEditor:
         clipboard.setText(self.data_display.toPlainText())
         self.status_bar.showMessage("Data copied to clipboard", 2000)
     
-    def load_comparison_curve(self):
+    def load_comparison(self):
         dialog = CompareFileDialog(
             self.window, 
             self.last_comparison_file,
@@ -1216,45 +1624,86 @@ class TireCurveEditor:
         
         if dialog.exec_() == QDialog.Accepted:
             curve = dialog.get_selected_curve()
+            compound = dialog.get_selected_compound()
+            axle = dialog.get_selected_axle()
             selected_file = dialog.get_selected_file()
             
-            if curve and selected_file:
+            if selected_file:
                 self.last_comparison_file = selected_file
-                self.comparison_curve = curve
-                self.show_comparison_curve()
-                self.status_bar.showMessage(f"Loaded comparison curve: {curve['name']} from {Path(selected_file).name}", 3000)
+                
+                # Set comparison curve
+                if curve:
+                    self.comparison_curve = curve
+                else:
+                    self.comparison_curve = None
+                
+                # Set comparison compound
+                if compound:
+                    self.comparison_compound = compound
+                    self.comparison_axle = axle
+                    
+                    # Get all compounds from the comparison file for the dropdown
+                    _, compounds = dialog.parse_tire_file(selected_file)
+                    self.comparison_compounds_list = compounds
+                else:
+                    self.comparison_compound = None
+                    self.comparison_compounds_list = []
+                
+                self.show_comparison()
+                self.status_bar.showMessage(f"Loaded comparison from {Path(selected_file).name}", 3000)
     
-    def show_comparison_curve(self):
-        if self.comparison_curve and not self.show_all_curves:
-            self.comparison_plot.setData(
-                self.comparison_curve['x_values'],
-                self.comparison_curve['values']
-            )
-            self.comparison_plot.show()
+    def show_comparison(self):
+        if not self.show_all_curves:
+            # Show comparison curve
+            if self.comparison_curve:
+                self.comparison_plot.setData(
+                    self.comparison_curve['x_values'],
+                    self.comparison_curve['values']
+                )
+                self.comparison_plot.show()
+                
+                if hasattr(self, 'legend') and self.legend is not None:
+                    try:
+                        self.legend.removeItem(self.comparison_plot)
+                    except:
+                        pass
+                    self.legend.addItem(self.comparison_plot, f"Comparison: {self.comparison_curve['name']}")
+            else:
+                self.comparison_plot.hide()
             
-            if hasattr(self, 'legend') and self.legend is not None:
-                try:
-                    self.legend.removeItem(self.comparison_plot)
-                except:
-                    pass
-                self.legend.addItem(self.comparison_plot, f"Comparison: {self.comparison_curve['name']}")
+            # Show comparison compound with selectable compounds
+            if self.comparison_compound:
+                self.compound_edit_widget.set_comparison_data(
+                    self.comparison_compounds_list,
+                    self.comparison_compound,
+                    self.comparison_axle
+                )
+            else:
+                self.compound_edit_widget.clear_comparison()
             
             self.hide_compare_btn.setEnabled(True)
-            
             self.plot_widget.autoRange()
     
-    def hide_comparison_curve(self):
+    def hide_comparison(self):
+        # Hide comparison curve
         if self.comparison_plot:
             self.comparison_plot.hide()
-            self.hide_compare_btn.setEnabled(False)
             
             if hasattr(self, 'legend') and self.legend is not None:
                 try:
                     self.legend.removeItem(self.comparison_plot)
                 except:
                     pass
-            
-            self.status_bar.showMessage("Comparison curve hidden", 2000)
+        
+        # Hide comparison compound
+        self.compound_edit_widget.clear_comparison()
+        
+        self.comparison_curve = None
+        self.comparison_compound = None
+        self.comparison_compounds_list = []
+        self.hide_compare_btn.setEnabled(False)
+        
+        self.status_bar.showMessage("Comparison hidden", 2000)
     
     def show_preview_dialog(self, operation_type):
         if self.show_all_curves:
@@ -1346,7 +1795,7 @@ class TireCurveEditor:
             self.preview_curve.hide()
             
             if self.comparison_curve:
-                self.show_comparison_curve()
+                self.show_comparison()
             else:
                 self.comparison_plot.hide()
             
@@ -1461,12 +1910,7 @@ class TireCurveEditor:
             if self.point_edit_widget:
                 self.point_edit_widget.setEnabled(True)
             
-            if self.comparison_curve:
-                self.show_comparison_curve()
-            else:
-                self.comparison_plot.hide()
-                self.hide_compare_btn.setEnabled(False)
-            
+            self.show_comparison()
             self.load_curve(self.current_curve_index)
     
     def update_statistics(self, values, x_values, step):
@@ -1586,7 +2030,8 @@ class TireCurveEditor:
             self.modified_compounds.clear()
             self.load_curve(self.current_curve_index)
             if self.compound_edit_widget:
-                self.compound_edit_widget.update_parameters_list()
+                self.compound_edit_widget.update_compounds(self.compounds)
+                self.compound_edit_widget.set_current_compound(self.current_compound_index)
             self.status_bar.showMessage("All curves and compounds reverted to original", 3000)
     
     def save_changes(self):
