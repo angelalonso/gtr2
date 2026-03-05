@@ -6,7 +6,7 @@ Program to modify Tracks to make AI be faster or slower both in Qualy and in the
 - Install python dependencies:
 'pipenv install; pipenv install PyQt5'
 - Run the program:
-'pipenv run python3 ai_track_tuner.py <path to your GTR2 installation folder>'
+'pipenv run python3 ai_track_tuner.py /path/to/your_GTR2_installation_folder'
 - Modify the track you want
 - Once you save it, a backup of the original will be kept on backup_originals
 
