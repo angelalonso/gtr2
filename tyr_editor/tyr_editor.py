@@ -1,5 +1,5 @@
-# pipenv install; pipenv run pip install PyQt5 pyqtgraph
-# pipenv run python3 ai_editor
+# pipenv install; pipenv run pip install PyQt5 pyqtgraph scipy numpy
+# pipenv run python3 tyr_editor <path to .tyr file>
 import sys
 import re
 import numpy as np
