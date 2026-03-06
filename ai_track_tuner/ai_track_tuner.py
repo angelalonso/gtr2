@@ -7,6 +7,8 @@ with backup/restore functionality.
 import sys
 import re
 import shutil
+import yaml
+import os
 from pathlib import Path
 from datetime import datetime
 from PyQt5.QtWidgets import *
@@ -70,7 +72,10 @@ class EditableTableWidget(QTableWidget):
         self.setColumnWidth(0, 400)  # Track Name
         self.setColumnWidth(1, 120)  # QualRatio
         self.setColumnWidth(2, 120)  # RaceRatio
-        self.setColumnWidth(3, 200)  # Actions - wider for more buttons
+        self.setColumnWidth(3, 240)  # Actions - wider for text buttons
+        
+        # Set row height to be a bit taller
+        self.verticalHeader().setDefaultSectionSize(36)
         
         # Enable sorting
         self.setSortingEnabled(True)
@@ -111,10 +116,7 @@ class EditableTableWidget(QTableWidget):
             self.update_row_buttons(row)
     
     def update_row_buttons(self, row):
-        """Update the action buttons for a specific row"""
-        # Check if we already have a widget in this cell
-        cell_widget = self.cellWidget(row, 3)
-        
+        """Update the action buttons for a specific row with text labels"""
         # Create button widget for this row
         button_widget = QWidget()
         button_layout = QHBoxLayout(button_widget)
@@ -123,28 +125,103 @@ class EditableTableWidget(QTableWidget):
         
         # Save button (only for modified rows)
         if row in self.modified_rows:
-            save_btn = QPushButton("💾")
-            save_btn.setToolTip("Save this row")
-            save_btn.setMaximumWidth(30)
-            save_btn.setStyleSheet("background-color: #4CAF50; color: white;")
+            save_btn = QPushButton("Save")
+            save_btn.setToolTip("Save changes for this track")
+            save_btn.setFixedHeight(28)
+            save_btn.setFixedWidth(60)
+            save_btn.setCursor(Qt.PointingHandCursor)
+            save_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #4CAF50;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    font-family: 'Segoe UI', 'Arial', sans-serif;
+                    font-size: 11px;
+                    font-weight: bold;
+                    text-align: center;
+                    padding: 3px 0px;
+                    margin: 0px;
+                }
+                QPushButton:hover {
+                    background-color: #45a049;
+                }
+                QPushButton:pressed {
+                    background-color: #3d8b40;
+                }
+                QPushButton:disabled {
+                    background-color: #666666;
+                    color: #999999;
+                }
+            """)
             save_btn.clicked.connect(lambda checked, r=row: self.save_row.emit(r))
             button_layout.addWidget(save_btn)
         
         # Restore session button (only for modified rows)
         if row in self.modified_rows:
-            restore_btn = QPushButton("↺")
-            restore_btn.setToolTip("Restore to original (session)")
-            restore_btn.setMaximumWidth(30)
-            restore_btn.setStyleSheet("background-color: #FFA500; color: white;")
+            restore_btn = QPushButton("Restore")
+            restore_btn.setToolTip("Restore to original session values")
+            restore_btn.setFixedHeight(28)
+            restore_btn.setFixedWidth(60)
+            restore_btn.setCursor(Qt.PointingHandCursor)
+            restore_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #FFA500;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    font-family: 'Segoe UI', 'Arial', sans-serif;
+                    font-size: 11px;
+                    font-weight: bold;
+                    text-align: center;
+                    padding: 3px 0px;
+                    margin: 0px;
+                }
+                QPushButton:hover {
+                    background-color: #f39c12;
+                }
+                QPushButton:pressed {
+                    background-color: #e67e22;
+                }
+                QPushButton:disabled {
+                    background-color: #666666;
+                    color: #999999;
+                }
+            """)
             restore_btn.clicked.connect(lambda checked, r=row: self.restore_row.emit(r))
             button_layout.addWidget(restore_btn)
         
         # Restore from backup button (if backup exists)
         if row in self.has_backup:
-            restore_backup_btn = QPushButton("📂")
+            restore_backup_btn = QPushButton("Original")
             restore_backup_btn.setToolTip("Restore from backup file")
-            restore_backup_btn.setMaximumWidth(30)
-            restore_backup_btn.setStyleSheet("background-color: #2196F3; color: white;")
+            restore_backup_btn.setFixedHeight(28)
+            restore_backup_btn.setFixedWidth(60)
+            restore_backup_btn.setCursor(Qt.PointingHandCursor)
+            restore_backup_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #2196F3;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    font-family: 'Segoe UI', 'Arial', sans-serif;
+                    font-size: 11px;
+                    font-weight: bold;
+                    text-align: center;
+                    padding: 3px 0px;
+                    margin: 0px;
+                }
+                QPushButton:hover {
+                    background-color: #1976D2;
+                }
+                QPushButton:pressed {
+                    background-color: #0D47A1;
+                }
+                QPushButton:disabled {
+                    background-color: #666666;
+                    color: #999999;
+                }
+            """)
             restore_backup_btn.clicked.connect(lambda checked, r=row: self.restore_from_backup_row.emit(r))
             button_layout.addWidget(restore_backup_btn)
         
@@ -233,6 +310,201 @@ class EditableTableWidget(QTableWidget):
         self.update_row_buttons(row)
 
 
+class PathSelectionDialog(QDialog):
+    """Dialog for selecting the base path when cfg.yml is missing or path is invalid"""
+    
+    def __init__(self, parent=None, current_path=None):
+        super().__init__(parent)
+        self.selected_path = current_path
+        self.setup_ui()
+        
+    def setup_ui(self):
+        self.setWindowTitle("Select Game Base Path")
+        self.setModal(True)
+        self.setMinimumWidth(500)
+        
+        layout = QVBoxLayout(self)
+        
+        # Instructions
+        instructions = QLabel(
+            "Please select the base directory of your game.\n"
+            "The program will look for AIW files in:\n"
+            "<selected_path>/GameData/Locations/"
+        )
+        instructions.setWordWrap(True)
+        instructions.setStyleSheet("color: #888; padding: 10px; font-size: 12px;")
+        layout.addWidget(instructions)
+        
+        # Path input area
+        path_layout = QHBoxLayout()
+        
+        self.path_edit = QLineEdit()
+        self.path_edit.setPlaceholderText("Select or enter the game base path...")
+        self.path_edit.setFixedHeight(30)
+        if self.selected_path:
+            self.path_edit.setText(str(self.selected_path))
+        
+        browse_btn = QPushButton("Browse...")
+        browse_btn.setFixedHeight(30)
+        browse_btn.setFixedWidth(100)
+        browse_btn.setCursor(Qt.PointingHandCursor)
+        browse_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-family: 'Segoe UI', 'Arial', sans-serif;
+                font-size: 12px;
+                font-weight: bold;
+                text-align: center;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+            QPushButton:pressed {
+                background-color: #3d8b40;
+            }
+        """)
+        browse_btn.clicked.connect(self.browse_folder)
+        
+        path_layout.addWidget(self.path_edit)
+        path_layout.addWidget(browse_btn)
+        layout.addLayout(path_layout)
+        
+        # Preview of where it will look
+        self.preview_label = QLabel()
+        self.preview_label.setStyleSheet("color: #4CAF50; font-family: monospace; padding: 5px; font-size: 12px;")
+        layout.addWidget(self.preview_label)
+        
+        # Error label
+        self.error_label = QLabel()
+        self.error_label.setStyleSheet("color: #f44336; padding: 5px; font-size: 12px;")
+        self.error_label.setWordWrap(True)
+        layout.addWidget(self.error_label)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        
+        self.ok_btn = QPushButton("OK")
+        self.ok_btn.setFixedHeight(32)
+        self.ok_btn.setFixedWidth(100)
+        self.ok_btn.setCursor(Qt.PointingHandCursor)
+        self.ok_btn.clicked.connect(self.validate_and_accept)
+        self.ok_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-family: 'Segoe UI', 'Arial', sans-serif;
+                font-size: 12px;
+                font-weight: bold;
+                text-align: center;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+            QPushButton:pressed {
+                background-color: #3d8b40;
+            }
+        """)
+        
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setFixedHeight(32)
+        cancel_btn.setFixedWidth(100)
+        cancel_btn.setCursor(Qt.PointingHandCursor)
+        cancel_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f44336;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-family: 'Segoe UI', 'Arial', sans-serif;
+                font-size: 12px;
+                font-weight: bold;
+                text-align: center;
+            }
+            QPushButton:hover {
+                background-color: #d32f2f;
+            }
+            QPushButton:pressed {
+                background-color: #b71c1c;
+            }
+        """)
+        cancel_btn.clicked.connect(self.reject)
+        
+        button_layout.addStretch()
+        button_layout.addWidget(self.ok_btn)
+        button_layout.addWidget(cancel_btn)
+        layout.addLayout(button_layout)
+        
+        # Connect path edit changes to preview update
+        self.path_edit.textChanged.connect(self.update_preview)
+        
+        # Initial preview update
+        self.update_preview()
+    
+    def browse_folder(self):
+        """Open folder browser dialog"""
+        folder = QFileDialog.getExistingDirectory(
+            self, 
+            "Select Game Base Directory",
+            self.path_edit.text() if self.path_edit.text() else os.path.expanduser("~")
+        )
+        if folder:
+            self.path_edit.setText(folder)
+    
+    def update_preview(self):
+        """Update the preview of where the program will look"""
+        path_text = self.path_edit.text().strip()
+        if path_text:
+            preview_path = Path(path_text) / "GameData" / "Locations"
+            self.preview_label.setText(f"Will scan: {preview_path}")
+            
+            # Check if the path exists and show appropriate color
+            if preview_path.exists():
+                self.preview_label.setStyleSheet("color: #4CAF50; font-family: monospace; padding: 5px; font-size: 12px;")
+            else:
+                self.preview_label.setStyleSheet("color: #FFA500; font-family: monospace; padding: 5px; font-size: 12px;")
+        else:
+            self.preview_label.setText("")
+    
+    def validate_and_accept(self):
+        """Validate the selected path and accept if valid"""
+        path_text = self.path_edit.text().strip()
+        
+        if not path_text:
+            self.error_label.setText("Please select a path")
+            return
+        
+        path = Path(path_text)
+        
+        # Check if the Locations directory exists (or can be created)
+        locations_path = path / "GameData" / "Locations"
+        
+        if not path.exists():
+            self.error_label.setText("The selected path does not exist")
+            return
+        
+        if not locations_path.exists():
+            # Warn but don't prevent selection
+            reply = QMessageBox.question(
+                self,
+                "Path Warning",
+                f"The Locations directory does not exist at:\n{locations_path}\n\n"
+                f"This may mean you've selected the wrong folder.\n"
+                f"Do you want to use this path anyway?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if reply != QMessageBox.Yes:
+                return
+        
+        self.selected_path = path
+        self.accept()
+
+
 class AIWRatioEditor(QMainWindow):
     def __init__(self, base_path):
         super().__init__()
@@ -244,7 +516,7 @@ class AIWRatioEditor(QMainWindow):
         
     def setup_ui(self):
         self.setWindowTitle(f"AIW Ratio Editor - Scanning: {self.base_path}")
-        self.setGeometry(100, 100, 1100, 800)  # Slightly wider for more buttons
+        self.setGeometry(100, 100, 1200, 800)  # Wider for text buttons
         
         self.apply_dark_theme()
         
@@ -258,17 +530,17 @@ class AIWRatioEditor(QMainWindow):
         header_layout.setContentsMargins(0, 0, 0, 10)
         
         path_label = QLabel(f"Scanning: ")
-        path_label.setStyleSheet("color: #888;")
+        path_label.setStyleSheet("color: #888; font-size: 12px;")
         header_layout.addWidget(path_label)
         
-        path_value = QLabel(str(self.base_path))
-        path_value.setStyleSheet("color: #4CAF50; font-weight: bold;")
-        header_layout.addWidget(path_value)
+        self.path_value = QLabel(str(self.base_path))
+        self.path_value.setStyleSheet("color: #4CAF50; font-weight: bold; font-size: 12px;")
+        header_layout.addWidget(self.path_value)
         
         header_layout.addStretch()
         
         self.stats_label = QLabel("")
-        self.stats_label.setStyleSheet("color: #FFA500;")
+        self.stats_label.setStyleSheet("color: #FFA500; font-size: 12px;")
         header_layout.addWidget(self.stats_label)
         
         main_layout.addWidget(header_widget)
@@ -286,31 +558,133 @@ class AIWRatioEditor(QMainWindow):
         button_bar = QWidget()
         button_layout = QHBoxLayout(button_bar)
         button_layout.setContentsMargins(0, 10, 0, 0)
+        button_layout.setSpacing(8)  # Consistent spacing between buttons
         
-        self.rescan_btn = QPushButton("🔄 Rescan")
+        # Create buttons with explicit fixed sizes and text
+        self.rescan_btn = QPushButton("Rescan")
+        self.rescan_btn.setToolTip("Rescan for AIW files")
+        self.rescan_btn.setFixedHeight(32)
+        self.rescan_btn.setFixedWidth(100)
+        self.rescan_btn.setCursor(Qt.PointingHandCursor)
         self.rescan_btn.clicked.connect(self.scan_files)
-        self.rescan_btn.setStyleSheet("background-color: #4CAF50; color: white;")
+        self.rescan_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-family: 'Segoe UI', 'Arial', sans-serif;
+                font-size: 12px;
+                font-weight: bold;
+                text-align: center;
+                padding: 5px 10px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+            QPushButton:pressed {
+                background-color: #3d8b40;
+            }
+        """)
         button_layout.addWidget(self.rescan_btn)
         
-        self.save_all_btn = QPushButton("💾 Save All Modified")
+        self.save_all_btn = QPushButton("Save All Modified")
+        self.save_all_btn.setToolTip("Save all modified rows")
+        self.save_all_btn.setFixedHeight(32)
+        self.save_all_btn.setFixedWidth(150)
+        self.save_all_btn.setCursor(Qt.PointingHandCursor)
         self.save_all_btn.clicked.connect(self.save_all)
-        self.save_all_btn.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold;")
+        self.save_all_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-family: 'Segoe UI', 'Arial', sans-serif;
+                font-size: 12px;
+                font-weight: bold;
+                text-align: center;
+                padding: 5px 10px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+            QPushButton:pressed {
+                background-color: #3d8b40;
+            }
+        """)
         button_layout.addWidget(self.save_all_btn)
         
-        self.restore_all_btn = QPushButton("↺ Restore All Modified")
+        self.restore_all_btn = QPushButton("Restore All Modified")
+        self.restore_all_btn.setToolTip("Restore all modified rows to session values")
+        self.restore_all_btn.setFixedHeight(32)
+        self.restore_all_btn.setFixedWidth(170)
+        self.restore_all_btn.setCursor(Qt.PointingHandCursor)
         self.restore_all_btn.clicked.connect(self.restore_all)
-        self.restore_all_btn.setStyleSheet("background-color: #FFA500; color: white; font-weight: bold;")
+        self.restore_all_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #FFA500;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-family: 'Segoe UI', 'Arial', sans-serif;
+                font-size: 12px;
+                font-weight: bold;
+                text-align: center;
+                padding: 5px 10px;
+            }
+            QPushButton:hover {
+                background-color: #f39c12;
+            }
+            QPushButton:pressed {
+                background-color: #e67e22;
+            }
+        """)
         button_layout.addWidget(self.restore_all_btn)
         
-        self.restore_all_backup_btn = QPushButton("📂 Restore All from Backup")
+        self.restore_all_backup_btn = QPushButton("Restore All from Backup")
+        self.restore_all_backup_btn.setToolTip("Restore all files from backup")
+        self.restore_all_backup_btn.setFixedHeight(32)
+        self.restore_all_backup_btn.setFixedWidth(200)
+        self.restore_all_backup_btn.setCursor(Qt.PointingHandCursor)
         self.restore_all_backup_btn.clicked.connect(self.restore_all_from_backup)
-        self.restore_all_backup_btn.setStyleSheet("background-color: #2196F3; color: white; font-weight: bold;")
+        self.restore_all_backup_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-family: 'Segoe UI', 'Arial', sans-serif;
+                font-size: 12px;
+                font-weight: bold;
+                text-align: center;
+                padding: 5px 10px;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+            QPushButton:pressed {
+                background-color: #0D47A1;
+            }
+        """)
         button_layout.addWidget(self.restore_all_backup_btn)
         
         button_layout.addStretch()
         
+        # Status label with explicit styling
         self.status_label = QLabel("Ready")
-        self.status_label.setStyleSheet("color: #888; font-style: italic;")
+        self.status_label.setFixedHeight(32)
+        self.status_label.setMinimumWidth(200)
+        self.status_label.setStyleSheet("""
+            QLabel {
+                color: #888;
+                font-style: italic;
+                font-size: 12px;
+                padding: 5px 10px;
+                background-color: #3c3c3c;
+                border-radius: 4px;
+            }
+        """)
         button_layout.addWidget(self.status_label)
         
         main_layout.addWidget(button_bar)
@@ -330,9 +704,11 @@ class AIWRatioEditor(QMainWindow):
                 alternate-background-color: #2b2b2b;
                 gridline-color: #444;
                 color: #ffffff;
+                font-family: 'Segoe UI', 'Arial', sans-serif;
+                font-size: 12px;
             }
             QTableWidget::item {
-                padding: 5px;
+                padding: 8px 5px;
             }
             QTableWidget::item:selected {
                 background-color: #4CAF50;
@@ -344,25 +720,20 @@ class AIWRatioEditor(QMainWindow):
                 padding: 8px;
                 border: 1px solid #555;
                 font-weight: bold;
+                font-family: 'Segoe UI', 'Arial', sans-serif;
+                font-size: 12px;
             }
             QLabel {
                 color: #ffffff;
-            }
-            QPushButton {
-                background-color: #3c3c3c;
-                color: white;
-                border: 1px solid #555;
-                border-radius: 3px;
-                padding: 5px 10px;
-            }
-            QPushButton:hover {
-                background-color: #4c4c4c;
-                border: 1px solid #4CAF50;
+                font-family: 'Segoe UI', 'Arial', sans-serif;
+                font-size: 12px;
             }
             QStatusBar {
                 color: #ffffff;
                 background-color: #3c3c3c;
                 border-top: 1px solid #555;
+                font-family: 'Segoe UI', 'Arial', sans-serif;
+                font-size: 12px;
             }
             QDoubleSpinBox {
                 background-color: #3c3c3c;
@@ -370,6 +741,8 @@ class AIWRatioEditor(QMainWindow):
                 border: 1px solid #4CAF50;
                 border-radius: 3px;
                 padding: 2px;
+                font-family: 'Segoe UI', 'Arial', sans-serif;
+                font-size: 12px;
             }
         """)
     
@@ -845,16 +1218,54 @@ class AIWRatioEditor(QMainWindow):
             QMessageBox.critical(self, "Restore Failed", "Failed to restore any files from backup.")
 
 
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: python aiw_editor.py <base_path>")
-        print("\nExample:")
-        print("  python aiw_editor.py C:/Games/MyGame")
-        print("\nThe program will scan <base_path>/GameData/Locations/ for .aiw files")
-        print("and allow editing of QualRatio and RaceRatio values.")
-        return 1
+def get_base_path():
+    """Get the base path from cfg.yml or prompt user to select it"""
+    config_file = Path("cfg.yml")
     
-    base_path = sys.argv[1]
+    # Try to read from cfg.yml
+    if config_file.exists():
+        try:
+            with open(config_file, 'r') as f:
+                config = yaml.safe_load(f)
+                if config and 'base_path' in config:
+                    path = Path(config['base_path'])
+                    if path.exists():
+                        return path
+                    else:
+                        print(f"Warning: Path from cfg.yml does not exist: {path}")
+        except Exception as e:
+            print(f"Error reading cfg.yml: {e}")
+    
+    # If we get here, we need to prompt the user
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+    
+    dialog = PathSelectionDialog()
+    if dialog.exec_() == QDialog.Accepted:
+        selected_path = dialog.selected_path
+        
+        # Save to cfg.yml
+        try:
+            config = {'base_path': str(selected_path)}
+            with open(config_file, 'w') as f:
+                yaml.dump(config, f)
+            print(f"Saved path to {config_file}")
+        except Exception as e:
+            print(f"Error saving to cfg.yml: {e}")
+        
+        return selected_path
+    else:
+        return None
+
+
+def main():
+    # Get base path from config or user selection
+    base_path = get_base_path()
+    
+    if base_path is None:
+        print("No path selected. Exiting.")
+        return 1
     
     try:
         app = QApplication(sys.argv)
