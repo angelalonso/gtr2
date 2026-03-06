@@ -7,13 +7,16 @@ with backup/restore functionality.
 import sys
 import re
 import shutil
-import yaml
-import os
 from pathlib import Path
 from datetime import datetime
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
+
+# Import configuration management
+from cfg_manage import get_or_prompt_base_path
+# Import ratio calculator dialog
+from ratio_calc import RatioCalculatorDialog
 
 
 class RatioItemDelegate(QStyledItemDelegate):
@@ -51,12 +54,14 @@ class EditableTableWidget(QTableWidget):
     save_row = pyqtSignal(int)  # row
     restore_row = pyqtSignal(int)  # row - restore session changes
     restore_from_backup_row = pyqtSignal(int)  # row - restore from backup file
+    calc_row = pyqtSignal(int)  # row - open ratio calculator
     
     def __init__(self, parent=None):
         super().__init__(parent)
         self.modified_rows = set()  # Track which rows have unsaved changes
         self.original_values = {}  # Store original values for each row: (row, type) -> value
         self.has_backup = set()  # Track which rows have backup files
+        self.file_paths = {}  # Store file paths for each row: row -> aiw_path
         self.setup_ui()
         
     def setup_ui(self):
@@ -72,10 +77,10 @@ class EditableTableWidget(QTableWidget):
         self.setColumnWidth(0, 400)  # Track Name
         self.setColumnWidth(1, 120)  # QualRatio
         self.setColumnWidth(2, 120)  # RaceRatio
-        self.setColumnWidth(3, 240)  # Actions - wider for text buttons
+        self.setColumnWidth(3, 300)  # Actions - wider for four buttons
         
-        # Set row height to be a bit taller
-        self.verticalHeader().setDefaultSectionSize(36)
+        # Set row height to be taller for buttons
+        self.verticalHeader().setDefaultSectionSize(50)
         
         # Enable sorting
         self.setSortingEnabled(True)
@@ -123,12 +128,41 @@ class EditableTableWidget(QTableWidget):
         button_layout.setContentsMargins(2, 2, 2, 2)
         button_layout.setSpacing(4)
         
+        # Calc button (always visible)
+        calc_btn = QPushButton("Calc")
+        calc_btn.setToolTip("Open ratio calculator")
+        calc_btn.setFixedHeight(32)
+        calc_btn.setFixedWidth(45)
+        calc_btn.setCursor(Qt.PointingHandCursor)
+        calc_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #9C27B0;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-family: 'Segoe UI', 'Arial', sans-serif;
+                font-size: 11px;
+                font-weight: bold;
+                text-align: center;
+                padding: 2px 0px;
+                margin: 0px;
+            }
+            QPushButton:hover {
+                background-color: #7B1FA2;
+            }
+            QPushButton:pressed {
+                background-color: #6A1B9A;
+            }
+        """)
+        calc_btn.clicked.connect(lambda checked, r=row: self.calc_row.emit(r))
+        button_layout.addWidget(calc_btn)
+        
         # Save button (only for modified rows)
         if row in self.modified_rows:
             save_btn = QPushButton("Save")
             save_btn.setToolTip("Save changes for this track")
-            save_btn.setFixedHeight(28)
-            save_btn.setFixedWidth(60)
+            save_btn.setFixedHeight(32)
+            save_btn.setFixedWidth(45)
             save_btn.setCursor(Qt.PointingHandCursor)
             save_btn.setStyleSheet("""
                 QPushButton {
@@ -140,7 +174,7 @@ class EditableTableWidget(QTableWidget):
                     font-size: 11px;
                     font-weight: bold;
                     text-align: center;
-                    padding: 3px 0px;
+                    padding: 2px 0px;
                     margin: 0px;
                 }
                 QPushButton:hover {
@@ -161,8 +195,8 @@ class EditableTableWidget(QTableWidget):
         if row in self.modified_rows:
             restore_btn = QPushButton("Restore")
             restore_btn.setToolTip("Restore to original session values")
-            restore_btn.setFixedHeight(28)
-            restore_btn.setFixedWidth(60)
+            restore_btn.setFixedHeight(32)
+            restore_btn.setFixedWidth(45)
             restore_btn.setCursor(Qt.PointingHandCursor)
             restore_btn.setStyleSheet("""
                 QPushButton {
@@ -174,7 +208,7 @@ class EditableTableWidget(QTableWidget):
                     font-size: 11px;
                     font-weight: bold;
                     text-align: center;
-                    padding: 3px 0px;
+                    padding: 2px 0px;
                     margin: 0px;
                 }
                 QPushButton:hover {
@@ -193,10 +227,10 @@ class EditableTableWidget(QTableWidget):
         
         # Restore from backup button (if backup exists)
         if row in self.has_backup:
-            restore_backup_btn = QPushButton("Original")
+            restore_backup_btn = QPushButton("Orig")
             restore_backup_btn.setToolTip("Restore from backup file")
-            restore_backup_btn.setFixedHeight(28)
-            restore_backup_btn.setFixedWidth(60)
+            restore_backup_btn.setFixedHeight(32)
+            restore_backup_btn.setFixedWidth(40)
             restore_backup_btn.setCursor(Qt.PointingHandCursor)
             restore_backup_btn.setStyleSheet("""
                 QPushButton {
@@ -208,7 +242,7 @@ class EditableTableWidget(QTableWidget):
                     font-size: 11px;
                     font-weight: bold;
                     text-align: center;
-                    padding: 3px 0px;
+                    padding: 2px 0px;
                     margin: 0px;
                 }
                 QPushButton:hover {
@@ -286,6 +320,14 @@ class EditableTableWidget(QTableWidget):
         race_ratio = self.item(row, 2).text() if self.item(row, 2) else "(not found)"
         return track_name, qual_ratio, race_ratio
     
+    def set_file_path(self, row, aiw_path):
+        """Store the AIW file path for a row"""
+        self.file_paths[row] = str(aiw_path)
+        # Set tooltip for the track name cell
+        track_item = self.item(row, 0)
+        if track_item:
+            track_item.setToolTip(f"AIW File: {aiw_path}")
+    
     def update_values_from_backup(self, row, qual_value, race_value):
         """Update the display with values from backup"""
         # Update QualRatio
@@ -308,201 +350,31 @@ class EditableTableWidget(QTableWidget):
         
         # Update buttons
         self.update_row_buttons(row)
-
-
-class PathSelectionDialog(QDialog):
-    """Dialog for selecting the base path when cfg.yml is missing or path is invalid"""
     
-    def __init__(self, parent=None, current_path=None):
-        super().__init__(parent)
-        self.selected_path = current_path
-        self.setup_ui()
+    def update_ratios(self, row, qual_ratio, race_ratio):
+        """Update both ratios for a row (used by calculator)"""
+        # Update QualRatio
+        qual_item = self.item(row, 1)
+        if qual_item and qual_ratio is not None:
+            qual_item.setText(f"{qual_ratio:.6f}")
+            qual_item.setForeground(QBrush(QColor("#9C27B0")))  # Purple to indicate from calculator
         
-    def setup_ui(self):
-        self.setWindowTitle("Select Game Base Path")
-        self.setModal(True)
-        self.setMinimumWidth(500)
+        # Update RaceRatio
+        race_item = self.item(row, 2)
+        if race_item and race_ratio is not None:
+            race_item.setText(f"{race_ratio:.6f}")
+            race_item.setForeground(QBrush(QColor("#9C27B0")))  # Purple to indicate from calculator
         
-        layout = QVBoxLayout(self)
+        # Mark as modified
+        if qual_ratio is not None:
+            if (row, "QualRatio") not in self.original_values:
+                self.original_values[(row, "QualRatio")] = qual_item.text()
+        if race_ratio is not None:
+            if (row, "RaceRatio") not in self.original_values:
+                self.original_values[(row, "RaceRatio")] = race_item.text()
         
-        # Instructions
-        instructions = QLabel(
-            "Please select the base directory of your game.\n"
-            "The program will look for AIW files in:\n"
-            "<selected_path>/GameData/Locations/"
-        )
-        instructions.setWordWrap(True)
-        instructions.setStyleSheet("color: #888; padding: 10px; font-size: 12px;")
-        layout.addWidget(instructions)
-        
-        # Path input area
-        path_layout = QHBoxLayout()
-        
-        self.path_edit = QLineEdit()
-        self.path_edit.setPlaceholderText("Select or enter the game base path...")
-        self.path_edit.setFixedHeight(30)
-        if self.selected_path:
-            self.path_edit.setText(str(self.selected_path))
-        
-        browse_btn = QPushButton("Browse...")
-        browse_btn.setFixedHeight(30)
-        browse_btn.setFixedWidth(100)
-        browse_btn.setCursor(Qt.PointingHandCursor)
-        browse_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                font-family: 'Segoe UI', 'Arial', sans-serif;
-                font-size: 12px;
-                font-weight: bold;
-                text-align: center;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-            QPushButton:pressed {
-                background-color: #3d8b40;
-            }
-        """)
-        browse_btn.clicked.connect(self.browse_folder)
-        
-        path_layout.addWidget(self.path_edit)
-        path_layout.addWidget(browse_btn)
-        layout.addLayout(path_layout)
-        
-        # Preview of where it will look
-        self.preview_label = QLabel()
-        self.preview_label.setStyleSheet("color: #4CAF50; font-family: monospace; padding: 5px; font-size: 12px;")
-        layout.addWidget(self.preview_label)
-        
-        # Error label
-        self.error_label = QLabel()
-        self.error_label.setStyleSheet("color: #f44336; padding: 5px; font-size: 12px;")
-        self.error_label.setWordWrap(True)
-        layout.addWidget(self.error_label)
-        
-        # Buttons
-        button_layout = QHBoxLayout()
-        
-        self.ok_btn = QPushButton("OK")
-        self.ok_btn.setFixedHeight(32)
-        self.ok_btn.setFixedWidth(100)
-        self.ok_btn.setCursor(Qt.PointingHandCursor)
-        self.ok_btn.clicked.connect(self.validate_and_accept)
-        self.ok_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                font-family: 'Segoe UI', 'Arial', sans-serif;
-                font-size: 12px;
-                font-weight: bold;
-                text-align: center;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-            QPushButton:pressed {
-                background-color: #3d8b40;
-            }
-        """)
-        
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.setFixedHeight(32)
-        cancel_btn.setFixedWidth(100)
-        cancel_btn.setCursor(Qt.PointingHandCursor)
-        cancel_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #f44336;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                font-family: 'Segoe UI', 'Arial', sans-serif;
-                font-size: 12px;
-                font-weight: bold;
-                text-align: center;
-            }
-            QPushButton:hover {
-                background-color: #d32f2f;
-            }
-            QPushButton:pressed {
-                background-color: #b71c1c;
-            }
-        """)
-        cancel_btn.clicked.connect(self.reject)
-        
-        button_layout.addStretch()
-        button_layout.addWidget(self.ok_btn)
-        button_layout.addWidget(cancel_btn)
-        layout.addLayout(button_layout)
-        
-        # Connect path edit changes to preview update
-        self.path_edit.textChanged.connect(self.update_preview)
-        
-        # Initial preview update
-        self.update_preview()
-    
-    def browse_folder(self):
-        """Open folder browser dialog"""
-        folder = QFileDialog.getExistingDirectory(
-            self, 
-            "Select Game Base Directory",
-            self.path_edit.text() if self.path_edit.text() else os.path.expanduser("~")
-        )
-        if folder:
-            self.path_edit.setText(folder)
-    
-    def update_preview(self):
-        """Update the preview of where the program will look"""
-        path_text = self.path_edit.text().strip()
-        if path_text:
-            preview_path = Path(path_text) / "GameData" / "Locations"
-            self.preview_label.setText(f"Will scan: {preview_path}")
-            
-            # Check if the path exists and show appropriate color
-            if preview_path.exists():
-                self.preview_label.setStyleSheet("color: #4CAF50; font-family: monospace; padding: 5px; font-size: 12px;")
-            else:
-                self.preview_label.setStyleSheet("color: #FFA500; font-family: monospace; padding: 5px; font-size: 12px;")
-        else:
-            self.preview_label.setText("")
-    
-    def validate_and_accept(self):
-        """Validate the selected path and accept if valid"""
-        path_text = self.path_edit.text().strip()
-        
-        if not path_text:
-            self.error_label.setText("Please select a path")
-            return
-        
-        path = Path(path_text)
-        
-        # Check if the Locations directory exists (or can be created)
-        locations_path = path / "GameData" / "Locations"
-        
-        if not path.exists():
-            self.error_label.setText("The selected path does not exist")
-            return
-        
-        if not locations_path.exists():
-            # Warn but don't prevent selection
-            reply = QMessageBox.question(
-                self,
-                "Path Warning",
-                f"The Locations directory does not exist at:\n{locations_path}\n\n"
-                f"This may mean you've selected the wrong folder.\n"
-                f"Do you want to use this path anyway?",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No
-            )
-            if reply != QMessageBox.Yes:
-                return
-        
-        self.selected_path = path
-        self.accept()
+        self.modified_rows.add(row)
+        self.update_row_buttons(row)
 
 
 class AIWRatioEditor(QMainWindow):
@@ -516,7 +388,7 @@ class AIWRatioEditor(QMainWindow):
         
     def setup_ui(self):
         self.setWindowTitle(f"AIW Ratio Editor - Scanning: {self.base_path}")
-        self.setGeometry(100, 100, 1200, 800)  # Wider for text buttons
+        self.setGeometry(100, 100, 1250, 800)  # Wider for text buttons
         
         self.apply_dark_theme()
         
@@ -551,6 +423,7 @@ class AIWRatioEditor(QMainWindow):
         self.table.save_row.connect(self.save_row)
         self.table.restore_row.connect(self.restore_row)
         self.table.restore_from_backup_row.connect(self.restore_from_backup)
+        self.table.calc_row.connect(self.open_calculator)
         
         main_layout.addWidget(self.table)
         
@@ -934,10 +807,22 @@ class AIWRatioEditor(QMainWindow):
             self.stats_label.setText("Directory not found!")
             return
         
-        # Find all AIW files recursively
-        aiw_files = []
+        # Find all AIW files recursively - FIX: Use a set to avoid duplicates
+        aiw_files_set = set()
         for ext in ['*.aiw', '*.AIW']:
-            aiw_files.extend(locations_path.rglob(ext))
+            for file_path in locations_path.rglob(ext):
+                # Convert to lowercase for case-insensitive comparison
+                aiw_files_set.add(str(file_path).lower())
+        
+        # Convert back to Path objects, preserving original case
+        aiw_files = []
+        seen_paths = set()
+        for ext in ['*.aiw', '*.AIW']:
+            for file_path in locations_path.rglob(ext):
+                file_path_lower = str(file_path).lower()
+                if file_path_lower not in seen_paths:
+                    seen_paths.add(file_path_lower)
+                    aiw_files.append(file_path)
         
         if not aiw_files:
             QMessageBox.information(
@@ -978,6 +863,10 @@ class AIWRatioEditor(QMainWindow):
                 name_item.setForeground(QBrush(QColor("#FFA500")))  # Orange for fallback
             else:
                 name_item.setForeground(QBrush(QColor("#4CAF50")))  # Green for real track name
+            
+            # Set tooltip with full AIW file path
+            name_item.setToolTip(f"AIW File: {aiw_path}")
+            
             self.table.setItem(row, 0, name_item)
             
             # QualRatio (editable)
@@ -1000,6 +889,9 @@ class AIWRatioEditor(QMainWindow):
             
             # Set backup status
             self.table.set_has_backup(row, has_backup)
+            
+            # Store file path for potential future use
+            self.table.set_file_path(row, aiw_path)
             
             row += 1
         
@@ -1216,52 +1108,47 @@ class AIWRatioEditor(QMainWindow):
                                    f"Restored {success_count} files.\n{fail_count} files failed.")
         else:
             QMessageBox.critical(self, "Restore Failed", "Failed to restore any files from backup.")
-
-
-def get_base_path():
-    """Get the base path from cfg.yml or prompt user to select it"""
-    config_file = Path("cfg.yml")
     
-    # Try to read from cfg.yml
-    if config_file.exists():
-        try:
-            with open(config_file, 'r') as f:
-                config = yaml.safe_load(f)
-                if config and 'base_path' in config:
-                    path = Path(config['base_path'])
-                    if path.exists():
-                        return path
-                    else:
-                        print(f"Warning: Path from cfg.yml does not exist: {path}")
-        except Exception as e:
-            print(f"Error reading cfg.yml: {e}")
-    
-    # If we get here, we need to prompt the user
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication(sys.argv)
-    
-    dialog = PathSelectionDialog()
-    if dialog.exec_() == QDialog.Accepted:
-        selected_path = dialog.selected_path
+    def open_calculator(self, row):
+        """Open the ratio calculator dialog for a specific row"""
+        if row >= len(self.aiw_files):
+            self.status_bar.showMessage(f"Error: Invalid row index", 3000)
+            return
         
-        # Save to cfg.yml
-        try:
-            config = {'base_path': str(selected_path)}
-            with open(config_file, 'w') as f:
-                yaml.dump(config, f)
-            print(f"Saved path to {config_file}")
-        except Exception as e:
-            print(f"Error saving to cfg.yml: {e}")
+        aiw_path, _, track_name = self.aiw_files[row]
         
-        return selected_path
-    else:
-        return None
+        # Get current ratios
+        current_qual = self.table.item(row, 1).text()
+        current_race = self.table.item(row, 2).text()
+        
+        # Convert to float if possible
+        try:
+            current_qual_float = float(current_qual) if current_qual != "(not found)" else 1.0
+        except ValueError:
+            current_qual_float = 1.0
+            
+        try:
+            current_race_float = float(current_race) if current_race != "(not found)" else 1.0
+        except ValueError:
+            current_race_float = 1.0
+        
+        # Create and show calculator dialog
+        dialog = RatioCalculatorDialog(
+            self, 
+            track_name, 
+            current_qual_float, 
+            current_race_float
+        )
+        
+        if dialog.exec_() == QDialog.Accepted:
+            new_qual, new_race = dialog.get_ratios()
+            self.table.update_ratios(row, new_qual, new_race)
+            self.status_bar.showMessage(f"Updated ratios for {track_name} from calculator", 3000)
 
 
 def main():
-    # Get base path from config or user selection
-    base_path = get_base_path()
+    # Get base path from config or user selection using the cfg_manage module
+    base_path = get_or_prompt_base_path()
     
     if base_path is None:
         print("No path selected. Exiting.")
