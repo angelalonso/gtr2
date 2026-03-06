@@ -17,3 +17,7 @@ Program to modify Tracks to make AI be faster or slower both in Qualy and in the
 - Modify the track you want
 - Once you save it, a backup of the original will be kept on backup_originals
 
+# NEXTUP / WISHLIST
+- Test if changing AIW while GTR2 is running modifies the game without having to close and reopen.
+- If so, look for a way to detect a session results on the fly
+- Link everything together and see how a session modifies the next one
