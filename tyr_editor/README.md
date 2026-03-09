@@ -19,3 +19,13 @@ pipenv run python3 tyr_editor.py <path to .tyr file>
 
 
 
+# WISHLIST
+- selecting two entries would allow us to proportionally modify a value at our file. 
+  - example: we select SpringBase and SpringkPa, with these values:
+
+  ours     | comparison
+  70000.0  | 50000.0
+    925.00 |   700.00
+
+  , then we will be allowed to make either our SpringBase 66071 or our SpringkPa 980.00 automatically (proportional to the relation of 50000.0 to 700.00)
+  - this should be useful for variables that are way off and other quick changes
