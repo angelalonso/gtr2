@@ -166,9 +166,48 @@ class CompareCompoundDialog(QDialog):
         self.show_btn = QPushButton("Compare")
         self.show_btn.clicked.connect(self.accept)
         self.show_btn.setEnabled(False)
-        self.show_btn.setStyleSheet("background-color: #4CAF50; color: white;")
+        self.show_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                min-height: 20px;
+                max-height: 30px;
+                border-radius: 3px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+            QPushButton:pressed {
+                background-color: #3d8b40;
+            }
+            QPushButton:disabled {
+                background-color: #666;
+                color: #aaa;
+            }
+        """)
         self.cancel_btn = QPushButton("Cancel")
         self.cancel_btn.clicked.connect(self.reject)
+        self.cancel_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #666;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                min-height: 20px;
+                max-height: 30px;
+                border-radius: 3px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #777;
+            }
+            QPushButton:pressed {
+                background-color: #888;
+            }
+        """)
         btn_layout.addWidget(self.show_btn)
         btn_layout.addWidget(self.cancel_btn)
         layout.addLayout(btn_layout)
@@ -454,9 +493,21 @@ class CompoundParameterTableWidget(QTableWidget):
                 row = self.add_row(key, val, comp_val, editable=True)
                 
                 if key in ["LatCurve", "BrakingCurve", "TractiveCurve"]:
-                    btn = QPushButton("✎")
-                    btn.setMaximumWidth(30)
-                    btn.setStyleSheet("QPushButton { background-color: #4CAF50; color: white; border-radius: 3px; }")
+                    btn = QPushButton("Edit")
+                    btn.setMaximumWidth(50)
+                    btn.setStyleSheet("""
+                        QPushButton {
+                            background-color: #4CAF50;
+                            color: white;
+                            border: none;
+                            padding: 2px 6px;
+                            border-radius: 3px;
+                            font-size: 10px;
+                        }
+                        QPushButton:hover {
+                            background-color: #45a049;
+                        }
+                    """)
                     btn.clicked.connect(
                         lambda checked, k=val, c=comp_val, a=self.current_axle: 
                         self.edit_curve_requested.emit(k, c, a)
@@ -521,9 +572,34 @@ class ParameterEditDialog(QDialog):
         btn_layout = QHBoxLayout()
         ok_btn = QPushButton("OK")
         ok_btn.clicked.connect(self.accept)
-        ok_btn.setStyleSheet("background-color: #4CAF50; color: white;")
+        ok_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                padding: 6px 12px;
+                border-radius: 3px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
         cancel_btn = QPushButton("Cancel")
         cancel_btn.clicked.connect(self.reject)
+        cancel_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #666;
+                color: white;
+                border: none;
+                padding: 6px 12px;
+                border-radius: 3px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #777;
+            }
+        """)
         btn_layout.addWidget(ok_btn)
         btn_layout.addWidget(cancel_btn)
         layout.addLayout(btn_layout)
@@ -567,15 +643,53 @@ class CompoundEditWidget(QWidget):
         toolbar.addWidget(self.axle_combo)
         toolbar.addStretch()
         
-        self.load_btn = QPushButton("📊 Load Comparison")
+        self.load_btn = QPushButton("Load Comparison")
         self.load_btn.clicked.connect(self.load_comparison)
-        self.load_btn.setStyleSheet("background-color: #ff9800; color: white; padding: 5px;")
+        self.load_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #ff9800;
+                color: white;
+                border: none;
+                padding: 5px 10px;
+                min-height: 20px;
+                max-height: 30px;
+                border-radius: 3px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #f57c00;
+            }
+            QPushButton:pressed {
+                background-color: #e65100;
+            }
+        """)
         toolbar.addWidget(self.load_btn)
         
-        self.hide_btn = QPushButton("❌ Hide Comparison")
+        self.hide_btn = QPushButton("Hide Comparison")
         self.hide_btn.clicked.connect(self.clear_comparison)
         self.hide_btn.setEnabled(False)
-        self.hide_btn.setStyleSheet("background-color: #f44336; color: white; padding: 5px;")
+        self.hide_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f44336;
+                color: white;
+                border: none;
+                padding: 5px 10px;
+                min-height: 20px;
+                max-height: 30px;
+                border-radius: 3px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #d32f2f;
+            }
+            QPushButton:pressed {
+                background-color: #b71c1c;
+            }
+            QPushButton:disabled {
+                background-color: #666;
+                color: #aaa;
+            }
+        """)
         toolbar.addWidget(self.hide_btn)
         
         layout.addLayout(toolbar)
@@ -703,11 +817,30 @@ class SlipCurveEditWidget(QWidget):
             title += f" | Comparing: {self.comparison_curve_name}"
         if self.axle:
             title += f" | Axle: {self.axle}"
-        layout.addWidget(QLabel(title))
+        title_label = QLabel(title)
+        title_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #4CAF50; padding: 5px;")
+        layout.addWidget(title_label)
         
-        self.back_btn = QPushButton("← Back")
+        self.back_btn = QPushButton("← Back to Compound Editor")
         self.back_btn.clicked.connect(self.editor.close_curve_editor)
-        self.back_btn.setStyleSheet("background-color: #ff9800; color: white;")
+        self.back_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #ff9800;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 3px;
+                font-weight: bold;
+                min-height: 20px;
+                max-height: 30px;
+            }
+            QPushButton:hover {
+                background-color: #f57c00;
+            }
+            QPushButton:pressed {
+                background-color: #e65100;
+            }
+        """)
         layout.addWidget(self.back_btn)
         
         self.point_edit = PointEditWidget(self.editor)
@@ -745,6 +878,7 @@ class SlipCurveEditWidget(QWidget):
         params.addWidget(self.step_spin)
         params.addWidget(QLabel("Points:"))
         self.points_label = QLabel("0")
+        self.points_label.setStyleSheet("font-weight: bold; color: #4CAF50;")
         params.addWidget(self.points_label)
         params.addStretch()
         layout.addLayout(params)
@@ -752,9 +886,40 @@ class SlipCurveEditWidget(QWidget):
         ops = QHBoxLayout()
         self.smooth_btn = QPushButton("Smooth")
         self.smooth_btn.clicked.connect(lambda: self.editor.show_preview_dialog("smooth"))
+        self.smooth_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                padding: 5px 10px;
+                border-radius: 3px;
+                font-weight: bold;
+                min-height: 20px;
+                max-height: 30px;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+        """)
         ops.addWidget(self.smooth_btn)
+        
         self.reset_btn = QPushButton("Reset")
         self.reset_btn.clicked.connect(self.editor.reset_curve)
+        self.reset_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #9C27B0;
+                color: white;
+                border: none;
+                padding: 5px 10px;
+                border-radius: 3px;
+                font-weight: bold;
+                min-height: 20px;
+                max-height: 30px;
+            }
+            QPushButton:hover {
+                background-color: #7B1FA2;
+            }
+        """)
         ops.addWidget(self.reset_btn)
         ops.addStretch()
         layout.addLayout(ops)
@@ -838,15 +1003,41 @@ class PreviewDialog(QDialog):
         self.sigma_spin = QDoubleSpinBox()
         self.sigma_spin.setRange(0.1, 10.0)
         self.sigma_spin.setValue(1.0)
+        self.sigma_spin.setSingleStep(0.1)
         self.sigma_spin.valueChanged.connect(self.update_preview)
         layout.addWidget(self.sigma_spin)
         
         btns = QHBoxLayout()
         apply_btn = QPushButton("Apply")
         apply_btn.clicked.connect(self.accept)
-        apply_btn.setStyleSheet("background-color: #4CAF50; color: white;")
+        apply_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                padding: 6px 12px;
+                border-radius: 3px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
         cancel_btn = QPushButton("Cancel")
         cancel_btn.clicked.connect(self.reject)
+        cancel_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #666;
+                color: white;
+                border: none;
+                padding: 6px 12px;
+                border-radius: 3px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #777;
+            }
+        """)
         btns.addWidget(apply_btn)
         btns.addWidget(cancel_btn)
         layout.addLayout(btns)
@@ -964,7 +1155,7 @@ class TireCurveEditor:
     def setup_ui(self):
         self.app = QApplication.instance() or QApplication(sys.argv)
         self.window = QMainWindow()
-        self.window.setWindowTitle(f"Editor - {Path(self.filename).name}")
+        self.window.setWindowTitle(f"Tire Compound Editor - {Path(self.filename).name}")
         self.window.setGeometry(100, 100, 1000, 1000)
         self.window.setStyleSheet("QMainWindow { background-color: #2b2b2b; }")
         
@@ -972,22 +1163,76 @@ class TireCurveEditor:
         self.window.setCentralWidget(central)
         layout = QVBoxLayout(central)
         
+        # File operations toolbar
         toolbar = QHBoxLayout()
-        self.save_btn = QPushButton("💾 Save")
+        
+        self.save_btn = QPushButton("Save Changes")
         self.save_btn.clicked.connect(self.save_changes)
-        self.save_btn.setStyleSheet("background-color: #4CAF50; color: white;")
+        self.save_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                padding: 5px 10px;
+                min-height: 20px;
+                max-height: 30px;
+                border-radius: 3px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+            QPushButton:pressed {
+                background-color: #3d8b40;
+            }
+        """)
         toolbar.addWidget(self.save_btn)
         
-        self.save_as_btn = QPushButton("📁 Save As")
+        self.save_as_btn = QPushButton("Save As...")
         self.save_as_btn.clicked.connect(self.save_as)
-        self.save_as_btn.setStyleSheet("background-color: #3c3c3c; color: white;")
+        self.save_as_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #666;
+                color: white;
+                border: none;
+                padding: 5px 10px;
+                min-height: 20px;
+                max-height: 30px;
+                border-radius: 3px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #777;
+            }
+            QPushButton:pressed {
+                background-color: #888;
+            }
+        """)
         toolbar.addWidget(self.save_as_btn)
         
-        self.revert_btn = QPushButton("↺ Revert")
+        self.revert_btn = QPushButton("Revert All")
         self.revert_btn.clicked.connect(self.revert_all)
-        self.revert_btn.setStyleSheet("background-color: #3c3c3c; color: white;")
+        self.revert_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f44336;
+                color: white;
+                border: none;
+                padding: 5px 10px;
+                min-height: 20px;
+                max-height: 30px;
+                border-radius: 3px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #d32f2f;
+            }
+            QPushButton:pressed {
+                background-color: #b71c1c;
+            }
+        """)
         toolbar.addWidget(self.revert_btn)
         toolbar.addStretch()
+        
         layout.addLayout(toolbar)
         
         self.compound_edit_widget = CompoundEditWidget(self)
@@ -1000,7 +1245,7 @@ class TireCurveEditor:
     
     def open_curve_editor(self, curve, comp=None, axle=None):
         self.curve_editor_window = QMainWindow(self.window)
-        self.curve_editor_window.setWindowTitle(f"Curve: {curve}")
+        self.curve_editor_window.setWindowTitle(f"Curve Editor - {curve}")
         self.curve_editor_window.setGeometry(150, 150, 1200, 800)
         self.curve_editor_widget = SlipCurveEditWidget(self, curve, comp, axle)
         self.curve_editor_window.setCentralWidget(self.curve_editor_widget)
@@ -1130,20 +1375,25 @@ class TireCurveEditor:
             self.load_curve(self.current_curve_index)
     
     def revert_all(self):
-        if QMessageBox.question(self.window, "Confirm", "Revert all changes?") == QMessageBox.Yes:
+        reply = QMessageBox.question(self.window, "Confirm", 
+                                    "Revert all changes? This will undo all modifications to curves and compounds.",
+                                    QMessageBox.Yes | QMessageBox.No)
+        if reply == QMessageBox.Yes:
             self.modified_curves.clear()
             self.modified_compounds.clear()
             if self.compound_edit_widget:
                 self.compound_edit_widget.update_compounds(self.compounds)
             if self.curve_editor_widget:
                 self.load_curve(self.current_curve_index)
+            self.status_bar.showMessage("All changes reverted", 3000)
     
     def save_changes(self):
         self.save_to_file(self.filename)
     
     def save_as(self):
         fname, _ = QFileDialog.getSaveFileName(
-            self.window, "Save As", str(Path(self.filename).with_suffix('.tbc'))
+            self.window, "Save As", str(Path(self.filename).with_suffix('.tbc')),
+            "Tire files (*.tbc);;All files (*.*)"
         )
         if fname:
             self.save_to_file(fname)
@@ -1183,7 +1433,8 @@ class TireCurveEditor:
             self.parse_tire_file(fname)
             if self.compound_edit_widget:
                 self.compound_edit_widget.update_compounds(self.compounds)
-            QMessageBox.information(self.window, "Success", f"Saved to {fname}")
+            QMessageBox.information(self.window, "Success", f"Changes saved to {fname}")
+            self.status_bar.showMessage("Changes saved", 3000)
         except Exception as e:
             QMessageBox.critical(self.window, "Error", str(e))
             import traceback
@@ -1195,10 +1446,17 @@ class TireCurveEditor:
 def main():
     if len(sys.argv) < 2:
         print("Usage: python editor.py <file>")
+        print("\nExample:")
+        print("  python editor.py tire.tbc")
         return
+    
+    filename = sys.argv[1]
+    
     try:
-        app = TireCurveEditor(sys.argv[1])
+        app = TireCurveEditor(filename)
         sys.exit(app.run())
+    except FileNotFoundError:
+        print(f"Error: File '{filename}' not found.")
     except Exception as e:
         print(f"Error: {e}")
         import traceback

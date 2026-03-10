@@ -17,6 +17,9 @@ pipenv run python3 tyr_editor.py <path to .tyr file>
 - Modify compounds
 - Compare them with those from other files (or other compounds within the same file)
 
+# Known Issues
+- Revert all does not work
+- Some fonts are too dark for their backgrounds
 
 
 # WISHLIST
