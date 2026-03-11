@@ -16,7 +16,7 @@ from PyQt5.QtGui import *
 # Import configuration management
 from cfg_manage import get_or_prompt_base_path
 # Import ratio calculator dialog
-from ratio_calc import RatioCalculatorDialog
+from ratio_gui import RatioCalculatorDialog
 
 
 class RatioItemDelegate(QStyledItemDelegate):
