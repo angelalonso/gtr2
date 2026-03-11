@@ -1,5 +1,5 @@
 """
-Ratio Calculator GUI for AIW Ratio Editor - SIMPLIFIED VERSION with New Calculations
+Ratio Calculator GUI for AIW Ratio Editor - COMPACT LAYOUT with Fixed Formula Display
 """
 
 from PyQt5.QtWidgets import *
@@ -40,26 +40,26 @@ class RatioCalculatorDialog(QDialog):
     def setup_ui(self):
         self.setWindowTitle(f"Ratio Calculator - {self.track_name}")
         self.setModal(True)
-        self.setMinimumWidth(1000)
-        self.setMinimumHeight(1100)
+        self.setMinimumWidth(1100)
+        self.setMinimumHeight(950)
         
-        # Set dark background
+        # Set dark background with more compact widgets
         self.setStyleSheet("""
             QDialog {
                 background-color: #2b2b2b;
             }
             QLabel {
                 color: white;
-                font-size: 12px;
+                font-size: 11px;
             }
             QGroupBox {
                 color: #4CAF50;
                 font-weight: bold;
                 border: 2px solid #555;
                 border-radius: 5px;
-                margin-top: 10px;
-                padding-top: 10px;
-                font-size: 13px;
+                margin-top: 8px;
+                padding-top: 8px;
+                font-size: 12px;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
@@ -71,9 +71,9 @@ class RatioCalculatorDialog(QDialog):
                 color: white;
                 border: none;
                 border-radius: 3px;
-                padding: 8px;
+                padding: 6px;
                 font-weight: bold;
-                font-size: 12px;
+                font-size: 11px;
             }
             QPushButton:hover {
                 background-color: #45a049;
@@ -86,28 +86,30 @@ class RatioCalculatorDialog(QDialog):
                 color: white;
                 border: 1px solid #4CAF50;
                 border-radius: 3px;
-                padding: 5px;
-                font-size: 13px;
-                min-height: 25px;
+                padding: 2px;
+                font-size: 11px;
+                min-height: 20px;
+                max-height: 22px;
             }
             QLineEdit {
                 background-color: #3c3c3c;
                 color: white;
                 border: 1px solid #4CAF50;
                 border-radius: 3px;
-                padding: 5px;
-                font-size: 12px;
-                min-height: 25px;
+                padding: 3px;
+                font-size: 11px;
+                min-height: 20px;
+                max-height: 22px;
             }
         """)
         
         # Main layout - vertical stack
         layout = QVBoxLayout(self)
-        layout.setSpacing(15)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(10)
+        layout.setContentsMargins(15, 15, 15, 15)
         
         # Title
-        title = QLabel(f"<h2>Ratio Calculator - {self.track_name}</h2>")
+        title = QLabel(f"<h3>Ratio Calculator - {self.track_name}</h3>")
         title.setTextFormat(Qt.RichText)
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
@@ -115,42 +117,35 @@ class RatioCalculatorDialog(QDialog):
         # ===== CONFIGURATION SECTION =====
         config_group = QGroupBox("Configuration")
         config_layout = QVBoxLayout(config_group)
-        config_layout.setSpacing(10)
+        config_layout.setSpacing(8)
         
-        # Track info
-        track_info = QLabel(f"Track: {self.track_name}")
-        track_info.setStyleSheet("color: #4CAF50; font-size: 13px; font-weight: bold;")
-        config_layout.addWidget(track_info)
-        
-        # Current ratios
-        ratios_layout = QHBoxLayout()
-        ratios_layout.addWidget(QLabel(f"Current QualRatio: "))
+        # Track info and current ratios in one line
+        info_layout = QHBoxLayout()
+        info_layout.addWidget(QLabel(f"Track: {self.track_name}"))
+        info_layout.addStretch()
+        info_layout.addWidget(QLabel(f"QualRatio:"))
         self.qual_display = QLabel(f"{self.current_qual:.6f}")
-        self.qual_display.setStyleSheet("color: #9C27B0; font-weight: bold; font-size: 13px;")
-        ratios_layout.addWidget(self.qual_display)
-        
-        ratios_layout.addSpacing(30)
-        
-        ratios_layout.addWidget(QLabel(f"Current RaceRatio: "))
+        self.qual_display.setStyleSheet("color: #9C27B0; font-weight: bold;")
+        info_layout.addWidget(self.qual_display)
+        info_layout.addSpacing(20)
+        info_layout.addWidget(QLabel(f"RaceRatio:"))
         self.race_display = QLabel(f"{self.current_race:.6f}")
-        self.race_display.setStyleSheet("color: #9C27B0; font-weight: bold; font-size: 13px;")
-        ratios_layout.addWidget(self.race_display)
-        
-        ratios_layout.addStretch()
-        config_layout.addLayout(ratios_layout)
+        self.race_display.setStyleSheet("color: #9C27B0; font-weight: bold;")
+        info_layout.addWidget(self.race_display)
+        config_layout.addLayout(info_layout)
         
         # CSV path
         csv_layout = QHBoxLayout()
         csv_layout.addWidget(QLabel("Historic CSV:"))
         self.csv_path = QLineEdit(self.config.historic_csv)
         self.csv_path.setReadOnly(True)
-        self.csv_path.setMinimumWidth(350)
-        self.csv_path.setFixedHeight(35)
+        self.csv_path.setMinimumWidth(300)
+        self.csv_path.setFixedHeight(24)
         csv_layout.addWidget(self.csv_path)
         
         self.csv_browse = QPushButton("Browse")
-        self.csv_browse.setFixedHeight(35)
-        self.csv_browse.setFixedWidth(100)
+        self.csv_browse.setFixedHeight(24)
+        self.csv_browse.setFixedWidth(80)
         self.csv_browse.clicked.connect(self.browse_csv)
         csv_layout.addWidget(self.csv_browse)
         csv_layout.addStretch()
@@ -161,8 +156,8 @@ class RatioCalculatorDialog(QDialog):
         # ===== CURRENT VALUES SECTION =====
         values_group = QGroupBox("Current Values (editable)")
         values_layout = QGridLayout(values_group)
-        values_layout.setVerticalSpacing(15)
-        values_layout.setHorizontalSpacing(20)
+        values_layout.setVerticalSpacing(8)
+        values_layout.setHorizontalSpacing(15)
         
         # Goal Percent
         values_layout.addWidget(QLabel("Goal Percent (%):"), 0, 0)
@@ -172,8 +167,8 @@ class RatioCalculatorDialog(QDialog):
         self.goal_percent.setSingleStep(1)
         self.goal_percent.setValue(self.config.goal_percent)
         self.goal_percent.setSuffix("%")
-        self.goal_percent.setFixedHeight(35)
-        self.goal_percent.setMinimumWidth(150)
+        self.goal_percent.setFixedHeight(24)
+        self.goal_percent.setMinimumWidth(120)
         self.goal_percent.valueChanged.connect(self.on_config_changed)
         values_layout.addWidget(self.goal_percent, 0, 1)
         
@@ -184,8 +179,8 @@ class RatioCalculatorDialog(QDialog):
         self.goal_offset.setDecimals(2)
         self.goal_offset.setSingleStep(0.1)
         self.goal_offset.setValue(self.config.goal_offset)
-        self.goal_offset.setFixedHeight(35)
-        self.goal_offset.setMinimumWidth(150)
+        self.goal_offset.setFixedHeight(24)
+        self.goal_offset.setMinimumWidth(120)
         self.goal_offset.valueChanged.connect(self.on_config_changed)
         values_layout.addWidget(self.goal_offset, 0, 3)
         
@@ -197,15 +192,15 @@ class RatioCalculatorDialog(QDialog):
         self.percent_ratio.setSingleStep(0.01)
         self.percent_ratio.setValue(self.config.percent_ratio)
         self.percent_ratio.setToolTip("Ratio change per 1% shift (default: 0.01)")
-        self.percent_ratio.setFixedHeight(35)
-        self.percent_ratio.setMinimumWidth(150)
+        self.percent_ratio.setFixedHeight(24)
+        self.percent_ratio.setMinimumWidth(120)
         self.percent_ratio.valueChanged.connect(self.on_config_changed)
         values_layout.addWidget(self.percent_ratio, 1, 1)
         
         # Save button
         self.save_btn = QPushButton("Save to cfg.yml")
-        self.save_btn.setFixedHeight(40)
-        self.save_btn.setFixedWidth(150)
+        self.save_btn.setFixedHeight(28)
+        self.save_btn.setFixedWidth(130)
         self.save_btn.setCursor(Qt.PointingHandCursor)
         self.save_btn.clicked.connect(self.save_configuration)
         self.save_btn.setStyleSheet("""
@@ -213,8 +208,8 @@ class RatioCalculatorDialog(QDialog):
                 background-color: #4CAF50;
                 color: white;
                 border: none;
-                border-radius: 4px;
-                font-size: 13px;
+                border-radius: 3px;
+                font-size: 11px;
                 font-weight: bold;
             }
             QPushButton:hover {
@@ -227,167 +222,117 @@ class RatioCalculatorDialog(QDialog):
         
         # ===== QUALIFYING SECTION =====
         qual_group = QGroupBox("Qualifying")
-        qual_layout = QVBoxLayout(qual_group)
-        qual_layout.setSpacing(10)
+        qual_layout = QGridLayout(qual_group)
+        qual_layout.setVerticalSpacing(8)
+        qual_layout.setHorizontalSpacing(15)
         
-        # Best AI time
-        best_layout = QHBoxLayout()
-        best_layout.addWidget(QLabel("Best AI:"))
+        # Column headers
+        qual_layout.addWidget(QLabel(""), 0, 0)
+        qual_layout.addWidget(QLabel("Minutes"), 0, 1)
+        qual_layout.addWidget(QLabel("Seconds"), 0, 2)
+        qual_layout.addWidget(QLabel("Milliseconds"), 0, 3)
+        qual_layout.addWidget(QLabel("Total"), 0, 4)
+        
+        # Best AI (row 1)
+        qual_layout.addWidget(QLabel("Best AI:"), 1, 0)
         self.qual_best_min = self.create_time_spinbox(0, 99)
-        best_layout.addWidget(self.qual_best_min)
-        best_layout.addWidget(QLabel("min"))
+        qual_layout.addWidget(self.qual_best_min, 1, 1)
         self.qual_best_sec = self.create_time_spinbox(0, 59)
-        best_layout.addWidget(self.qual_best_sec)
-        best_layout.addWidget(QLabel("sec"))
+        qual_layout.addWidget(self.qual_best_sec, 1, 2)
         self.qual_best_ms = self.create_time_spinbox(0, 999)
         self.qual_best_ms.setSingleStep(10)
-        best_layout.addWidget(self.qual_best_ms)
-        best_layout.addWidget(QLabel("ms"))
-        best_layout.addStretch()
-        qual_layout.addLayout(best_layout)
+        qual_layout.addWidget(self.qual_best_ms, 1, 3)
+        self.qual_best_total = QLabel("0.000s")
+        self.qual_best_total.setStyleSheet("color: #4CAF50; font-weight: bold;")
+        qual_layout.addWidget(self.qual_best_total, 1, 4)
         
-        # Worst AI time
-        worst_layout = QHBoxLayout()
-        worst_layout.addWidget(QLabel("Worst AI:"))
+        # Worst AI (row 2) - directly below Best AI
+        qual_layout.addWidget(QLabel("Worst AI:"), 2, 0)
         self.qual_worst_min = self.create_time_spinbox(0, 99)
-        worst_layout.addWidget(self.qual_worst_min)
-        worst_layout.addWidget(QLabel("min"))
+        qual_layout.addWidget(self.qual_worst_min, 2, 1)
         self.qual_worst_sec = self.create_time_spinbox(0, 59)
-        worst_layout.addWidget(self.qual_worst_sec)
-        worst_layout.addWidget(QLabel("sec"))
+        qual_layout.addWidget(self.qual_worst_sec, 2, 2)
         self.qual_worst_ms = self.create_time_spinbox(0, 999)
         self.qual_worst_ms.setSingleStep(10)
-        worst_layout.addWidget(self.qual_worst_ms)
-        worst_layout.addWidget(QLabel("ms"))
-        worst_layout.addStretch()
-        qual_layout.addLayout(worst_layout)
+        qual_layout.addWidget(self.qual_worst_ms, 2, 3)
+        self.qual_worst_total = QLabel("0.000s")
+        self.qual_worst_total.setStyleSheet("color: #f44336; font-weight: bold;")
+        qual_layout.addWidget(self.qual_worst_total, 2, 4)
         
-        # User time
-        user_layout = QHBoxLayout()
-        user_layout.addWidget(QLabel("User:"))
+        # User (row 3) - directly below Worst AI, aligned with Best/Worst columns
+        qual_layout.addWidget(QLabel("User:"), 3, 0)
         self.qual_user_min = self.create_time_spinbox(0, 99)
-        user_layout.addWidget(self.qual_user_min)
-        user_layout.addWidget(QLabel("min"))
+        qual_layout.addWidget(self.qual_user_min, 3, 1)
         self.qual_user_sec = self.create_time_spinbox(0, 59)
-        user_layout.addWidget(self.qual_user_sec)
-        user_layout.addWidget(QLabel("sec"))
+        qual_layout.addWidget(self.qual_user_sec, 3, 2)
         self.qual_user_ms = self.create_time_spinbox(0, 999)
         self.qual_user_ms.setSingleStep(10)
-        user_layout.addWidget(self.qual_user_ms)
-        user_layout.addWidget(QLabel("ms"))
-        user_layout.addStretch()
-        qual_layout.addLayout(user_layout)
-        
-        # Qualifying totals display
-        qual_totals_layout = QHBoxLayout()
-        qual_totals_layout.addWidget(QLabel("Best AI:"))
-        self.qual_best_total = QLabel("0.000s")
-        self.qual_best_total.setStyleSheet("color: #4CAF50; font-weight: bold; font-size: 13px;")
-        qual_totals_layout.addWidget(self.qual_best_total)
-        
-        qual_totals_layout.addSpacing(20)
-        
-        qual_totals_layout.addWidget(QLabel("Worst AI:"))
-        self.qual_worst_total = QLabel("0.000s")
-        self.qual_worst_total.setStyleSheet("color: #f44336; font-weight: bold; font-size: 13px;")
-        qual_totals_layout.addWidget(self.qual_worst_total)
-        
-        qual_totals_layout.addSpacing(20)
-        
-        qual_totals_layout.addWidget(QLabel("User:"))
+        qual_layout.addWidget(self.qual_user_ms, 3, 3)
         self.qual_user_total = QLabel("0.000s")
-        self.qual_user_total.setStyleSheet("color: #9C27B0; font-weight: bold; font-size: 13px;")
-        qual_totals_layout.addWidget(self.qual_user_total)
-        
-        qual_totals_layout.addStretch()
-        qual_layout.addLayout(qual_totals_layout)
+        self.qual_user_total.setStyleSheet("color: #9C27B0; font-weight: bold;")
+        qual_layout.addWidget(self.qual_user_total, 3, 4)
         
         layout.addWidget(qual_group)
         
         # ===== RACE SECTION =====
         race_group = QGroupBox("Race")
-        race_layout = QVBoxLayout(race_group)
-        race_layout.setSpacing(10)
+        race_layout = QGridLayout(race_group)
+        race_layout.setVerticalSpacing(8)
+        race_layout.setHorizontalSpacing(15)
         
-        # Best AI time
-        best_layout = QHBoxLayout()
-        best_layout.addWidget(QLabel("Best AI:"))
+        # Column headers
+        race_layout.addWidget(QLabel(""), 0, 0)
+        race_layout.addWidget(QLabel("Minutes"), 0, 1)
+        race_layout.addWidget(QLabel("Seconds"), 0, 2)
+        race_layout.addWidget(QLabel("Milliseconds"), 0, 3)
+        race_layout.addWidget(QLabel("Total"), 0, 4)
+        
+        # Best AI (row 1)
+        race_layout.addWidget(QLabel("Best AI:"), 1, 0)
         self.race_best_min = self.create_time_spinbox(0, 99)
-        best_layout.addWidget(self.race_best_min)
-        best_layout.addWidget(QLabel("min"))
+        race_layout.addWidget(self.race_best_min, 1, 1)
         self.race_best_sec = self.create_time_spinbox(0, 59)
-        best_layout.addWidget(self.race_best_sec)
-        best_layout.addWidget(QLabel("sec"))
+        race_layout.addWidget(self.race_best_sec, 1, 2)
         self.race_best_ms = self.create_time_spinbox(0, 999)
         self.race_best_ms.setSingleStep(10)
-        best_layout.addWidget(self.race_best_ms)
-        best_layout.addWidget(QLabel("ms"))
-        best_layout.addStretch()
-        race_layout.addLayout(best_layout)
+        race_layout.addWidget(self.race_best_ms, 1, 3)
+        self.race_best_total = QLabel("0.000s")
+        self.race_best_total.setStyleSheet("color: #4CAF50; font-weight: bold;")
+        race_layout.addWidget(self.race_best_total, 1, 4)
         
-        # Worst AI time
-        worst_layout = QHBoxLayout()
-        worst_layout.addWidget(QLabel("Worst AI:"))
+        # Worst AI (row 2) - directly below Best AI
+        race_layout.addWidget(QLabel("Worst AI:"), 2, 0)
         self.race_worst_min = self.create_time_spinbox(0, 99)
-        worst_layout.addWidget(self.race_worst_min)
-        worst_layout.addWidget(QLabel("min"))
+        race_layout.addWidget(self.race_worst_min, 2, 1)
         self.race_worst_sec = self.create_time_spinbox(0, 59)
-        worst_layout.addWidget(self.race_worst_sec)
-        worst_layout.addWidget(QLabel("sec"))
+        race_layout.addWidget(self.race_worst_sec, 2, 2)
         self.race_worst_ms = self.create_time_spinbox(0, 999)
         self.race_worst_ms.setSingleStep(10)
-        worst_layout.addWidget(self.race_worst_ms)
-        worst_layout.addWidget(QLabel("ms"))
-        worst_layout.addStretch()
-        race_layout.addLayout(worst_layout)
+        race_layout.addWidget(self.race_worst_ms, 2, 3)
+        self.race_worst_total = QLabel("0.000s")
+        self.race_worst_total.setStyleSheet("color: #f44336; font-weight: bold;")
+        race_layout.addWidget(self.race_worst_total, 2, 4)
         
-        # User time
-        user_layout = QHBoxLayout()
-        user_layout.addWidget(QLabel("User:"))
+        # User (row 3) - directly below Worst AI, aligned with Best/Worst columns
+        race_layout.addWidget(QLabel("User:"), 3, 0)
         self.race_user_min = self.create_time_spinbox(0, 99)
-        user_layout.addWidget(self.race_user_min)
-        user_layout.addWidget(QLabel("min"))
+        race_layout.addWidget(self.race_user_min, 3, 1)
         self.race_user_sec = self.create_time_spinbox(0, 59)
-        user_layout.addWidget(self.race_user_sec)
-        user_layout.addWidget(QLabel("sec"))
+        race_layout.addWidget(self.race_user_sec, 3, 2)
         self.race_user_ms = self.create_time_spinbox(0, 999)
         self.race_user_ms.setSingleStep(10)
-        user_layout.addWidget(self.race_user_ms)
-        user_layout.addWidget(QLabel("ms"))
-        user_layout.addStretch()
-        race_layout.addLayout(user_layout)
-        
-        # Race totals display
-        race_totals_layout = QHBoxLayout()
-        race_totals_layout.addWidget(QLabel("Best AI:"))
-        self.race_best_total = QLabel("0.000s")
-        self.race_best_total.setStyleSheet("color: #4CAF50; font-weight: bold; font-size: 13px;")
-        race_totals_layout.addWidget(self.race_best_total)
-        
-        race_totals_layout.addSpacing(20)
-        
-        race_totals_layout.addWidget(QLabel("Worst AI:"))
-        self.race_worst_total = QLabel("0.000s")
-        self.race_worst_total.setStyleSheet("color: #f44336; font-weight: bold; font-size: 13px;")
-        race_totals_layout.addWidget(self.race_worst_total)
-        
-        race_totals_layout.addSpacing(20)
-        
-        race_totals_layout.addWidget(QLabel("User:"))
+        race_layout.addWidget(self.race_user_ms, 3, 3)
         self.race_user_total = QLabel("0.000s")
-        self.race_user_total.setStyleSheet("color: #9C27B0; font-weight: bold; font-size: 13px;")
-        race_totals_layout.addWidget(self.race_user_total)
-        
-        race_totals_layout.addStretch()
-        race_layout.addLayout(race_totals_layout)
+        self.race_user_total.setStyleSheet("color: #9C27B0; font-weight: bold;")
+        race_layout.addWidget(self.race_user_total, 3, 4)
         
         layout.addWidget(race_group)
         
         # ===== POSITION CALCULATIONS DISPLAY =====
         pos_group = QGroupBox("Position Calculations")
         pos_layout = QGridLayout(pos_group)
-        pos_layout.setVerticalSpacing(15)
-        pos_layout.setHorizontalSpacing(20)
+        pos_layout.setVerticalSpacing(8)
+        pos_layout.setHorizontalSpacing(15)
         
         # Headers
         pos_layout.addWidget(QLabel(""), 0, 0)
@@ -400,38 +345,38 @@ class RatioCalculatorDialog(QDialog):
         pos_layout.addWidget(QLabel("Qualifying:"), 1, 0)
         
         self.qual_current_pos = QLabel("0.0%")
-        self.qual_current_pos.setStyleSheet("color: #888; font-weight: bold; font-size: 13px;")
+        self.qual_current_pos.setStyleSheet("color: #888; font-weight: bold;")
         pos_layout.addWidget(self.qual_current_pos, 1, 1)
         
         self.qual_target_pos = QLabel(f"{self.config.goal_percent + self.config.goal_offset:.1f}%")
-        self.qual_target_pos.setStyleSheet("color: #4CAF50; font-weight: bold; font-size: 13px;")
+        self.qual_target_pos.setStyleSheet("color: #4CAF50; font-weight: bold;")
         pos_layout.addWidget(self.qual_target_pos, 1, 2)
         
         self.qual_pos_shift = QLabel("0.0%")
-        self.qual_pos_shift.setStyleSheet("color: #FFA500; font-weight: bold; font-size: 13px;")
+        self.qual_pos_shift.setStyleSheet("color: #FFA500; font-weight: bold;")
         pos_layout.addWidget(self.qual_pos_shift, 1, 3)
         
         self.qual_ratio_change = QLabel("0.000000")
-        self.qual_ratio_change.setStyleSheet("color: #9C27B0; font-weight: bold; font-size: 13px;")
+        self.qual_ratio_change.setStyleSheet("color: #9C27B0; font-weight: bold;")
         pos_layout.addWidget(self.qual_ratio_change, 1, 4)
         
         # Race row
         pos_layout.addWidget(QLabel("Race:"), 2, 0)
         
         self.race_current_pos = QLabel("0.0%")
-        self.race_current_pos.setStyleSheet("color: #888; font-weight: bold; font-size: 13px;")
+        self.race_current_pos.setStyleSheet("color: #888; font-weight: bold;")
         pos_layout.addWidget(self.race_current_pos, 2, 1)
         
         self.race_target_pos = QLabel(f"{self.config.goal_percent + self.config.goal_offset:.1f}%")
-        self.race_target_pos.setStyleSheet("color: #4CAF50; font-weight: bold; font-size: 13px;")
+        self.race_target_pos.setStyleSheet("color: #4CAF50; font-weight: bold;")
         pos_layout.addWidget(self.race_target_pos, 2, 2)
         
         self.race_pos_shift = QLabel("0.0%")
-        self.race_pos_shift.setStyleSheet("color: #FFA500; font-weight: bold; font-size: 13px;")
+        self.race_pos_shift.setStyleSheet("color: #FFA500; font-weight: bold;")
         pos_layout.addWidget(self.race_pos_shift, 2, 3)
         
         self.race_ratio_change = QLabel("0.000000")
-        self.race_ratio_change.setStyleSheet("color: #9C27B0; font-weight: bold; font-size: 13px;")
+        self.race_ratio_change.setStyleSheet("color: #9C27B0; font-weight: bold;")
         pos_layout.addWidget(self.race_ratio_change, 2, 4)
         
         layout.addWidget(pos_group)
@@ -439,18 +384,18 @@ class RatioCalculatorDialog(QDialog):
         # ===== RESULTS DISPLAY =====
         results_group = QGroupBox("Results")
         results_layout = QHBoxLayout(results_group)
-        results_layout.setSpacing(30)
+        results_layout.setSpacing(20)
         
         results_layout.addWidget(QLabel("New QualRatio:"))
         self.new_qual_label = QLabel(f"{self.current_qual:.6f}")
-        self.new_qual_label.setStyleSheet("color: #9C27B0; font-size: 14px; font-weight: bold;")
+        self.new_qual_label.setStyleSheet("color: #9C27B0; font-size: 12px; font-weight: bold;")
         results_layout.addWidget(self.new_qual_label)
         
-        results_layout.addSpacing(50)
+        results_layout.addSpacing(30)
         
         results_layout.addWidget(QLabel("New RaceRatio:"))
         self.new_race_label = QLabel(f"{self.current_race:.6f}")
-        self.new_race_label.setStyleSheet("color: #9C27B0; font-size: 14px; font-weight: bold;")
+        self.new_race_label.setStyleSheet("color: #9C27B0; font-size: 12px; font-weight: bold;")
         results_layout.addWidget(self.new_race_label)
         
         results_layout.addStretch()
@@ -460,8 +405,22 @@ class RatioCalculatorDialog(QDialog):
         # ===== FORMULA DISPLAY =====
         formula_frame = QFrame()
         formula_frame.setFrameStyle(QFrame.Box)
-        formula_frame.setStyleSheet("background-color: #1e1e1e; padding: 10px;")
+        formula_frame.setStyleSheet("""
+            QFrame {
+                background-color: #1e1e1e;
+                border: 1px solid #333;
+                border-radius: 3px;
+                padding: 5px;
+            }
+            QLabel {
+                color: #888;
+                font-size: 10px;
+                padding: 1px;
+            }
+        """)
         formula_layout = QVBoxLayout(formula_frame)
+        formula_layout.setContentsMargins(5, 3, 5, 3)
+        formula_layout.setSpacing(1)
         
         formula_layout.addWidget(QLabel("Current Position = ((User - Best) / (Worst - Best)) × 100%"))
         formula_layout.addWidget(QLabel("Target Position = Goal Percent + Goal Offset"))
@@ -475,8 +434,8 @@ class RatioCalculatorDialog(QDialog):
         button_layout = QHBoxLayout()
         
         self.calc_btn = QPushButton("Calculate & Save to CSV")
-        self.calc_btn.setFixedHeight(45)
-        self.calc_btn.setFixedWidth(220)
+        self.calc_btn.setFixedHeight(35)
+        self.calc_btn.setFixedWidth(200)
         self.calc_btn.setCursor(Qt.PointingHandCursor)
         self.calc_btn.clicked.connect(self.calculate_ratios)
         self.calc_btn.setEnabled(False)
@@ -485,8 +444,8 @@ class RatioCalculatorDialog(QDialog):
                 background-color: #9C27B0;
                 color: white;
                 border: none;
-                border-radius: 5px;
-                font-size: 13px;
+                border-radius: 4px;
+                font-size: 12px;
                 font-weight: bold;
             }
             QPushButton:hover {
@@ -502,8 +461,8 @@ class RatioCalculatorDialog(QDialog):
         button_layout.addStretch()
         
         self.apply_btn = QPushButton("Apply Ratios")
-        self.apply_btn.setFixedHeight(45)
-        self.apply_btn.setFixedWidth(150)
+        self.apply_btn.setFixedHeight(35)
+        self.apply_btn.setFixedWidth(130)
         self.apply_btn.setCursor(Qt.PointingHandCursor)
         self.apply_btn.clicked.connect(self.accept)
         self.apply_btn.setEnabled(False)
@@ -512,8 +471,8 @@ class RatioCalculatorDialog(QDialog):
                 background-color: #4CAF50;
                 color: white;
                 border: none;
-                border-radius: 5px;
-                font-size: 13px;
+                border-radius: 4px;
+                font-size: 12px;
                 font-weight: bold;
             }
             QPushButton:hover {
@@ -527,8 +486,8 @@ class RatioCalculatorDialog(QDialog):
         button_layout.addWidget(self.apply_btn)
         
         self.cancel_btn = QPushButton("Cancel")
-        self.cancel_btn.setFixedHeight(45)
-        self.cancel_btn.setFixedWidth(150)
+        self.cancel_btn.setFixedHeight(35)
+        self.cancel_btn.setFixedWidth(130)
         self.cancel_btn.setCursor(Qt.PointingHandCursor)
         self.cancel_btn.clicked.connect(self.reject)
         self.cancel_btn.setStyleSheet("""
@@ -536,8 +495,8 @@ class RatioCalculatorDialog(QDialog):
                 background-color: #f44336;
                 color: white;
                 border: none;
-                border-radius: 5px;
-                font-size: 13px;
+                border-radius: 4px;
+                font-size: 12px;
                 font-weight: bold;
             }
             QPushButton:hover {
@@ -551,7 +510,7 @@ class RatioCalculatorDialog(QDialog):
         # Status label
         self.status_label = QLabel("")
         self.status_label.setAlignment(Qt.AlignCenter)
-        self.status_label.setStyleSheet("color: #888; font-style: italic; font-size: 12px;")
+        self.status_label.setStyleSheet("color: #888; font-style: italic; font-size: 11px;")
         layout.addWidget(self.status_label)
     
     def setup_connections(self):
@@ -616,12 +575,12 @@ class RatioCalculatorDialog(QDialog):
         self.update_race_calculations()
     
     def create_time_spinbox(self, min_val, max_val):
-        """Create a spinbox for time input"""
+        """Create a compact spinbox for time input"""
         spin = QSpinBox()
         spin.setRange(min_val, max_val)
         spin.setValue(0)
-        spin.setFixedHeight(35)
-        spin.setFixedWidth(80)
+        spin.setFixedHeight(24)
+        spin.setFixedWidth(70)
         spin.setAlignment(Qt.AlignRight)
         return spin
     
@@ -737,16 +696,16 @@ class RatioCalculatorDialog(QDialog):
             
             # Color code the position based on where user falls
             if current_pos < 33:
-                self.qual_current_pos.setStyleSheet("color: #4CAF50; font-weight: bold; font-size: 13px;")
+                self.qual_current_pos.setStyleSheet("color: #4CAF50; font-weight: bold;")
             elif current_pos < 66:
-                self.qual_current_pos.setStyleSheet("color: #FFA500; font-weight: bold; font-size: 13px;")
+                self.qual_current_pos.setStyleSheet("color: #FFA500; font-weight: bold;")
             else:
-                self.qual_current_pos.setStyleSheet("color: #f44336; font-weight: bold; font-size: 13px;")
+                self.qual_current_pos.setStyleSheet("color: #f44336; font-weight: bold;")
         else:
             self.qual_current_pos.setText("0.0%")
             self.qual_pos_shift.setText("0.0%")
             self.qual_ratio_change.setText("0.000000")
-            self.qual_current_pos.setStyleSheet("color: #888; font-weight: bold; font-size: 13px;")
+            self.qual_current_pos.setStyleSheet("color: #888; font-weight: bold;")
     
     def update_race_calculations(self):
         """Update race calculation displays"""
@@ -771,16 +730,16 @@ class RatioCalculatorDialog(QDialog):
             
             # Color code the position based on where user falls
             if current_pos < 33:
-                self.race_current_pos.setStyleSheet("color: #4CAF50; font-weight: bold; font-size: 13px;")
+                self.race_current_pos.setStyleSheet("color: #4CAF50; font-weight: bold;")
             elif current_pos < 66:
-                self.race_current_pos.setStyleSheet("color: #FFA500; font-weight: bold; font-size: 13px;")
+                self.race_current_pos.setStyleSheet("color: #FFA500; font-weight: bold;")
             else:
-                self.race_current_pos.setStyleSheet("color: #f44336; font-weight: bold; font-size: 13px;")
+                self.race_current_pos.setStyleSheet("color: #f44336; font-weight: bold;")
         else:
             self.race_current_pos.setText("0.0%")
             self.race_pos_shift.setText("0.0%")
             self.race_ratio_change.setText("0.000000")
-            self.race_current_pos.setStyleSheet("color: #888; font-weight: bold; font-size: 13px;")
+            self.race_current_pos.setStyleSheet("color: #888; font-weight: bold;")
     
     def check_calc_button(self):
         """Enable calculate button if all required fields have values"""
@@ -808,12 +767,12 @@ class RatioCalculatorDialog(QDialog):
         if results.has_qual_ratio():
             self.new_qual = results.qual_ratio
             self.new_qual_label.setText(f"{self.new_qual:.6f}")
-            self.new_qual_label.setStyleSheet("color: #9C27B0; font-size: 14px; font-weight: bold;")
+            self.new_qual_label.setStyleSheet("color: #9C27B0; font-size: 12px; font-weight: bold;")
         
         if results.has_race_ratio():
             self.new_race = results.race_ratio
             self.new_race_label.setText(f"{self.new_race:.6f}")
-            self.new_race_label.setStyleSheet("color: #9C27B0; font-size: 14px; font-weight: bold;")
+            self.new_race_label.setStyleSheet("color: #9C27B0; font-size: 12px; font-weight: bold;")
         
         # Show results message
         if results.any_ratio_calculated():
