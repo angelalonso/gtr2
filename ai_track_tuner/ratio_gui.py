@@ -769,8 +769,8 @@ class RatioCalculatorDialog(QDialog):
         csv_saved = False
         if self.csv_handler.is_valid():
             # Check what data we have to save
-            qual_has_data = qual_times.pole > 0 or qual_times.last_ai > 0
-            race_has_data = race_times.pole > 0 or race_times.last_ai > 0
+            qual_has_data = qual_times.pole > 0 or qual_times.last_ai > 0 or qual_times.player > 0
+            race_has_data = race_times.pole > 0 or race_times.last_ai > 0 or race_times.player > 0
             
             if qual_has_data or race_has_data:
                 self.save_to_csv(qual_times, race_times)
@@ -849,11 +849,13 @@ class RatioCalculatorDialog(QDialog):
             timestamp,                                   # Timestamp
             self.track_name,                             # Track Name
             f"{self.current_qual:.6f}",                  # Current QualRatio
-            f"{qual_times.pole:.3f}" if qual_times.pole > 0 else "",  # Qual AI Best laptime
-            f"{qual_times.last_ai:.3f}" if qual_times.last_ai > 0 else "",  # Qual AI Worst laptime
+            f"{qual_times.pole:.3f}" if qual_times.pole > 0 else "0",  # Qual AI Best laptime
+            f"{qual_times.last_ai:.3f}" if qual_times.last_ai > 0 else "0",  # Qual AI Worst laptime
+            f"{qual_times.player:.3f}" if qual_times.player > 0 else "0",  # Qual User laptime
             f"{self.current_race:.6f}",                  # Current RaceRatio
-            f"{race_times.pole:.3f}" if race_times.pole > 0 else "",  # Race AI Best laptime
-            f"{race_times.last_ai:.3f}" if race_times.last_ai > 0 else ""   # Race AI Worst laptime
+            f"{race_times.pole:.3f}" if race_times.pole > 0 else "0",  # Race AI Best laptime
+            f"{race_times.last_ai:.3f}" if race_times.last_ai > 0 else "0",  # Race AI Worst laptime
+            f"{race_times.player:.3f}" if race_times.player > 0 else "0"   # Race User laptime
         ]
         
         # Write to CSV
@@ -871,9 +873,11 @@ class RatioCalculatorDialog(QDialog):
                         'Current QualRatio',
                         'Qual AI Best (s)',
                         'Qual AI Worst (s)',
+                        'Qual User (s)',
                         'Current RaceRatio',
                         'Race AI Best (s)',
-                        'Race AI Worst (s)'
+                        'Race AI Worst (s)',
+                        'Race User (s)'
                     ]
                     writer.writerow(header)
                 
