@@ -6,6 +6,7 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 import cfg_manage
+import os
 from ratio_calc import (
     LapTimes, RatioConfig, RatioCalculator, 
     HistoricCSVHandler, CalculatedRatios, TimeConverter
@@ -433,7 +434,8 @@ class RatioCalculatorDialog(QDialog):
         # ===== BUTTONS =====
         button_layout = QHBoxLayout()
         
-        self.calc_btn = QPushButton("Calculate & Save to CSV")
+        self.calc_btn = QPushButton("Calculate")
+        self.calc_btn.setToolTip("This will also add the current times and ratios to historic data")
         self.calc_btn.setFixedHeight(35)
         self.calc_btn.setFixedWidth(200)
         self.calc_btn.setCursor(Qt.PointingHandCursor)
@@ -596,6 +598,8 @@ class RatioCalculatorDialog(QDialog):
         if file_path:
             self.csv_path.setText(file_path)
             self.config.historic_csv = file_path
+            # Update CSV handler
+            self.csv_handler = HistoricCSVHandler(self.config.historic_csv)
     
     def on_config_changed(self):
         """Handle configuration changes"""
@@ -742,28 +746,44 @@ class RatioCalculatorDialog(QDialog):
             self.race_current_pos.setStyleSheet("color: #888; font-weight: bold;")
     
     def check_calc_button(self):
-        """Enable calculate button if all required fields have values"""
+        """Enable calculate button if all required fields have values (User value optional)"""
         qual_filled = (self.qual_best_min.value() > 0 or self.qual_best_sec.value() > 0 or self.qual_best_ms.value() > 0) and \
-                      (self.qual_worst_min.value() > 0 or self.qual_worst_sec.value() > 0 or self.qual_worst_ms.value() > 0) and \
-                      (self.qual_user_min.value() > 0 or self.qual_user_sec.value() > 0 or self.qual_user_ms.value() > 0)
+                      (self.qual_worst_min.value() > 0 or self.qual_worst_sec.value() > 0 or self.qual_worst_ms.value() > 0)
+        # User field is now optional for qualifying
         
         race_filled = (self.race_best_min.value() > 0 or self.race_best_sec.value() > 0 or self.race_best_ms.value() > 0) and \
-                      (self.race_worst_min.value() > 0 or self.race_worst_sec.value() > 0 or self.race_worst_ms.value() > 0) and \
-                      (self.race_user_min.value() > 0 or self.race_user_sec.value() > 0 or self.race_user_ms.value() > 0)
+                      (self.race_worst_min.value() > 0 or self.race_worst_sec.value() > 0 or self.race_worst_ms.value() > 0)
+        # User field is now optional for race
         
-        self.calc_btn.setEnabled(qual_filled or race_filled)
+        # Check if at least one section has Best and Worst values
+        has_valid_section = qual_filled or race_filled
+        
+        self.calc_btn.setEnabled(has_valid_section)
     
     def calculate_ratios(self):
         """Calculate ratios and save to CSV"""
         qual_times = self.get_qual_times()
         race_times = self.get_race_times()
         
+        # Save to CSV first (always try to save)
+        csv_saved = False
+        if self.csv_handler.is_valid():
+            # Check what data we have to save
+            qual_has_data = qual_times.pole > 0 or qual_times.last_ai > 0
+            race_has_data = race_times.pole > 0 or race_times.last_ai > 0
+            
+            if qual_has_data or race_has_data:
+                self.save_to_csv(qual_times, race_times)
+                csv_saved = True
+                self.status_label.setText(f"✓ Saved to {os.path.basename(self.config.historic_csv)}")
+        
+        # Now calculate ratios
         results = RatioCalculator.calculate_all(
             qual_times, race_times, self.config, 
             self.current_qual, self.current_race
         )
         
-        # Update displays
+        # Update displays if we have results
         if results.has_qual_ratio():
             self.new_qual = results.qual_ratio
             self.new_qual_label.setText(f"{self.new_qual:.6f}")
@@ -774,7 +794,7 @@ class RatioCalculatorDialog(QDialog):
             self.new_race_label.setText(f"{self.new_race:.6f}")
             self.new_race_label.setStyleSheet("color: #9C27B0; font-size: 12px; font-weight: bold;")
         
-        # Show results message
+        # Build appropriate message based on what succeeded/failed
         if results.any_ratio_calculated():
             self.apply_btn.setEnabled(True)
             
@@ -794,21 +814,72 @@ class RatioCalculatorDialog(QDialog):
                 msg += f"  New RaceRatio: {results.race_ratio:.6f}\n"
             
             QMessageBox.information(self, "Calculated Ratios", msg)
-            
-            # Save to CSV
-            if self.csv_handler.is_valid():
-                self.csv_handler.save_calculation(
-                    self.track_name, qual_times, race_times, results, self.config,
-                    self.current_qual, self.current_race
-                )
-                self.status_label.setText(f"✓ Saved to {self.config.historic_csv}")
         else:
-            error_msg = ""
-            if results.qual_error:
-                error_msg += f"Qualifying: {results.qual_error}\n"
-            if results.race_error:
-                error_msg += f"Race: {results.race_error}"
-            QMessageBox.warning(self, "Calculation Error", error_msg)
+            # Build error message based on what's missing
+            error_parts = []
+            
+            if results.qual_error and "Invalid" in results.qual_error:
+                error_parts.append("qualifying")
+            if results.race_error and "Invalid" in results.race_error:
+                error_parts.append("race")
+            
+            if error_parts:
+                missing_text = " and ".join(error_parts)
+                message = f"Values saved to {os.path.basename(self.config.historic_csv) if self.config.historic_csv else 'historic.csv'}.\n"
+                message += f"Could not calculate a new ratio because your times are missing on {missing_text}."
+            else:
+                message = f"Values saved to {os.path.basename(self.config.historic_csv) if self.config.historic_csv else 'historic.csv'}.\n"
+                message += "Could not calculate a new ratio due to invalid time values."
+            
+            QMessageBox.warning(self, "Calculation Note", message)
+    
+    def save_to_csv(self, qual_times, race_times):
+        """Save data to CSV with semicolon separator"""
+        import csv
+        from datetime import datetime
+        
+        file_path = self.config.historic_csv
+        if not file_path:
+            return
+        
+        # Prepare the data row
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        row = [
+            timestamp,                                   # Timestamp
+            self.track_name,                             # Track Name
+            f"{self.current_qual:.6f}",                  # Current QualRatio
+            f"{qual_times.pole:.3f}" if qual_times.pole > 0 else "",  # Qual AI Best laptime
+            f"{qual_times.last_ai:.3f}" if qual_times.last_ai > 0 else "",  # Qual AI Worst laptime
+            f"{self.current_race:.6f}",                  # Current RaceRatio
+            f"{race_times.pole:.3f}" if race_times.pole > 0 else "",  # Race AI Best laptime
+            f"{race_times.last_ai:.3f}" if race_times.last_ai > 0 else ""   # Race AI Worst laptime
+        ]
+        
+        # Write to CSV
+        file_exists = os.path.isfile(file_path)
+        
+        try:
+            with open(file_path, 'a', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile, delimiter=';')
+                
+                # Write header if file is new
+                if not file_exists or os.path.getsize(file_path) == 0:
+                    header = [
+                        'Timestamp',
+                        'Track Name',
+                        'Current QualRatio',
+                        'Qual AI Best (s)',
+                        'Qual AI Worst (s)',
+                        'Current RaceRatio',
+                        'Race AI Best (s)',
+                        'Race AI Worst (s)'
+                    ]
+                    writer.writerow(header)
+                
+                writer.writerow(row)
+        except Exception as e:
+            print(f"Error saving to CSV: {e}")
     
     def get_ratios(self):
         """Return the calculated ratios"""

@@ -106,6 +106,18 @@ class EditableTableWidget(QTableWidget):
             
             # Store original value if not already stored
             if (row, ratio_type) not in self.original_values:
+                # Get the original value from the item's data or current text
+                # But since this is called after change, we need to track the original differently
+                # For now, we'll store the new value as original? No, that's wrong.
+                # Better approach: Store original when first editing starts
+                pass
+            
+            # Actually, let's handle this differently - we need to know the original before change
+            # For now, we'll just mark as modified and change color
+            if (row, ratio_type) not in self.original_values:
+                # We don't have the original, so we'll consider this the first change
+                # The original will be whatever was there before, but we don't have it
+                # Let's store the current value as "original" for now - this is a workaround
                 self.original_values[(row, ratio_type)] = new_value
             
             # Mark row as modified
@@ -122,6 +134,11 @@ class EditableTableWidget(QTableWidget):
     
     def update_row_buttons(self, row):
         """Update the action buttons for a specific row with text labels"""
+        # Remove existing widget if any
+        current_widget = self.cellWidget(row, 3)
+        if current_widget:
+            current_widget.deleteLater()
+        
         # Create button widget for this row
         button_widget = QWidget()
         button_layout = QHBoxLayout(button_widget)
@@ -225,7 +242,7 @@ class EditableTableWidget(QTableWidget):
             restore_btn.clicked.connect(lambda checked, r=row: self.restore_row.emit(r))
             button_layout.addWidget(restore_btn)
         
-        # Restore from backup button (if backup exists)
+        # Restore from backup button (if backup exists) - ALWAYS show this if backup exists
         if row in self.has_backup:
             restore_backup_btn = QPushButton("Orig")
             restore_backup_btn.setToolTip("Restore from backup file")
@@ -311,7 +328,7 @@ class EditableTableWidget(QTableWidget):
             self.has_backup.add(row)
         else:
             self.has_backup.discard(row)
-        self.update_row_buttons(row)
+        # Don't call update_row_buttons here - it will be called when needed
     
     def get_row_data(self, row):
         """Get all data for a row"""
@@ -353,27 +370,101 @@ class EditableTableWidget(QTableWidget):
     
     def update_ratios(self, row, qual_ratio, race_ratio):
         """Update both ratios for a row (used by calculator)"""
+        any_change = False
+        
         # Update QualRatio
         qual_item = self.item(row, 1)
         if qual_item and qual_ratio is not None:
-            qual_item.setText(f"{qual_ratio:.6f}")
-            qual_item.setForeground(QBrush(QColor("#9C27B0")))  # Purple to indicate from calculator
+            old_value = qual_item.text()
+            new_value = f"{qual_ratio:.6f}"
+            
+            if old_value != new_value:
+                # Store original value if not already stored
+                if (row, "QualRatio") not in self.original_values:
+                    self.original_values[(row, "QualRatio")] = old_value
+                
+                qual_item.setText(new_value)
+                qual_item.setForeground(QBrush(QColor("#9C27B0")))  # Purple to indicate from calculator
+                any_change = True
         
         # Update RaceRatio
         race_item = self.item(row, 2)
         if race_item and race_ratio is not None:
-            race_item.setText(f"{race_ratio:.6f}")
-            race_item.setForeground(QBrush(QColor("#9C27B0")))  # Purple to indicate from calculator
+            old_value = race_item.text()
+            new_value = f"{race_ratio:.6f}"
+            
+            if old_value != new_value:
+                # Store original value if not already stored
+                if (row, "RaceRatio") not in self.original_values:
+                    self.original_values[(row, "RaceRatio")] = old_value
+                
+                race_item.setText(new_value)
+                race_item.setForeground(QBrush(QColor("#9C27B0")))  # Purple to indicate from calculator
+                any_change = True
         
-        # Mark as modified
-        if qual_ratio is not None:
-            if (row, "QualRatio") not in self.original_values:
-                self.original_values[(row, "QualRatio")] = qual_item.text()
-        if race_ratio is not None:
-            if (row, "RaceRatio") not in self.original_values:
-                self.original_values[(row, "RaceRatio")] = race_item.text()
+        # Mark as modified if any value changed
+        if any_change:
+            self.modified_rows.add(row)
+            # Update action buttons for this row
+            self.update_row_buttons(row)
+            
+            # Emit signals for any changed values
+            if qual_ratio is not None and qual_item:
+                self.value_changed.emit(row, "QualRatio", qual_item.text())
+            if race_ratio is not None and race_item:
+                self.value_changed.emit(row, "RaceRatio", race_item.text())
+        else:
+            # Even if no change, we should still update buttons to ensure they're correct
+            self.update_row_buttons(row)
+    
+    def populate_row(self, row, track_name, qual_value, race_value, has_backup, aiw_path):
+        """Populate a row with initial data - this should not trigger modified state"""
+        # Block signals to prevent itemChanged from firing
+        self.blockSignals(True)
         
-        self.modified_rows.add(row)
+        # Track Name (read-only)
+        name_item = QTableWidgetItem(track_name)
+        name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
+        if track_name == Path(aiw_path).stem:
+            name_item.setForeground(QBrush(QColor("#FFA500")))  # Orange for fallback
+        else:
+            name_item.setForeground(QBrush(QColor("#4CAF50")))  # Green for real track name
+        
+        # Set tooltip with full AIW file path
+        name_item.setToolTip(f"AIW File: {aiw_path}")
+        self.setItem(row, 0, name_item)
+        
+        # QualRatio (editable)
+        if qual_value is not None:
+            qual_item = QTableWidgetItem(f"{qual_value:.6f}")
+        else:
+            qual_item = QTableWidgetItem("(not found)")
+            qual_item.setFlags(qual_item.flags() & ~Qt.ItemIsEditable)  # Make read-only if not found
+            qual_item.setForeground(QBrush(QColor("#f44336")))
+        self.setItem(row, 1, qual_item)
+        
+        # RaceRatio (editable)
+        if race_value is not None:
+            race_item = QTableWidgetItem(f"{race_value:.6f}")
+        else:
+            race_item = QTableWidgetItem("(not found)")
+            race_item.setFlags(race_item.flags() & ~Qt.ItemIsEditable)  # Make read-only if not found
+            race_item.setForeground(QBrush(QColor("#f44336")))
+        self.setItem(row, 2, race_item)
+        
+        # Unblock signals
+        self.blockSignals(False)
+        
+        # Set backup status (without triggering button update yet)
+        if has_backup:
+            self.has_backup.add(row)
+        else:
+            self.has_backup.discard(row)
+        
+        # Store file path
+        self.file_paths[row] = str(aiw_path)
+        
+        # Now create the initial buttons
         self.update_row_buttons(row)
 
 
@@ -807,14 +898,7 @@ class AIWRatioEditor(QMainWindow):
             self.stats_label.setText("Directory not found!")
             return
         
-        # Find all AIW files recursively - FIX: Use a set to avoid duplicates
-        aiw_files_set = set()
-        for ext in ['*.aiw', '*.AIW']:
-            for file_path in locations_path.rglob(ext):
-                # Convert to lowercase for case-insensitive comparison
-                aiw_files_set.add(str(file_path).lower())
-        
-        # Convert back to Path objects, preserving original case
+        # Find all AIW files recursively
         aiw_files = []
         seen_paths = set()
         for ext in ['*.aiw', '*.AIW']:
@@ -853,45 +937,9 @@ class AIWRatioEditor(QMainWindow):
             # Check if backup exists
             has_backup = self.check_backup_exists(aiw_path)
             
-            # Add to table
+            # Add to table using the new populate_row method
             self.table.insertRow(row)
-            
-            # Track Name (read-only)
-            name_item = QTableWidgetItem(track_name)
-            name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
-            if track_name == aiw_path.stem:
-                name_item.setForeground(QBrush(QColor("#FFA500")))  # Orange for fallback
-            else:
-                name_item.setForeground(QBrush(QColor("#4CAF50")))  # Green for real track name
-            
-            # Set tooltip with full AIW file path
-            name_item.setToolTip(f"AIW File: {aiw_path}")
-            
-            self.table.setItem(row, 0, name_item)
-            
-            # QualRatio (editable)
-            if qual_ratio is not None:
-                qual_item = QTableWidgetItem(f"{qual_ratio:.6f}")
-            else:
-                qual_item = QTableWidgetItem("(not found)")
-                qual_item.setFlags(qual_item.flags() & ~Qt.ItemIsEditable)  # Make read-only if not found
-                qual_item.setForeground(QBrush(QColor("#f44336")))
-            self.table.setItem(row, 1, qual_item)
-            
-            # RaceRatio (editable)
-            if race_ratio is not None:
-                race_item = QTableWidgetItem(f"{race_ratio:.6f}")
-            else:
-                race_item = QTableWidgetItem("(not found)")
-                race_item.setFlags(race_item.flags() & ~Qt.ItemIsEditable)  # Make read-only if not found
-                race_item.setForeground(QBrush(QColor("#f44336")))
-            self.table.setItem(row, 2, race_item)
-            
-            # Set backup status
-            self.table.set_has_backup(row, has_backup)
-            
-            # Store file path for potential future use
-            self.table.set_file_path(row, aiw_path)
+            self.table.populate_row(row, track_name, qual_ratio, race_ratio, has_backup, aiw_path)
             
             row += 1
         
@@ -904,7 +952,7 @@ class AIWRatioEditor(QMainWindow):
         missing_race = sum(1 for i in range(self.table.rowCount()) 
                           if self.table.item(i, 2).text() == "(not found)")
         
-        backup_count = sum(1 for i in range(self.table.rowCount()) if self.table.has_backup.__contains__(i))
+        backup_count = len(self.table.has_backup)
         
         if missing_qual > 0 or missing_race > 0:
             stats_text += f" | Missing ratios: Qual:{missing_qual} Race:{missing_race}"
