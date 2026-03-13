@@ -14,7 +14,9 @@ class PointEditWidget(QWidget):
         self.editor = editor
         self.current_point_index = 0
         self.current_values = []
+        self.text_editing_enabled = False
         self.setup_ui()
+        print(f"[PointEditWidget] Initialized with current_point_index={self.current_point_index}")
         
     def setup_ui(self):
         layout = QHBoxLayout()
@@ -24,93 +26,517 @@ class PointEditWidget(QWidget):
         self.point_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
         layout.addWidget(self.point_label)
         
-        layout.addWidget(QLabel("Value:"))
+        value_label = QLabel("Value:")
+        value_label.setStyleSheet("color: #f0f0f0;")
+        layout.addWidget(value_label)
+        
         self.value_spin = QDoubleSpinBox()
         self.value_spin.setRange(-10.0, 10.0)
         self.value_spin.setDecimals(6)
-        self.value_spin.setSingleStep(0.001)
+        self.value_spin.setSingleStep(0.0001)
         self.value_spin.valueChanged.connect(self.on_value_changed)
-        self.value_spin.installEventFilter(self)
+        self.value_spin.setReadOnly(True)
+        self.value_spin.setStyleSheet("""
+            QDoubleSpinBox {
+                background-color: #3a3a3a;
+                color: #888;
+                border: 1px solid #555;
+                border-radius: 3px;
+                padding: 2px;
+            }
+            QDoubleSpinBox:read-only {
+                background-color: #2a2a2a;
+                color: #666;
+            }
+        """)
         layout.addWidget(self.value_spin)
         
-        instr_label = QLabel("←/→: Select point, ↑/↓: Change value")
+        self.edit_btn = QPushButton("Edit Text")
+        self.edit_btn.setCheckable(True)
+        self.edit_btn.setChecked(False)
+        self.edit_btn.clicked.connect(self.toggle_text_editing)
+        self.edit_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                padding: 4px 8px;
+                border-radius: 3px;
+                font-weight: bold;
+                min-width: 60px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+            QPushButton:checked {
+                background-color: #f44336;
+            }
+            QPushButton:checked:hover {
+                background-color: #d32f2f;
+            }
+        """)
+        layout.addWidget(self.edit_btn)
+        
+        instr_label = QLabel("←/→: Select point, ↑/↓: Change value (Shift: x100, Alt: x0.01)")
         instr_label.setStyleSheet("color: #888; font-style: italic;")
         layout.addWidget(instr_label)
         layout.addStretch()
         self.setLayout(layout)
         self.setFocusPolicy(Qt.StrongFocus)
     
-    def eventFilter(self, obj, event):
-        if obj == self.value_spin and event.type() == QEvent.KeyPress:
-            if event.key() == Qt.Key_Left:
-                self.select_previous_point()
-                return True
-            elif event.key() == Qt.Key_Right:
-                self.select_next_point()
-                return True
-            elif event.key() == Qt.Key_Up:
-                self.increase_value()
-                return True
-            elif event.key() == Qt.Key_Down:
-                self.decrease_value()
-                return True
-        return super().eventFilter(obj, event)
+    def toggle_text_editing(self, checked):
+        print(f"\n[PointEditWidget] toggle_text_editing: checked={checked}")
+        self.text_editing_enabled = checked
+        self.value_spin.setReadOnly(not checked)
+        if checked:
+            self.value_spin.setFocus()
+            self.edit_btn.setText("Lock Text")
+            self.value_spin.setStyleSheet("""
+                QDoubleSpinBox {
+                    background-color: #4CAF50;
+                    color: white;
+                    border: 1px solid #4CAF50;
+                    border-radius: 3px;
+                    padding: 2px;
+                }
+                QDoubleSpinBox:focus {
+                    border: 2px solid #ff9800;
+                }
+            """)
+        else:
+            self.edit_btn.setText("Edit Text")
+            self.value_spin.setStyleSheet("""
+                QDoubleSpinBox {
+                    background-color: #2a2a2a;
+                    color: #666;
+                    border: 1px solid #555;
+                    border-radius: 3px;
+                    padding: 2px;
+                }
+            """)
     
-    def set_values(self, values):
+    def set_values(self, values, preserve_index=False):
+        print(f"\n[PointEditWidget] set_values: preserve_index={preserve_index}, current_index={self.current_point_index}")
         self.current_values = values.copy() if values else []
-        self.current_point_index = 0
+        if not preserve_index:
+            self.current_point_index = 0
+            print(f"  Resetting index to 0")
         self.update_display()
     
     def update_display(self):
+        print(f"\n[PointEditWidget] update_display: current_point_index={self.current_point_index}")
         if self.current_values:
+            print(f"  current value = {self.current_values[self.current_point_index]}")
             self.point_label.setText(f"Point: {self.current_point_index + 1}/{len(self.current_values)}")
             self.value_spin.blockSignals(True)
             self.value_spin.setValue(self.current_values[self.current_point_index])
             self.value_spin.blockSignals(False)
+            if hasattr(self.editor, 'curve_editor_widget') and self.editor.curve_editor_widget:
+                self.editor.curve_editor_widget.update_points_display()
     
     def on_value_changed(self, value):
+        print(f"\n[PointEditWidget] on_value_changed: value={value}, current_point_index={self.current_point_index}")
         if self.current_values and self.current_point_index < len(self.current_values):
+            old_value = self.current_values[self.current_point_index]
             self.current_values[self.current_point_index] = value
-            self.editor.update_point_value(self.current_point_index, value)
+            print(f"  Updated point {self.current_point_index} from {old_value} to {value}")
+            self.editor.update_point_value(self.current_point_index, value, preserve_index=True)
     
     def select_previous_point(self):
+        print(f"\n[PointEditWidget] select_previous_point: current_index={self.current_point_index}")
         if self.current_values and self.current_point_index > 0:
             self.current_point_index -= 1
+            print(f"  New index={self.current_point_index}, value={self.current_values[self.current_point_index]}")
             self.update_display()
             self.editor.highlight_point(self.current_point_index)
+        else:
+            print(f"  Cannot select previous - at first point")
     
     def select_next_point(self):
+        print(f"\n[PointEditWidget] select_next_point: current_index={self.current_point_index}")
         if self.current_values and self.current_point_index < len(self.current_values) - 1:
             self.current_point_index += 1
+            print(f"  New index={self.current_point_index}, value={self.current_values[self.current_point_index]}")
             self.update_display()
             self.editor.highlight_point(self.current_point_index)
+        else:
+            print(f"  Cannot select next - at last point")
     
-    def increase_value(self):
+    def increase_value(self, modifiers):
+        print(f"\n[PointEditWidget] increase_value: current_index={self.current_point_index}, modifiers={modifiers}")
         if self.current_values:
-            current_val = self.current_values[self.current_point_index]
-            self.value_spin.setValue(current_val + 0.001)
+            current_val = self.value_spin.value()
+            
+            # Determine step size based on modifiers
+            if modifiers & Qt.AltModifier:
+                step = 0.000001  # Alt: fine adjustment
+                print(f"  Alt modifier detected - using fine step: {step}")
+            elif modifiers & Qt.ShiftModifier:
+                step = 0.01       # Shift: coarse adjustment
+                print(f"  Shift modifier detected - using coarse step: {step}")
+            else:
+                step = 0.0001      # Default: normal adjustment
+                print(f"  No modifier - using normal step: {step}")
+            
+            new_val = current_val + step
+            print(f"  Increasing from {current_val} to {new_val}")
+            self.value_spin.setValue(new_val)
+        else:
+            print(f"  No values to increase")
     
-    def decrease_value(self):
+    def decrease_value(self, modifiers):
+        print(f"\n[PointEditWidget] decrease_value: current_index={self.current_point_index}, modifiers={modifiers}")
         if self.current_values:
-            current_val = self.current_values[self.current_point_index]
-            self.value_spin.setValue(current_val - 0.001)
+            current_val = self.value_spin.value()
+            
+            # Determine step size based on modifiers
+            if modifiers & Qt.AltModifier:
+                step = 0.000001  # Alt: fine adjustment
+                print(f"  Alt modifier detected - using fine step: {step}")
+            elif modifiers & Qt.ShiftModifier:
+                step = 0.01       # Shift: coarse adjustment
+                print(f"  Shift modifier detected - using coarse step: {step}")
+            else:
+                step = 0.0001      # Default: normal adjustment
+                print(f"  No modifier - using normal step: {step}")
+            
+            new_val = current_val - step
+            print(f"  Decreasing from {current_val} to {new_val}")
+            self.value_spin.setValue(new_val)
+        else:
+            print(f"  No values to decrease")
     
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Left:
-            self.select_previous_point()
-        elif event.key() == Qt.Key_Right:
-            self.select_next_point()
-        elif event.key() == Qt.Key_Up:
-            self.increase_value()
-        elif event.key() == Qt.Key_Down:
-            self.decrease_value()
-        else:
-            super().keyPressEvent(event)
-        event.accept()
+        print(f"\n[PointEditWidget] keyPressEvent: key={event.key()}, current_index={self.current_point_index}")
+        print(f"  Ignoring event to let parent handle it")
+        event.ignore()
     
     def focusInEvent(self, event):
+        print(f"\n[PointEditWidget] focusInEvent: current_index={self.current_point_index}")
         super().focusInEvent(event)
         self.editor.highlight_point(self.current_point_index)
+    
+    def focusOutEvent(self, event):
+        print(f"\n[PointEditWidget] focusOutEvent")
+        if self.text_editing_enabled:
+            print(f"  Disabling text editing mode due to focus loss")
+            self.text_editing_enabled = False
+            self.value_spin.setReadOnly(True)
+            self.edit_btn.setChecked(False)
+            self.edit_btn.setText("Edit Text")
+            self.value_spin.setStyleSheet("""
+                QDoubleSpinBox {
+                    background-color: #2a2a2a;
+                    color: #666;
+                    border: 1px solid #555;
+                    border-radius: 3px;
+                    padding: 2px;
+                }
+            """)
+        super().focusOutEvent(event)
+
+class SlipCurveEditWidget(QWidget):
+    def __init__(self, editor, curve, comp_curve=None, axle=None, parent=None):
+        super().__init__(parent)
+        self.editor = editor
+        self.curve_name = curve
+        self.comparison_curve_name = comp_curve
+        self.axle = axle
+        self.current_curve_index = self.find_curve_index()
+        self.setup_ui()
+        print(f"[SlipCurveEditWidget] Initialized for curve: {curve}")
+        
+    def keyPressEvent(self, event):
+        print(f"\n[SlipCurveEditWidget] keyPressEvent: key={event.key()}, modifiers={event.modifiers()}")
+        # Handle all arrow keys here
+        if event.key() == Qt.Key_Left:
+            print("  Left arrow detected in keyPressEvent")
+            self.point_edit.select_previous_point()
+            event.accept()
+        elif event.key() == Qt.Key_Right:
+            print("  Right arrow detected in keyPressEvent")
+            self.point_edit.select_next_point()
+            event.accept()
+        elif event.key() == Qt.Key_Up:
+            print("  Up arrow detected in keyPressEvent")
+            self.point_edit.increase_value(event.modifiers())
+            event.accept()
+        elif event.key() == Qt.Key_Down:
+            print("  Down arrow detected in keyPressEvent")
+            self.point_edit.decrease_value(event.modifiers())
+            event.accept()
+        else:
+            print(f"  Other key {event.key()} - passing to parent")
+            super().keyPressEvent(event)
+    
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.KeyPress:
+            print(f"\n[SlipCurveEditWidget] eventFilter: obj={obj.__class__.__name__}, key={event.key()}, modifiers={event.modifiers()}")
+            # Handle all arrow keys
+            if event.key() == Qt.Key_Left:
+                print(f"  Left arrow detected in eventFilter from {obj.__class__.__name__}")
+                self.point_edit.select_previous_point()
+                return True
+            elif event.key() == Qt.Key_Right:
+                print(f"  Right arrow detected in eventFilter from {obj.__class__.__name__}")
+                self.point_edit.select_next_point()
+                return True
+            elif event.key() == Qt.Key_Up:
+                print(f"  Up arrow detected in eventFilter from {obj.__class__.__name__}")
+                self.point_edit.increase_value(event.modifiers())
+                return True
+            elif event.key() == Qt.Key_Down:
+                print(f"  Down arrow detected in eventFilter from {obj.__class__.__name__}")
+                self.point_edit.decrease_value(event.modifiers())
+                return True
+        
+        return super().eventFilter(obj, event)
+        
+    def find_curve_index(self):
+        for i, c in enumerate(self.editor.slip_curves):
+            if c['name'] == self.curve_name:
+                return i
+        return 0
+    
+    def setup_ui(self):
+        layout = QVBoxLayout()
+        
+        title = f"Editing: {self.curve_name}"
+        if self.comparison_curve_name:
+            title += f" | Comparing: {self.comparison_curve_name}"
+        if self.axle:
+            title += f" | Axle: {self.axle}"
+        title_label = QLabel(title)
+        title_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #4CAF50; padding: 5px;")
+        layout.addWidget(title_label)
+        
+        self.back_btn = QPushButton("← Back to Compound Editor")
+        self.back_btn.clicked.connect(self.editor.close_curve_editor)
+        self.back_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #ff9800;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 3px;
+                font-weight: bold;
+                min-height: 20px;
+                max-height: 30px;
+            }
+            QPushButton:hover {
+                background-color: #f57c00;
+            }
+            QPushButton:pressed {
+                background-color: #e65100;
+            }
+        """)
+        layout.addWidget(self.back_btn)
+        
+        self.point_edit = PointEditWidget(self.editor)
+        layout.addWidget(self.point_edit)
+        
+        self.plot = pg.PlotWidget()
+        self.plot.setLabel('left', 'Force')
+        self.plot.setLabel('bottom', 'Slip')
+        self.plot.showGrid(x=True, y=True)
+        self.plot.setMinimumHeight(400)
+        
+        self.legend = self.plot.addLegend()
+        
+        self.editor.curve_plot = self.plot.plot(pen=pg.mkPen('b', width=2), name='Current')
+        self.editor.original_curve_plot = self.plot.plot(pen=pg.mkPen('gray', width=1, style=Qt.DashLine), name='Original')
+        self.editor.comparison_plot = self.plot.plot(pen=pg.mkPen('orange', width=2, style=Qt.DashLine), name='Comparison')
+        self.editor.preview_curve = self.plot.plot(pen=pg.mkPen('y', width=2, style=Qt.DashLine), name='Preview')
+        
+        self.editor.comparison_plot.hide()
+        self.editor.preview_curve.hide()
+        
+        self.editor.point_highlight = pg.ScatterPlotItem(pen='r', size=15, symbol='o')
+        self.editor.peak_marker = pg.ScatterPlotItem(pen='r', brush='r', size=15, symbol='star')
+        self.plot.addItem(self.editor.peak_marker)
+        self.plot.addItem(self.editor.point_highlight)
+        
+        layout.addWidget(self.plot)
+        
+        params = QHBoxLayout()
+        
+        step_label = QLabel("Step:")
+        step_label.setStyleSheet("color: #f0f0f0;")
+        params.addWidget(step_label)
+        
+        self.step_spin = QDoubleSpinBox()
+        self.step_spin.setRange(0.0001, 1.0)
+        self.step_spin.setDecimals(6)
+        self.step_spin.valueChanged.connect(self.on_step_changed)
+        params.addWidget(self.step_spin)
+        
+        points_label = QLabel("Points:")
+        points_label.setStyleSheet("color: #f0f0f0;")
+        params.addWidget(points_label)
+        
+        self.points_label = QLabel("0")
+        self.points_label.setStyleSheet("font-weight: bold; color: #4CAF50;")
+        params.addWidget(self.points_label)
+        params.addStretch()
+        layout.addLayout(params)
+        
+        ops = QHBoxLayout()
+        self.smooth_btn = QPushButton("Smooth")
+        self.smooth_btn.clicked.connect(lambda: self.editor.show_preview_dialog("smooth", self))
+        self.smooth_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                padding: 5px 10px;
+                border-radius: 3px;
+                font-weight: bold;
+                min-height: 20px;
+                max-height: 30px;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+        """)
+        ops.addWidget(self.smooth_btn)
+        
+        self.reset_btn = QPushButton("Reset")
+        self.reset_btn.clicked.connect(self.editor.reset_curve)
+        self.reset_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #9C27B0;
+                color: white;
+                border: none;
+                padding: 5px 10px;
+                border-radius: 3px;
+                font-weight: bold;
+                min-height: 20px;
+                max-height: 30px;
+            }
+            QPushButton:hover {
+                background-color: #7B1FA2;
+            }
+        """)
+        ops.addWidget(self.reset_btn)
+        ops.addStretch()
+        layout.addLayout(ops)
+        
+        points_display_label = QLabel("Point Values:")
+        points_display_label.setStyleSheet("color: #f0f0f0; font-weight: bold; margin-top: 10px;")
+        layout.addWidget(points_display_label)
+        
+        self.points_display = QTextEdit()
+        self.points_display.setReadOnly(True)
+        self.points_display.setMaximumHeight(100)
+        self.points_display.setStyleSheet("""
+            QTextEdit {
+                background-color: #1e1e1e;
+                color: #f0f0f0;
+                border: 1px solid #444;
+                border-radius: 3px;
+                padding: 5px;
+                font-family: monospace;
+                font-size: 11px;
+            }
+        """)
+        layout.addWidget(self.points_display)
+        
+        self.setLayout(layout)
+        
+        self.setFocusPolicy(Qt.StrongFocus)
+        
+        print(f"\n[SlipCurveEditWidget] Installing event filters on child widgets...")
+        children = self.findChildren(QWidget)
+        print(f"  Found {len(children)} child widgets")
+        for child in children:
+            child.installEventFilter(self)
+            print(f"  - Installed on {child.__class__.__name__}")
+        
+        self.update_display()
+        
+        if self.comparison_curve_name and self.editor.last_comparison_file:
+            QTimer.singleShot(100, self.load_comparison)
+    
+    def load_comparison(self):
+        try:
+            with open(self.editor.last_comparison_file, 'r') as f:
+                content = f.read()
+            
+            pattern = r'\[SLIPCURVE\]\s*Name="([^"]+)"\s*Step=([0-9.e+-]+)[^\n]*\s*DropoffFunction=([0-9.e+-]+)[^\n]*\s*Data:\s*((?:\d+\.\d+\s*)+)'
+            for match in re.finditer(pattern, content, re.MULTILINE | re.DOTALL):
+                if match.group(1).strip() == self.comparison_curve_name:
+                    step = float(match.group(2))
+                    values = [float(x) for x in match.group(4).strip().split()]
+                    x_vals = [i * step for i in range(len(values))]
+                    self.editor.comparison_plot.setData(x_vals, values)
+                    self.editor.comparison_plot.show()
+                    self.plot.autoRange()
+                    break
+        except Exception as e:
+            print(f"Error loading comparison: {e}")
+    
+    def update_points_display(self):
+        if not hasattr(self, 'points_display'):
+            return
+            
+        if not self.point_edit.current_values:
+            self.points_display.setText("")
+            return
+        
+        points_text = []
+        for i, val in enumerate(self.point_edit.current_values):
+            if i == self.point_edit.current_point_index:
+                points_text.append(f'<span style="color: #4CAF50; font-weight: bold;">[{val:.6f}]</span>')
+            else:
+                points_text.append(f'<span style="color: #f0f0f0;">{val:.6f}</span>')
+        
+        html_text = " ".join(points_text)
+        self.points_display.setHtml(html_text)
+    
+    def update_display(self):
+        print(f"\n[SlipCurveEditWidget] update_display")
+        if self.current_curve_index >= len(self.editor.slip_curves):
+            return
+        
+        curve = self.editor.slip_curves[self.current_curve_index]
+        if self.current_curve_index in self.editor.modified_curves:
+            mod = self.editor.modified_curves[self.current_curve_index]
+            vals, step = mod['values'], mod['step']
+        else:
+            vals, step = curve['values'], curve['step']
+        
+        x = [i * step for i in range(len(vals))]
+        self.editor.curve_plot.setData(x, vals)
+        
+        if self.current_curve_index in self.editor.modified_curves:
+            orig_x = [i * curve['step'] for i in range(len(curve['values']))]
+            self.editor.original_curve_plot.setData(orig_x, curve['values'])
+            self.editor.original_curve_plot.show()
+        else:
+            self.editor.original_curve_plot.hide()
+        
+        peak_idx = np.argmax(vals)
+        self.editor.peak_marker.setData([x[peak_idx]], [vals[peak_idx]])
+        
+        # Preserve current point index when updating values
+        current_idx = self.point_edit.current_point_index if hasattr(self, 'point_edit') else 0
+        self.point_edit.set_values(vals, preserve_index=True)
+        
+        self.step_spin.blockSignals(True)
+        self.step_spin.setValue(step)
+        self.step_spin.blockSignals(False)
+        self.points_label.setText(str(len(vals)))
+        
+        self.update_points_display()
+        
+        if hasattr(self.editor, 'curve_editor_widget') and self.editor.curve_editor_widget:
+            self.editor.highlight_point(self.point_edit.current_point_index)
+        
+        self.plot.autoRange()
+    
+    def on_step_changed(self, val):
+        self.editor.on_step_changed(val)
+        self.update_display()
 
 class CompareCompoundDialog(QDialog):
     def __init__(self, parent=None, last_file=None, start_dir=None):
@@ -364,13 +790,11 @@ class CompoundParameterTableWidget(QTableWidget):
         self.itemDoubleClicked.connect(self.on_item_double_clicked)
     
     def set_comparison_compound(self, compound, axle):
-        print(f"Setting comparison compound: {compound['name'] if compound else None}, axle: {axle}")
         self.comparison_compound = compound
         self.comparison_axle = axle
         self.update_table()
     
     def clear_comparison(self):
-        print("Clearing comparison")
         self.comparison_compound = None
         self.update_table()
     
@@ -379,35 +803,25 @@ class CompoundParameterTableWidget(QTableWidget):
         if val1 is None or val2 is None: return True
         
         str1, str2 = str(val1).strip(), str(val2).strip()
-        print(f"Comparing: '{str1}' vs '{str2}'")
         
         if '(' in str1 and ')' in str1:
             try:
                 nums1 = [float(x.strip()) for x in str1.strip('()').split(',')]
                 nums2 = [float(x.strip()) for x in str2.strip('()').split(',')]
                 if len(nums1) != len(nums2): 
-                    print("  Different lengths -> DIFFERENT")
                     return True
                 for i, (a, b) in enumerate(zip(nums1, nums2)):
                     if abs(a - b) > 1e-10:
-                        print(f"  Values differ at position {i}: {a} vs {b} -> DIFFERENT")
                         return True
-                print("  All values same -> SAME")
                 return False
             except:
-                result = str1 != str2
-                print(f"  String comparison -> {'DIFFERENT' if result else 'SAME'}")
-                return result
+                return str1 != str2
         
         try:
             diff = abs(float(str1) - float(str2))
-            result = diff > 1e-10
-            print(f"  Numeric: {diff:.2e} -> {'DIFFERENT' if result else 'SAME'}")
-            return result
+            return diff > 1e-10
         except:
-            result = str1 != str2
-            print(f"  String comparison -> {'DIFFERENT' if result else 'SAME'}")
-            return result
+            return str1 != str2
     
     def add_row(self, name, curr_val, comp_val=None, editable=False, special=False):
         row = self.rowCount()
@@ -430,10 +844,8 @@ class CompoundParameterTableWidget(QTableWidget):
         if comp_val is not None and self.comparison_compound:
             c_item = QTableWidgetItem(str(comp_val))
             c_item.setFlags(c_item.flags() & ~Qt.ItemIsEditable)
-            print(f"\nRow '{name}':")
             is_diff = self.values_differ(curr_val, comp_val)
             color = "#fcad37" if is_diff else "#fcfcfc"
-            print(f"  Setting color to {color}")
             c_item.setForeground(QBrush(QColor(color)))
             self.setItem(row, 2, c_item)
         else:
@@ -449,25 +861,20 @@ class CompoundParameterTableWidget(QTableWidget):
         return row
     
     def update_table(self):
-        print(f"\n--- Updating table for compound {self.current_compound_index}, axle {self.current_axle} ---")
         self.clearContents()
         self.setRowCount(0)
         
         if self.current_compound_index < 0:
             return
         
-        # Get the compound data
         compound = self.parent().editor.compounds[self.current_compound_index].copy()
-        print(f"Current compound: {compound['name']}")
         
-        # Apply any modified parameters to the compound data
         if self.current_compound_index in self.parent().editor.modified_compounds:
             mod = self.parent().editor.modified_compounds[self.current_compound_index]
             if self.current_axle in mod.get('axles', {}):
                 for key, val in mod['axles'][self.current_axle].items():
                     if self.current_axle in compound['axles']:
                         compound['axles'][self.current_axle][key] = val
-                        print(f"Applied modified value: {key} = {val}")
         
         comp_name = self.comparison_compound['name'] if self.comparison_compound else None
         self.add_row("Name", compound['name'], comp_name, special=True)
@@ -479,12 +886,10 @@ class CompoundParameterTableWidget(QTableWidget):
         
         if self.current_axle in compound['axles']:
             axle_data = compound['axles'][self.current_axle]
-            print(f"Axle data: {axle_data}")
             
             comp_axle_data = None
             if self.comparison_compound and self.comparison_axle in self.comparison_compound['axles']:
                 comp_axle_data = self.comparison_compound['axles'][self.comparison_axle]
-                print(f"Comparison axle data: {comp_axle_data}")
             
             self.add_row("Axle", self.current_axle, self.comparison_axle if comp_axle_data else None, special=True)
             
@@ -520,15 +925,12 @@ class CompoundParameterTableWidget(QTableWidget):
         header.setSectionResizeMode(1, QHeaderView.Stretch)
         header.setSectionResizeMode(2, QHeaderView.Stretch)
         header.setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        print("--- Table update complete ---\n")
     
     def set_current_compound(self, index):
-        print(f"Setting current compound to index {index}")
         self.current_compound_index = index
         self.update_table()
     
     def set_current_axle(self, axle):
-        print(f"Setting current axle to {axle}")
         self.current_axle = axle
         self.update_table()
     
@@ -536,22 +938,15 @@ class CompoundParameterTableWidget(QTableWidget):
         if item.column() == 1 and item.flags() & Qt.ItemIsEditable:
             key = self.item(item.row(), 0).text()
             if key not in ["Name", "WetWeather", "Axle"]:
-                print(f"Double clicked on {key}, current value: {item.text()}")
                 self.edit_parameter(key, item.text())
     
     def edit_parameter(self, key, curr_val):
-        print(f"Editing parameter {key}, current value: {curr_val}")
         dlg = ParameterEditDialog(key, curr_val, self.window())
         if dlg.exec_() == QDialog.Accepted:
             new_val = dlg.get_value()
-            print(f"Dialog accepted, new value: {new_val}")
             if new_val != curr_val:
-                print(f"Value changed, emitting signal")
                 self.parameter_edited.emit(self.current_axle, key, new_val)
-                # Force immediate table update
                 self.update_table()
-            else:
-                print("Value unchanged")
 
 class ParameterEditDialog(QDialog):
     def __init__(self, key, curr_val, parent=None):
@@ -607,7 +1002,6 @@ class ParameterEditDialog(QDialog):
     
     def on_text_changed(self, text):
         self.new_val = text
-        print(f"Edit dialog: value changed to '{text}'")
     
     def get_value(self): 
         return self.new_val
@@ -629,14 +1023,20 @@ class CompoundEditWidget(QWidget):
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
         
-        # Top toolbar
         toolbar = QHBoxLayout()
-        toolbar.addWidget(QLabel("Compound:"))
+        
+        compound_label = QLabel("Compound:")
+        compound_label.setStyleSheet("color: #f0f0f0;")
+        toolbar.addWidget(compound_label)
+        
         self.compound_combo = QComboBox()
         self.compound_combo.currentIndexChanged.connect(self.on_compound_selected)
         toolbar.addWidget(self.compound_combo)
         
-        toolbar.addWidget(QLabel("Axle:"))
+        axle_label = QLabel("Axle:")
+        axle_label.setStyleSheet("color: #f0f0f0;")
+        toolbar.addWidget(axle_label)
+        
         self.axle_combo = QComboBox()
         self.axle_combo.addItems(["FRONT", "REAR"])
         self.axle_combo.currentTextChanged.connect(self.on_axle_selected)
@@ -694,7 +1094,6 @@ class CompoundEditWidget(QWidget):
         
         layout.addLayout(toolbar)
         
-        # Simple comparison info display (no selection controls)
         self.info_widget = QWidget()
         info_layout = QHBoxLayout(self.info_widget)
         info_layout.setContentsMargins(0, 0, 0, 0)
@@ -712,7 +1111,6 @@ class CompoundEditWidget(QWidget):
         self.info_widget.hide()
         layout.addWidget(self.info_widget)
         
-        # Parameter table
         self.table = CompoundParameterTableWidget(self)
         self.table.setMinimumHeight(500)
         self.table.parameter_edited.connect(self.on_parameter_edited)
@@ -746,14 +1144,12 @@ class CompoundEditWidget(QWidget):
                 self.comparison_compound = comp
                 self.comparison_axle = axle
                 
-                # Show comparison info
                 self.file_label.setText(Path(file).name)
                 self.compound_label.setText(comp['name'])
                 self.axle_label.setText(f"({axle})")
                 self.info_widget.show()
                 self.hide_btn.setEnabled(True)
                 
-                # Update the table with comparison data
                 self.table.set_comparison_compound(self.comparison_compound, self.comparison_axle)
                 self.editor.status_bar.showMessage(f"Loaded comparison from {Path(file).name}", 3000)
     
@@ -783,216 +1179,19 @@ class CompoundEditWidget(QWidget):
             )
     
     def on_parameter_edited(self, axle, key, val):
-        print(f"\n=== Parameter edited: {key} = {val} (axle: {axle}) ===")
         self.editor.update_compound_parameter(self.current_compound_index, axle, key, val)
-        print("Forcing table update...")
         self.table.update_table()
         self.editor.status_bar.showMessage(f"Updated {key} = {val}", 2000)
-        print("=== Update complete ===\n")
     
     def on_edit_curve(self, curve, comp_curve, axle):
         self.editor.open_curve_editor(curve, comp_curve, axle)
 
-class SlipCurveEditWidget(QWidget):
-    def __init__(self, editor, curve, comp_curve=None, axle=None, parent=None):
-        super().__init__(parent)
-        self.editor = editor
-        self.curve_name = curve
-        self.comparison_curve_name = comp_curve
-        self.axle = axle
-        self.current_curve_index = self.find_curve_index()
-        self.setup_ui()
-        
-    def find_curve_index(self):
-        for i, c in enumerate(self.editor.slip_curves):
-            if c['name'] == self.curve_name:
-                return i
-        return 0
-    
-    def setup_ui(self):
-        layout = QVBoxLayout()
-        
-        title = f"Editing: {self.curve_name}"
-        if self.comparison_curve_name:
-            title += f" | Comparing: {self.comparison_curve_name}"
-        if self.axle:
-            title += f" | Axle: {self.axle}"
-        title_label = QLabel(title)
-        title_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #4CAF50; padding: 5px;")
-        layout.addWidget(title_label)
-        
-        self.back_btn = QPushButton("← Back to Compound Editor")
-        self.back_btn.clicked.connect(self.editor.close_curve_editor)
-        self.back_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #ff9800;
-                color: white;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 3px;
-                font-weight: bold;
-                min-height: 20px;
-                max-height: 30px;
-            }
-            QPushButton:hover {
-                background-color: #f57c00;
-            }
-            QPushButton:pressed {
-                background-color: #e65100;
-            }
-        """)
-        layout.addWidget(self.back_btn)
-        
-        self.point_edit = PointEditWidget(self.editor)
-        layout.addWidget(self.point_edit)
-        
-        self.plot = pg.PlotWidget()
-        self.plot.setLabel('left', 'Force')
-        self.plot.setLabel('bottom', 'Slip')
-        self.plot.showGrid(x=True, y=True)
-        self.plot.setMinimumHeight(400)
-        
-        self.legend = self.plot.addLegend()
-        
-        self.editor.curve_plot = self.plot.plot(pen=pg.mkPen('b', width=2), name='Current')
-        self.editor.original_curve_plot = self.plot.plot(pen=pg.mkPen('gray', width=1, style=Qt.DashLine), name='Original')
-        self.editor.comparison_plot = self.plot.plot(pen=pg.mkPen('orange', width=2, style=Qt.DashLine), name='Comparison')
-        self.editor.preview_curve = self.plot.plot(pen=pg.mkPen('y', width=2, style=Qt.DashLine), name='Preview')
-        
-        self.editor.comparison_plot.hide()
-        self.editor.preview_curve.hide()
-        
-        self.editor.point_highlight = pg.ScatterPlotItem(pen='r', size=15, symbol='o')
-        self.editor.peak_marker = pg.ScatterPlotItem(pen='r', brush='r', size=15, symbol='star')
-        self.plot.addItem(self.editor.peak_marker)
-        self.plot.addItem(self.editor.point_highlight)
-        
-        layout.addWidget(self.plot)
-        
-        params = QHBoxLayout()
-        params.addWidget(QLabel("Step:"))
-        self.step_spin = QDoubleSpinBox()
-        self.step_spin.setRange(0.0001, 1.0)
-        self.step_spin.setDecimals(6)
-        self.step_spin.valueChanged.connect(self.on_step_changed)
-        params.addWidget(self.step_spin)
-        params.addWidget(QLabel("Points:"))
-        self.points_label = QLabel("0")
-        self.points_label.setStyleSheet("font-weight: bold; color: #4CAF50;")
-        params.addWidget(self.points_label)
-        params.addStretch()
-        layout.addLayout(params)
-        
-        ops = QHBoxLayout()
-        self.smooth_btn = QPushButton("Smooth")
-        self.smooth_btn.clicked.connect(lambda: self.editor.show_preview_dialog("smooth"))
-        self.smooth_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #2196F3;
-                color: white;
-                border: none;
-                padding: 5px 10px;
-                border-radius: 3px;
-                font-weight: bold;
-                min-height: 20px;
-                max-height: 30px;
-            }
-            QPushButton:hover {
-                background-color: #1976D2;
-            }
-        """)
-        ops.addWidget(self.smooth_btn)
-        
-        self.reset_btn = QPushButton("Reset")
-        self.reset_btn.clicked.connect(self.editor.reset_curve)
-        self.reset_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #9C27B0;
-                color: white;
-                border: none;
-                padding: 5px 10px;
-                border-radius: 3px;
-                font-weight: bold;
-                min-height: 20px;
-                max-height: 30px;
-            }
-            QPushButton:hover {
-                background-color: #7B1FA2;
-            }
-        """)
-        ops.addWidget(self.reset_btn)
-        ops.addStretch()
-        layout.addLayout(ops)
-        
-        self.setLayout(layout)
-        self.update_display()
-        
-        if self.comparison_curve_name and self.editor.last_comparison_file:
-            QTimer.singleShot(100, self.load_comparison)
-    
-    def load_comparison(self):
-        try:
-            with open(self.editor.last_comparison_file, 'r') as f:
-                content = f.read()
-            
-            pattern = r'\[SLIPCURVE\]\s*Name="([^"]+)"\s*Step=([0-9.e+-]+)[^\n]*\s*DropoffFunction=([0-9.e+-]+)[^\n]*\s*Data:\s*((?:\d+\.\d+\s*)+)'
-            for match in re.finditer(pattern, content, re.MULTILINE | re.DOTALL):
-                if match.group(1).strip() == self.comparison_curve_name:
-                    step = float(match.group(2))
-                    values = [float(x) for x in match.group(4).strip().split()]
-                    x_vals = [i * step for i in range(len(values))]
-                    self.editor.comparison_plot.setData(x_vals, values)
-                    self.editor.comparison_plot.show()
-                    self.plot.autoRange()
-                    break
-        except Exception as e:
-            print(f"Error loading comparison: {e}")
-    
-    def update_display(self):
-        if self.current_curve_index >= len(self.editor.slip_curves):
-            return
-        
-        curve = self.editor.slip_curves[self.current_curve_index]
-        if self.current_curve_index in self.editor.modified_curves:
-            mod = self.editor.modified_curves[self.current_curve_index]
-            vals, step = mod['values'], mod['step']
-        else:
-            vals, step = curve['values'], curve['step']
-        
-        x = [i * step for i in range(len(vals))]
-        self.editor.curve_plot.setData(x, vals)
-        
-        if self.current_curve_index in self.editor.modified_curves:
-            orig_x = [i * curve['step'] for i in range(len(curve['values']))]
-            self.editor.original_curve_plot.setData(orig_x, curve['values'])
-            self.editor.original_curve_plot.show()
-        else:
-            self.editor.original_curve_plot.hide()
-        
-        peak_idx = np.argmax(vals)
-        self.editor.peak_marker.setData([x[peak_idx]], [vals[peak_idx]])
-        
-        self.point_edit.set_values(vals)
-        self.step_spin.blockSignals(True)
-        self.step_spin.setValue(step)
-        self.step_spin.blockSignals(False)
-        self.points_label.setText(str(len(vals)))
-        
-        # Only call highlight_point if the editor has a curve_editor_widget
-        if hasattr(self.editor, 'curve_editor_widget') and self.editor.curve_editor_widget:
-            self.editor.highlight_point(0)
-        
-        self.plot.autoRange()
-    
-    def on_step_changed(self, val):
-        self.editor.on_step_changed(val)
-        self.update_display()
-
 class PreviewDialog(QDialog):
-    def __init__(self, title, vals, plot, parent=None):
+    def __init__(self, title, vals, plot, curve_editor_widget, parent=None):
         super().__init__(parent)
         self.vals = vals
         self.plot = plot
+        self.curve_editor_widget = curve_editor_widget
         self.sigma = 1.0
         self.setWindowTitle(title)
         self.setModal(True)
@@ -1047,9 +1246,10 @@ class PreviewDialog(QDialog):
     def update_preview(self):
         self.sigma = self.sigma_spin.value()
         self.preview_values = gaussian_filter1d(self.vals, sigma=self.sigma, mode='nearest')
-        self.parent().editor.update_preview_curve(self.preview_values)
+        self.curve_editor_widget.editor.update_preview_curve(self.preview_values)
     
-    def get_values(self): return self.preview_values
+    def get_values(self): 
+        return self.preview_values
 
 class TireCurveEditor:
     def __init__(self, filename):
@@ -1163,7 +1363,6 @@ class TireCurveEditor:
         self.window.setCentralWidget(central)
         layout = QVBoxLayout(central)
         
-        # File operations toolbar
         toolbar = QHBoxLayout()
         
         self.save_btn = QPushButton("Save Changes")
@@ -1258,7 +1457,6 @@ class TireCurveEditor:
             self.curve_editor_widget = None
     
     def update_compound_parameter(self, idx, axle, key, val):
-        print(f"update_compound_parameter: compound {idx}, axle {axle}, {key} = {val}")
         if idx >= len(self.compounds):
             return
         if idx not in self.modified_compounds:
@@ -1266,21 +1464,21 @@ class TireCurveEditor:
         if axle not in self.modified_compounds[idx]['axles']:
             self.modified_compounds[idx]['axles'][axle] = {}
         self.modified_compounds[idx]['axles'][axle][key] = val
-        print(f"Stored in modified_compounds[{idx}]['axles'][{axle}][{key}] = {val}")
         self.status_bar.showMessage("Unsaved changes", 2000)
     
-    def update_point_value(self, idx, val):
+    def update_point_value(self, idx, val, preserve_index=False):
+        print(f"\n[TireCurveEditor] update_point_value: idx={idx}, val={val}, preserve_index={preserve_index}")
         curve = self.slip_curves[self.current_curve_index]
         if self.current_curve_index not in self.modified_curves:
             self.modified_curves[self.current_curve_index] = {
                 'values': curve['values'].copy(), 'step': curve['step']
             }
         self.modified_curves[self.current_curve_index]['values'][idx] = val
-        self.load_curve(self.current_curve_index)
+        # Pass preserve_index to load_curve
+        self.load_curve(self.current_curve_index, preserve_index=preserve_index)
         self.status_bar.showMessage(f"Point {idx+1} updated", 1000)
     
     def highlight_point(self, idx):
-        # Check if we're in curve editor mode and have the necessary attributes
         if not hasattr(self, 'curve_editor_widget') or not self.curve_editor_widget:
             return
         if not hasattr(self, 'point_highlight') or self.point_highlight is None:
@@ -1295,17 +1493,17 @@ class TireCurveEditor:
         x, y = idx * step, vals[idx]
         self.point_highlight.setData([x], [y])
     
-    def show_preview_dialog(self, op):
+    def show_preview_dialog(self, op, curve_editor_widget):
         if not self.curve_editor_widget or op != "smooth":
             return
         curve = self.slip_curves[self.current_curve_index]
         curr = self.modified_curves[self.current_curve_index]['values'] if self.current_curve_index in self.modified_curves else curve['values'].copy()
-        dlg = PreviewDialog("Smooth", curr, self.curve_editor_widget.plot, self.curve_editor_window)
+        dlg = PreviewDialog("Smooth", curr, self.curve_editor_widget.plot, curve_editor_widget, self.curve_editor_window)
         if dlg.exec_() == QDialog.Accepted:
             if self.current_curve_index not in self.modified_curves:
                 self.modified_curves[self.current_curve_index] = {'values': curve['values'].copy(), 'step': curve['step']}
             self.modified_curves[self.current_curve_index]['values'] = dlg.get_values()
-            self.load_curve(self.current_curve_index)
+            self.load_curve(self.current_curve_index, preserve_index=True)
         self.clear_preview()
     
     def update_preview_curve(self, vals):
@@ -1326,7 +1524,8 @@ class TireCurveEditor:
         if self.curve_plot:
             self.curve_plot.setPen(pg.mkPen('b', width=2))
     
-    def load_curve(self, idx):
+    def load_curve(self, idx, preserve_index=False):
+        print(f"\n[TireCurveEditor] load_curve: idx={idx}, preserve_index={preserve_index}")
         self.current_curve_index = idx
         curve = self.slip_curves[idx]
         if idx in self.modified_curves:
@@ -1351,11 +1550,14 @@ class TireCurveEditor:
                 self.peak_marker.setData([x[peak_idx]], [vals[peak_idx]])
             
             if hasattr(self.curve_editor_widget, 'point_edit'):
-                self.curve_editor_widget.point_edit.set_values(vals)
+                # Pass preserve_index to set_values
+                self.curve_editor_widget.point_edit.set_values(vals, preserve_index=preserve_index)
             if hasattr(self.curve_editor_widget, 'step_spin'):
                 self.curve_editor_widget.step_spin.setValue(step)
             
-            self.highlight_point(0)
+            # Get the current index from point_edit after setting values
+            current_idx = self.curve_editor_widget.point_edit.current_point_index
+            self.highlight_point(current_idx)
             
             if hasattr(self.curve_editor_widget, 'plot'):
                 self.curve_editor_widget.plot.autoRange()
@@ -1367,12 +1569,12 @@ class TireCurveEditor:
         if self.current_curve_index not in self.modified_curves:
             self.modified_curves[self.current_curve_index] = {'values': curve['values'].copy(), 'step': curve['step']}
         self.modified_curves[self.current_curve_index]['step'] = val
-        self.load_curve(self.current_curve_index)
+        self.load_curve(self.current_curve_index, preserve_index=True)
     
     def reset_curve(self):
         if self.current_curve_index in self.modified_curves:
             del self.modified_curves[self.current_curve_index]
-            self.load_curve(self.current_curve_index)
+            self.load_curve(self.current_curve_index, preserve_index=True)
     
     def revert_all(self):
         reply = QMessageBox.question(self.window, "Confirm", 
@@ -1384,7 +1586,7 @@ class TireCurveEditor:
             if self.compound_edit_widget:
                 self.compound_edit_widget.update_compounds(self.compounds)
             if self.curve_editor_widget:
-                self.load_curve(self.current_curve_index)
+                self.load_curve(self.current_curve_index, preserve_index=True)
             self.status_bar.showMessage("All changes reverted", 3000)
     
     def save_changes(self):
