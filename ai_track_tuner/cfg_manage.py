@@ -10,6 +10,49 @@ from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit
 from PyQt5.QtCore import Qt
 
 
+def get_exponential_param(param_name, default=None, config_file="cfg.yml"):
+    """
+    Get a specific exponential parameter from configuration
+    
+    Args:
+        param_name (str): Name of the parameter
+        default: Default value if not found
+        config_file (str): Path to the configuration file
+        
+    Returns:
+        The parameter value or default
+    """
+    config = get_config_with_defaults(config_file)
+    
+    if config and 'exponential_params' in config:
+        params = config['exponential_params']
+        return params.get(param_name, default)
+    
+    return default
+
+
+def update_exponential_param(param_name, value, config_file="cfg.yml"):
+    """
+    Update a specific exponential parameter in the configuration file
+    
+    Args:
+        param_name (str): Name of the parameter to update
+        value: New value for the parameter
+        config_file (str): Path to the configuration file
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    config = get_config_with_defaults(config_file)
+    
+    # Ensure exponential_params exists
+    if 'exponential_params' not in config:
+        config['exponential_params'] = DEFAULT_CONFIG['exponential_params'].copy()
+    
+    # Update the parameter
+    config['exponential_params'][param_name] = float(value) if isinstance(value, (int, float)) else value
+    return save_config(config, config_file)
+
 class PathSelectionDialog(QDialog):
     """Dialog for selecting the base path when cfg.yml is missing or path is invalid"""
     
@@ -209,9 +252,19 @@ class PathSelectionDialog(QDialog):
 DEFAULT_CONFIG = {
     'base_path': '',
     'historic_csv': '',
-    'goal_percent': 50.0,  # Default to 50% (middle)
-    'goal_offset': 0.0,     # Default to 0 offset
-    'percent_ratio': 1.0    # Default to 1:1 ratio
+    'goal_percent': 50.0,                    # Default to 50% (middle)
+    'goal_offset': 0.0,                       # Default to 0 offset
+    'percent_ratio': 0.01,                    # Default to 0.01 ratio points per 1% change
+    'use_exponential_model': False,            # Default to linear model
+    'exponential_params': {                    # Default exponential model parameters
+        'default_A': 300.0,                    # Default time range (seconds)
+        'default_k': 3.0,                       # Default decay constant
+        'default_B': 100.0,                     # Default fastest time (seconds)
+        'power_factor': 1.0,                    # Curve shape modifier (p)
+        'ratio_offset': 0.0,                     # Horizontal shift (R0)
+        'min_ratio': 0.1,                        # Minimum allowed ratio
+        'max_ratio': 10.0                        # Maximum allowed ratio
+    }
 }
 
 
@@ -284,6 +337,13 @@ def get_config_with_defaults(config_file="cfg.yml"):
             print(f"Adding missing configuration key '{key}' with default value: {default_value}")
             config[key] = default_value
             modified = True
+        elif isinstance(default_value, dict) and key in config:
+            # Handle nested dictionary keys
+            for subkey, subdefault in default_value.items():
+                if subkey not in config[key]:
+                    print(f"Adding missing configuration key '{key}.{subkey}' with default value: {subdefault}")
+                    config[key][subkey] = subdefault
+                    modified = True
     
     # Save if we added any missing keys
     if modified:
@@ -376,7 +436,7 @@ def update_base_path(new_path, config_file="cfg.yml"):
     return save_config(config, config_file)
 
 
-# New functions for additional configuration parameters
+# Functions for additional configuration parameters
 
 def get_config_value(key, default=None, config_file="cfg.yml"):
     """
@@ -455,7 +515,7 @@ def validate_goal_percent(value, config_file="cfg.yml"):
     """
     try:
         float_val = float(value)
-        return True
+        return 0 <= float_val <= 100
     except (TypeError, ValueError):
         print(f"Warning: Goal percent must be a number, got: {value}")
         return False
@@ -493,9 +553,50 @@ def validate_percent_ratio(value, config_file="cfg.yml"):
     """
     try:
         float_val = float(value)
-        return True
+        return 0.001 <= float_val <= 1.0
     except (TypeError, ValueError):
         print(f"Warning: Percent ratio must be a number, got: {value}")
+        return False
+
+
+def validate_use_exponential_model(value, config_file="cfg.yml"):
+    """
+    Validate that use_exponential_model is a boolean
+    
+    Args:
+        value: Value to validate
+        config_file (str): Path to the configuration file (for logging)
+        
+    Returns:
+        bool: True if valid, False otherwise
+    """
+    return isinstance(value, bool)
+
+
+def validate_exponential_param(value, param_name, min_val=None, max_val=None):
+    """
+    Validate an exponential parameter value
+    
+    Args:
+        value: Value to validate
+        param_name: Name of the parameter for error messages
+        min_val: Minimum allowed value (optional)
+        max_val: Maximum allowed value (optional)
+        
+    Returns:
+        bool: True if valid
+    """
+    try:
+        float_val = float(value)
+        if min_val is not None and float_val < min_val:
+            print(f"Warning: {param_name} must be >= {min_val}, got: {value}")
+            return False
+        if max_val is not None and float_val > max_val:
+            print(f"Warning: {param_name} must be <= {max_val}, got: {value}")
+            return False
+        return True
+    except (TypeError, ValueError):
+        print(f"Warning: {param_name} must be a number, got: {value}")
         return False
 
 
@@ -573,7 +674,7 @@ def get_percent_ratio(config_file="cfg.yml"):
         config_file (str): Path to the configuration file
         
     Returns:
-        float: The percent ratio (defaults to 1.0 if not found or invalid)
+        float: The percent ratio (defaults to 0.01 if not found or invalid)
     """
     config = get_config_with_defaults(config_file)
     
@@ -585,6 +686,94 @@ def get_percent_ratio(config_file="cfg.yml"):
             print(f"Warning: Percent ratio from {config_file} is invalid: {value}")
     
     return DEFAULT_CONFIG['percent_ratio']
+
+
+def get_use_exponential_model(config_file="cfg.yml"):
+    """
+    Get whether to use exponential model from configuration
+    
+    Args:
+        config_file (str): Path to the configuration file
+        
+    Returns:
+        bool: True to use exponential model, False for linear (default)
+    """
+    config = get_config_with_defaults(config_file)
+    
+    if config and 'use_exponential_model' in config:
+        value = config['use_exponential_model']
+        if validate_use_exponential_model(value, config_file):
+            return value
+        else:
+            print(f"Warning: use_exponential_model from {config_file} is invalid: {value}")
+    
+    return DEFAULT_CONFIG['use_exponential_model']
+
+
+def get_exponential_params(config_file="cfg.yml"):
+    """
+    Get exponential model parameters from configuration
+    
+    Args:
+        config_file (str): Path to the configuration file
+        
+    Returns:
+        dict: Exponential parameters with defaults applied
+    """
+    config = get_config_with_defaults(config_file)
+    
+    if config and 'exponential_params' in config:
+        params = config['exponential_params']
+        default_params = DEFAULT_CONFIG['exponential_params']
+        
+        # Validate each parameter and use default if invalid
+        validated_params = {}
+        
+        # Default A (time range)
+        if 'default_A' in params and validate_exponential_param(params['default_A'], 'default_A', 10, 1000):
+            validated_params['default_A'] = float(params['default_A'])
+        else:
+            validated_params['default_A'] = default_params['default_A']
+        
+        # Default k (decay constant)
+        if 'default_k' in params and validate_exponential_param(params['default_k'], 'default_k', 0.1, 10):
+            validated_params['default_k'] = float(params['default_k'])
+        else:
+            validated_params['default_k'] = default_params['default_k']
+        
+        # Default B (fastest time)
+        if 'default_B' in params and validate_exponential_param(params['default_B'], 'default_B', 30, 500):
+            validated_params['default_B'] = float(params['default_B'])
+        else:
+            validated_params['default_B'] = default_params['default_B']
+        
+        # Power factor (p)
+        if 'power_factor' in params and validate_exponential_param(params['power_factor'], 'power_factor', 0.1, 5):
+            validated_params['power_factor'] = float(params['power_factor'])
+        else:
+            validated_params['power_factor'] = default_params['power_factor']
+        
+        # Ratio offset (R0)
+        if 'ratio_offset' in params and validate_exponential_param(params['ratio_offset'], 'ratio_offset', -5, 5):
+            validated_params['ratio_offset'] = float(params['ratio_offset'])
+        else:
+            validated_params['ratio_offset'] = default_params['ratio_offset']
+        
+        # Min ratio
+        if 'min_ratio' in params and validate_exponential_param(params['min_ratio'], 'min_ratio', 0.01, 1):
+            validated_params['min_ratio'] = float(params['min_ratio'])
+        else:
+            validated_params['min_ratio'] = default_params['min_ratio']
+        
+        # Max ratio
+        if 'max_ratio' in params and validate_exponential_param(params['max_ratio'], 'max_ratio', 1, 20):
+            validated_params['max_ratio'] = float(params['max_ratio'])
+        else:
+            validated_params['max_ratio'] = default_params['max_ratio']
+        
+        return validated_params
+    
+    return DEFAULT_CONFIG['exponential_params'].copy()
 
 
 def update_historic_csv(path, config_file="cfg.yml"):
@@ -651,6 +840,45 @@ def update_percent_ratio(value, config_file="cfg.yml"):
     return save_config(config, config_file)
 
 
+def update_use_exponential_model(value, config_file="cfg.yml"):
+    """
+    Update whether to use exponential model in the configuration file
+    
+    Args:
+        value (bool): True to use exponential model, False for linear
+        config_file (str): Path to the configuration file
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    config = get_config_with_defaults(config_file)
+    config['use_exponential_model'] = bool(value)
+    return save_config(config, config_file)
+
+
+def update_exponential_param(param_name, value, config_file="cfg.yml"):
+    """
+    Update a specific exponential parameter in the configuration file
+    
+    Args:
+        param_name (str): Name of the parameter to update
+        value: New value for the parameter
+        config_file (str): Path to the configuration file
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    config = get_config_with_defaults(config_file)
+    
+    # Ensure exponential_params exists
+    if 'exponential_params' not in config:
+        config['exponential_params'] = DEFAULT_CONFIG['exponential_params'].copy()
+    
+    # Update the parameter
+    config['exponential_params'][param_name] = float(value)
+    return save_config(config, config_file)
+
+
 def get_all_config_values(config_file="cfg.yml"):
     """
     Get all configuration values with defaults applied
@@ -714,14 +942,66 @@ def validate_all_config_values(config_file="cfg.yml"):
             'present': 'percent_ratio' in config,
             'valid': validate_percent_ratio(config.get('percent_ratio'), config_file),
             'value': config.get('percent_ratio', DEFAULT_CONFIG['percent_ratio'])
+        },
+        'use_exponential_model': {
+            'present': 'use_exponential_model' in config,
+            'valid': validate_use_exponential_model(config.get('use_exponential_model'), config_file),
+            'value': config.get('use_exponential_model', DEFAULT_CONFIG['use_exponential_model'])
         }
     }
     
+    # Add exponential params validation
+    if 'exponential_params' in config:
+        params = config['exponential_params']
+        default_params = DEFAULT_CONFIG['exponential_params']
+        
+        results['exponential_params'] = {
+            'present': True,
+            'valid': True,
+            'value': {}
+        }
+        
+        for key in default_params.keys():
+            if key in params:
+                if key in ['default_A', 'default_B']:
+                    valid = validate_exponential_param(params[key], key, 10, 1000)
+                elif key == 'default_k':
+                    valid = validate_exponential_param(params[key], key, 0.1, 10)
+                elif key == 'power_factor':
+                    valid = validate_exponential_param(params[key], key, 0.1, 5)
+                elif key == 'ratio_offset':
+                    valid = validate_exponential_param(params[key], key, -5, 5)
+                elif key == 'min_ratio':
+                    valid = validate_exponential_param(params[key], key, 0.01, 1)
+                elif key == 'max_ratio':
+                    valid = validate_exponential_param(params[key], key, 1, 20)
+                else:
+                    valid = validate_exponential_param(params[key], key)
+                
+                results['exponential_params']['value'][key] = params[key]
+                if not valid:
+                    results['exponential_params']['valid'] = False
+            else:
+                results['exponential_params']['value'][key] = default_params[key]
+    else:
+        results['exponential_params'] = {
+            'present': False,
+            'valid': True,
+            'value': DEFAULT_CONFIG['exponential_params'].copy()
+        }
+    
     return results
+
 
 def ensure_historic_csv_exists(config_file="cfg.yml"):
     """
     Ensure the historic CSV file path exists in config and create default if needed
+    
+    Args:
+        config_file (str): Path to the configuration file
+        
+    Returns:
+        str: The historic CSV path
     """
     config = get_config_with_defaults(config_file)
     

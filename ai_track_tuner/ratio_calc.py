@@ -4,10 +4,20 @@ Contains the calculation logic and data structures for ratio calculations
 """
 
 from dataclasses import dataclass, asdict
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Dict
 import csv
 from pathlib import Path
 from datetime import datetime
+import math
+
+
+@dataclass
+class TrackParameters:
+    """Parameters for the exponential formula per track"""
+    A: float  # Range above minimum time
+    k: float  # Decay constant
+    B: float  # Fastest possible time (asymptote)
+    source_data: List[Tuple[float, float]]  # (ratio, median_time) pairs used for fitting
 
 
 @dataclass
@@ -23,6 +33,11 @@ class LapTimes:
         if self.pole > 0 and self.last_ai > 0:
             return (self.pole + self.last_ai) / 2
         return 0.0
+    
+    @property
+    def median_ai(self) -> float:
+        """Calculate median AI time (same as avg for two points)"""
+        return self.avg_ai
     
     @property
     def ai_spread(self) -> float:
@@ -48,6 +63,34 @@ class RatioConfig:
     goal_percent: float = 50.0
     goal_offset: float = 0.0
     percent_ratio: float = 0.01  # Default: 0.01 ratio points per 1% change
+    use_exponential_model: bool = False
+    
+    # Exponential model parameters
+    exponential_default_A: float = 300.0      # Time range above minimum (seconds)
+    exponential_default_k: float = 3.0        # Decay constant
+    exponential_default_B: float = 100.0      # Fastest possible time (seconds)
+    exponential_power_factor: float = 1.0     # Curve shape modifier (p)
+    exponential_ratio_offset: float = 0.0     # Horizontal shift (R0)
+    exponential_min_ratio: float = 0.1        # Minimum allowed ratio
+    exponential_max_ratio: float = 10.0       # Maximum allowed ratio
+
+
+@dataclass
+class PredictedTimes:
+    """Predicted AI times for a given ratio"""
+    best: float  # Predicted best AI time
+    worst: float  # Predicted worst AI time
+    median: float  # Predicted median AI time
+    spread: float  # Predicted spread between best and worst
+    
+    def to_dict(self) -> dict:
+        """Convert to dictionary for display"""
+        return {
+            'best': f"{self.best:.3f}s",
+            'worst': f"{self.worst:.3f}s",
+            'median': f"{self.median:.3f}s",
+            'spread': f"{self.spread:.3f}s"
+        }
 
 
 @dataclass
@@ -65,10 +108,14 @@ class CalculationDetails:
     percent_difference: float  # (player - ai_avg) / ai_spread * 100
     ratio_change: float  # How much the ratio needs to change
     goal_offset_applied: bool  # Whether offset was applied
+    calculation_method: str = "linear"  # "linear" or "exponential"
+    track_params: Optional[TrackParameters] = None
+    curve_info: Optional[dict] = None  # Formula and parameter info
+    predicted_times: Optional[PredictedTimes] = None  # Predicted AI times at new ratio
     
     def to_dict(self) -> dict:
         """Convert to dictionary for CSV export"""
-        return {
+        result = {
             'current_ratio': f"{self.current_ratio:.6f}",
             'new_ratio': f"{self.new_ratio:.6f}",
             'current_position': f"{self.current_position:.2f}%",
@@ -79,8 +126,32 @@ class CalculationDetails:
             'player_time': f"{self.player_time:.3f}",
             'time_diff': f"{self.time_difference:+.3f}",
             'percent_diff': f"{self.percent_difference:+.2f}%",
-            'ratio_change': f"{self.ratio_change:+.6f}"
+            'ratio_change': f"{self.ratio_change:+.6f}",
+            'method': self.calculation_method
         }
+        
+        # Add curve info if available
+        if self.curve_info:
+            result.update({
+                'curve_A': f"{self.curve_info.get('A', 0):.1f}",
+                'curve_k': f"{self.curve_info.get('k', 0):.3f}",
+                'curve_B': f"{self.curve_info.get('B', 0):.1f}",
+                'curve_p': f"{self.curve_info.get('p', 1.0):.2f}",
+                'curve_R0': f"{self.curve_info.get('R0', 0):.2f}",
+                'formula': self.curve_info.get('formula_inverse', ''),
+                'source': self.curve_info.get('source', 'default')
+            })
+        
+        # Add predicted times if available
+        if self.predicted_times:
+            result.update({
+                'pred_best': f"{self.predicted_times.best:.3f}",
+                'pred_worst': f"{self.predicted_times.worst:.3f}",
+                'pred_median': f"{self.predicted_times.median:.3f}",
+                'pred_spread': f"{self.predicted_times.spread:.3f}"
+            })
+        
+        return result
 
 
 @dataclass
@@ -106,6 +177,365 @@ class CalculatedRatios:
         return self.has_qual_ratio() or self.has_race_ratio()
 
 
+class AdjustableExponentialModel:
+    """
+    Adjustable exponential model with configurable parameters
+    Formula: T = A * e^(-k * (R - R0)^p) + B
+    Inverse: R = R0 + (-(1/k) * ln((T - B)/A))^(1/p)
+    """
+    
+    def __init__(self, params=None):
+        """
+        Initialize with parameters from config
+        
+        Args:
+            params: Dictionary with exponential parameters
+                   (default_A, default_k, default_B, power_factor, 
+                    ratio_offset, min_ratio, max_ratio)
+        """
+        if params is None:
+            # Use defaults
+            self.default_A = 300.0
+            self.default_k = 3.0
+            self.default_B = 100.0
+            self.power_factor = 1.0
+            self.ratio_offset = 0.0
+            self.min_ratio = 0.1
+            self.max_ratio = 10.0
+        else:
+            self.default_A = params.get('default_A', 300.0)
+            self.default_k = params.get('default_k', 3.0)
+            self.default_B = params.get('default_B', 100.0)
+            self.power_factor = params.get('power_factor', 1.0)
+            self.ratio_offset = params.get('ratio_offset', 0.0)
+            self.min_ratio = params.get('min_ratio', 0.1)
+            self.max_ratio = params.get('max_ratio', 10.0)
+    
+    def get_formula_string(self, track_params=None):
+        """Get a human-readable formula string with current parameters"""
+        if track_params:
+            A = track_params.A
+            k = track_params.k
+            B = track_params.B
+            source = "track-specific"
+        else:
+            A = self.default_A
+            k = self.default_k
+            B = self.default_B
+            source = "default"
+        
+        # Format parameters nicely
+        A_str = f"{A:.1f}"
+        k_str = f"{k:.3f}"
+        B_str = f"{B:.1f}"
+        p_str = f"{self.power_factor:.2f}"
+        
+        # Format R0 with sign
+        if self.ratio_offset >= 0:
+            R0_str = f"+{self.ratio_offset:.2f}"
+        else:
+            R0_str = f"{self.ratio_offset:.2f}"
+        
+        # Build the formula strings
+        if self.power_factor == 1.0:
+            forward = f"T = {A_str} × e^(-{k_str} × (R {R0_str})) + {B_str}"
+            inverse = f"R = {R0_str} + (-(1/{k_str}) × ln((T - {B_str})/{A_str}))"
+        else:
+            forward = f"T = {A_str} × e^(-{k_str} × (R {R0_str})^{p_str}) + {B_str}"
+            inverse = f"R = {R0_str} + (-(1/{k_str}) × ln((T - {B_str})/{A_str}))^(1/{p_str})"
+        
+        return {
+            'forward': forward,
+            'inverse': inverse,
+            'source': source,
+            'params': {
+                'A': A, 'k': k, 'B': B, 'p': self.power_factor, 'R0': self.ratio_offset
+            }
+        }
+    
+    def predict_times_for_ratio(self, R, track_params=None, current_spread=None):
+        """
+        Predict best and worst AI times for a given ratio
+        
+        Args:
+            R: Ratio value
+            track_params: Optional track-specific parameters
+            current_spread: Current spread between best and worst (for scaling)
+            
+        Returns:
+            PredictedTimes object
+        """
+        # Get median time prediction
+        if track_params:
+            median = self.time_from_ratio(R, track_params)
+        else:
+            median = self.time_from_ratio(R)
+        
+        # Estimate spread based on current spread if available
+        if current_spread and current_spread > 0:
+            # Assume spread scales with ratio (higher ratio = closer times)
+            # This is a heuristic - you might want to model this differently
+            spread_factor = 1.0 / (1.0 + R * 0.5)  # Spread decreases as ratio increases
+            spread = current_spread * spread_factor
+        else:
+            # Default spread as percentage of median time
+            spread = median * 0.03  # Assume 3% spread by default
+        
+        # Calculate best and worst
+        best = median - (spread / 2)
+        worst = median + (spread / 2)
+        
+        return PredictedTimes(
+            best=best,
+            worst=worst,
+            median=median,
+            spread=spread
+        )
+    
+    def time_from_ratio(self, R, track_params=None):
+        """
+        Calculate predicted time from ratio
+        
+        T = A * e^(-k * (R - R0)^p) + B
+        
+        Args:
+            R: Ratio value
+            track_params: Optional track-specific parameters (overrides defaults)
+            
+        Returns:
+            float: Predicted time in seconds
+        """
+        # Use track-specific params if available, otherwise defaults
+        if track_params:
+            A = track_params.A
+            k = track_params.k
+            B = track_params.B
+        else:
+            A = self.default_A
+            k = self.default_k
+            B = self.default_B
+        
+        # Apply adjustments
+        adjusted_R = max(0, R - self.ratio_offset)
+        return A * math.exp(-k * (adjusted_R ** self.power_factor)) + B
+    
+    def ratio_from_time(self, T, track_params=None):
+        """
+        Calculate required ratio for target time
+        
+        R = R0 + (-(1/k) * ln((T - B)/A))^(1/p)
+        
+        Args:
+            T: Target median time in seconds
+            track_params: Optional track-specific parameters (overrides defaults)
+            
+        Returns:
+            float: Required ratio
+        """
+        # Use track-specific params if available, otherwise defaults
+        if track_params:
+            A = track_params.A
+            k = track_params.k
+            B = track_params.B
+        else:
+            A = self.default_A
+            k = self.default_k
+            B = self.default_B
+        
+        # Check if target is achievable
+        if T <= B:
+            raise ValueError(f"Target time {T:.3f}s is faster than track limit {B:.3f}s")
+        
+        t_minus_b = T - B
+        if t_minus_b <= 0:
+            raise ValueError("Target time below track limit")
+        
+        ratio_arg = t_minus_b / A
+        if ratio_arg <= 0:
+            raise ValueError("Invalid ratio calculation - target too low")
+        
+        # Calculate inner part: -(1/k) * ln(ratio_arg)
+        inner = -(1.0 / k) * math.log(ratio_arg)
+        
+        if inner < 0:
+            raise ValueError("Invalid calculation - result would be negative")
+        
+        # Apply power factor and offset
+        if self.power_factor != 1.0:
+            R = self.ratio_offset + (inner ** (1.0 / self.power_factor))
+        else:
+            R = self.ratio_offset + inner
+        
+        # Clamp to valid range
+        return max(self.min_ratio, min(self.max_ratio, R))
+    
+    def get_curve_info(self, track_params=None):
+        """Get information about the current curve"""
+        formula = self.get_formula_string(track_params)
+        
+        if track_params:
+            return {
+                'A': track_params.A,
+                'k': track_params.k,
+                'B': track_params.B,
+                'p': self.power_factor,
+                'R0': self.ratio_offset,
+                'min_R': self.min_ratio,
+                'max_R': self.max_ratio,
+                'formula_forward': formula['forward'],
+                'formula_inverse': formula['inverse'],
+                'source': formula['source'],
+                'params': formula['params']
+            }
+        else:
+            return {
+                'A': self.default_A,
+                'k': self.default_k,
+                'B': self.default_B,
+                'p': self.power_factor,
+                'R0': self.ratio_offset,
+                'min_R': self.min_ratio,
+                'max_R': self.max_ratio,
+                'formula_forward': formula['forward'],
+                'formula_inverse': formula['inverse'],
+                'source': formula['source'],
+                'params': formula['params']
+            }
+
+
+class TrackModelDatabase:
+    """Database of track-specific exponential models derived from historical data"""
+    
+    def __init__(self, csv_path: Optional[str] = None):
+        self.track_parameters: Dict[str, TrackParameters] = {}
+        if csv_path:
+            self.load_from_historic(csv_path)
+    
+    def load_from_historic(self, csv_path: str) -> None:
+        """Load and fit exponential models from historic CSV data"""
+        try:
+            with open(csv_path, 'r') as f:
+                reader = csv.DictReader(f)
+                
+                # Group data by track
+                track_data: Dict[str, List[Tuple[float, float]]] = {}
+                
+                for row in reader:
+                    # Only use rows with AI times
+                    if row.get('Qual AI Best (s)') and row.get('Qual AI Worst (s)'):
+                        try:
+                            track = row['Track Name']
+                            ratio = float(row['Current QualRatio'])
+                            
+                            # Calculate median AI time
+                            best = float(row['Qual AI Best (s)'])
+                            worst = float(row['Qual AI Worst (s)'])
+                            if best > 0 and worst > 0:
+                                median = (best + worst) / 2
+                                
+                                if track not in track_data:
+                                    track_data[track] = []
+                                track_data[track].append((ratio, median))
+                        except (ValueError, KeyError):
+                            continue
+                
+                # Fit exponential model for each track with enough data
+                for track, points in track_data.items():
+                    if len(points) >= 3:  # Need at least 3 points for reliable fit
+                        params = self._fit_exponential_model(points)
+                        if params:
+                            self.track_parameters[track] = params
+                            print(f"Loaded exponential model for {track} (A={params.A:.2f}, k={params.k:.3f}, B={params.B:.2f})")
+        
+        except Exception as e:
+            print(f"Error loading track models: {e}")
+    
+    def _fit_exponential_model(self, points: List[Tuple[float, float]]) -> Optional[TrackParameters]:
+        """
+        Fit exponential model T = A * e^(-k*R) + B to data points
+        Uses three-point method if exactly 3 points, otherwise uses approximation
+        """
+        # Sort by ratio
+        points.sort(key=lambda x: x[0])
+        
+        if len(points) == 3:
+            # Use the three-point method from the analysis
+            R1, T1 = points[0]  # Lowest ratio (slowest times)
+            R2, T2 = points[1]  # Middle ratio
+            R3, T3 = points[2]  # Highest ratio (fastest times)
+            
+            try:
+                # Solve for k using the three-point method
+                # x = e^(-0.5k * (R2-R1))? Actually let's use the method from analysis
+                # Assuming equally spaced for simplicity, we can approximate
+                
+                # Better: Use the method from analysis with any three points
+                # We'll use the general approach
+                
+                # First, estimate B as slightly less than fastest time
+                B_estimate = T3 * 0.98  # Assume asymptote is 2% faster than best seen
+                
+                # Transform to linear form: ln(T - B) = ln(A) - k*R
+                # Try different B values to find best linear fit
+                best_r2 = -1
+                best_params = None
+                
+                for B_test in [T3 * f for f in [0.95, 0.96, 0.97, 0.98, 0.99]]:
+                    transformed = [(R, math.log(T - B_test)) for R, T in points if T > B_test]
+                    if len(transformed) < 2:
+                        continue
+                    
+                    # Linear regression on transformed data
+                    n = len(transformed)
+                    sum_x = sum(R for R, _ in transformed)
+                    sum_y = sum(y for _, y in transformed)
+                    sum_xy = sum(R * y for R, y in transformed)
+                    sum_x2 = sum(R * R for R, _ in transformed)
+                    
+                    denominator = n * sum_x2 - sum_x * sum_x
+                    if abs(denominator) < 1e-10:
+                        continue
+                    
+                    k = (n * sum_xy - sum_x * sum_y) / denominator
+                    lnA = (sum_y - k * sum_x) / n
+                    A = math.exp(lnA)
+                    
+                    # Calculate R-squared
+                    y_mean = sum_y / n
+                    ss_tot = sum((y - y_mean) ** 2 for _, y in transformed)
+                    ss_res = sum((y - (lnA - k * R)) ** 2 for R, y in transformed)
+                    r2 = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
+                    
+                    if r2 > best_r2:
+                        best_r2 = r2
+                        best_params = TrackParameters(
+                            A=A, k=k, B=B_test,
+                            source_data=points
+                        )
+                
+                return best_params
+                
+            except (ValueError, ZeroDivisionError, OverflowError) as e:
+                print(f"Error fitting exponential model: {e}")
+                return None
+        
+        return None
+    
+    def get_parameters(self, track_name: str) -> Optional[TrackParameters]:
+        """Get exponential parameters for a track"""
+        # Try exact match first
+        if track_name in self.track_parameters:
+            return self.track_parameters[track_name]
+        
+        # Try case-insensitive partial match
+        track_lower = track_name.lower()
+        for key, params in self.track_parameters.items():
+            if track_lower in key.lower() or key.lower() in track_lower:
+                return params
+        
+        return None
+
+
 class RatioCalculator:
     """Handles all ratio calculation logic"""
     
@@ -114,10 +544,32 @@ class RatioCalculator:
     EPSILON = 0.001  # Tolerance for division by zero
     DEFAULT_RATIO = 1.0  # Default ratio value
     
-    @staticmethod
+    def __init__(self):
+        self.track_db = TrackModelDatabase()
+        self.exponential_model = None  # Will be initialized with config
+    
+    def load_historic_data(self, csv_path: str):
+        """Load historic data for exponential models"""
+        self.track_db.load_from_historic(csv_path)
+    
+    def configure_exponential_model(self, config: RatioConfig):
+        """Configure the exponential model with settings from config"""
+        params = {
+            'default_A': config.exponential_default_A,
+            'default_k': config.exponential_default_k,
+            'default_B': config.exponential_default_B,
+            'power_factor': config.exponential_power_factor,
+            'ratio_offset': config.exponential_ratio_offset,
+            'min_ratio': config.exponential_min_ratio,
+            'max_ratio': config.exponential_max_ratio
+        }
+        self.exponential_model = AdjustableExponentialModel(params)
+    
     def calculate_single_ratio(
+        self,
         times: LapTimes, 
         config: RatioConfig,
+        track_name: str = "",
         current_ratio: float = DEFAULT_RATIO
     ) -> Tuple[Optional[float], Optional[str], Optional[CalculationDetails]]:
         """
@@ -126,6 +578,7 @@ class RatioCalculator:
         Args:
             times: LapTimes object with pole, last_ai, player times
             config: RatioConfig with goal_percent, goal_offset, percent_ratio
+            track_name: Name of the track (for exponential model)
             current_ratio: Current ratio value (default 1.0)
             
         Returns:
@@ -142,6 +595,27 @@ class RatioCalculator:
         if times.player <= 0:
             return None, "Player time must be greater than 0", None
         
+        # Use exponential model if enabled and track parameters available
+        if config.use_exponential_model:
+            # Ensure exponential model is configured
+            if not self.exponential_model:
+                self.configure_exponential_model(config)
+            
+            # Get track parameters
+            track_params = self.track_db.get_parameters(track_name)
+            
+            return self._calculate_exponential(times, config, track_name, track_params, current_ratio)
+        else:
+            # Linear method (original)
+            return self._calculate_linear(times, config, current_ratio)
+    
+    def _calculate_linear(
+        self,
+        times: LapTimes,
+        config: RatioConfig,
+        current_ratio: float
+    ) -> Tuple[Optional[float], Optional[str], Optional[CalculationDetails]]:
+        """Linear calculation method"""
         ai_spread = times.ai_spread
         
         if ai_spread < RatioCalculator.EPSILON:
@@ -173,6 +647,19 @@ class RatioCalculator:
         time_diff = times.player - avg_ai
         percent_diff = (time_diff / ai_spread) * 100
         
+        # Simple predicted times for linear method (linear interpolation)
+        predicted_best = times.pole * (new_ratio / current_ratio)
+        predicted_worst = times.last_ai * (new_ratio / current_ratio)
+        predicted_median = (predicted_best + predicted_worst) / 2
+        predicted_spread = predicted_worst - predicted_best
+        
+        predicted_times = PredictedTimes(
+            best=predicted_best,
+            worst=predicted_worst,
+            median=predicted_median,
+            spread=predicted_spread
+        )
+        
         # Create details object
         details = CalculationDetails(
             current_ratio=current_ratio,
@@ -186,16 +673,84 @@ class RatioCalculator:
             time_difference=time_diff,
             percent_difference=percent_diff,
             ratio_change=ratio_change,
-            goal_offset_applied=(config.goal_offset != 0)
+            goal_offset_applied=(config.goal_offset != 0),
+            calculation_method="linear",
+            predicted_times=predicted_times
         )
         
         return new_ratio, None, details
     
-    @staticmethod
+    def _calculate_exponential(
+        self,
+        times: LapTimes,
+        config: RatioConfig,
+        track_name: str,
+        track_params: Optional[TrackParameters],
+        current_ratio: float
+    ) -> Tuple[Optional[float], Optional[str], Optional[CalculationDetails]]:
+        """Exponential calculation method"""
+        
+        # Calculate target median AI time based on player time and goal
+        ai_spread = times.ai_spread
+        target_position = config.goal_percent + config.goal_offset
+        
+        # Convert percentage position to time position
+        # If player is at position P%, then median AI time should be at 50%
+        # So: player_time = AI_best + (P/100) * spread
+        # We want median AI time (at 50%) to be: target_median = player_time - ((P - 50)/100) * spread
+        position_diff = (target_position - 50) / 100  # Convert to decimal (e.g., 60% -> +0.1)
+        target_median_time = times.player - position_diff * ai_spread
+        
+        # Apply the exponential formula
+        try:
+            # Calculate required ratio using adjustable model
+            new_ratio = self.exponential_model.ratio_from_time(target_median_time, track_params)
+            
+            # Get curve info for display
+            curve_info = self.exponential_model.get_curve_info(track_params)
+            
+            # Predict AI times at new ratio
+            predicted_times = self.exponential_model.predict_times_for_ratio(
+                new_ratio, track_params, ai_spread
+            )
+            
+            # Calculate details for display
+            avg_ai = times.avg_ai
+            current_position = ((times.player - times.pole) / ai_spread) * 100
+            time_diff = times.player - avg_ai
+            percent_diff = (time_diff / ai_spread) * 100
+            ratio_change = new_ratio - current_ratio
+            
+            details = CalculationDetails(
+                current_ratio=current_ratio,
+                new_ratio=new_ratio,
+                current_position=current_position,
+                target_position=target_position,
+                ai_best=times.pole,
+                ai_worst=times.last_ai,
+                ai_avg=avg_ai,
+                player_time=times.player,
+                time_difference=time_diff,
+                percent_difference=percent_diff,
+                ratio_change=ratio_change,
+                goal_offset_applied=(config.goal_offset != 0),
+                calculation_method="exponential",
+                track_params=track_params,
+                curve_info=curve_info,
+                predicted_times=predicted_times
+            )
+            
+            return new_ratio, None, details
+            
+        except (ValueError, ZeroDivisionError) as e:
+            return None, f"Exponential calculation error: {e}", None
+    
     def calculate_all(
+        self,
         qual_times: LapTimes, 
         race_times: LapTimes,
         config: RatioConfig,
+        track_name: str = "",
         current_qual: float = DEFAULT_RATIO,
         current_race: float = DEFAULT_RATIO
     ) -> CalculatedRatios:
@@ -206,6 +761,7 @@ class RatioCalculator:
             qual_times: LapTimes for qualifying
             race_times: LapTimes for race
             config: RatioConfig with calculation parameters
+            track_name: Name of the track (for exponential model)
             current_qual: Current QualRatio value
             current_race: Current RaceRatio value
             
@@ -214,10 +770,14 @@ class RatioCalculator:
         """
         result = CalculatedRatios()
         
+        # Configure exponential model if needed
+        if config.use_exponential_model and not self.exponential_model:
+            self.configure_exponential_model(config)
+        
         # Calculate QualRatio
         if qual_times.are_valid():
-            qual_ratio, qual_error, qual_details = RatioCalculator.calculate_single_ratio(
-                qual_times, config, current_qual
+            qual_ratio, qual_error, qual_details = self.calculate_single_ratio(
+                qual_times, config, track_name, current_qual
             )
             result.qual_ratio = qual_ratio
             result.qual_error = qual_error
@@ -227,8 +787,8 @@ class RatioCalculator:
         
         # Calculate RaceRatio
         if race_times.are_valid():
-            race_ratio, race_error, race_details = RatioCalculator.calculate_single_ratio(
-                race_times, config, current_race
+            race_ratio, race_error, race_details = self.calculate_single_ratio(
+                race_times, config, track_name, current_race
             )
             result.race_ratio = race_ratio
             result.race_error = race_error
@@ -280,7 +840,8 @@ class HistoricCSVHandler:
         'race_player_time',
         'goal_percent',
         'goal_offset',
-        'percent_ratio'
+        'percent_ratio',
+        'calculation_method'
     ]
     
     def __init__(self, csv_path: str):
@@ -366,7 +927,8 @@ class HistoricCSVHandler:
                 # Configuration
                 'goal_percent': config.goal_percent,
                 'goal_offset': config.goal_offset,
-                'percent_ratio': config.percent_ratio
+                'percent_ratio': config.percent_ratio,
+                'calculation_method': results.qual_details.calculation_method if results.qual_details else "linear"
             }
             
             with open(self.csv_path, 'a', newline='') as f:
@@ -416,7 +978,10 @@ class TimeConverter:
         """
         Convert minutes, seconds, milliseconds to total seconds
         """
-        return minutes * 60 + seconds + milliseconds / 1000.0
+        result = minutes * 60 + seconds + milliseconds / 1000.0
+        # DEBUG: Print calculation
+        print(f"DEBUG - TimeConverter: {minutes}m {seconds}s {result}result")
+        return result
     
     @staticmethod
     def format_time(seconds: float) -> str:
