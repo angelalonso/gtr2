@@ -53,6 +53,7 @@ def update_exponential_param(param_name, value, config_file="cfg.yml"):
     config['exponential_params'][param_name] = float(value) if isinstance(value, (int, float)) else value
     return save_config(config, config_file)
 
+
 class PathSelectionDialog(QDialog):
     """Dialog for selecting the base path when cfg.yml is missing or path is invalid"""
     
@@ -256,6 +257,7 @@ DEFAULT_CONFIG = {
     'goal_offset': 0.0,                       # Default to 0 offset
     'percent_ratio': 0.01,                    # Default to 0.01 ratio points per 1% change
     'use_exponential_model': False,            # Default to linear model
+    'last_filter': '',                         # Last used filter in AIW editor
     'exponential_params': {                    # Default exponential model parameters
         'default_A': 300.0,                    # Default time range (seconds)
         'default_k': 3.0,                       # Default decay constant
@@ -434,6 +436,51 @@ def update_base_path(new_path, config_file="cfg.yml"):
     config = get_config_with_defaults(config_file)
     config['base_path'] = str(new_path)
     return save_config(config, config_file)
+
+
+# Functions for filter persistence
+
+def save_last_filter(filter_text, config_file="cfg.yml"):
+    """
+    Save the last used filter text to configuration
+    
+    Args:
+        filter_text (str): The filter text to save
+        config_file (str): Path to the configuration file
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    config = get_config_with_defaults(config_file)
+    config['last_filter'] = filter_text
+    return save_config(config, config_file)
+
+
+def load_last_filter(config_file="cfg.yml"):
+    """
+    Load the last used filter text from configuration
+    
+    Args:
+        config_file (str): Path to the configuration file
+        
+    Returns:
+        str: The last filter text, or empty string if not found
+    """
+    config = get_config_with_defaults(config_file)
+    return config.get('last_filter', '')
+
+
+def clear_last_filter(config_file="cfg.yml"):
+    """
+    Clear the saved filter text
+    
+    Args:
+        config_file (str): Path to the configuration file
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    return save_last_filter('', config_file)
 
 
 # Functions for additional configuration parameters
@@ -856,29 +903,6 @@ def update_use_exponential_model(value, config_file="cfg.yml"):
     return save_config(config, config_file)
 
 
-def update_exponential_param(param_name, value, config_file="cfg.yml"):
-    """
-    Update a specific exponential parameter in the configuration file
-    
-    Args:
-        param_name (str): Name of the parameter to update
-        value: New value for the parameter
-        config_file (str): Path to the configuration file
-        
-    Returns:
-        bool: True if successful, False otherwise
-    """
-    config = get_config_with_defaults(config_file)
-    
-    # Ensure exponential_params exists
-    if 'exponential_params' not in config:
-        config['exponential_params'] = DEFAULT_CONFIG['exponential_params'].copy()
-    
-    # Update the parameter
-    config['exponential_params'][param_name] = float(value)
-    return save_config(config, config_file)
-
-
 def get_all_config_values(config_file="cfg.yml"):
     """
     Get all configuration values with defaults applied
@@ -947,6 +971,11 @@ def validate_all_config_values(config_file="cfg.yml"):
             'present': 'use_exponential_model' in config,
             'valid': validate_use_exponential_model(config.get('use_exponential_model'), config_file),
             'value': config.get('use_exponential_model', DEFAULT_CONFIG['use_exponential_model'])
+        },
+        'last_filter': {
+            'present': 'last_filter' in config,
+            'valid': isinstance(config.get('last_filter', ''), str),
+            'value': config.get('last_filter', '')
         }
     }
     

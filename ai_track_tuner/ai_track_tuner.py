@@ -14,16 +14,13 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 
 # Import configuration management
-from cfg_manage import get_or_prompt_base_path
+from cfg_manage import get_or_prompt_base_path, save_last_filter, load_last_filter
 # Import ratio calculator dialog
 from ratio_gui import RatioCalculatorDialog
 
 
 class RatioItemDelegate(QStyledItemDelegate):
     """Custom delegate for ratio cells to handle editing"""
-    def __init__(self, parent=None):
-        super().__init__(parent)
-    
     def createEditor(self, parent, option, index):
         editor = QDoubleSpinBox(parent)
         editor.setRange(0.0, 10.0)
@@ -40,132 +37,132 @@ class RatioItemDelegate(QStyledItemDelegate):
             except ValueError:
                 editor.setValue(0.0)
         else:
-            editor.setValue(1.0)  # Default value
+            editor.setValue(1.0)
     
     def setModelData(self, editor, model, index):
         value = editor.value()
         model.setData(index, f"{value:.6f}", Qt.EditRole)
 
 
+class Worker(QThread):
+    """Worker thread for background tasks"""
+    finished = pyqtSignal(object)
+    progress = pyqtSignal(str)
+    error = pyqtSignal(str)
+    
+    def __init__(self, fn, *args, **kwargs):
+        super().__init__()
+        self.fn = fn
+        self.args = args
+        self.kwargs = kwargs
+    
+    def run(self):
+        try:
+            result = self.fn(*self.args, **self.kwargs)
+            self.finished.emit(result)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
 class EditableTableWidget(QTableWidget):
     """Custom table widget with editable ratio cells and per-row action buttons"""
     
-    value_changed = pyqtSignal(int, str, str)  # row_id, ratio_type, new_value
-    save_row = pyqtSignal(int)  # row_id
-    restore_row = pyqtSignal(int)  # row_id - restore session changes
-    restore_from_backup_row = pyqtSignal(int)  # row_id - restore from backup file
-    calc_row = pyqtSignal(int)  # row_id - open ratio calculator
+    value_changed = pyqtSignal(int, str, str)
+    save_row = pyqtSignal(int)
+    restore_row = pyqtSignal(int)
+    restore_from_backup_row = pyqtSignal(int)
+    calc_row = pyqtSignal(int)
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.modified_rows = set()  # Track which row_ids have unsaved changes
-        self.original_values = {}  # Store original values for each row: (row_id, type) -> value
-        self.has_backup = set()  # Track which row_ids have backup files
-        self.row_id_to_file = {}  # Map row_id to file path
-        self.row_id_to_track = {}  # Map row_id to track name
-        self.row_id_to_index = {}  # Map row_id to current visual index
-        self.index_to_row_id = {}  # Map visual index to row_id
-        self.next_row_id = 0  # Counter for generating unique row IDs
+        self.modified_rows = set()
+        self.original_values = {}
+        self.has_backup = set()
+        self.row_data = {}  # row_id -> {file_path, track_name, visual_row}
+        self.next_row_id = 0
         self.setup_ui()
         
     def setup_ui(self):
         self.setColumnCount(4)
-        self.setHorizontalHeaderLabels([
-            "Track Name", 
-            "QualRatio", 
-            "RaceRatio", 
-            "Actions"
-        ])
+        self.setHorizontalHeaderLabels(["Track Name", "QualRatio", "RaceRatio", "Actions"])
         
         # Set column widths
-        self.setColumnWidth(0, 400)  # Track Name
-        self.setColumnWidth(1, 120)  # QualRatio
-        self.setColumnWidth(2, 120)  # RaceRatio
-        self.setColumnWidth(3, 300)  # Actions - wider for four buttons
+        self.setColumnWidth(0, 400)
+        self.setColumnWidth(1, 120)
+        self.setColumnWidth(2, 120)
+        self.setColumnWidth(3, 320)  # Slightly wider for Data&Calc
         
-        # Set row height to be taller for buttons
+        # Row height for buttons
         self.verticalHeader().setDefaultSectionSize(50)
         
-        # DISABLE SORTING - THIS FIXES THE ISSUE
+        # Disable sorting to maintain row_id mapping
         self.setSortingEnabled(False)
-        
-        # Also disable clickable headers to prevent any sorting attempts
         self.horizontalHeader().setSectionsClickable(False)
-        self.horizontalHeader().setHighlightSections(False)
         
-        # Table styling
+        # Styling
         self.setAlternatingRowColors(True)
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         
-        # Set custom delegate for ratio columns
+        # Custom delegate for ratio columns
         self.setItemDelegateForColumn(1, RatioItemDelegate(self))
         self.setItemDelegateForColumn(2, RatioItemDelegate(self))
         
         # Connect signals
         self.itemChanged.connect(self.on_item_changed)
     
-    def get_row_id_from_visual(self, visual_row):
-        """Get the row ID for a visual row index"""
-        return self.index_to_row_id.get(visual_row)
-    
-    def get_visual_row_from_id(self, row_id):
-        """Get the visual row index for a row ID"""
-        return self.row_id_to_index.get(row_id, -1)
+    def get_row_id(self, visual_row):
+        """Get row ID for visual row index"""
+        for row_id, data in self.row_data.items():
+            if data.get('visual_row') == visual_row:
+                return row_id
+        return None
     
     def on_item_changed(self, item):
         """Handle item changes"""
-        if item.column() in [1, 2]:  # Only for ratio columns
+        if item.column() in [1, 2]:
             visual_row = item.row()
-            row_id = self.get_row_id_from_visual(visual_row)
+            row_id = self.get_row_id(visual_row)
             if row_id is None:
                 return
                 
             ratio_type = "QualRatio" if item.column() == 1 else "RaceRatio"
             new_value = item.text()
             
-            # Store original value if not already stored
+            # Store original value
             if (row_id, ratio_type) not in self.original_values:
                 self.original_values[(row_id, ratio_type)] = new_value
             
-            # Mark row as modified
             self.modified_rows.add(row_id)
-            
-            # Change text color to yellow
             item.setForeground(QBrush(QColor("#FFA500")))
-            
-            # Emit signal
             self.value_changed.emit(row_id, ratio_type, new_value)
-            
-            # Update action buttons for this row
-            self.update_row_buttons_by_id(row_id)
+            self.update_row_buttons(row_id)
     
-    def update_row_buttons_by_id(self, row_id):
-        """Update the action buttons for a specific row ID"""
-        visual_row = self.get_visual_row_from_id(row_id)
-        if visual_row < 0:
+    def update_row_buttons(self, row_id):
+        """Update action buttons for a row"""
+        data = self.row_data.get(row_id)
+        if not data or data['visual_row'] < 0:
             return
             
-        # Remove existing widget if any
+        visual_row = data['visual_row']
+        
+        # Remove existing widget
         current_widget = self.cellWidget(visual_row, 3)
         if current_widget:
             current_widget.deleteLater()
         
-        # Create button widget for this row
+        # Create button widget
         button_widget = QWidget()
-        button_layout = QHBoxLayout(button_widget)
-        button_layout.setContentsMargins(2, 2, 2, 2)
-        button_layout.setSpacing(4)
+        layout = QHBoxLayout(button_widget)
+        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setSpacing(4)
         
-        # Get file path and track name for tooltips
-        file_path = self.row_id_to_file.get(row_id, "Unknown file")
-        track_name = self.row_id_to_track.get(row_id, "Unknown track")
+        track_name = data.get('track_name', 'Unknown')
         
-        # Calc button (always visible)
-        calc_btn = QPushButton("Calc")
-        calc_btn.setToolTip(f"Open ratio calculator for {track_name}")
+        # Data&Calc button (always visible) - renamed from "Calc"
+        calc_btn = QPushButton("Data&Calc")
+        calc_btn.setToolTip(f"Open data calculator for {track_name}")
         calc_btn.setFixedHeight(32)
-        calc_btn.setFixedWidth(45)
+        calc_btn.setFixedWidth(75)
         calc_btn.setCursor(Qt.PointingHandCursor)
         calc_btn.setStyleSheet("""
             QPushButton {
@@ -173,27 +170,19 @@ class EditableTableWidget(QTableWidget):
                 color: white;
                 border: none;
                 border-radius: 4px;
-                font-family: 'Segoe UI', 'Arial', sans-serif;
                 font-size: 11px;
                 font-weight: bold;
-                text-align: center;
-                padding: 2px 0px;
-                margin: 0px;
             }
-            QPushButton:hover {
-                background-color: #7B1FA2;
-            }
-            QPushButton:pressed {
-                background-color: #6A1B9A;
-            }
+            QPushButton:hover { background-color: #7B1FA2; }
+            QPushButton:pressed { background-color: #6A1B9A; }
         """)
-        calc_btn.clicked.connect(lambda checked, r=row_id: self.calc_row.emit(r))
-        button_layout.addWidget(calc_btn)
+        calc_btn.clicked.connect(lambda: self.calc_row.emit(row_id))
+        layout.addWidget(calc_btn)
         
-        # Save button (only for modified rows)
+        # Save button (modified rows only)
         if row_id in self.modified_rows:
             save_btn = QPushButton("Save")
-            save_btn.setToolTip(f"Save changes to: {file_path}")
+            save_btn.setToolTip(f"Save changes to: {data.get('file_path', 'Unknown')}")
             save_btn.setFixedHeight(32)
             save_btn.setFixedWidth(45)
             save_btn.setCursor(Qt.PointingHandCursor)
@@ -203,31 +192,18 @@ class EditableTableWidget(QTableWidget):
                     color: white;
                     border: none;
                     border-radius: 4px;
-                    font-family: 'Segoe UI', 'Arial', sans-serif;
                     font-size: 11px;
                     font-weight: bold;
-                    text-align: center;
-                    padding: 2px 0px;
-                    margin: 0px;
                 }
-                QPushButton:hover {
-                    background-color: #45a049;
-                }
-                QPushButton:pressed {
-                    background-color: #3d8b40;
-                }
-                QPushButton:disabled {
-                    background-color: #666666;
-                    color: #999999;
-                }
+                QPushButton:hover { background-color: #45a049; }
+                QPushButton:pressed { background-color: #3d8b40; }
             """)
-            save_btn.clicked.connect(lambda checked, r=row_id: self.save_row.emit(r))
-            button_layout.addWidget(save_btn)
-        
-        # Restore session button (only for modified rows)
-        if row_id in self.modified_rows:
+            save_btn.clicked.connect(lambda: self.save_row.emit(row_id))
+            layout.addWidget(save_btn)
+            
+            # Restore button (modified rows only)
             restore_btn = QPushButton("Restore")
-            restore_btn.setToolTip(f"Restore {track_name} to original session values")
+            restore_btn.setToolTip(f"Restore to original session values")
             restore_btn.setFixedHeight(32)
             restore_btn.setFixedWidth(45)
             restore_btn.setCursor(Qt.PointingHandCursor)
@@ -237,301 +213,205 @@ class EditableTableWidget(QTableWidget):
                     color: white;
                     border: none;
                     border-radius: 4px;
-                    font-family: 'Segoe UI', 'Arial', sans-serif;
                     font-size: 11px;
                     font-weight: bold;
-                    text-align: center;
-                    padding: 2px 0px;
-                    margin: 0px;
                 }
-                QPushButton:hover {
-                    background-color: #f39c12;
-                }
-                QPushButton:pressed {
-                    background-color: #e67e22;
-                }
-                QPushButton:disabled {
-                    background-color: #666666;
-                    color: #999999;
-                }
+                QPushButton:hover { background-color: #f39c12; }
+                QPushButton:pressed { background-color: #e67e22; }
             """)
-            restore_btn.clicked.connect(lambda checked, r=row_id: self.restore_row.emit(r))
-            button_layout.addWidget(restore_btn)
+            restore_btn.clicked.connect(lambda: self.restore_row.emit(row_id))
+            layout.addWidget(restore_btn)
         
-        # Restore from backup button (if backup exists) - ALWAYS show this if backup exists
+        # Orig button (if backup exists)
         if row_id in self.has_backup:
-            restore_backup_btn = QPushButton("Orig")
-            restore_backup_btn.setToolTip(f"Restore {track_name} from backup: {file_path}.original")
-            restore_backup_btn.setFixedHeight(32)
-            restore_backup_btn.setFixedWidth(40)
-            restore_backup_btn.setCursor(Qt.PointingHandCursor)
-            restore_backup_btn.setStyleSheet("""
+            orig_btn = QPushButton("Orig")
+            orig_btn.setToolTip(f"Restore from backup")
+            orig_btn.setFixedHeight(32)
+            orig_btn.setFixedWidth(40)
+            orig_btn.setCursor(Qt.PointingHandCursor)
+            orig_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #2196F3;
                     color: white;
                     border: none;
                     border-radius: 4px;
-                    font-family: 'Segoe UI', 'Arial', sans-serif;
                     font-size: 11px;
                     font-weight: bold;
-                    text-align: center;
-                    padding: 2px 0px;
-                    margin: 0px;
                 }
-                QPushButton:hover {
-                    background-color: #1976D2;
-                }
-                QPushButton:pressed {
-                    background-color: #0D47A1;
-                }
-                QPushButton:disabled {
-                    background-color: #666666;
-                    color: #999999;
-                }
+                QPushButton:hover { background-color: #1976D2; }
+                QPushButton:pressed { background-color: #0D47A1; }
             """)
-            restore_backup_btn.clicked.connect(lambda checked, r=row_id: self.restore_from_backup_row.emit(r))
-            button_layout.addWidget(restore_backup_btn)
+            orig_btn.clicked.connect(lambda: self.restore_from_backup_row.emit(row_id))
+            layout.addWidget(orig_btn)
         
-        button_layout.addStretch()
-        
+        layout.addStretch()
         self.setCellWidget(visual_row, 3, button_widget)
     
     def restore_row_value(self, row_id, ratio_type):
-        """Restore a single value for a row from session"""
+        """Restore a single value from session"""
         key = (row_id, ratio_type)
-        if key in self.original_values:
-            original = self.original_values[key]
-            col = 1 if ratio_type == "QualRatio" else 2
+        if key not in self.original_values:
+            return
             
-            visual_row = self.get_visual_row_from_id(row_id)
-            if visual_row < 0:
-                return
+        data = self.row_data.get(row_id)
+        if not data or data['visual_row'] < 0:
+            return
             
-            # Update the item
-            item = self.item(visual_row, col)
-            if item:
-                item.setText(original)
-                item.setForeground(QBrush(QColor("#ffffff")))  # Back to white
-            
-            # Remove from original values
-            del self.original_values[key]
-            
-            # Check if the row still has any modified values
-            remaining = [k for k in self.original_values if k[0] == row_id]
-            if not remaining:
-                self.modified_rows.discard(row_id)
-            
-            self.update_row_buttons_by_id(row_id)
+        visual_row = data['visual_row']
+        col = 1 if ratio_type == "QualRatio" else 2
+        
+        item = self.item(visual_row, col)
+        if item:
+            item.setText(self.original_values[key])
+            item.setForeground(QBrush(QColor("#ffffff")))
+        
+        del self.original_values[key]
+        
+        # Check if row still has modifications
+        if not any(k[0] == row_id for k in self.original_values):
+            self.modified_rows.discard(row_id)
+        
+        self.update_row_buttons(row_id)
     
     def clear_row_modifications(self, row_id):
-        """Clear all modifications for a row after save"""
-        # Remove from modified rows
+        """Clear all modifications for a row"""
         self.modified_rows.discard(row_id)
-        
-        # Clear original values for this row
-        keys_to_remove = [k for k in self.original_values if k[0] == row_id]
-        for key in keys_to_remove:
+        keys = [k for k in self.original_values if k[0] == row_id]
+        for key in keys:
             del self.original_values[key]
         
-        visual_row = self.get_visual_row_from_id(row_id)
-        if visual_row >= 0:
-            # Reset text colors to white
+        data = self.row_data.get(row_id)
+        if data and data['visual_row'] >= 0:
             for col in [1, 2]:
-                item = self.item(visual_row, col)
+                item = self.item(data['visual_row'], col)
                 if item:
                     item.setForeground(QBrush(QColor("#ffffff")))
         
-        # Update action buttons
-        self.update_row_buttons_by_id(row_id)
-    
-    def set_has_backup(self, row_id, has_backup):
-        """Set whether a row has a backup file"""
-        if has_backup:
-            self.has_backup.add(row_id)
-        else:
-            self.has_backup.discard(row_id)
-    
-    def get_row_data(self, row_id):
-        """Get all data for a row"""
-        visual_row = self.get_visual_row_from_id(row_id)
-        if visual_row < 0:
-            return "", "", ""
-            
-        track_name = self.item(visual_row, 0).text() if self.item(visual_row, 0) else ""
-        qual_ratio = self.item(visual_row, 1).text() if self.item(visual_row, 1) else "(not found)"
-        race_ratio = self.item(visual_row, 2).text() if self.item(visual_row, 2) else "(not found)"
-        return track_name, qual_ratio, race_ratio
-    
-    def set_file_path(self, row_id, aiw_path):
-        """Store the AIW file path for a row"""
-        self.row_id_to_file[row_id] = str(aiw_path)
-        visual_row = self.get_visual_row_from_id(row_id)
-        if visual_row >= 0:
-            # Set tooltip for the track name cell
-            track_item = self.item(visual_row, 0)
-            if track_item:
-                track_item.setToolTip(f"AIW File: {aiw_path}")
+        self.update_row_buttons(row_id)
     
     def update_values_from_backup(self, row_id, qual_value, race_value):
-        """Update the display with values from backup"""
-        visual_row = self.get_visual_row_from_id(row_id)
-        if visual_row < 0:
+        """Update display with values from backup"""
+        data = self.row_data.get(row_id)
+        if not data or data['visual_row'] < 0:
             return
             
-        # Update QualRatio
-        qual_item = self.item(visual_row, 1)
-        if qual_item and qual_value is not None:
-            qual_item.setText(f"{qual_value:.6f}")
-            qual_item.setForeground(QBrush(QColor("#2196F3")))  # Blue to indicate from backup
+        visual_row = data['visual_row']
         
-        # Update RaceRatio
-        race_item = self.item(visual_row, 2)
-        if race_item and race_value is not None:
-            race_item.setText(f"{race_value:.6f}")
-            race_item.setForeground(QBrush(QColor("#2196F3")))  # Blue to indicate from backup
+        # Update values
+        for col, value in [(1, qual_value), (2, race_value)]:
+            if value is not None:
+                item = self.item(visual_row, col)
+                if item:
+                    item.setText(f"{value:.6f}")
+                    item.setForeground(QBrush(QColor("#2196F3")))
         
-        # Clear any session modifications for this row
-        keys_to_remove = [k for k in self.original_values if k[0] == row_id]
-        for key in keys_to_remove:
-            del self.original_values[key]
-        self.modified_rows.discard(row_id)
-        
-        # Update buttons
-        self.update_row_buttons_by_id(row_id)
+        # Clear modifications
+        self.clear_row_modifications(row_id)
     
     def update_ratios(self, row_id, qual_ratio, race_ratio):
-        """Update both ratios for a row (used by calculator)"""
-        visual_row = self.get_visual_row_from_id(row_id)
-        if visual_row < 0:
+        """Update both ratios (used by calculator)"""
+        data = self.row_data.get(row_id)
+        if not data or data['visual_row'] < 0:
             return
             
+        visual_row = data['visual_row']
         any_change = False
         
-        # Update QualRatio
-        qual_item = self.item(visual_row, 1)
-        if qual_item and qual_ratio is not None:
-            old_value = qual_item.text()
-            new_value = f"{qual_ratio:.6f}"
-            
-            if old_value != new_value:
-                # Store original value if not already stored
-                if (row_id, "QualRatio") not in self.original_values:
-                    self.original_values[(row_id, "QualRatio")] = old_value
-                
-                qual_item.setText(new_value)
-                qual_item.setForeground(QBrush(QColor("#9C27B0")))  # Purple to indicate from calculator
-                any_change = True
+        for col, ratio, ratio_type in [(1, qual_ratio, "QualRatio"), (2, race_ratio, "RaceRatio")]:
+            if ratio is not None:
+                item = self.item(visual_row, col)
+                if item:
+                    old_value = item.text()
+                    new_value = f"{ratio:.6f}"
+                    
+                    if old_value != new_value:
+                        if (row_id, ratio_type) not in self.original_values:
+                            self.original_values[(row_id, ratio_type)] = old_value
+                        
+                        item.setText(new_value)
+                        item.setForeground(QBrush(QColor("#9C27B0")))
+                        any_change = True
         
-        # Update RaceRatio
-        race_item = self.item(visual_row, 2)
-        if race_item and race_ratio is not None:
-            old_value = race_item.text()
-            new_value = f"{race_ratio:.6f}"
-            
-            if old_value != new_value:
-                # Store original value if not already stored
-                if (row_id, "RaceRatio") not in self.original_values:
-                    self.original_values[(row_id, "RaceRatio")] = old_value
-                
-                race_item.setText(new_value)
-                race_item.setForeground(QBrush(QColor("#9C27B0")))  # Purple to indicate from calculator
-                any_change = True
-        
-        # Mark as modified if any value changed
         if any_change:
             self.modified_rows.add(row_id)
-            # Update action buttons for this row
-            self.update_row_buttons_by_id(row_id)
-            
-            # Emit signals for any changed values
-            if qual_ratio is not None and qual_item:
-                self.value_changed.emit(row_id, "QualRatio", qual_item.text())
-            if race_ratio is not None and race_item:
-                self.value_changed.emit(row_id, "RaceRatio", race_item.text())
-        else:
-            # Even if no change, we should still update buttons to ensure they're correct
-            self.update_row_buttons_by_id(row_id)
+            self.value_changed.emit(row_id, "QualRatio", qual_ratio)
+            self.value_changed.emit(row_id, "RaceRatio", race_ratio)
+        
+        self.update_row_buttons(row_id)
     
-    def populate_row(self, row_id, track_name, qual_value, race_value, has_backup, aiw_path):
-        """Populate a row with initial data - this should not trigger modified state"""
-        visual_row = self.rowCount()  # New row at the end
+    def add_row(self, track_name, qual_value, race_value, has_backup, aiw_path):
+        """Add a new row to the table"""
+        row_id = self.next_row_id
+        self.next_row_id += 1
+        visual_row = self.rowCount()
         
-        # Store mappings and data
-        self.row_id_to_index[row_id] = visual_row
-        self.index_to_row_id[visual_row] = row_id
-        self.row_id_to_file[row_id] = str(aiw_path)
-        self.row_id_to_track[row_id] = track_name
+        # Store row data
+        self.row_data[row_id] = {
+            'visual_row': visual_row,
+            'file_path': str(aiw_path),
+            'track_name': track_name
+        }
         
-        # Insert the row
         self.insertRow(visual_row)
-        
-        # Block signals to prevent itemChanged from firing
         self.blockSignals(True)
         
-        # Track Name (read-only)
+        # Track Name
         name_item = QTableWidgetItem(track_name)
-        name_item.row_id = row_id  # Store row_id in the item
         name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
-        if track_name == Path(aiw_path).stem:
-            name_item.setForeground(QBrush(QColor("#FFA500")))  # Orange for fallback
-        else:
-            name_item.setForeground(QBrush(QColor("#4CAF50")))  # Green for real track name
-        
-        # Set tooltip with full AIW file path
         name_item.setToolTip(f"AIW File: {aiw_path}")
+        name_item.setForeground(QBrush(QColor("#4CAF50" if track_name != Path(aiw_path).stem else "#FFA500")))
         self.setItem(visual_row, 0, name_item)
         
-        # QualRatio (editable)
+        # QualRatio
         if qual_value is not None:
             qual_item = QTableWidgetItem(f"{qual_value:.6f}")
         else:
             qual_item = QTableWidgetItem("(not found)")
-            qual_item.setFlags(qual_item.flags() & ~Qt.ItemIsEditable)  # Make read-only if not found
+            qual_item.setFlags(qual_item.flags() & ~Qt.ItemIsEditable)
             qual_item.setForeground(QBrush(QColor("#f44336")))
         self.setItem(visual_row, 1, qual_item)
         
-        # RaceRatio (editable)
+        # RaceRatio
         if race_value is not None:
             race_item = QTableWidgetItem(f"{race_value:.6f}")
         else:
             race_item = QTableWidgetItem("(not found)")
-            race_item.setFlags(race_item.flags() & ~Qt.ItemIsEditable)  # Make read-only if not found
+            race_item.setFlags(race_item.flags() & ~Qt.ItemIsEditable)
             race_item.setForeground(QBrush(QColor("#f44336")))
         self.setItem(visual_row, 2, race_item)
         
-        # Unblock signals
         self.blockSignals(False)
         
-        # Set backup status (without triggering button update yet)
+        # Set backup status
         if has_backup:
             self.has_backup.add(row_id)
-        else:
-            self.has_backup.discard(row_id)
         
-        # Now create the initial buttons
-        self.update_row_buttons_by_id(row_id)
+        self.update_row_buttons(row_id)
+        return row_id
     
-    def clear_table(self):
-        """Clear all rows and mappings"""
+    def clear_all(self):
+        """Clear all rows and data"""
         self.setRowCount(0)
         self.modified_rows.clear()
         self.original_values.clear()
         self.has_backup.clear()
-        self.row_id_to_file.clear()
-        self.row_id_to_track.clear()
-        self.row_id_to_index.clear()
-        self.index_to_row_id.clear()
+        self.row_data.clear()
+        self.next_row_id = 0
     
     def filter_rows(self, filter_text):
         """Filter rows based on track name"""
         filter_text = filter_text.lower()
+        visible_count = 0
         
         for visual_row in range(self.rowCount()):
             item = self.item(visual_row, 0)
             if item:
-                track_name = item.text().lower()
-                should_show = filter_text in track_name if filter_text else True
+                should_show = not filter_text or filter_text in item.text().lower()
                 self.setRowHidden(visual_row, not should_show)
+                if should_show:
+                    visible_count += 1
+        
+        return visible_count
 
 
 class AIWRatioEditor(QMainWindow):
@@ -540,12 +420,19 @@ class AIWRatioEditor(QMainWindow):
         self.base_path = Path(base_path)
         self.aiw_files = []  # List of (aiw_path, gdb_path, track_name, row_id)
         self.backup_dir = Path("./backup_originals")
+        self.scan_worker = None
         self.setup_ui()
+        
+        # Load last filter and start scan
+        last_filter = load_last_filter()
+        if last_filter:
+            self.filter_edit.setText(last_filter)
+        
         self.scan_files()
         
     def setup_ui(self):
         self.setWindowTitle(f"AIW Ratio Editor - Scanning: {self.base_path}")
-        self.setGeometry(100, 100, 1250, 850)  # Taller for filter box
+        self.setGeometry(100, 100, 1250, 850)
         
         self.apply_dark_theme()
         
@@ -553,35 +440,29 @@ class AIWRatioEditor(QMainWindow):
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
         
-        # Header with path info
-        header_widget = QWidget()
-        header_layout = QHBoxLayout(header_widget)
+        # Header
+        header = QWidget()
+        header_layout = QHBoxLayout(header)
         header_layout.setContentsMargins(0, 0, 0, 10)
         
-        path_label = QLabel(f"Scanning: ")
-        path_label.setStyleSheet("color: #888; font-size: 12px;")
-        header_layout.addWidget(path_label)
-        
+        header_layout.addWidget(QLabel("Scanning: "))
         self.path_value = QLabel(str(self.base_path))
-        self.path_value.setStyleSheet("color: #4CAF50; font-weight: bold; font-size: 12px;")
+        self.path_value.setStyleSheet("color: #4CAF50; font-weight: bold;")
         header_layout.addWidget(self.path_value)
-        
         header_layout.addStretch()
         
         self.stats_label = QLabel("")
-        self.stats_label.setStyleSheet("color: #FFA500; font-size: 12px;")
+        self.stats_label.setStyleSheet("color: #FFA500;")
         header_layout.addWidget(self.stats_label)
         
-        main_layout.addWidget(header_widget)
+        main_layout.addWidget(header)
         
         # Filter section
         filter_widget = QWidget()
         filter_layout = QHBoxLayout(filter_widget)
         filter_layout.setContentsMargins(0, 0, 0, 10)
         
-        filter_label = QLabel("Filter by Track Name:")
-        filter_label.setStyleSheet("color: #888; font-size: 12px;")
-        filter_layout.addWidget(filter_label)
+        filter_layout.addWidget(QLabel("Filter by Track Name:"))
         
         self.filter_edit = QLineEdit()
         self.filter_edit.setPlaceholderText("Enter track name to filter...")
@@ -593,12 +474,10 @@ class AIWRatioEditor(QMainWindow):
                 border: 1px solid #555;
                 border-radius: 4px;
                 padding: 4px 8px;
-                font-size: 12px;
             }
-            QLineEdit:focus {
-                border: 1px solid #4CAF50;
-            }
+            QLineEdit:focus { border: 1px solid #4CAF50; }
         """)
+        self.filter_edit.returnPressed.connect(self.save_filter)
         self.filter_edit.textChanged.connect(self.on_filter_changed)
         filter_layout.addWidget(self.filter_edit)
         
@@ -612,152 +491,91 @@ class AIWRatioEditor(QMainWindow):
                 color: white;
                 border: none;
                 border-radius: 4px;
-                font-size: 11px;
                 font-weight: bold;
-                padding: 4px 8px;
             }
-            QPushButton:hover {
-                background-color: #d32f2f;
-            }
-            QPushButton:pressed {
-                background-color: #b71c1c;
-            }
+            QPushButton:hover { background-color: #d32f2f; }
         """)
         self.clear_filter_btn.clicked.connect(self.clear_filter)
         filter_layout.addWidget(self.clear_filter_btn)
         
         filter_layout.addStretch()
-        
         main_layout.addWidget(filter_widget)
         
-        # Create table
+        # Table
         self.table = EditableTableWidget()
         self.table.value_changed.connect(self.on_value_changed)
         self.table.save_row.connect(self.save_row)
         self.table.restore_row.connect(self.restore_row)
         self.table.restore_from_backup_row.connect(self.restore_from_backup)
         self.table.calc_row.connect(self.open_calculator)
-        
         main_layout.addWidget(self.table)
         
-        # Bottom button bar
+        # Progress bar for scanning
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setVisible(False)
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: 1px solid #555;
+                border-radius: 3px;
+                text-align: center;
+                color: white;
+            }
+            QProgressBar::chunk {
+                background-color: #4CAF50;
+                border-radius: 2px;
+            }
+        """)
+        main_layout.addWidget(self.progress_bar)
+        
+        # Button bar
         button_bar = QWidget()
         button_layout = QHBoxLayout(button_bar)
         button_layout.setContentsMargins(0, 10, 0, 0)
-        button_layout.setSpacing(8)  # Consistent spacing between buttons
+        button_layout.setSpacing(8)
         
-        # Create buttons with explicit fixed sizes and text
+        # Rescan button
         self.rescan_btn = QPushButton("Rescan")
         self.rescan_btn.setToolTip("Rescan for AIW files")
         self.rescan_btn.setFixedHeight(32)
         self.rescan_btn.setFixedWidth(100)
         self.rescan_btn.setCursor(Qt.PointingHandCursor)
         self.rescan_btn.clicked.connect(self.scan_files)
-        self.rescan_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                font-family: 'Segoe UI', 'Arial', sans-serif;
-                font-size: 12px;
-                font-weight: bold;
-                text-align: center;
-                padding: 5px 10px;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-            QPushButton:pressed {
-                background-color: #3d8b40;
-            }
-        """)
+        self.rescan_btn.setStyleSheet(self.button_style("#4CAF50"))
         button_layout.addWidget(self.rescan_btn)
         
+        # Save All
         self.save_all_btn = QPushButton("Save All Modified")
         self.save_all_btn.setToolTip("Save all modified rows")
         self.save_all_btn.setFixedHeight(32)
         self.save_all_btn.setFixedWidth(150)
         self.save_all_btn.setCursor(Qt.PointingHandCursor)
         self.save_all_btn.clicked.connect(self.save_all)
-        self.save_all_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                font-family: 'Segoe UI', 'Arial', sans-serif;
-                font-size: 12px;
-                font-weight: bold;
-                text-align: center;
-                padding: 5px 10px;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-            QPushButton:pressed {
-                background-color: #3d8b40;
-            }
-        """)
+        self.save_all_btn.setStyleSheet(self.button_style("#4CAF50"))
         button_layout.addWidget(self.save_all_btn)
         
+        # Restore All
         self.restore_all_btn = QPushButton("Restore All Modified")
         self.restore_all_btn.setToolTip("Restore all modified rows to session values")
         self.restore_all_btn.setFixedHeight(32)
         self.restore_all_btn.setFixedWidth(170)
         self.restore_all_btn.setCursor(Qt.PointingHandCursor)
         self.restore_all_btn.clicked.connect(self.restore_all)
-        self.restore_all_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #FFA500;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                font-family: 'Segoe UI', 'Arial', sans-serif;
-                font-size: 12px;
-                font-weight: bold;
-                text-align: center;
-                padding: 5px 10px;
-            }
-            QPushButton:hover {
-                background-color: #f39c12;
-            }
-            QPushButton:pressed {
-                background-color: #e67e22;
-            }
-        """)
+        self.restore_all_btn.setStyleSheet(self.button_style("#FFA500"))
         button_layout.addWidget(self.restore_all_btn)
         
+        # Restore All from Backup
         self.restore_all_backup_btn = QPushButton("Restore All from Backup")
         self.restore_all_backup_btn.setToolTip("Restore all files from backup")
         self.restore_all_backup_btn.setFixedHeight(32)
         self.restore_all_backup_btn.setFixedWidth(200)
         self.restore_all_backup_btn.setCursor(Qt.PointingHandCursor)
         self.restore_all_backup_btn.clicked.connect(self.restore_all_from_backup)
-        self.restore_all_backup_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #2196F3;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                font-family: 'Segoe UI', 'Arial', sans-serif;
-                font-size: 12px;
-                font-weight: bold;
-                text-align: center;
-                padding: 5px 10px;
-            }
-            QPushButton:hover {
-                background-color: #1976D2;
-            }
-            QPushButton:pressed {
-                background-color: #0D47A1;
-            }
-        """)
+        self.restore_all_backup_btn.setStyleSheet(self.button_style("#2196F3"))
         button_layout.addWidget(self.restore_all_backup_btn)
         
         button_layout.addStretch()
         
-        # Status label with explicit styling
+        # Status
         self.status_label = QLabel("Ready")
         self.status_label.setFixedHeight(32)
         self.status_label.setMinimumWidth(200)
@@ -765,7 +583,6 @@ class AIWRatioEditor(QMainWindow):
             QLabel {
                 color: #888;
                 font-style: italic;
-                font-size: 12px;
                 padding: 5px 10px;
                 background-color: #3c3c3c;
                 border-radius: 4px;
@@ -780,6 +597,31 @@ class AIWRatioEditor(QMainWindow):
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("Ready")
     
+    def button_style(self, color):
+        return f"""
+            QPushButton {{
+                background-color: {color};
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-size: 12px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {self.darken_color(color)};
+            }}
+        """
+    
+    def darken_color(self, color):
+        """Simple color darkening for hover effects"""
+        if color == "#4CAF50":
+            return "#45a049"
+        elif color == "#FFA500":
+            return "#f39c12"
+        elif color == "#2196F3":
+            return "#1976D2"
+        return color
+    
     def apply_dark_theme(self):
         self.setStyleSheet("""
             QMainWindow, QDialog {
@@ -790,7 +632,6 @@ class AIWRatioEditor(QMainWindow):
                 alternate-background-color: #2b2b2b;
                 gridline-color: #444;
                 color: #ffffff;
-                font-family: 'Segoe UI', 'Arial', sans-serif;
                 font-size: 12px;
             }
             QTableWidget::item {
@@ -798,7 +639,6 @@ class AIWRatioEditor(QMainWindow):
             }
             QTableWidget::item:selected {
                 background-color: #4CAF50;
-                color: #ffffff;
             }
             QHeaderView::section {
                 background-color: #3c3c3c;
@@ -806,63 +646,46 @@ class AIWRatioEditor(QMainWindow):
                 padding: 8px;
                 border: 1px solid #555;
                 font-weight: bold;
-                font-family: 'Segoe UI', 'Arial', sans-serif;
-                font-size: 12px;
             }
             QLabel {
                 color: #ffffff;
-                font-family: 'Segoe UI', 'Arial', sans-serif;
-                font-size: 12px;
             }
             QStatusBar {
                 color: #ffffff;
                 background-color: #3c3c3c;
                 border-top: 1px solid #555;
-                font-family: 'Segoe UI', 'Arial', sans-serif;
-                font-size: 12px;
-            }
-            QDoubleSpinBox {
-                background-color: #3c3c3c;
-                color: #ffffff;
-                border: 1px solid #4CAF50;
-                border-radius: 3px;
-                padding: 2px;
-                font-family: 'Segoe UI', 'Arial', sans-serif;
-                font-size: 12px;
             }
         """)
     
+    def save_filter(self):
+        """Save filter when Enter is pressed"""
+        save_last_filter(self.filter_edit.text())
+        self.status_bar.showMessage("Filter saved", 2000)
+    
     def on_filter_changed(self, text):
         """Handle filter text changes"""
-        self.table.filter_rows(text)
-        
-        # Update status to show filtered count
-        total_rows = self.table.rowCount()
-        visible_rows = sum(1 for i in range(total_rows) if not self.table.isRowHidden(i))
-        if text:
-            self.status_bar.showMessage(f"Filter: showing {visible_rows} of {total_rows} tracks")
-        else:
-            self.status_bar.showMessage(f"Showing all {total_rows} tracks")
+        visible = self.table.filter_rows(text)
+        total = self.table.rowCount()
+        self.status_bar.showMessage(f"Filter: showing {visible} of {total} tracks")
     
     def clear_filter(self):
         """Clear the filter text"""
         self.filter_edit.clear()
+        save_last_filter("")  # Save empty filter
     
     def find_matching_gdb(self, aiw_path):
         """Find matching GDB file regardless of case"""
         stem = aiw_path.stem
-        
         for ext in ['.gdb', '.GDB']:
-            exact_match = aiw_path.with_suffix(ext)
-            if exact_match.exists():
-                return exact_match
+            # Try exact match first
+            exact = aiw_path.with_suffix(ext)
+            if exact.exists():
+                return exact
             
-            directory = aiw_path.parent
-            pattern = f"*{ext}"
-            for file in directory.glob(pattern):
+            # Try case-insensitive match
+            for file in aiw_path.parent.glob(f"*{ext}"):
                 if file.stem.lower() == stem.lower():
                     return file
-        
         return None
     
     def extract_track_name(self, gdb_path):
@@ -874,26 +697,24 @@ class AIWRatioEditor(QMainWindow):
             with open(gdb_path, 'rb') as f:
                 data = f.read()
             
+            # Try UTF-8 first, then fallback to latin-1
             try:
                 content = data.decode('utf-8', errors='ignore')
             except:
                 content = data.decode('latin-1', errors='ignore')
             
+            # Look for TrackName
             match = re.search(r'TrackName\s*=\s*"([^"]+)"', content)
             if not match:
                 match = re.search(r'TrackName\s*=\s*([^\n\r]+)', content)
             
-            if match:
-                return match.group(1).strip()
-        except Exception as e:
-            print(f"Error reading GDB file {gdb_path}: {e}")
-        
-        return None
+            return match.group(1).strip() if match else None
+        except Exception:
+            return None
     
     def extract_ratios(self, aiw_path):
         """Extract QualRatio and RaceRatio from AIW file"""
-        qual_ratio = None
-        race_ratio = None
+        qual_ratio = race_ratio = None
         
         try:
             with open(aiw_path, 'rb') as f:
@@ -904,86 +725,59 @@ class AIWRatioEditor(QMainWindow):
             except:
                 content = data.decode('latin-1', errors='ignore')
             
-            # Look for the [Waypoint] section
-            waypoint_match = re.search(r'\[Waypoint\](.*?)(?=\[|$)', content, re.DOTALL)
-            if waypoint_match:
-                waypoint_section = waypoint_match.group(1)
-                
-                # Look for QualRatio
-                qual_match = re.search(r'QualRatio\s*=\s*\(?\s*([0-9.eE+-]+)\s*\)?', waypoint_section)
-                if qual_match:
-                    try:
-                        qual_ratio = float(qual_match.group(1))
-                    except ValueError:
-                        pass
-                
-                # Look for RaceRatio
-                race_match = re.search(r'RaceRatio\s*=\s*\(?\s*([0-9.eE+-]+)\s*\)?', waypoint_section)
-                if race_match:
-                    try:
-                        race_ratio = float(race_match.group(1))
-                    except ValueError:
-                        pass
+            # Look in [Waypoint] section first
+            waypoint = re.search(r'\[Waypoint\](.*?)(?=\[|$)', content, re.DOTALL)
+            section = waypoint.group(1) if waypoint else content
             
-            # Fallback to whole file search
-            if qual_ratio is None:
-                qual_match = re.search(r'QualRatio\s*=\s*\(?\s*([0-9.eE+-]+)\s*\)?', content)
-                if qual_match:
+            # Extract ratios
+            for pattern, attr in [(r'QualRatio\s*=\s*\(?\s*([0-9.eE+-]+)\s*\)?', 'qual'),
+                                   (r'RaceRatio\s*=\s*\(?\s*([0-9.eE+-]+)\s*\)?', 'race')]:
+                match = re.search(pattern, section)
+                if match:
                     try:
-                        qual_ratio = float(qual_match.group(1))
+                        value = float(match.group(1))
+                        if attr == 'qual':
+                            qual_ratio = value
+                        else:
+                            race_ratio = value
                     except ValueError:
                         pass
-            
-            if race_ratio is None:
-                race_match = re.search(r'RaceRatio\s*=\s*\(?\s*([0-9.eE+-]+)\s*\)?', content)
-                if race_match:
-                    try:
-                        race_ratio = float(race_match.group(1))
-                    except ValueError:
-                        pass
-                    
-        except Exception as e:
-            print(f"Error reading AIW file {aiw_path}: {e}")
+        except Exception:
+            pass
         
         return qual_ratio, race_ratio
     
     def check_backup_exists(self, aiw_path):
-        """Check if a backup file exists for the given AIW file"""
-        backup_path = self.backup_dir / f"{aiw_path.name}.original"
-        return backup_path.exists()
+        """Check if a backup file exists"""
+        return (self.backup_dir / f"{aiw_path.name}.original").exists()
     
     def create_backup(self, aiw_path):
-        """Create a backup of the original AIW file if it doesn't exist"""
+        """Create a backup if it doesn't exist"""
         if not self.backup_dir.exists():
             self.backup_dir.mkdir(parents=True)
         
         backup_path = self.backup_dir / f"{aiw_path.name}.original"
-        
-        # Only create backup if it doesn't exist
         if not backup_path.exists():
             try:
                 shutil.copy2(aiw_path, backup_path)
-                return True
-            except Exception as e:
-                print(f"Failed to create backup for {aiw_path}: {e}")
+            except Exception:
                 return False
         return True
     
     def restore_from_backup_file(self, aiw_path):
-        """Restore an AIW file from its backup"""
+        """Restore AIW file from backup"""
         backup_path = self.backup_dir / f"{aiw_path.name}.original"
-        
         if not backup_path.exists():
             return False, "Backup file not found"
         
         try:
             shutil.copy2(backup_path, aiw_path)
-            return True, "Successfully restored from backup"
+            return True, "Successfully restored"
         except Exception as e:
-            return False, f"Failed to restore: {e}"
+            return False, str(e)
     
     def update_ratio_in_file(self, aiw_path, ratio_type, new_value):
-        """Update a ratio value in the AIW file"""
+        """Update a ratio in the AIW file"""
         try:
             with open(aiw_path, 'rb') as f:
                 data = f.read()
@@ -993,403 +787,301 @@ class AIWRatioEditor(QMainWindow):
             except:
                 content = data.decode('latin-1', errors='ignore')
             
-            # Pattern to match the ratio line
             pattern = rf'({ratio_type}\s*=\s*\(?)\s*[0-9.eE+-]+\s*(\)?)'
             
-            # Format the new value (with parentheses if they were present)
-            def replacer(match):
-                prefix = match.group(1)
-                suffix = match.group(2) if len(match.groups()) > 1 else ''
-                return f"{prefix}{new_value:.6f}{suffix}"
+            def replacer(m):
+                return f"{m.group(1)}{new_value:.6f}{m.group(2)}"
             
-            new_content = re.sub(pattern, replacer, content, flags=re.MULTILINE)
+            new_content = re.sub(pattern, replacer, content)
             
             if new_content != content:
-                # Write back the file (preserving original encoding)
                 with open(aiw_path, 'wb') as f:
                     f.write(new_content.encode('utf-8', errors='ignore'))
                 return True
-            else:
-                print(f"Pattern not found in {aiw_path}")
-                return False
-                
-        except Exception as e:
-            print(f"Error updating file {aiw_path}: {e}")
-            return False
+        except Exception:
+            pass
+        return False
     
     def scan_files(self):
-        """Scan for AIW files and extract data"""
+        """Start background scan for AIW files"""
+        self.rescan_btn.setEnabled(False)
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setRange(0, 0)  # Indeterminate
         self.status_bar.showMessage("Scanning files...")
-        self.table.clear_table()
         
-        self.aiw_files = []
+        self.scan_worker = Worker(self._scan_files_impl)
+        self.scan_worker.finished.connect(self.on_scan_complete)
+        self.scan_worker.error.connect(self.on_scan_error)
+        self.scan_worker.start()
+    
+    def _scan_files_impl(self):
+        """Actual scanning work (runs in background)"""
         locations_path = self.base_path / "GameData" / "Locations"
+        results = []
         
         if not locations_path.exists():
-            QMessageBox.warning(
-                self, 
-                "Path Not Found", 
-                f"Directory not found:\n{locations_path}\n\nPlease check the path and try again."
-            )
-            self.status_bar.showMessage("Scan failed - directory not found")
+            return None
+        
+        # Find all AIW files
+        aiw_files = []
+        seen = set()
+        for ext in ['*.aiw', '*.AIW']:
+            for f in locations_path.rglob(ext):
+                if str(f).lower() not in seen:
+                    seen.add(str(f).lower())
+                    aiw_files.append(f)
+        
+        for aiw_path in sorted(aiw_files, key=lambda p: p.stem.lower()):
+            gdb_path = self.find_matching_gdb(aiw_path)
+            track_name = self.extract_track_name(gdb_path) or aiw_path.stem
+            qual, race = self.extract_ratios(aiw_path)
+            has_backup = self.check_backup_exists(aiw_path)
+            
+            results.append((aiw_path, gdb_path, track_name, qual, race, has_backup))
+        
+        return results
+    
+    def on_scan_complete(self, results):
+        """Handle scan completion"""
+        self.rescan_btn.setEnabled(True)
+        self.progress_bar.setVisible(False)
+        
+        if results is None:
+            QMessageBox.warning(self, "Path Not Found", 
+                               f"Directory not found:\n{self.base_path / 'GameData' / 'Locations'}")
             self.stats_label.setText("Directory not found!")
+            self.status_bar.showMessage("Scan failed")
             return
         
-        # Find all AIW files recursively
-        aiw_files = []
-        seen_paths = set()
-        for ext in ['*.aiw', '*.AIW']:
-            for file_path in locations_path.rglob(ext):
-                file_path_lower = str(file_path).lower()
-                if file_path_lower not in seen_paths:
-                    seen_paths.add(file_path_lower)
-                    aiw_files.append(file_path)
-        
-        if not aiw_files:
-            QMessageBox.information(
-                self,
-                "No Files Found",
-                f"No .aiw or .AIW files found in:\n{locations_path}"
-            )
+        if not results:
+            QMessageBox.information(self, "No Files Found", 
+                                   "No .aiw or .AIW files found.")
             self.status_bar.showMessage("No AIW files found")
             self.stats_label.setText("No files found")
             return
         
-        for aiw_path in sorted(aiw_files, key=lambda p: p.stem.lower()):
-            # Find matching GDB file
-            gdb_path = self.find_matching_gdb(aiw_path)
-            
-            # Extract track name
-            track_name = self.extract_track_name(gdb_path)
-            if track_name is None:
-                track_name = aiw_path.stem
-            
-            # Extract ratios
-            qual_ratio, race_ratio = self.extract_ratios(aiw_path)
-            
-            # Generate unique row ID
-            row_id = self.table.next_row_id
-            self.table.next_row_id += 1
-            
-            # Store file info with row_id
+        # Clear table and repopulate
+        self.table.clear_all()
+        self.aiw_files.clear()
+        
+        missing_qual = missing_race = 0
+        
+        for aiw_path, gdb_path, track_name, qual, race, has_backup in results:
+            row_id = self.table.add_row(track_name, qual, race, has_backup, aiw_path)
             self.aiw_files.append((aiw_path, gdb_path, track_name, row_id))
             
-            # Check if backup exists
-            has_backup = self.check_backup_exists(aiw_path)
-            
-            # Add to table using the new populate_row method
-            self.table.populate_row(row_id, track_name, qual_ratio, race_ratio, has_backup, aiw_path)
-        
-        # Update stats
-        stats_text = f"Found {len(aiw_files)} AIW files"
-        missing_qual = 0
-        missing_race = 0
-        
-        for visual_row in range(self.table.rowCount()):
-            if self.table.item(visual_row, 1).text() == "(not found)":
+            if qual is None:
                 missing_qual += 1
-            if self.table.item(visual_row, 2).text() == "(not found)":
+            if race is None:
                 missing_race += 1
         
-        backup_count = len(self.table.has_backup)
+        # Update stats
+        stats = f"Found {len(results)} AIW files"
+        if missing_qual or missing_race:
+            stats += f" | Missing: Qual:{missing_qual} Race:{missing_race}"
+        if self.table.has_backup:
+            stats += f" | Backups: {len(self.table.has_backup)}"
         
-        if missing_qual > 0 or missing_race > 0:
-            stats_text += f" | Missing ratios: Qual:{missing_qual} Race:{missing_race}"
+        self.stats_label.setText(stats)
+        self.status_bar.showMessage(f"Scan complete - found {len(results)} AIW files")
         
-        if backup_count > 0:
-            stats_text += f" | Backups: {backup_count}"
-        
-        self.stats_label.setText(stats_text)
-        self.status_bar.showMessage(f"Scan complete - found {len(aiw_files)} AIW files")
+        # Re-apply filter
+        self.on_filter_changed(self.filter_edit.text())
+    
+    def on_scan_error(self, error_msg):
+        """Handle scan error"""
+        self.rescan_btn.setEnabled(True)
+        self.progress_bar.setVisible(False)
+        QMessageBox.critical(self, "Scan Error", f"Error during scan:\n{error_msg}")
+        self.status_bar.showMessage("Scan failed")
     
     def on_value_changed(self, row_id, ratio_type, new_value):
-        """Handle value change in table"""
-        self.status_bar.showMessage(f"Row {row_id} {ratio_type} changed to {new_value} - unsaved", 3000)
+        """Handle value change"""
+        self.status_bar.showMessage(f"Row {row_id} {ratio_type} changed - unsaved", 3000)
     
     def save_row(self, row_id):
-        """Save changes for a specific row"""
-        track_name, qual_ratio, race_ratio = self.table.get_row_data(row_id)
-        
-        # Find the file info with this row_id
-        file_info = None
-        for info in self.aiw_files:
-            if info[3] == row_id:
-                file_info = info
-                break
-        
-        if file_info is None:
-            self.status_bar.showMessage(f"Error: Invalid row ID", 3000)
+        """Save changes for a row"""
+        file_info = next((info for info in self.aiw_files if info[3] == row_id), None)
+        if not file_info:
             return
         
-        aiw_path, gdb_path, _, _ = file_info
+        aiw_path = file_info[0]
         
-        # Create backup if needed
         if not self.create_backup(aiw_path):
-            QMessageBox.warning(self, "Backup Failed", f"Could not create backup for {aiw_path.name}")
+            QMessageBox.warning(self, "Backup Failed", f"Could not create backup")
             return
         
-        # Update values
-        success_count = 0
-        modified_keys = [k for k in self.table.original_values if k[0] == row_id]
+        data = self.table.row_data.get(row_id)
+        if not data or data['visual_row'] < 0:
+            return
         
-        for (r, ratio_type) in modified_keys:
-            visual_row = self.table.get_visual_row_from_id(row_id)
-            if visual_row < 0:
-                continue
-                
-            new_value = self.table.item(visual_row, 1 if ratio_type == "QualRatio" else 2).text()
-            
-            if new_value != "(not found)":
+        success = 0
+        keys = [k for k in self.table.original_values if k[0] == row_id]
+        
+        for _, ratio_type in keys:
+            col = 1 if ratio_type == "QualRatio" else 2
+            item = self.table.item(data['visual_row'], col)
+            if item and item.text() != "(not found)":
                 try:
-                    float_val = float(new_value)
-                    if self.update_ratio_in_file(aiw_path, ratio_type, float_val):
-                        success_count += 1
+                    val = float(item.text())
+                    if self.update_ratio_in_file(aiw_path, ratio_type, val):
+                        success += 1
                 except ValueError:
                     pass
         
-        if success_count > 0:
+        if success:
             self.table.clear_row_modifications(row_id)
-            # Update backup status
-            self.table.set_has_backup(row_id, True)
-            self.status_bar.showMessage(f"Saved {success_count} changes to {aiw_path.name}", 3000)
-        else:
-            self.status_bar.showMessage(f"No changes saved for {aiw_path.name}", 3000)
+            self.table.has_backup.add(row_id)
+            self.status_bar.showMessage(f"Saved {success} changes", 3000)
     
     def restore_row(self, row_id):
-        """Restore original values for a specific row (from current session)"""
-        modified_keys = [k for k in self.table.original_values if k[0] == row_id]
-        
-        for (r, ratio_type) in modified_keys:
+        """Restore original values for a row"""
+        keys = [k for k in self.table.original_values if k[0] == row_id]
+        for r, ratio_type in keys:
             self.table.restore_row_value(row_id, ratio_type)
-        
-        if modified_keys:
-            self.status_bar.showMessage(f"Restored original values for row {row_id}", 3000)
+        if keys:
+            self.status_bar.showMessage(f"Restored original values", 3000)
     
     def restore_from_backup(self, row_id):
-        """Restore a specific row from its backup file"""
-        # Find the file info with this row_id
-        file_info = None
-        for info in self.aiw_files:
-            if info[3] == row_id:
-                file_info = info
-                break
-        
-        if file_info is None:
-            self.status_bar.showMessage(f"Error: Invalid row ID", 3000)
+        """Restore a row from backup"""
+        file_info = next((info for info in self.aiw_files if info[3] == row_id), None)
+        if not file_info:
             return
         
         aiw_path, _, track_name, _ = file_info
         
-        # Confirm with user
-        reply = QMessageBox.question(
-            self, 
-            "Confirm Restore from Backup",
-            f"Restore '{track_name}' from its backup file?\n\n"
-            f"This will overwrite any changes you've made.",
-            QMessageBox.Yes | QMessageBox.No
-        )
+        reply = QMessageBox.question(self, "Confirm Restore",
+                                    f"Restore '{track_name}' from backup?",
+                                    QMessageBox.Yes | QMessageBox.No)
         
         if reply != QMessageBox.Yes:
             return
         
-        # Restore from backup
-        success, message = self.restore_from_backup_file(aiw_path)
-        
+        success, msg = self.restore_from_backup_file(aiw_path)
         if success:
-            # Reload the ratios from the restored file
-            qual_ratio, race_ratio = self.extract_ratios(aiw_path)
-            self.table.update_values_from_backup(row_id, qual_ratio, race_ratio)
-            self.status_bar.showMessage(f"Restored {aiw_path.name} from backup", 3000)
+            qual, race = self.extract_ratios(aiw_path)
+            self.table.update_values_from_backup(row_id, qual, race)
+            self.status_bar.showMessage(f"Restored from backup", 3000)
         else:
-            QMessageBox.critical(self, "Restore Failed", f"Failed to restore from backup:\n{message}")
+            QMessageBox.critical(self, "Restore Failed", msg)
     
     def save_all(self):
         """Save all modified rows"""
-        modified_rows = list(self.table.modified_rows)
-        if not modified_rows:
+        modified = list(self.table.modified_rows)
+        if not modified:
             QMessageBox.information(self, "No Changes", "No modified rows to save.")
             return
         
-        success_count = 0
-        fail_count = 0
-        
-        for row_id in modified_rows:
-            # Find the file info with this row_id
-            file_info = None
-            for info in self.aiw_files:
-                if info[3] == row_id:
-                    file_info = info
-                    break
-            
-            if file_info is None:
-                continue
-                
-            aiw_path, _, _, _ = file_info
-            
-            # Create backup if needed
-            if not self.create_backup(aiw_path):
-                fail_count += 1
+        success = fail = 0
+        for row_id in modified:
+            file_info = next((info for info in self.aiw_files if info[3] == row_id), None)
+            if not file_info:
                 continue
             
-            # Update values
-            row_success = 0
-            modified_keys = [k for k in self.table.original_values if k[0] == row_id]
-            
-            visual_row = self.table.get_visual_row_from_id(row_id)
-            if visual_row < 0:
-                continue
-                
-            for (r, ratio_type) in modified_keys:
-                new_value = self.table.item(visual_row, 1 if ratio_type == "QualRatio" else 2).text()
-                
-                if new_value != "(not found)":
-                    try:
-                        float_val = float(new_value)
-                        if self.update_ratio_in_file(aiw_path, ratio_type, float_val):
-                            row_success += 1
-                    except ValueError:
-                        pass
-            
-            if row_success > 0:
-                success_count += 1
-                self.table.clear_row_modifications(row_id)
-                self.table.set_has_backup(row_id, True)
+            if self.create_backup(file_info[0]):
+                self.save_row(row_id)
+                success += 1
             else:
-                fail_count += 1
+                fail += 1
         
-        if success_count > 0:
-            self.status_bar.showMessage(f"Saved {success_count} files successfully", 3000)
-            if fail_count > 0:
-                QMessageBox.warning(self, "Partial Success", 
-                                   f"Saved {success_count} files.\n{fail_count} files failed.")
-        else:
-            QMessageBox.critical(self, "Save Failed", "Failed to save any files.")
+        if success:
+            msg = f"Saved {success} files"
+            if fail:
+                msg += f", {fail} failed"
+                QMessageBox.warning(self, "Partial Success", msg)
+            else:
+                QMessageBox.information(self, "Success", msg)
+            self.status_bar.showMessage(msg, 3000)
     
     def restore_all(self):
-        """Restore all modified rows to their original values"""
-        modified_rows = list(self.table.modified_rows)
-        if not modified_rows:
+        """Restore all modified rows"""
+        modified = list(self.table.modified_rows)
+        if not modified:
             QMessageBox.information(self, "No Changes", "No modified rows to restore.")
             return
         
         reply = QMessageBox.question(self, "Confirm Restore All",
-                                    "Restore all modified rows to their original (session) values?",
+                                    "Restore all modified rows?",
                                     QMessageBox.Yes | QMessageBox.No)
         
         if reply == QMessageBox.Yes:
-            for row_id in modified_rows:
-                modified_keys = [k for k in self.table.original_values if k[0] == row_id]
-                for (r, ratio_type) in modified_keys:
+            for row_id in modified:
+                keys = [k for k in self.table.original_values if k[0] == row_id]
+                for r, ratio_type in keys:
                     self.table.restore_row_value(row_id, ratio_type)
-            
-            self.status_bar.showMessage(f"Restored {len(modified_rows)} rows", 3000)
+            self.status_bar.showMessage(f"Restored {len(modified)} rows", 3000)
     
     def restore_all_from_backup(self):
-        """Restore all rows that have backups from their backup files"""
-        rows_with_backup = list(self.table.has_backup)
-        if not rows_with_backup:
-            QMessageBox.information(self, "No Backups", "No backup files found to restore from.")
+        """Restore all files from backup"""
+        rows = list(self.table.has_backup)
+        if not rows:
+            QMessageBox.information(self, "No Backups", "No backup files found.")
             return
         
-        reply = QMessageBox.question(
-            self, 
-            "Confirm Restore All from Backup",
-            f"Restore {len(rows_with_backup)} files from their backups?\n\n"
-            f"This will overwrite any changes you've made.",
-            QMessageBox.Yes | QMessageBox.No
-        )
+        reply = QMessageBox.question(self, "Confirm Restore All",
+                                    f"Restore {len(rows)} files from backup?",
+                                    QMessageBox.Yes | QMessageBox.No)
         
         if reply != QMessageBox.Yes:
             return
         
-        success_count = 0
-        fail_count = 0
-        
-        for row_id in rows_with_backup:
-            # Find the file info with this row_id
-            file_info = None
-            for info in self.aiw_files:
-                if info[3] == row_id:
-                    file_info = info
-                    break
-            
-            if file_info is None:
+        success = fail = 0
+        for row_id in rows:
+            file_info = next((info for info in self.aiw_files if info[3] == row_id), None)
+            if not file_info:
                 continue
-                
-            aiw_path, _, track_name, _ = file_info
             
-            # Restore from backup
-            success, message = self.restore_from_backup_file(aiw_path)
-            
-            if success:
-                # Reload the ratios
-                qual_ratio, race_ratio = self.extract_ratios(aiw_path)
-                self.table.update_values_from_backup(row_id, qual_ratio, race_ratio)
-                success_count += 1
+            ok, _ = self.restore_from_backup_file(file_info[0])
+            if ok:
+                qual, race = self.extract_ratios(file_info[0])
+                self.table.update_values_from_backup(row_id, qual, race)
+                success += 1
             else:
-                fail_count += 1
-                print(f"Failed to restore {aiw_path.name}: {message}")
+                fail += 1
         
-        if success_count > 0:
-            self.status_bar.showMessage(f"Restored {success_count} files from backup", 3000)
-            if fail_count > 0:
-                QMessageBox.warning(self, "Partial Success", 
-                                   f"Restored {success_count} files.\n{fail_count} files failed.")
+        msg = f"Restored {success} files"
+        if fail:
+            msg += f", {fail} failed"
+            QMessageBox.warning(self, "Partial Success", msg)
         else:
-            QMessageBox.critical(self, "Restore Failed", "Failed to restore any files from backup.")
+            QMessageBox.information(self, "Success", msg)
+        self.status_bar.showMessage(msg, 3000)
     
     def open_calculator(self, row_id):
-        """Open the ratio calculator dialog for a specific row"""
-        # Find the file info with this row_id
-        file_info = None
-        for info in self.aiw_files:
-            if info[3] == row_id:
-                file_info = info
-                break
-        
-        if file_info is None:
-            self.status_bar.showMessage(f"Error: Invalid row ID", 3000)
+        """Open ratio calculator for a row"""
+        file_info = next((info for info in self.aiw_files if info[3] == row_id), None)
+        if not file_info:
             return
         
-        aiw_path, _, track_name, _ = file_info
-        
-        # Get current ratios
-        visual_row = self.table.get_visual_row_from_id(row_id)
-        if visual_row < 0:
+        _, _, track_name, _ = file_info
+        data = self.table.row_data.get(row_id)
+        if not data or data['visual_row'] < 0:
             return
-            
-        current_qual = self.table.item(visual_row, 1).text()
-        current_race = self.table.item(visual_row, 2).text()
         
-        # Convert to float if possible
-        try:
-            current_qual_float = float(current_qual) if current_qual != "(not found)" else 1.0
-        except ValueError:
-            current_qual_float = 1.0
-            
-        try:
-            current_race_float = float(current_race) if current_race != "(not found)" else 1.0
-        except ValueError:
-            current_race_float = 1.0
+        # Get current values
+        qual_item = self.table.item(data['visual_row'], 1)
+        race_item = self.table.item(data['visual_row'], 2)
         
-        # Create and show calculator dialog
-        dialog = RatioCalculatorDialog(
-            self, 
-            track_name, 
-            current_qual_float, 
-            current_race_float
-        )
+        def get_float(item, default):
+            if item and item.text() != "(not found)":
+                try:
+                    return float(item.text())
+                except ValueError:
+                    pass
+            return default
         
+        current_qual = get_float(qual_item, 1.0)
+        current_race = get_float(race_item, 1.0)
+        
+        dialog = RatioCalculatorDialog(self, track_name, current_qual, current_race)
         if dialog.exec_() == QDialog.Accepted:
             new_qual, new_race = dialog.get_ratios()
             self.table.update_ratios(row_id, new_qual, new_race)
-            self.status_bar.showMessage(f"Updated ratios for {track_name} from calculator", 3000)
+            self.status_bar.showMessage(f"Updated ratios from calculator", 3000)
 
 
 def main():
-    # Get base path from config or user selection using the cfg_manage module
     base_path = get_or_prompt_base_path()
-    
     if base_path is None:
         print("No path selected. Exiting.")
         return 1
