@@ -399,7 +399,7 @@ class EditableTableWidget(QTableWidget):
         self.next_row_id = 0
     
     def filter_rows(self, filter_text):
-        """Filter rows based on track name"""
+        """Filter rows based on track name - returns count of visible rows"""
         filter_text = filter_text.lower()
         visible_count = 0
         
@@ -423,10 +423,12 @@ class AIWRatioEditor(QMainWindow):
         self.scan_worker = None
         self.setup_ui()
         
-        # Load last filter and start scan
+        # Load last filter and apply it
         last_filter = load_last_filter()
         if last_filter:
             self.filter_edit.setText(last_filter)
+            # Apply the filter immediately on startup
+            self.apply_filter()
         
         self.scan_files()
         
@@ -457,7 +459,7 @@ class AIWRatioEditor(QMainWindow):
         
         main_layout.addWidget(header)
         
-        # Filter section
+        # Filter section - IMPROVED with Apply button
         filter_widget = QWidget()
         filter_layout = QHBoxLayout(filter_widget)
         filter_layout.setContentsMargins(0, 0, 0, 10)
@@ -477,9 +479,28 @@ class AIWRatioEditor(QMainWindow):
             }
             QLineEdit:focus { border: 1px solid #4CAF50; }
         """)
-        self.filter_edit.returnPressed.connect(self.save_filter)
-        self.filter_edit.textChanged.connect(self.on_filter_changed)
+        # Connect returnPressed to save AND apply
+        self.filter_edit.returnPressed.connect(self.save_and_apply_filter)
         filter_layout.addWidget(self.filter_edit)
+        
+        # Apply button - NEW
+        self.apply_filter_btn = QPushButton("Apply Filter")
+        self.apply_filter_btn.setFixedHeight(28)
+        self.apply_filter_btn.setFixedWidth(100)
+        self.apply_filter_btn.setCursor(Qt.PointingHandCursor)
+        self.apply_filter_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-weight: bold;
+                font-size: 11px;
+            }
+            QPushButton:hover { background-color: #45a049; }
+        """)
+        self.apply_filter_btn.clicked.connect(self.save_and_apply_filter)
+        filter_layout.addWidget(self.apply_filter_btn)
         
         self.clear_filter_btn = QPushButton("Clear")
         self.clear_filter_btn.setFixedHeight(28)
@@ -492,6 +513,7 @@ class AIWRatioEditor(QMainWindow):
                 border: none;
                 border-radius: 4px;
                 font-weight: bold;
+                font-size: 11px;
             }
             QPushButton:hover { background-color: #d32f2f; }
         """)
@@ -499,6 +521,12 @@ class AIWRatioEditor(QMainWindow):
         filter_layout.addWidget(self.clear_filter_btn)
         
         filter_layout.addStretch()
+        
+        # Add filter hint label
+        filter_hint = QLabel("(Press Enter or click Apply to filter)")
+        filter_hint.setStyleSheet("color: #888; font-style: italic; font-size: 10px;")
+        filter_layout.addWidget(filter_hint)
+        
         main_layout.addWidget(filter_widget)
         
         # Table
@@ -657,21 +685,26 @@ class AIWRatioEditor(QMainWindow):
             }
         """)
     
-    def save_filter(self):
-        """Save filter when Enter is pressed"""
-        save_last_filter(self.filter_edit.text())
-        self.status_bar.showMessage("Filter saved", 2000)
+    def save_and_apply_filter(self):
+        """Save the filter and apply it"""
+        filter_text = self.filter_edit.text()
+        save_last_filter(filter_text)
+        self.apply_filter()
+        self.status_bar.showMessage(f"Filter applied and saved: '{filter_text}'", 3000)
     
-    def on_filter_changed(self, text):
-        """Handle filter text changes"""
-        visible = self.table.filter_rows(text)
+    def apply_filter(self):
+        """Apply the current filter text to the table"""
+        filter_text = self.filter_edit.text()
+        visible = self.table.filter_rows(filter_text)
         total = self.table.rowCount()
         self.status_bar.showMessage(f"Filter: showing {visible} of {total} tracks")
     
     def clear_filter(self):
-        """Clear the filter text"""
+        """Clear the filter text and save empty filter"""
         self.filter_edit.clear()
-        save_last_filter("")  # Save empty filter
+        save_last_filter("")
+        self.apply_filter()
+        self.status_bar.showMessage("Filter cleared", 2000)
     
     def find_matching_gdb(self, aiw_path):
         """Find matching GDB file regardless of case"""
@@ -885,8 +918,8 @@ class AIWRatioEditor(QMainWindow):
         self.stats_label.setText(stats)
         self.status_bar.showMessage(f"Scan complete - found {len(results)} AIW files")
         
-        # Re-apply filter
-        self.on_filter_changed(self.filter_edit.text())
+        # Re-apply filter after scan completes
+        self.apply_filter()
     
     def on_scan_error(self, error_msg):
         """Handle scan error"""
