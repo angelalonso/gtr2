@@ -14,6 +14,8 @@ from ratio_calc import (
     HistoricCSVHandler, CalculatedRatios, TimeConverter,
     AdjustableExponentialModel, PredictedTimes
 )
+from datetime import datetime
+
 
 class GraphWidget(QWidget):
     """Custom widget for drawing the formula graph"""
@@ -36,6 +38,7 @@ class GraphWidget(QWidget):
         self.new_ratio = None
         self.predicted_times = None
         self.track_params = None
+        self.historic_points = []  # Added for historic data
     
     def set_data(self, calculator, config, track_name, current_ratio, times, new_ratio=None, predicted_times=None):
         """Set the data for plotting"""
@@ -48,6 +51,11 @@ class GraphWidget(QWidget):
         self.predicted_times = predicted_times
         self.track_params = calculator.track_db.get_parameters(track_name) if calculator else None
         self.update()  # Trigger repaint
+    
+    def set_historic_data(self, historic_points=None):
+        """Set historic data points to display on graph"""
+        self.historic_points = historic_points or []
+        self.update()
     
     def paintEvent(self, event):
         """Custom paint event to draw the graph"""
@@ -240,6 +248,77 @@ class GraphWidget(QWidget):
                     painter.drawText(x + 10, y - 10, f"New\nR={self.new_ratio:.2f}\nT={new_time:.1f}s")
                 except:
                     pass
+        
+        # Draw historic data points if available
+        if self.historic_points:
+            for point in self.historic_points:
+                try:
+                    ratio = point.get('new_ratio')
+                    # Get time from ratio using the current model
+                    time_val = self.calculator.exponential_model.time_from_ratio(ratio, self.track_params)
+                    
+                    x = margin + int(((ratio - min_ratio) / (max_ratio - min_ratio)) * graph_width)
+                    y = margin + graph_height - int(((time_val - min_time) / (max_time - min_time)) * graph_height)
+                    
+                    # Check if point is within visible area
+                    if margin <= x <= margin + graph_width and margin <= y <= margin + graph_height:
+                        # Draw different markers based on type
+                        point_type = point.get('type', 'unknown')
+                        
+                        if point_type == 'qualifying':
+                            # Blue diamond for qualifying
+                            painter.setBrush(QColor(100, 150, 255))
+                            painter.setPen(QPen(QColor(100, 150, 255), 2))
+                            points = [
+                                QPoint(x, y - 5),
+                                QPoint(x + 5, y),
+                                QPoint(x, y + 5),
+                                QPoint(x - 5, y)
+                            ]
+                            painter.drawPolygon(QPolygon(points))
+                        else:
+                            # Cyan square for race
+                            painter.setBrush(QColor(0, 200, 200))
+                            painter.setPen(QPen(QColor(0, 200, 200), 2))
+                            painter.drawRect(x - 4, y - 4, 8, 8)
+                        
+                        # Add small label with ratio
+                        painter.setPen(QPen(QColor(150, 150, 150), 1))
+                        painter.drawText(x + 8, y - 8, f"{ratio:.2f}")
+                except Exception as e:
+                    # Skip points that can't be plotted
+                    pass
+            
+            # Add legend for historic points
+            legend_x = margin + 10
+            legend_y = margin + 10
+            legend_line_height = 20
+            
+            # Qualifying legend
+            painter.setBrush(QColor(100, 150, 255))
+            painter.setPen(QPen(QColor(100, 150, 255), 2))
+            points = [
+                QPoint(legend_x + 5, legend_y + 5),
+                QPoint(legend_x + 10, legend_y + 5),
+                QPoint(legend_x + 7, legend_y + 10),
+                QPoint(legend_x + 3, legend_y + 10)
+            ]
+            painter.drawPolygon(QPolygon(points))
+            painter.setPen(QPen(QColor(200, 200, 200), 1))
+            painter.drawText(legend_x + 15, legend_y + 10, "Historic Qual")
+            
+            # Race legend
+            painter.setBrush(QColor(0, 200, 200))
+            painter.setPen(QPen(QColor(0, 200, 200), 2))
+            painter.drawRect(legend_x + 3, legend_y + legend_line_height + 3, 8, 8)
+            painter.setPen(QPen(QColor(200, 200, 200), 1))
+            painter.drawText(legend_x + 15, legend_y + legend_line_height + 10, "Historic Race")
+            
+            # Count
+            qual_count = len([p for p in self.historic_points if p.get('type') == 'qualifying'])
+            race_count = len([p for p in self.historic_points if p.get('type') == 'race'])
+            painter.drawText(legend_x + 15, legend_y + legend_line_height * 2 + 5, 
+                           f"Total: {len(self.historic_points)} points")
         
         painter.end()
 
@@ -590,11 +669,21 @@ class FormulaDetailsWindow(QDialog):
         
         layout.addWidget(self.exponential_group)
         
-        # Edit parameters button
-        self.edit_params_btn = QPushButton("✎ Advanced Exponential Parameters")
-        self.edit_params_btn.setFixedHeight(35)
-        self.edit_params_btn.setStyleSheet("background-color: #FFA500; color: black; font-weight: bold;")
-        layout.addWidget(self.edit_params_btn)
+        # Historic data button
+        self.historic_btn = QPushButton("📊 Show Historic Data")
+        self.historic_btn.setFixedHeight(35)
+        self.historic_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #9C27B0;
+                color: white;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #7B1FA2;
+            }
+        """)
+        self.historic_btn.clicked.connect(self.load_historic_data)
+        layout.addWidget(self.historic_btn)
         
         # Close button
         close_btn = QPushButton("Close")
@@ -726,6 +815,54 @@ class FormulaDetailsWindow(QDialog):
             new_ratio,
             predicted_times
         )
+    
+    def load_historic_data(self):
+        """Load and display historic data for the current track"""
+        if not self.calculator or not self.track_name or not self.config:
+            QMessageBox.warning(self, "No Data", "No track data available to load history.")
+            return
+        
+        # Get historic data from CSV
+        csv_handler = HistoricCSVHandler(self.config.historic_csv if self.config else "")
+        
+        # Debug: Print track name being searched
+        print(f"Searching for track: '{self.track_name}'")
+        print(f"CSV path: {self.config.historic_csv}")
+        
+        historic_points = csv_handler.get_track_history(self.track_name)
+        
+        # Debug: Print what was found
+        print(f"Found {len(historic_points)} historic points")
+        if historic_points:
+            for point in historic_points[:5]:  # Show first 5
+                print(f"  - {point.get('track', 'Unknown')} - {point.get('type')} - Ratio: {point.get('new_ratio')}")
+        
+        if not historic_points:
+            QMessageBox.information(self, "No Historic Data", 
+                                   f"No historic data found for track '{self.track_name}'\n\n"
+                                   f"Make sure the CSV file contains entries for this track.\n"
+                                   f"Current CSV: {self.config.historic_csv}")
+            return
+        
+        # Update graph with historic points
+        self.graph_widget.set_historic_data(historic_points)
+        
+        # Show message with count
+        qual_count = len([p for p in historic_points if p.get('type') == 'qualifying'])
+        race_count = len([p for p in historic_points if p.get('type') == 'race'])
+        
+        # Show some sample tracks found
+        sample_tracks = list(set([p.get('track', '') for p in historic_points[:5]]))
+        track_list = "\n".join([f"  • {t}" for t in sample_tracks[:3]])
+        
+        QMessageBox.information(self, "Historic Data Loaded", 
+                               f"Loaded {len(historic_points)} historic points for track variations:\n"
+                               f"{track_list}\n\n"
+                               f"Qualifying: {qual_count}\n"
+                               f"Race: {race_count}\n\n"
+                               f"Points are shown as:\n"
+                               f"🔷 Blue diamonds = Qualifying\n"
+                               f"🟦 Cyan squares = Race")
 
 
 class ConfigWindow(QDialog):
@@ -1585,8 +1722,6 @@ class RatioCalculatorDialog(QDialog):
         """Show the formula details pop-up window with graph"""
         if not self.formula_window:
             self.formula_window = FormulaDetailsWindow(self)
-            # Connect the edit params button
-            self.formula_window.edit_params_btn.clicked.connect(self.edit_exponential_params)
         
         # Get the appropriate times to show
         times = None

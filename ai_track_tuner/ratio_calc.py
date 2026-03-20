@@ -954,6 +954,89 @@ class HistoricCSVHandler:
         except Exception as e:
             print(f"Error loading CSV: {e}")
             return []
+    
+    def get_track_history(self, track_name: str, limit: int = 50) -> List[dict]:
+        """
+        Get historic data for a specific track
+        
+        Args:
+            track_name: Name of the track
+            limit: Maximum number of entries to return
+            
+        Returns:
+            List of dictionaries with historic data points
+        """
+        if not self.is_valid() or not self.csv_path.exists():
+            return []
+        
+        try:
+            with open(self.csv_path, 'r') as f:
+                reader = csv.DictReader(f)
+                rows = []
+                
+                # Extract the base track name (remove any metadata after comma)
+                base_track_name = track_name.split(',')[0].strip().lower()
+                
+                for row in reader:
+                    # Get the CSV track name and extract base name
+                    csv_track = row.get('track_name', '')
+                    if not csv_track:
+                        continue
+                    
+                    csv_base_track = csv_track.split(',')[0].strip().lower()
+                    
+                    # Check for match (case-insensitive, base name only)
+                    if base_track_name == csv_base_track or csv_base_track in base_track_name or base_track_name in csv_base_track:
+                        # Only include entries with valid data
+                        try:
+                            # Check for qualifying data
+                            if row.get('new_qual') and row.get('new_qual').strip():
+                                qual_ratio = float(row['new_qual'])
+                                # Also try to get current ratio if available
+                                current_ratio = float(row.get('current_qual', '1.0'))
+                                qual_position = row.get('qual_current_pos', '')
+                                
+                                # Parse timestamp for sorting
+                                timestamp = row.get('timestamp', '')
+                                
+                                rows.append({
+                                    'timestamp': timestamp,
+                                    'type': 'qualifying',
+                                    'new_ratio': qual_ratio,
+                                    'current_ratio': current_ratio,
+                                    'position': qual_position,
+                                    'date': timestamp,
+                                    'track': csv_track
+                                })
+                            
+                            # Check for race data
+                            if row.get('new_race') and row.get('new_race').strip():
+                                race_ratio = float(row['new_race'])
+                                current_ratio = float(row.get('current_race', '1.0'))
+                                race_position = row.get('race_current_pos', '')
+                                
+                                rows.append({
+                                    'timestamp': timestamp,
+                                    'type': 'race',
+                                    'new_ratio': race_ratio,
+                                    'current_ratio': current_ratio,
+                                    'position': race_position,
+                                    'date': timestamp,
+                                    'track': csv_track
+                                })
+                        except (ValueError, KeyError) as e:
+                            print(f"Error parsing row: {e}")
+                            continue
+                
+                # Sort by timestamp (most recent last for chronological display)
+                rows.sort(key=lambda x: x['timestamp'])
+                
+                # Return the most recent entries
+                return rows[-limit:]
+                
+        except Exception as e:
+            print(f"Error loading track history: {e}")
+            return []
 
 
 class TimeConverter:
