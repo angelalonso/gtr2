@@ -90,7 +90,7 @@ class EditableTableWidget(QTableWidget):
         self.setColumnWidth(0, 400)
         self.setColumnWidth(1, 120)
         self.setColumnWidth(2, 120)
-        self.setColumnWidth(3, 320)  # Slightly wider for Data&Calc
+        self.setColumnWidth(3, 320)
         
         # Row height for buttons
         self.verticalHeader().setDefaultSectionSize(50)
@@ -158,7 +158,7 @@ class EditableTableWidget(QTableWidget):
         
         track_name = data.get('track_name', 'Unknown')
         
-        # Data&Calc button (always visible) - renamed from "Calc"
+        # Data&Calc button
         calc_btn = QPushButton("Data&Calc")
         calc_btn.setToolTip(f"Open data calculator for {track_name}")
         calc_btn.setFixedHeight(32)
@@ -427,7 +427,6 @@ class AIWRatioEditor(QMainWindow):
         last_filter = load_last_filter()
         if last_filter:
             self.filter_edit.setText(last_filter)
-            # Apply the filter immediately on startup
             self.apply_filter()
         
         self.scan_files()
@@ -459,7 +458,7 @@ class AIWRatioEditor(QMainWindow):
         
         main_layout.addWidget(header)
         
-        # Filter section - IMPROVED with Apply button
+        # Filter section
         filter_widget = QWidget()
         filter_layout = QHBoxLayout(filter_widget)
         filter_layout.setContentsMargins(0, 0, 0, 10)
@@ -479,11 +478,9 @@ class AIWRatioEditor(QMainWindow):
             }
             QLineEdit:focus { border: 1px solid #4CAF50; }
         """)
-        # Connect returnPressed to save AND apply
         self.filter_edit.returnPressed.connect(self.save_and_apply_filter)
         filter_layout.addWidget(self.filter_edit)
         
-        # Apply button - NEW
         self.apply_filter_btn = QPushButton("Apply Filter")
         self.apply_filter_btn.setFixedHeight(28)
         self.apply_filter_btn.setFixedWidth(100)
@@ -522,7 +519,6 @@ class AIWRatioEditor(QMainWindow):
         
         filter_layout.addStretch()
         
-        # Add filter hint label
         filter_hint = QLabel("(Press Enter or click Apply to filter)")
         filter_hint.setStyleSheet("color: #888; font-style: italic; font-size: 10px;")
         filter_layout.addWidget(filter_hint)
@@ -561,7 +557,6 @@ class AIWRatioEditor(QMainWindow):
         button_layout.setContentsMargins(0, 10, 0, 0)
         button_layout.setSpacing(8)
         
-        # Rescan button
         self.rescan_btn = QPushButton("Rescan")
         self.rescan_btn.setToolTip("Rescan for AIW files")
         self.rescan_btn.setFixedHeight(32)
@@ -571,7 +566,6 @@ class AIWRatioEditor(QMainWindow):
         self.rescan_btn.setStyleSheet(self.button_style("#4CAF50"))
         button_layout.addWidget(self.rescan_btn)
         
-        # Save All
         self.save_all_btn = QPushButton("Save All Modified")
         self.save_all_btn.setToolTip("Save all modified rows")
         self.save_all_btn.setFixedHeight(32)
@@ -581,7 +575,6 @@ class AIWRatioEditor(QMainWindow):
         self.save_all_btn.setStyleSheet(self.button_style("#4CAF50"))
         button_layout.addWidget(self.save_all_btn)
         
-        # Restore All
         self.restore_all_btn = QPushButton("Restore All Modified")
         self.restore_all_btn.setToolTip("Restore all modified rows to session values")
         self.restore_all_btn.setFixedHeight(32)
@@ -591,7 +584,6 @@ class AIWRatioEditor(QMainWindow):
         self.restore_all_btn.setStyleSheet(self.button_style("#FFA500"))
         button_layout.addWidget(self.restore_all_btn)
         
-        # Restore All from Backup
         self.restore_all_backup_btn = QPushButton("Restore All from Backup")
         self.restore_all_backup_btn.setToolTip("Restore all files from backup")
         self.restore_all_backup_btn.setFixedHeight(32)
@@ -603,7 +595,6 @@ class AIWRatioEditor(QMainWindow):
         
         button_layout.addStretch()
         
-        # Status
         self.status_label = QLabel("Ready")
         self.status_label.setFixedHeight(32)
         self.status_label.setMinimumWidth(200)
@@ -620,7 +611,6 @@ class AIWRatioEditor(QMainWindow):
         
         main_layout.addWidget(button_bar)
         
-        # Status bar
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("Ready")
@@ -641,7 +631,6 @@ class AIWRatioEditor(QMainWindow):
         """
     
     def darken_color(self, color):
-        """Simple color darkening for hover effects"""
         if color == "#4CAF50":
             return "#45a049"
         elif color == "#FFA500":
@@ -686,43 +675,36 @@ class AIWRatioEditor(QMainWindow):
         """)
     
     def save_and_apply_filter(self):
-        """Save the filter and apply it"""
         filter_text = self.filter_edit.text()
         save_last_filter(filter_text)
         self.apply_filter()
         self.status_bar.showMessage(f"Filter applied and saved: '{filter_text}'", 3000)
     
     def apply_filter(self):
-        """Apply the current filter text to the table"""
         filter_text = self.filter_edit.text()
         visible = self.table.filter_rows(filter_text)
         total = self.table.rowCount()
         self.status_bar.showMessage(f"Filter: showing {visible} of {total} tracks")
     
     def clear_filter(self):
-        """Clear the filter text and save empty filter"""
         self.filter_edit.clear()
         save_last_filter("")
         self.apply_filter()
         self.status_bar.showMessage("Filter cleared", 2000)
     
     def find_matching_gdb(self, aiw_path):
-        """Find matching GDB file regardless of case"""
         stem = aiw_path.stem
         for ext in ['.gdb', '.GDB']:
-            # Try exact match first
             exact = aiw_path.with_suffix(ext)
             if exact.exists():
                 return exact
             
-            # Try case-insensitive match
             for file in aiw_path.parent.glob(f"*{ext}"):
                 if file.stem.lower() == stem.lower():
                     return file
         return None
     
     def extract_track_name(self, gdb_path):
-        """Extract TrackName from GDB file"""
         if not gdb_path or not gdb_path.exists():
             return None
             
@@ -730,13 +712,11 @@ class AIWRatioEditor(QMainWindow):
             with open(gdb_path, 'rb') as f:
                 data = f.read()
             
-            # Try UTF-8 first, then fallback to latin-1
             try:
                 content = data.decode('utf-8', errors='ignore')
             except:
                 content = data.decode('latin-1', errors='ignore')
             
-            # Look for TrackName
             match = re.search(r'TrackName\s*=\s*"([^"]+)"', content)
             if not match:
                 match = re.search(r'TrackName\s*=\s*([^\n\r]+)', content)
@@ -746,7 +726,6 @@ class AIWRatioEditor(QMainWindow):
             return None
     
     def extract_ratios(self, aiw_path):
-        """Extract QualRatio and RaceRatio from AIW file"""
         qual_ratio = race_ratio = None
         
         try:
@@ -758,11 +737,9 @@ class AIWRatioEditor(QMainWindow):
             except:
                 content = data.decode('latin-1', errors='ignore')
             
-            # Look in [Waypoint] section first
             waypoint = re.search(r'\[Waypoint\](.*?)(?=\[|$)', content, re.DOTALL)
             section = waypoint.group(1) if waypoint else content
             
-            # Extract ratios
             for pattern, attr in [(r'QualRatio\s*=\s*\(?\s*([0-9.eE+-]+)\s*\)?', 'qual'),
                                    (r'RaceRatio\s*=\s*\(?\s*([0-9.eE+-]+)\s*\)?', 'race')]:
                 match = re.search(pattern, section)
@@ -781,11 +758,9 @@ class AIWRatioEditor(QMainWindow):
         return qual_ratio, race_ratio
     
     def check_backup_exists(self, aiw_path):
-        """Check if a backup file exists"""
         return (self.backup_dir / f"{aiw_path.name}.original").exists()
     
     def create_backup(self, aiw_path):
-        """Create a backup if it doesn't exist"""
         if not self.backup_dir.exists():
             self.backup_dir.mkdir(parents=True)
         
@@ -798,7 +773,6 @@ class AIWRatioEditor(QMainWindow):
         return True
     
     def restore_from_backup_file(self, aiw_path):
-        """Restore AIW file from backup"""
         backup_path = self.backup_dir / f"{aiw_path.name}.original"
         if not backup_path.exists():
             return False, "Backup file not found"
@@ -810,7 +784,6 @@ class AIWRatioEditor(QMainWindow):
             return False, str(e)
     
     def update_ratio_in_file(self, aiw_path, ratio_type, new_value):
-        """Update a ratio in the AIW file"""
         try:
             with open(aiw_path, 'rb') as f:
                 data = f.read()
@@ -836,10 +809,9 @@ class AIWRatioEditor(QMainWindow):
         return False
     
     def scan_files(self):
-        """Start background scan for AIW files"""
         self.rescan_btn.setEnabled(False)
         self.progress_bar.setVisible(True)
-        self.progress_bar.setRange(0, 0)  # Indeterminate
+        self.progress_bar.setRange(0, 0)
         self.status_bar.showMessage("Scanning files...")
         
         self.scan_worker = Worker(self._scan_files_impl)
@@ -848,14 +820,12 @@ class AIWRatioEditor(QMainWindow):
         self.scan_worker.start()
     
     def _scan_files_impl(self):
-        """Actual scanning work (runs in background)"""
         locations_path = self.base_path / "GameData" / "Locations"
         results = []
         
         if not locations_path.exists():
             return None
         
-        # Find all AIW files
         aiw_files = []
         seen = set()
         for ext in ['*.aiw', '*.AIW']:
@@ -875,7 +845,6 @@ class AIWRatioEditor(QMainWindow):
         return results
     
     def on_scan_complete(self, results):
-        """Handle scan completion"""
         self.rescan_btn.setEnabled(True)
         self.progress_bar.setVisible(False)
         
@@ -893,7 +862,6 @@ class AIWRatioEditor(QMainWindow):
             self.stats_label.setText("No files found")
             return
         
-        # Clear table and repopulate
         self.table.clear_all()
         self.aiw_files.clear()
         
@@ -908,7 +876,6 @@ class AIWRatioEditor(QMainWindow):
             if race is None:
                 missing_race += 1
         
-        # Update stats
         stats = f"Found {len(results)} AIW files"
         if missing_qual or missing_race:
             stats += f" | Missing: Qual:{missing_qual} Race:{missing_race}"
@@ -918,22 +885,18 @@ class AIWRatioEditor(QMainWindow):
         self.stats_label.setText(stats)
         self.status_bar.showMessage(f"Scan complete - found {len(results)} AIW files")
         
-        # Re-apply filter after scan completes
         self.apply_filter()
     
     def on_scan_error(self, error_msg):
-        """Handle scan error"""
         self.rescan_btn.setEnabled(True)
         self.progress_bar.setVisible(False)
         QMessageBox.critical(self, "Scan Error", f"Error during scan:\n{error_msg}")
         self.status_bar.showMessage("Scan failed")
     
     def on_value_changed(self, row_id, ratio_type, new_value):
-        """Handle value change"""
         self.status_bar.showMessage(f"Row {row_id} {ratio_type} changed - unsaved", 3000)
     
     def save_row(self, row_id):
-        """Save changes for a row"""
         file_info = next((info for info in self.aiw_files if info[3] == row_id), None)
         if not file_info:
             return
@@ -968,7 +931,6 @@ class AIWRatioEditor(QMainWindow):
             self.status_bar.showMessage(f"Saved {success} changes", 3000)
     
     def restore_row(self, row_id):
-        """Restore original values for a row"""
         keys = [k for k in self.table.original_values if k[0] == row_id]
         for r, ratio_type in keys:
             self.table.restore_row_value(row_id, ratio_type)
@@ -976,7 +938,6 @@ class AIWRatioEditor(QMainWindow):
             self.status_bar.showMessage(f"Restored original values", 3000)
     
     def restore_from_backup(self, row_id):
-        """Restore a row from backup"""
         file_info = next((info for info in self.aiw_files if info[3] == row_id), None)
         if not file_info:
             return
@@ -999,7 +960,6 @@ class AIWRatioEditor(QMainWindow):
             QMessageBox.critical(self, "Restore Failed", msg)
     
     def save_all(self):
-        """Save all modified rows"""
         modified = list(self.table.modified_rows)
         if not modified:
             QMessageBox.information(self, "No Changes", "No modified rows to save.")
@@ -1027,7 +987,6 @@ class AIWRatioEditor(QMainWindow):
             self.status_bar.showMessage(msg, 3000)
     
     def restore_all(self):
-        """Restore all modified rows"""
         modified = list(self.table.modified_rows)
         if not modified:
             QMessageBox.information(self, "No Changes", "No modified rows to restore.")
@@ -1045,7 +1004,6 @@ class AIWRatioEditor(QMainWindow):
             self.status_bar.showMessage(f"Restored {len(modified)} rows", 3000)
     
     def restore_all_from_backup(self):
-        """Restore all files from backup"""
         rows = list(self.table.has_backup)
         if not rows:
             QMessageBox.information(self, "No Backups", "No backup files found.")
@@ -1081,7 +1039,6 @@ class AIWRatioEditor(QMainWindow):
         self.status_bar.showMessage(msg, 3000)
     
     def open_calculator(self, row_id):
-        """Open ratio calculator for a row"""
         file_info = next((info for info in self.aiw_files if info[3] == row_id), None)
         if not file_info:
             return
@@ -1091,7 +1048,6 @@ class AIWRatioEditor(QMainWindow):
         if not data or data['visual_row'] < 0:
             return
         
-        # Get current values
         qual_item = self.table.item(data['visual_row'], 1)
         race_item = self.table.item(data['visual_row'], 2)
         
