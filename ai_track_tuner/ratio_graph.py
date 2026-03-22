@@ -1,6 +1,6 @@
 """
-Dedicated Graph Window for Ratio vs Time Analysis
-Supports interactive drawing, curve fitting with multiple formula types, and data visualization
+Dedicated Graph Window for Global Curve Analysis
+Shows points from all tracks and the global curve with track-specific scaling
 """
 
 from PyQt5.QtWidgets import *
@@ -12,404 +12,21 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.ticker import AutoMinorLocator
 from matplotlib.lines import Line2D
-from scipy.optimize import curve_fit
 import warnings
 warnings.filterwarnings('ignore', category=RuntimeWarning)
 
-
-class CurveFitter:
-    """Handles curve fitting to approximate points"""
-    
-    def __init__(self):
-        self.points = []  # List of (ratio, time)
-        self.fitted_params = None
-        self.fit_error = None
-        self.fit_type = None
-        self.formula_string = ""
-        self.available_fits = []  # List of (fit_type, params, error, formula)
-    
-    def add_point(self, ratio, time):
-        """Add a point"""
-        self.points.append((ratio, time))
-        self.points.sort(key=lambda x: x[0])
-        self.fitted_params = None  # Clear fit when points change
-        self.available_fits = []
-    
-    def remove_point(self, index):
-        """Remove a point by index"""
-        if 0 <= index < len(self.points):
-            del self.points[index]
-            self.fitted_params = None
-            self.available_fits = []
-    
-    def clear_points(self):
-        """Clear all points"""
-        self.points = []
-        self.fitted_params = None
-        self.fit_error = None
-        self.fit_type = None
-        self.available_fits = []
-    
-    # Formula types
-    def linear_func(self, R, a, b):
-        """Linear: T = a * R + b"""
-        return a * R + b
-    
-    def power_func(self, R, a, b, c):
-        """Power: T = a * R^b + c"""
-        return a * (R ** b) + c
-    
-    def exponential_func(self, R, a, b, c):
-        """Exponential: T = a * exp(-b * R) + c"""
-        return a * np.exp(-b * R) + c
-    
-    def polynomial_2_func(self, R, a, b, c):
-        """Quadratic: T = a * R^2 + b * R + c"""
-        return a * R**2 + b * R + c
-    
-    def polynomial_3_func(self, R, a, b, c, d):
-        """Cubic: T = a * R^3 + b * R^2 + c * R + d"""
-        return a * R**3 + b * R**2 + c * R + d
-    
-    def fit_linear(self):
-        """Fit linear: T = a * R + b"""
-        if len(self.points) < 2:
-            return None, None, "Need at least 2 points"
-        
-        ratios = np.array([p[0] for p in self.points])
-        times = np.array([p[1] for p in self.points])
-        
-        try:
-            # Use polyfit for linear (more stable)
-            coeffs = np.polyfit(ratios, times, 1)
-            a, b = coeffs[0], coeffs[1]
-            
-            # Calculate R-squared
-            predictions = a * ratios + b
-            residuals = times - predictions
-            ss_res = np.sum(residuals**2)
-            ss_tot = np.sum((times - np.mean(times))**2)
-            r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
-            
-            formula = f"T = {a:.4f} × R + {b:.4f}"
-            return [a, b], r_squared, formula
-        except Exception as e:
-            return None, None, str(e)
-    
-    def fit_power(self):
-        """Fit power: T = a * R^b + c"""
-        if len(self.points) < 3:
-            return None, None, "Need at least 3 points"
-        
-        ratios = np.array([p[0] for p in self.points])
-        times = np.array([p[1] for p in self.points])
-        
-        # Ensure all ratios > 0 and times > 0
-        if np.any(ratios <= 0) or np.any(times <= 0):
-            return None, None, "Power fit requires positive values"
-        
-        try:
-            # Try to fit using polyfit on log-log for initial guess
-            # For a*R^b + c, we can approximate with log(t-c) = log(a) + b*log(R)
-            c_guess = np.min(times) * 0.95
-            log_t = np.log(times - c_guess + 0.001)
-            log_r = np.log(ratios)
-            coeffs = np.polyfit(log_r, log_t, 1)
-            a_guess = np.exp(coeffs[1])
-            b_guess = coeffs[0]
-            
-            popt, pcov = curve_fit(self.power_func, ratios, times, 
-                                   p0=[a_guess, b_guess, c_guess],
-                                   maxfev=5000)
-            
-            predictions = self.power_func(ratios, *popt)
-            residuals = times - predictions
-            ss_res = np.sum(residuals**2)
-            ss_tot = np.sum((times - np.mean(times))**2)
-            r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
-            
-            formula = f"T = {popt[0]:.4f} × R^{popt[1]:.4f} + {popt[2]:.4f}"
-            return popt.tolist(), r_squared, formula
-        except Exception as e:
-            return None, None, str(e)
-    
-    def fit_exponential(self):
-        """Fit exponential: T = a * exp(-b * R) + c"""
-        if len(self.points) < 3:
-            return None, None, "Need at least 3 points"
-        
-        ratios = np.array([p[0] for p in self.points])
-        times = np.array([p[1] for p in self.points])
-        
-        try:
-            # Initial guess
-            c_guess = np.min(times) * 0.9
-            a_guess = np.max(times) - c_guess
-            b_guess = 1.0
-            
-            # Try to fit with bounds
-            bounds = ([0, 0.01, 0], [np.inf, 10, np.max(times)])
-            popt, pcov = curve_fit(self.exponential_func, ratios, times, 
-                                   p0=[a_guess, b_guess, c_guess],
-                                   bounds=bounds, maxfev=5000)
-            
-            predictions = self.exponential_func(ratios, *popt)
-            residuals = times - predictions
-            ss_res = np.sum(residuals**2)
-            ss_tot = np.sum((times - np.mean(times))**2)
-            r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
-            
-            formula = f"T = {popt[0]:.4f} × e^(-{popt[1]:.4f} × R) + {popt[2]:.4f}"
-            return popt.tolist(), r_squared, formula
-        except Exception as e:
-            return None, None, str(e)
-    
-    def fit_quadratic(self):
-        """Fit quadratic: T = a * R^2 + b * R + c"""
-        if len(self.points) < 3:
-            return None, None, "Need at least 3 points"
-        
-        ratios = np.array([p[0] for p in self.points])
-        times = np.array([p[1] for p in self.points])
-        
-        try:
-            # Use polyfit for quadratic (more stable)
-            coeffs = np.polyfit(ratios, times, 2)
-            a, b, c = coeffs[0], coeffs[1], coeffs[2]
-            
-            # Calculate R-squared
-            predictions = a * ratios**2 + b * ratios + c
-            residuals = times - predictions
-            ss_res = np.sum(residuals**2)
-            ss_tot = np.sum((times - np.mean(times))**2)
-            r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
-            
-            formula = f"T = {a:.4f}×R² + {b:.4f}×R + {c:.4f}"
-            return [a, b, c], r_squared, formula
-        except Exception as e:
-            return None, None, str(e)
-    
-    def fit_cubic(self):
-        """Fit cubic: T = a * R^3 + b * R^2 + c * R + d"""
-        if len(self.points) < 4:
-            return None, None, "Need at least 4 points"
-        
-        ratios = np.array([p[0] for p in self.points])
-        times = np.array([p[1] for p in self.points])
-        
-        try:
-            # Use polyfit for cubic (more stable)
-            coeffs = np.polyfit(ratios, times, 3)
-            a, b, c, d = coeffs[0], coeffs[1], coeffs[2], coeffs[3]
-            
-            # Calculate R-squared
-            predictions = a * ratios**3 + b * ratios**2 + c * ratios + d
-            residuals = times - predictions
-            ss_res = np.sum(residuals**2)
-            ss_tot = np.sum((times - np.mean(times))**2)
-            r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
-            
-            formula = f"T = {a:.4f}×R³ + {b:.4f}×R² + {c:.4f}×R + {d:.4f}"
-            return [a, b, c, d], r_squared, formula
-        except Exception as e:
-            return None, None, str(e)
-    
-    def fit_all_types(self):
-        """Try all fit types and collect results"""
-        self.available_fits = []
-        
-        # Always try linear (needs 2 points)
-        if len(self.points) >= 2:
-            params, r_squared, formula = self.fit_linear()
-            if params is not None:
-                self.available_fits.append({
-                    'type': 'Linear',
-                    'params': params,
-                    'r_squared': r_squared,
-                    'formula': formula,
-                    'func': self.linear_func
-                })
-        
-        # Quadratic (needs 3 points)
-        if len(self.points) >= 3:
-            params, r_squared, formula = self.fit_quadratic()
-            if params is not None:
-                self.available_fits.append({
-                    'type': 'Quadratic',
-                    'params': params,
-                    'r_squared': r_squared,
-                    'formula': formula,
-                    'func': self.polynomial_2_func
-                })
-        
-        # Power (needs 3 points)
-        if len(self.points) >= 3:
-            params, r_squared, formula = self.fit_power()
-            if params is not None:
-                self.available_fits.append({
-                    'type': 'Power',
-                    'params': params,
-                    'r_squared': r_squared,
-                    'formula': formula,
-                    'func': self.power_func
-                })
-        
-        # Exponential (needs 3 points)
-        if len(self.points) >= 3:
-            params, r_squared, formula = self.fit_exponential()
-            if params is not None:
-                self.available_fits.append({
-                    'type': 'Exponential',
-                    'params': params,
-                    'r_squared': r_squared,
-                    'formula': formula,
-                    'func': self.exponential_func
-                })
-        
-        # Cubic (needs 4 points)
-        if len(self.points) >= 4:
-            params, r_squared, formula = self.fit_cubic()
-            if params is not None:
-                self.available_fits.append({
-                    'type': 'Cubic',
-                    'params': params,
-                    'r_squared': r_squared,
-                    'formula': formula,
-                    'func': self.polynomial_3_func
-                })
-        
-        # Sort by R² (best first)
-        self.available_fits.sort(key=lambda x: x['r_squared'], reverse=True)
-        
-        return self.available_fits
-    
-    def select_fit(self, index=0):
-        """Select a fit by index"""
-        if 0 <= index < len(self.available_fits):
-            fit = self.available_fits[index]
-            self.fit_type = fit['type']
-            self.fitted_params = fit['params']
-            self.fit_error = fit['r_squared']
-            self.formula_string = fit['formula']
-            return True
-        return False
-    
-    def predict_time(self, ratio):
-        """Predict time for a given ratio using selected fit"""
-        if self.fitted_params is None or self.fit_type is None:
-            return None
-        
-        try:
-            if self.fit_type == 'Linear':
-                a, b = self.fitted_params
-                return a * ratio + b
-            elif self.fit_type == 'Quadratic':
-                a, b, c = self.fitted_params
-                return a * ratio**2 + b * ratio + c
-            elif self.fit_type == 'Cubic':
-                a, b, c, d = self.fitted_params
-                return a * ratio**3 + b * ratio**2 + c * ratio + d
-            elif self.fit_type == 'Power':
-                a, b, c = self.fitted_params
-                return a * (ratio ** b) + c
-            elif self.fit_type == 'Exponential':
-                a, b, c = self.fitted_params
-                return a * np.exp(-b * ratio) + c
-        except:
-            return None
-        return None
-    
-    def predict_ratio(self, time, tolerance=0.001, max_iter=100):
-        """Predict ratio for a given time using binary search"""
-        if self.fitted_params is None or self.fit_type is None or len(self.points) < 2:
-            return None
-        
-        # Get ratio range from points
-        ratios = [p[0] for p in self.points]
-        r_min = min(ratios)
-        r_max = max(ratios)
-        
-        # Check if time is within range
-        t_min = self.predict_time(r_min)
-        t_max = self.predict_time(r_max)
-        
-        if t_min is None or t_max is None:
-            return None
-        
-        if time < min(t_min, t_max) - tolerance or time > max(t_min, t_max) + tolerance:
-            return None
-        
-        # Binary search
-        left, right = r_min, r_max
-        
-        # Determine if function is decreasing
-        if t_min > t_max:
-            for _ in range(max_iter):
-                mid = (left + right) / 2
-                t_mid = self.predict_time(mid)
-                if t_mid is None:
-                    return None
-                if abs(t_mid - time) < tolerance:
-                    return mid
-                if t_mid > time:
-                    left = mid
-                else:
-                    right = mid
-        else:
-            for _ in range(max_iter):
-                mid = (left + right) / 2
-                t_mid = self.predict_time(mid)
-                if t_mid is None:
-                    return None
-                if abs(t_mid - time) < tolerance:
-                    return mid
-                if t_mid < time:
-                    left = mid
-                else:
-                    right = mid
-        
-        return (left + right) / 2
-    
-    def get_curve_points(self, ratio_min=None, ratio_max=None, num_points=200):
-        """Get points for plotting the fitted curve"""
-        if self.fitted_params is None or self.fit_type is None:
-            return [], []
-        
-        if ratio_min is None and self.points:
-            ratio_min = min([p[0] for p in self.points])
-        if ratio_max is None and self.points:
-            ratio_max = max([p[0] for p in self.points])
-        
-        if ratio_min is None or ratio_max is None:
-            ratio_min, ratio_max = 0.5, 2.0
-        
-        # Extend range slightly
-        ratio_min = max(0.1, ratio_min * 0.9)
-        ratio_max = ratio_max * 1.1
-        
-        ratios = np.linspace(ratio_min, ratio_max, num_points)
-        times = [self.predict_time(r) for r in ratios]
-        
-        valid = [(r, t) for r, t in zip(ratios, times) if t is not None]
-        if valid:
-            ratios, times = zip(*valid)
-            return np.array(ratios), np.array(times)
-        
-        return [], []
+from track_formula import GlobalFormulaManager
 
 
-class FormulaSelectionDialog(QDialog):
-    """Dialog for selecting which formula to use"""
+class GlobalCurveDialog(QDialog):
+    """Dialog for showing global curve information and statistics"""
     
-    def __init__(self, parent=None, fits=None):
+    def __init__(self, parent=None, manager=None):
         super().__init__(parent)
-        self.parent_window = parent
-        self.fits = fits or []
-        self.selected_index = 0
-        
-        self.setWindowTitle("Select Curve Formula")
-        self.setMinimumWidth(550)
-        self.setMinimumHeight(450)
+        self.manager = manager
+        self.setWindowTitle("Global Curve Information")
+        self.setMinimumWidth(500)
+        self.setMinimumHeight(400)
         
         self.setStyleSheet("""
             QDialog {
@@ -419,7 +36,15 @@ class FormulaSelectionDialog(QDialog):
                 color: white;
                 font-size: 12px;
             }
-            QListWidget {
+            QGroupBox {
+                color: #4CAF50;
+                font-weight: bold;
+                border: 2px solid #555;
+                border-radius: 5px;
+                margin-top: 8px;
+                padding-top: 8px;
+            }
+            QTextEdit {
                 background-color: #3c3c3c;
                 color: #4CAF50;
                 border: 1px solid #4CAF50;
@@ -435,87 +60,77 @@ class FormulaSelectionDialog(QDialog):
                 padding: 8px;
                 font-weight: bold;
             }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-            QGroupBox {
-                color: #4CAF50;
-                border: 2px solid #555;
-                border-radius: 5px;
-                margin-top: 8px;
-                padding-top: 8px;
-            }
         """)
         
         layout = QVBoxLayout(self)
         
-        # Info label
-        info_label = QLabel(f"Found {len(fits)} formula types that fit your points:")
-        info_label.setStyleSheet("color: #FFA500; font-size: 12px;")
-        layout.addWidget(info_label)
+        stats = self.manager.get_stats() if self.manager else {}
         
-        # List of formulas
-        self.list_widget = QListWidget()
-        for i, fit in enumerate(fits):
-            r2 = fit['r_squared']
-            # Truncate formula if too long
-            formula = fit['formula']
-            if len(formula) > 70:
-                formula = formula[:67] + "..."
-            item_text = f"{fit['type']}: R² = {r2:.6f}\n  {formula}"
-            self.list_widget.addItem(item_text)
+        # Stats group
+        stats_group = QGroupBox("Global Curve Statistics")
+        stats_layout = QVBoxLayout(stats_group)
         
-        layout.addWidget(self.list_widget)
+        formula = QLabel(f"Formula: T = {stats.get('global_A', 300):.4f} × e^(-{stats.get('global_k', 3):.4f} × R) + {stats.get('global_B', 100):.4f}")
+        formula.setWordWrap(True)
+        formula.setStyleSheet("color: #FFA500; font-family: monospace;")
+        stats_layout.addWidget(formula)
         
-        # Buttons
-        btn_layout = QHBoxLayout()
+        if stats.get('r_squared'):
+            r2_label = QLabel(f"R² = {stats['r_squared']:.6f}")
+            stats_layout.addWidget(r2_label)
         
-        select_btn = QPushButton("Select This Formula")
-        select_btn.clicked.connect(self.select_formula)
-        btn_layout.addWidget(select_btn)
+        tracks_label = QLabel(f"Tracks with data: {stats.get('total_tracks', 0)}")
+        stats_layout.addWidget(tracks_label)
         
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(self.reject)
-        btn_layout.addWidget(cancel_btn)
+        points_label = QLabel(f"Total data points: {stats.get('total_points', 0)}")
+        stats_layout.addWidget(points_label)
         
-        layout.addLayout(btn_layout)
+        layout.addWidget(stats_group)
         
-        # Select first item by default
-        if self.list_widget.count() > 0:
-            self.list_widget.setCurrentRow(0)
-    
-    def select_formula(self):
-        """Select the current formula"""
-        self.selected_index = self.list_widget.currentRow()
-        self.accept()
-    
-    def get_selected_index(self):
-        return self.selected_index
+        # Track multipliers group
+        multipliers_group = QGroupBox("Track Multipliers")
+        multipliers_layout = QVBoxLayout(multipliers_group)
+        
+        multiplier_text = QTextEdit()
+        multiplier_text.setReadOnly(True)
+        multiplier_text.setMaximumHeight(200)
+        
+        multipliers = stats.get('track_multipliers', {})
+        if multipliers:
+            text = ""
+            for track, mult in sorted(multipliers.items()):
+                text += f"{track}: {mult:.6f}\n"
+            multiplier_text.setText(text)
+        else:
+            multiplier_text.setText("No track multipliers calculated yet.\nAdd points and fit the curve.")
+        
+        multipliers_layout.addWidget(multiplier_text)
+        layout.addWidget(multipliers_group)
+        
+        # Close button
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(self.accept)
+        layout.addWidget(close_btn)
 
 
 class RatioGraphWindow(QMainWindow):
-    """Main window for ratio vs time graph with interactive features"""
+    """Main window for global curve analysis"""
     
-    def __init__(self, parent=None, track_name=""):
+    def __init__(self, parent=None, manager=None):
         super().__init__(parent)
-        self.track_name = track_name
-        self.qual_points = []
-        self.race_points = []
-        self.current_times = None
-        self.current_ratio = None
-        self.current_type = None
-        self.drawing_mode = False
-        self.curve_fitting_dialog = None
-        self.formula_selection_dialog = None
+        self.manager = manager or GlobalFormulaManager()
+        self.current_track = None
+        self.hover_annotation = None
+        self.hover_point = None
         
-        self.setWindowTitle(f"Ratio Graph Analysis - {track_name}")
+        self.setWindowTitle("Global Curve Analysis")
         self.setGeometry(100, 100, 1400, 900)
         
         self.setup_ui()
         self.setup_connections()
+        self.update_graph()
     
     def setup_ui(self):
-        """Setup the user interface"""
         self.setStyleSheet("""
             QMainWindow {
                 background-color: #1e1e1e;
@@ -535,21 +150,20 @@ class RatioGraphWindow(QMainWindow):
             QPushButton:hover {
                 background-color: #45a049;
             }
-            QPushButton:checked {
-                background-color: #f44336;
+            QComboBox {
+                background-color: #3c3c3c;
+                color: white;
+                border: 1px solid #4CAF50;
+                border-radius: 3px;
+                padding: 5px;
+                min-width: 200px;
             }
-            QGroupBox {
-                color: #4CAF50;
-                font-weight: bold;
-                border: 2px solid #555;
-                border-radius: 5px;
-                margin-top: 8px;
-                padding-top: 8px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
+            QSpinBox, QDoubleSpinBox {
+                background-color: #3c3c3c;
+                color: white;
+                border: 1px solid #4CAF50;
+                border-radius: 3px;
+                padding: 5px;
             }
         """)
         
@@ -569,15 +183,54 @@ class RatioGraphWindow(QMainWindow):
         stats_layout = QHBoxLayout(stats_widget)
         stats_layout.setContentsMargins(10, 5, 10, 5)
         
-        self.stats_label = QLabel("Loading data...")
+        self.stats_label = QLabel("Loading...")
         self.stats_label.setStyleSheet("color: #4CAF50; font-size: 11px;")
         stats_layout.addWidget(self.stats_label)
         stats_layout.addStretch()
         
         main_layout.addWidget(stats_widget)
         
+        # Track selection
+        track_widget = QWidget()
+        track_layout = QHBoxLayout(track_widget)
+        track_layout.setContentsMargins(0, 0, 0, 10)
+        
+        track_layout.addWidget(QLabel("Select Track to Highlight:"))
+        self.track_combo = QComboBox()
+        self.track_combo.setMinimumWidth(250)
+        self.track_combo.addItem("All Tracks")
+        track_layout.addWidget(self.track_combo)
+        
+        track_layout.addStretch()
+        
+        # Add point section
+        track_layout.addWidget(QLabel("Add Point:"))
+        
+        track_layout.addWidget(QLabel("Ratio:"))
+        self.ratio_spin = QDoubleSpinBox()
+        self.ratio_spin.setRange(0.1, 10.0)
+        self.ratio_spin.setDecimals(6)
+        self.ratio_spin.setValue(1.0)
+        self.ratio_spin.setFixedWidth(100)
+        track_layout.addWidget(self.ratio_spin)
+        
+        track_layout.addWidget(QLabel("Time (s):"))
+        self.time_spin = QDoubleSpinBox()
+        self.time_spin.setRange(30, 500)
+        self.time_spin.setDecimals(3)
+        self.time_spin.setValue(120.0)
+        self.time_spin.setFixedWidth(100)
+        track_layout.addWidget(self.time_spin)
+        
+        self.add_point_btn = QPushButton("Add Point")
+        self.add_point_btn.setFixedHeight(30)
+        self.add_point_btn.setFixedWidth(100)
+        track_layout.addWidget(self.add_point_btn)
+        
+        main_layout.addWidget(track_widget)
+        
         # Graph area
-        graph_group = QGroupBox("Interactive Graph - Click points to add data | Use mouse to zoom/pan")
+        graph_group = QGroupBox("Global Curve Analysis - Hover over points for details | Use mouse to zoom/pan")
         graph_layout = QVBoxLayout(graph_group)
         
         self.graph_widget = GraphWidget(self)
@@ -589,65 +242,38 @@ class RatioGraphWindow(QMainWindow):
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("Ready")
+        
+        self.update_stats()
     
     def create_toolbar(self):
-        """Create the toolbar with controls"""
         toolbar_widget = QWidget()
         toolbar_layout = QHBoxLayout(toolbar_widget)
         toolbar_layout.setSpacing(10)
         
-        # Drawing mode toggle
-        self.drawing_toggle = QPushButton("✏️ Draw Points Mode")
-        self.drawing_toggle.setCheckable(True)
-        self.drawing_toggle.setFixedHeight(35)
-        self.drawing_toggle.setFixedWidth(150)
-        toolbar_layout.addWidget(self.drawing_toggle)
-        
-        # Clear points button
-        self.clear_points_btn = QPushButton("🗑️ Clear Points")
-        self.clear_points_btn.setFixedHeight(35)
-        self.clear_points_btn.setFixedWidth(120)
-        toolbar_layout.addWidget(self.clear_points_btn)
-        
-        # Fit curve button
-        self.fit_curve_btn = QPushButton("📈 Fit Curve")
+        self.fit_curve_btn = QPushButton("📈 Fit Global Curve")
         self.fit_curve_btn.setFixedHeight(35)
-        self.fit_curve_btn.setFixedWidth(120)
-        self.fit_curve_btn.setEnabled(False)
+        self.fit_curve_btn.setFixedWidth(150)
         self.fit_curve_btn.clicked.connect(self.fit_curve)
         toolbar_layout.addWidget(self.fit_curve_btn)
         
-        # Select formula button
-        self.select_formula_btn = QPushButton("🎯 Select Formula")
-        self.select_formula_btn.setFixedHeight(35)
-        self.select_formula_btn.setFixedWidth(120)
-        self.select_formula_btn.setEnabled(False)
-        self.select_formula_btn.clicked.connect(self.select_formula)
-        toolbar_layout.addWidget(self.select_formula_btn)
-        
-        # Show info button
-        self.show_info_btn = QPushButton("📊 Show Info")
+        self.show_info_btn = QPushButton("📊 Show Statistics")
         self.show_info_btn.setFixedHeight(35)
-        self.show_info_btn.setFixedWidth(100)
-        self.show_info_btn.setEnabled(False)
-        self.show_info_btn.clicked.connect(self.show_curve_info)
+        self.show_info_btn.setFixedWidth(150)
+        self.show_info_btn.clicked.connect(self.show_info)
         toolbar_layout.addWidget(self.show_info_btn)
         
-        # Separator
         sep = QFrame()
         sep.setFrameShape(QFrame.VLine)
         sep.setFrameShadow(QFrame.Sunken)
         sep.setStyleSheet("background-color: #555;")
         toolbar_layout.addWidget(sep)
         
-        # Reset view button
         self.reset_view_btn = QPushButton("🔄 Reset View")
         self.reset_view_btn.setFixedHeight(35)
         self.reset_view_btn.setFixedWidth(100)
         self.reset_view_btn.clicked.connect(self.reset_view)
         toolbar_layout.addWidget(self.reset_view_btn)
         
-        # Save image button
         self.save_image_btn = QPushButton("💾 Save Image")
         self.save_image_btn.setFixedHeight(35)
         self.save_image_btn.setFixedWidth(100)
@@ -656,194 +282,109 @@ class RatioGraphWindow(QMainWindow):
         
         toolbar_layout.addStretch()
         
-        # Track info
-        track_info = QLabel(f"<b>Track:</b> {self.track_name}")
-        track_info.setStyleSheet("color: #FFA500; font-size: 12px; padding: 5px;")
-        toolbar_layout.addWidget(track_info)
+        # Help text
+        help_label = QLabel("💡 Points from all tracks are used to fit a global curve. Each track has its own multiplier.")
+        help_label.setStyleSheet("color: #888; font-size: 10px;")
+        toolbar_layout.addWidget(help_label)
         
         return toolbar_widget
     
     def setup_connections(self):
-        """Setup signal connections"""
-        self.drawing_toggle.toggled.connect(self.toggle_drawing_mode)
-        self.clear_points_btn.clicked.connect(self.clear_drawn_points)
+        self.track_combo.currentTextChanged.connect(self.on_track_changed)
+        self.add_point_btn.clicked.connect(self.add_point)
     
-    def toggle_drawing_mode(self, enabled):
-        """Toggle drawing mode on/off"""
-        self.drawing_mode = enabled
-        self.graph_widget.enable_drawing_mode(enabled)
-        if enabled:
-            self.status_bar.showMessage("Drawing mode ON - Click on graph to add points (Ratio, Time)")
-        else:
-            self.status_bar.showMessage("Drawing mode OFF")
+    def on_track_changed(self, track_name):
+        self.current_track = track_name if track_name != "All Tracks" else None
+        self.update_graph()
     
-    def on_point_added(self, ratio, time):
-        """Handle point added to graph"""
-        self.status_bar.showMessage(f"Point added: R={ratio:.4f}, T={time:.2f}s")
-        self.fit_curve_btn.setEnabled(True)
+    def add_point(self):
+        """Add a point for the selected track"""
+        track_name = self.track_combo.currentText()
+        if track_name == "All Tracks":
+            QMessageBox.warning(self, "No Track Selected", "Please select a specific track to add points.")
+            return
         
-        # Clear existing fit when new points are added
-        self.graph_widget.clear_fit_curve()
-        self.select_formula_btn.setEnabled(False)
-        self.show_info_btn.setEnabled(False)
+        ratio = self.ratio_spin.value()
+        time = self.time_spin.value()
+        
+        self.manager.add_point(track_name, ratio, time)
+        self.update_track_list()
+        self.update_graph()
+        self.update_stats()
+        self.status_bar.showMessage(f"Added point: {track_name} - R={ratio:.4f}, T={time:.2f}s")
     
-    def remove_point(self, index):
-        """Remove a point by index"""
-        self.graph_widget.curve_fitter.remove_point(index)
-        self.graph_widget.update_drawing_points()
+    def update_track_list(self):
+        """Update the track selection combo box"""
+        self.track_combo.blockSignals(True)
+        current = self.track_combo.currentText()
+        self.track_combo.clear()
+        self.track_combo.addItem("All Tracks")
+        for track in sorted(self.manager.get_all_tracks()):
+            self.track_combo.addItem(track)
         
-        # Clear fit when points change
-        self.graph_widget.clear_fit_curve()
-        
-        if len(self.graph_widget.curve_fitter.points) < 2:
-            self.fit_curve_btn.setEnabled(False)
-            self.select_formula_btn.setEnabled(False)
-            self.show_info_btn.setEnabled(False)
-        
-        self.status_bar.showMessage(f"Removed point {index+1}")
-    
-    def clear_drawn_points(self):
-        """Clear all drawn points"""
-        self.graph_widget.clear_drawn_points()
-        self.graph_widget.clear_fit_curve()
-        self.fit_curve_btn.setEnabled(False)
-        self.select_formula_btn.setEnabled(False)
-        self.show_info_btn.setEnabled(False)
-        self.status_bar.showMessage("Cleared all drawn points")
+        # Restore selection if possible
+        index = self.track_combo.findText(current)
+        if index >= 0:
+            self.track_combo.setCurrentIndex(index)
+        self.track_combo.blockSignals(False)
     
     def fit_curve(self):
-        """Fit curve to points"""
-        if len(self.graph_widget.curve_fitter.points) < 2:
-            self.status_bar.showMessage("Need at least 2 points to fit a curve")
+        """Fit the global curve"""
+        stats = self.manager.get_stats()
+        if stats['total_points'] < 3:
+            QMessageBox.warning(self, "Insufficient Data", 
+                               f"Need at least 3 points to fit a curve.\nCurrently have {stats['total_points']} points across {stats['total_tracks']} tracks.")
             return
         
-        self.status_bar.showMessage("Fitting curves...")
+        self.status_bar.showMessage("Fitting global curve...")
         QApplication.processEvents()
         
-        # Try all fit types
-        fits = self.graph_widget.curve_fitter.fit_all_types()
+        success, message = self.manager.fit_curve()
         
-        if not fits:
-            self.status_bar.showMessage("Could not fit any curve to these points")
-            QMessageBox.warning(self, "Fit Failed", 
-                               "Could not fit any curve to these points.\n\n"
-                               "Try adding more points or using different values.")
-            return
-        
-        # Automatically select the best fit
-        self.graph_widget.curve_fitter.select_fit(0)
-        self.graph_widget.update_fit_curve()
-        
-        self.select_formula_btn.setEnabled(len(fits) > 1)
-        self.show_info_btn.setEnabled(True)
-        
-        self.status_bar.showMessage(f"Curve fitted! Best fit: {fits[0]['type']} (R² = {fits[0]['r_squared']:.6f})")
+        if success:
+            self.status_bar.showMessage(message)
+            self.update_graph()
+            self.update_stats()
+            QMessageBox.information(self, "Fit Successful", message)
+        else:
+            self.status_bar.showMessage("Fit failed")
+            QMessageBox.warning(self, "Fit Failed", message)
     
-    def select_formula(self):
-        """Open dialog to select formula"""
-        if not self.graph_widget.curve_fitter.available_fits:
-            QMessageBox.information(self, "No Fits", "Please fit a curve first.")
-            return
-        
-        dialog = FormulaSelectionDialog(self, self.graph_widget.curve_fitter.available_fits)
-        if dialog.exec_() == QDialog.Accepted:
-            index = dialog.get_selected_index()
-            self.graph_widget.curve_fitter.select_fit(index)
-            self.graph_widget.update_fit_curve()
-            fit = self.graph_widget.curve_fitter.available_fits[index]
-            self.status_bar.showMessage(f"Selected: {fit['type']} (R² = {fit['r_squared']:.6f})")
+    def show_info(self):
+        """Show the global curve information dialog"""
+        dialog = GlobalCurveDialog(self, self.manager)
+        dialog.exec_()
     
-    def show_curve_info(self):
-        """Show curve information"""
-        if self.graph_widget.curve_fitter.fitted_params is None:
-            QMessageBox.information(self, "No Curve", "Please fit a curve first.")
-            return
-        
-        fit = None
-        for f in self.graph_widget.curve_fitter.available_fits:
-            if f['type'] == self.graph_widget.curve_fitter.fit_type:
-                fit = f
-                break
-        
-        if not fit:
-            return
-        
-        info = f"<b>Current Formula:</b><br><br>"
-        info += f"<tt style='color: #4CAF50; font-size: 12px;'>{fit['formula']}</tt><br><br>"
-        info += f"<b>R² = {fit['r_squared']:.6f}</b><br><br>"
-        info += f"<b>Points used:</b> {len(self.graph_widget.curve_fitter.points)}<br>"
-        
-        # Show point deviations
-        info += f"<br><b>Deviations:</b><br>"
-        total_error = 0
-        for i, (r, t) in enumerate(self.graph_widget.curve_fitter.points):
-            predicted = self.graph_widget.curve_fitter.predict_time(r)
-            if predicted:
-                diff = t - predicted
-                total_error += abs(diff)
-                info += f"  Point {i+1}: {diff:+.4f}s (error: {abs(diff):.3f}s)<br>"
-        
-        avg_error = total_error / len(self.graph_widget.curve_fitter.points)
-        info += f"<br><b>Average error:</b> {avg_error:.3f}s"
-        
-        msg = QMessageBox(self)
-        msg.setWindowTitle("Curve Information")
-        msg.setText(info)
-        msg.setStandardButtons(QMessageBox.Ok)
-        msg.setStyleSheet("""
-            QMessageBox {
-                background-color: #2b2b2b;
-                color: white;
-            }
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                padding: 8px 20px;
-                border-radius: 3px;
-            }
-        """)
-        msg.exec_()
+    def update_stats(self):
+        """Update the stats display"""
+        stats = self.manager.get_stats()
+        if stats['total_points'] > 0:
+            if stats.get('r_squared'):
+                self.stats_label.setText(f"📊 {stats['total_tracks']} tracks, {stats['total_points']} points | R² = {stats['r_squared']:.6f}")
+            else:
+                self.stats_label.setText(f"📊 {stats['total_tracks']} tracks, {stats['total_points']} points | Not fitted yet")
+        else:
+            self.stats_label.setText("📊 No data points. Add points from your tracks to build the global curve.")
     
-    def get_ratio_from_time(self, time):
-        """Get predicted ratio for a given time"""
-        return self.graph_widget.curve_fitter.predict_ratio(time)
+    def update_graph(self):
+        """Update the graph display"""
+        self.graph_widget.set_data(self.manager, self.current_track)
     
     def reset_view(self):
-        """Reset the graph view"""
         self.graph_widget.reset_view()
         self.status_bar.showMessage("View reset to default", 2000)
     
     def save_graph_image(self):
-        """Save the current graph as an image"""
         file_path, _ = QFileDialog.getSaveFileName(
             self,
             "Save Graph Image",
-            f"{self.track_name}_ratio_graph.png",
+            "global_curve.png",
             "PNG Images (*.png);;All Files (*)"
         )
         
         if file_path:
             self.graph_widget.figure.savefig(file_path, dpi=150, facecolor='#1e1e1e')
             self.status_bar.showMessage(f"Graph saved to {file_path}", 3000)
-    
-    def set_data(self, qual_points, race_points, current_times=None, current_ratio=None, current_type=None):
-        """Set the data for the graph"""
-        self.qual_points = qual_points or []
-        self.race_points = race_points or []
-        self.current_times = current_times
-        self.current_ratio = current_ratio
-        self.current_type = current_type
-        
-        qual_count = len(self.qual_points)
-        race_count = len(self.race_points)
-        total = qual_count + race_count
-        
-        if total > 0:
-            self.stats_label.setText(f"📊 Historic Data: {total} total points (Qualifying: {qual_count}, Race: {race_count})")
-        else:
-            self.stats_label.setText("📊 No historic data available for this track")
-        
-        self.graph_widget.set_data(qual_points, race_points, current_times, current_ratio, current_type)
 
 
 class GraphWidget(QWidget):
@@ -852,23 +393,16 @@ class GraphWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         
-        self.curve_fitter = CurveFitter()
-        self.fit_curve_line = None
-        self.user_points_scatter = None
-        self.current_temp_point = None
-        self.formula_annotation = None
+        self.manager = None
+        self.current_track = None
         self.hover_annotation = None
         self.hover_point = None
         
-        # Create figure and canvas
         self.figure = Figure(figsize=(12, 8), facecolor='#1e1e1e')
         self.canvas = FigureCanvas(self.figure)
         
-        # Connect mouse events
-        self.canvas.mpl_connect('button_press_event', self.on_click)
         self.canvas.mpl_connect('motion_notify_event', self.on_motion)
         
-        # Create toolbar
         self.toolbar = NavigationToolbar(self.canvas, self)
         self.toolbar.setStyleSheet("""
             QToolBar {
@@ -887,83 +421,41 @@ class GraphWidget(QWidget):
             }
         """)
         
-        # Layout
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(2)
         layout.addWidget(self.toolbar)
         layout.addWidget(self.canvas)
         
-        # Create axes
         self.ax = self.figure.add_subplot(111)
         self.ax.set_facecolor('#2b2b2b')
         
-        # Configure grid
         self.ax.grid(True, alpha=0.3, color='gray', linestyle='-', linewidth=0.5)
         self.ax.set_axisbelow(True)
         
-        # Style spines
         for spine in self.ax.spines.values():
             spine.set_color('#4CAF50')
             spine.set_linewidth(1.5)
         
-        # Style ticks
         self.ax.tick_params(colors='white', labelsize=9)
         self.ax.xaxis.label.set_color('white')
         self.ax.yaxis.label.set_color('white')
         self.ax.title.set_color('#FFA500')
         
-        # Data storage
-        self.qual_points = []
-        self.race_points = []
-        self.current_times = None
-        self.current_ratio = None
-        self.current_type = None
-        self.drawing_mode = False
-        
         self.setup_default_view()
     
     def setup_default_view(self):
-        """Setup initial view limits"""
         self.ax.set_xlabel('Ratio', fontsize=12, fontweight='bold')
         self.ax.set_ylabel('Lap Time (seconds)', fontsize=12, fontweight='bold')
-        self.ax.set_title('Ratio vs Lap Time Relationship', fontsize=14, fontweight='bold')
-        self.ax.set_xlim(0.5, 2.0)
-        self.ax.set_ylim(60, 180)
+        self.ax.set_title('Global Curve Analysis', fontsize=14, fontweight='bold')
+        self.ax.set_xlim(0.3, 3.0)
+        self.ax.set_ylim(50, 200)
         
         self.ax.grid(True, alpha=0.1, which='minor', linestyle=':', linewidth=0.5)
         self.ax.xaxis.set_minor_locator(AutoMinorLocator())
         self.ax.yaxis.set_minor_locator(AutoMinorLocator())
         
         self.canvas.draw()
-    
-    def enable_drawing_mode(self, enabled):
-        """Enable or disable drawing mode"""
-        self.drawing_mode = enabled
-        if enabled:
-            self.ax.set_title('Drawing Mode ON - Click to add points (Ratio, Time)', 
-                             fontsize=12, fontweight='bold', color='#FFA500')
-        else:
-            self.ax.set_title('Ratio vs Lap Time Relationship', fontsize=14, fontweight='bold', color='#FFA500')
-        self.canvas.draw()
-    
-    def on_click(self, event):
-        """Handle mouse clicks for drawing points"""
-        if not self.drawing_mode:
-            return
-        
-        if event.inaxes != self.ax:
-            return
-        
-        ratio = event.xdata
-        time = event.ydata
-        
-        if ratio and time:
-            self.curve_fitter.add_point(ratio, time)
-            parent_window = self.window()
-            if hasattr(parent_window, 'on_point_added'):
-                parent_window.on_point_added(ratio, time)
-            self.update_drawing_points()
     
     def on_motion(self, event):
         """Handle mouse motion for hover tooltips"""
@@ -973,189 +465,50 @@ class GraphWidget(QWidget):
                 self.hover_annotation = None
                 self.hover_point = None
                 self.canvas.draw_idle()
-            if self.current_temp_point and self.drawing_mode:
-                self.current_temp_point.remove()
-                self.current_temp_point = None
-                self.canvas.draw_idle()
             return
         
-        # Handle drawing mode preview
-        if self.drawing_mode:
-            ratio = event.xdata
-            time = event.ydata
-            if ratio and time:
-                if self.current_temp_point:
-                    self.current_temp_point.remove()
-                self.current_temp_point = self.ax.scatter([ratio], [time], 
-                                                          c='yellow', s=50, marker='x',
-                                                          alpha=0.7, zorder=10)
-                self.canvas.draw_idle()
+        if not self.manager:
             return
         
-        # Handle hover tooltips for user-drawn points
-        if self.user_points_scatter and self.curve_fitter.points:
-            # Check if hovering over any user point
-            for point in self.curve_fitter.points:
-                x, y = point
-                # Check distance in pixels
-                x_pixel = self.ax.transData.transform((x, y))[0]
-                mouse_x = event.x
-                mouse_y = event.y
-                y_pixel = self.ax.transData.transform((x, y))[1]
+        mouse_x = event.x
+        mouse_y = event.y
+        
+        # Check all points from all tracks
+        for track_name in self.manager.get_all_tracks():
+            points = self.manager.get_track_points(track_name)
+            for ratio, time in points:
+                x_pixel = self.ax.transData.transform((ratio, time))[0]
+                y_pixel = self.ax.transData.transform((ratio, time))[1]
                 dist = np.sqrt((x_pixel - mouse_x)**2 + (y_pixel - mouse_y)**2)
                 
-                if dist < 15:  # 15 pixel tolerance
-                    if self.hover_point != point:
+                if dist < 15:
+                    if self.hover_point != (track_name, ratio, time):
                         if self.hover_annotation:
                             self.hover_annotation.remove()
-                        text = f"R = {x:.4f}\nT = {y:.2f}s"
+                        text = f"Track: {track_name}\nR = {ratio:.4f}\nT = {time:.2f}s"
                         self.hover_annotation = self.ax.annotate(
-                            text, xy=(x, y), xytext=(10, -15),
+                            text, xy=(ratio, time), xytext=(10, -15),
                             textcoords='offset points',
                             bbox=dict(boxstyle='round', facecolor='#2b2b2b', 
-                                     edgecolor='#FFA500', alpha=0.9),
-                            color='#FFA500', fontsize=9, fontfamily='monospace',
-                            arrowprops=dict(arrowstyle='->', color='#FFA500')
+                                     edgecolor='#4CAF50', alpha=0.9),
+                            color='#4CAF50', fontsize=9, fontfamily='monospace',
+                            arrowprops=dict(arrowstyle='->', color='#4CAF50')
                         )
-                        self.hover_point = point
+                        self.hover_point = (track_name, ratio, time)
                         self.canvas.draw_idle()
                     return
-            
-            # No point under cursor
-            if self.hover_annotation:
-                self.hover_annotation.remove()
-                self.hover_annotation = None
-                self.hover_point = None
-                self.canvas.draw_idle()
+        
+        # No point under cursor
+        if self.hover_annotation:
+            self.hover_annotation.remove()
+            self.hover_annotation = None
+            self.hover_point = None
+            self.canvas.draw_idle()
     
-    def update_drawing_points(self):
-        """Update the display of user-drawn points (smaller markers)"""
-        if self.user_points_scatter:
-            self.user_points_scatter.remove()
-        
-        if self.curve_fitter.points:
-            ratios = [p[0] for p in self.curve_fitter.points]
-            times = [p[1] for p in self.curve_fitter.points]
-            self.user_points_scatter = self.ax.scatter(ratios, times, c='yellow', s=35,
-                                                       marker='D', edgecolors='orange',
-                                                       linewidth=1.5, label='User Drawn',
-                                                       zorder=6)
-        
-        self.update_legend()
-        self.canvas.draw()
-    
-    def clear_fit_curve(self):
-        """Clear the fitted curve"""
-        if self.fit_curve_line:
-            self.fit_curve_line.remove()
-            self.fit_curve_line = None
-        
-        if self.formula_annotation:
-            self.formula_annotation.remove()
-            self.formula_annotation = None
-        
-        self.curve_fitter.fitted_params = None
-        self.update_legend()
-        self.canvas.draw()
-    
-    def update_fit_curve(self):
-        """Update the fitted curve display"""
-        # Remove existing
-        if self.fit_curve_line:
-            self.fit_curve_line.remove()
-        
-        if self.formula_annotation:
-            self.formula_annotation.remove()
-            self.formula_annotation = None
-        
-        # Plot new curve
-        if self.curve_fitter.fitted_params is not None:
-            curve_ratios, curve_times = self.curve_fitter.get_curve_points()
-            if len(curve_ratios) > 0:
-                self.fit_curve_line = self.ax.plot(curve_ratios, curve_times, 
-                                                   c='cyan', linewidth=2.5, 
-                                                   linestyle='-', label='Fitted Curve',
-                                                   zorder=5)[0]
-                
-                # Add formula annotation
-                formula = self.curve_fitter.formula_string
-                r2 = self.curve_fitter.fit_error
-                if len(formula) > 65:
-                    formula = formula[:62] + "..."
-                self.formula_annotation = self.ax.text(0.02, 0.98, 
-                                                       f"{self.curve_fitter.fit_type}: R² = {r2:.6f}\n{formula}",
-                                                       transform=self.ax.transAxes,
-                                                       fontsize=8,
-                                                       verticalalignment='top',
-                                                       bbox=dict(boxstyle='round', 
-                                                                facecolor='#2b2b2b', 
-                                                                edgecolor='#4CAF50',
-                                                                alpha=0.8),
-                                                       color='#4CAF50',
-                                                       family='monospace')
-        
-        self.update_legend()
-        self.canvas.draw()
-    
-    def clear_drawn_points(self):
-        """Clear all user-drawn points"""
-        self.curve_fitter.clear_points()
-        
-        if self.user_points_scatter:
-            self.user_points_scatter.remove()
-            self.user_points_scatter = None
-        
-        self.clear_fit_curve()
-        
-        self.ax.set_title('Ratio vs Lap Time Relationship', fontsize=14, fontweight='bold', color='#FFA500')
-        self.update_legend()
-        self.canvas.draw()
-    
-    def update_legend(self):
-        """Update the legend with current items"""
-        legend_items = []
-        
-        for artist in self.ax.get_children():
-            if isinstance(artist, (Line2D,)) and artist.get_label() and artist.get_label() != '_nolegend_':
-                label = artist.get_label()
-                if not (label.startswith('_child') or label.isdigit()):
-                    legend_items.append(artist)
-            elif isinstance(artist, (np.ndarray,)) and len(artist) > 0:
-                for item in artist:
-                    if hasattr(item, 'get_label'):
-                        label = item.get_label()
-                        if label and label != '_nolegend_' and not (label.startswith('_child') or label.isdigit()):
-                            legend_items.append(item)
-        
-        if self.user_points_scatter:
-            legend_items.append(self.user_points_scatter)
-        
-        if self.fit_curve_line:
-            legend_items.append(self.fit_curve_line)
-        
-        seen = set()
-        unique_items = []
-        for item in legend_items:
-            label = item.get_label()
-            if label not in seen:
-                seen.add(label)
-                unique_items.append(item)
-        
-        if unique_items:
-            self.ax.legend(handles=unique_items, loc='upper left', framealpha=0.8,
-                          facecolor='#2b2b2b', edgecolor='#4CAF50', labelcolor='white', fontsize=9)
-        else:
-            if self.ax.get_legend():
-                self.ax.get_legend().remove()
-    
-    def set_data(self, qual_points, race_points, current_times=None, current_ratio=None, current_type=None):
+    def set_data(self, manager, current_track=None):
         """Set the data for plotting"""
-        self.qual_points = qual_points or []
-        self.race_points = race_points or []
-        self.current_times = current_times
-        self.current_ratio = current_ratio
-        self.current_type = current_type
-        
+        self.manager = manager
+        self.current_track = current_track
         self.update_plot()
     
     def update_plot(self):
@@ -1165,7 +518,7 @@ class GraphWidget(QWidget):
         self.ax.set_facecolor('#2b2b2b')
         self.ax.set_xlabel('Ratio', fontsize=12, fontweight='bold', color='white')
         self.ax.set_ylabel('Lap Time (seconds)', fontsize=12, fontweight='bold', color='white')
-        self.ax.set_title('Ratio vs Lap Time Relationship', fontsize=14, fontweight='bold', color='#FFA500')
+        self.ax.set_title('Global Curve Analysis', fontsize=14, fontweight='bold', color='#FFA500')
         
         self.ax.grid(True, alpha=0.3, color='gray', linestyle='-', linewidth=0.5)
         self.ax.grid(True, alpha=0.1, which='minor', linestyle=':', linewidth=0.5)
@@ -1179,118 +532,108 @@ class GraphWidget(QWidget):
         self.ax.xaxis.set_minor_locator(AutoMinorLocator())
         self.ax.yaxis.set_minor_locator(AutoMinorLocator())
         
-        # Plot qualifying points (smaller markers)
-        if self.qual_points:
-            qual_ratios = [p[0] for p in self.qual_points]
-            qual_best = [p[1] for p in self.qual_points]
-            qual_worst = [p[2] for p in self.qual_points]
-            
-            self.ax.scatter(qual_ratios, qual_best, c='#4CAF50', s=30, 
-                          alpha=0.7, marker='o', label='Qual Best AI', zorder=3)
-            self.ax.scatter(qual_ratios, qual_worst, c='#4CAF50', s=30,
-                          alpha=0.5, marker='s', label='Qual Worst AI', zorder=3)
-            
-            for i, (r, best, worst, _, _) in enumerate(self.qual_points):
-                if best > 0 and worst > 0:
-                    self.ax.plot([r, r], [best, worst], c='#4CAF50', 
-                               alpha=0.4, linewidth=1, linestyle='--', zorder=2)
-            
-            qual_user = [(p[0], p[3]) for p in self.qual_points if p[3] > 0]
-            if qual_user:
-                user_ratios, user_times = zip(*qual_user)
-                self.ax.scatter(user_ratios, user_times, c='#9C27B0', s=28,
-                              alpha=0.8, marker='^', label='Qual User', zorder=4)
+        if not self.manager:
+            self.canvas.draw()
+            return
         
-        # Plot race points (smaller markers)
-        if self.race_points:
-            race_ratios = [p[0] for p in self.race_points]
-            race_best = [p[1] for p in self.race_points]
-            race_worst = [p[2] for p in self.race_points]
-            
-            self.ax.scatter(race_ratios, race_best, c='#f44336', s=30,
-                          alpha=0.7, marker='o', label='Race Best AI', zorder=3)
-            self.ax.scatter(race_ratios, race_worst, c='#f44336', s=30,
-                          alpha=0.5, marker='s', label='Race Worst AI', zorder=3)
-            
-            for i, (r, best, worst, _, _) in enumerate(self.race_points):
-                if best > 0 and worst > 0:
-                    self.ax.plot([r, r], [best, worst], c='#f44336',
-                               alpha=0.4, linewidth=1, linestyle='--', zorder=2)
-            
-            race_user = [(p[0], p[3]) for p in self.race_points if p[3] > 0]
-            if race_user:
-                user_ratios, user_times = zip(*race_user)
-                self.ax.scatter(user_ratios, user_times, c='#9C27B0', s=28,
-                              alpha=0.8, marker='^', label='Race User', zorder=4)
+        # Plot points from all tracks
+        colors = plt.cm.tab10(np.linspace(0, 1, max(1, len(self.manager.get_all_tracks()))))
+        track_colors = {}
         
-        # Plot current data point if available
-        if self.current_times and self.current_ratio:
-            best_time = self.current_times.pole
-            worst_time = self.current_times.last_ai
-            user_time = self.current_times.player
+        for i, track_name in enumerate(self.manager.get_all_tracks()):
+            points = self.manager.get_track_points(track_name)
+            if not points:
+                continue
             
-            marker_style = 'o' if self.current_type == 'qual' else 's'
-            color = '#4CAF50' if self.current_type == 'qual' else '#f44336'
+            ratios = [p[0] for p in points]
+            times = [p[1] for p in points]
             
-            if best_time > 0:
-                self.ax.scatter([self.current_ratio], [best_time],
-                               c='white', s=80, marker=marker_style,
-                               edgecolors=color, linewidth=2, label='Current Best', zorder=5)
+            color = colors[i % len(colors)]
+            track_colors[track_name] = color
             
-            if worst_time > 0:
-                self.ax.scatter([self.current_ratio], [worst_time],
-                               c='white', s=80, marker=marker_style,
-                               edgecolors=color, linewidth=2, label='Current Worst', zorder=5)
+            # Determine marker style based on whether this is the current track
+            if self.current_track == track_name:
+                marker = 'o'
+                size = 50
+                edgecolor = 'white'
+                linewidth = 2
+                alpha = 1.0
+            else:
+                marker = 'o'
+                size = 30
+                edgecolor = None
+                linewidth = 1
+                alpha = 0.6
             
-            if user_time > 0:
-                self.ax.scatter([self.current_ratio], [user_time],
-                               c='white', s=70, marker='^',
-                               edgecolors='#9C27B0', linewidth=2, label='Current User', zorder=5)
-            
-            if best_time > 0 and worst_time > 0:
-                self.ax.plot([self.current_ratio, self.current_ratio], 
-                           [best_time, worst_time],
-                           c=color, alpha=0.6, linewidth=2, linestyle='-', zorder=4)
+            self.ax.scatter(ratios, times, c=[color], s=size, marker=marker,
+                          alpha=alpha, label=track_name, edgecolors=edgecolor,
+                          linewidth=linewidth, zorder=3)
         
-        # Restore user-drawn points if they exist (smaller markers)
-        if self.curve_fitter.points:
-            ratios = [p[0] for p in self.curve_fitter.points]
-            times = [p[1] for p in self.curve_fitter.points]
-            self.user_points_scatter = self.ax.scatter(ratios, times, c='yellow', s=35,
-                                                       marker='D', edgecolors='orange',
-                                                       linewidth=1.5, label='User Drawn',
-                                                       zorder=6)
-        
-        # Restore fitted curve if it exists
-        if self.curve_fitter.fitted_params is not None:
-            curve_ratios, curve_times = self.curve_fitter.get_curve_points()
-            if len(curve_ratios) > 0:
-                self.fit_curve_line = self.ax.plot(curve_ratios, curve_times, 
-                                                   c='cyan', linewidth=2.5, 
-                                                   linestyle='-', label='Fitted Curve',
-                                                   zorder=5)[0]
+        # Plot global curve
+        stats = self.manager.get_stats()
+        if stats.get('r_squared'):
+            # Plot scaled curves for tracks with multipliers
+            if self.current_track and self.current_track in stats['track_multipliers']:
+                # Show only the selected track's scaled curve
+                ratios, times = self.manager.global_curve.get_curve_points(self.current_track)
+                self.ax.plot(ratios, times, c='cyan', linewidth=2.5, 
+                           linestyle='-', label=f'{self.current_track} (scaled)', zorder=4)
                 
-                formula = self.curve_fitter.formula_string
-                r2 = self.curve_fitter.fit_error
-                if len(formula) > 65:
-                    formula = formula[:62] + "..."
-                self.formula_annotation = self.ax.text(0.02, 0.98, 
-                                                       f"{self.curve_fitter.fit_type}: R² = {r2:.6f}\n{formula}",
-                                                       transform=self.ax.transAxes,
-                                                       fontsize=8,
-                                                       verticalalignment='top',
-                                                       bbox=dict(boxstyle='round', 
-                                                                facecolor='#2b2b2b', 
-                                                                edgecolor='#4CAF50',
-                                                                alpha=0.8),
-                                                       color='#4CAF50',
-                                                       family='monospace')
+                # Also show global curve for reference
+                global_ratios, global_times = self.manager.global_curve.get_global_curve_points()
+                self.ax.plot(global_ratios, global_times, c='#FFA500', linewidth=2, 
+                           linestyle='--', label='Global (unscaled)', alpha=0.7, zorder=3)
+            else:
+                # Show all scaled curves or just global
+                if self.current_track is None:
+                    # Show all scaled curves
+                    for track_name, multiplier in stats['track_multipliers'].items():
+                        ratios, times = self.manager.global_curve.get_curve_points(track_name)
+                        color = track_colors.get(track_name, '#888')
+                        self.ax.plot(ratios, times, c=color, linewidth=1.5, 
+                                   linestyle=':', alpha=0.5, label=f'{track_name} scaled', zorder=2)
+                
+                # Always show global curve
+                global_ratios, global_times = self.manager.global_curve.get_global_curve_points()
+                self.ax.plot(global_ratios, global_times, c='cyan', linewidth=2.5, 
+                           linestyle='-', label='Global fitted curve', zorder=4)
         
-        self.update_legend()
+        # Add formula annotation
+        if stats.get('r_squared'):
+            formula = self.manager.global_curve.get_formula_string()
+            r2 = stats.get('r_squared', 0)
+            self.ax.text(0.02, 0.98, 
+                        f"Global Curve: {formula}\nR² = {r2:.6f}",
+                        transform=self.ax.transAxes,
+                        fontsize=8,
+                        verticalalignment='top',
+                        bbox=dict(boxstyle='round', 
+                                 facecolor='#2b2b2b', 
+                                 edgecolor='#4CAF50',
+                                 alpha=0.8),
+                        color='#4CAF50',
+                        family='monospace')
+        
+        # Legend
+        handles, labels = self.ax.get_legend_handles_labels()
+        if handles:
+            # Remove duplicates
+            unique = {}
+            for h, l in zip(handles, labels):
+                if l not in unique:
+                    unique[l] = h
+            self.ax.legend(handles=unique.values(), labels=unique.keys(),
+                          loc='upper left', framealpha=0.8,
+                          facecolor='#2b2b2b', edgecolor='#4CAF50', 
+                          labelcolor='white', fontsize=8)
+        
         self.figure.tight_layout()
         self.canvas.draw()
     
     def reset_view(self):
-        """Reset to default view"""
         self.ax.autoscale()
         self.canvas.draw()
+
+
+# Import matplotlib for colors
+import matplotlib.pyplot as plt

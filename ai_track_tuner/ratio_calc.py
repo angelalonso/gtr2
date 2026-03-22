@@ -15,7 +15,7 @@ class LapTimes:
     pole: float = 0.0
     last_ai: float = 0.0
     player: float = 0.0
-    ratio: float = 1.0  # Current ratio value for this data point
+    ratio: float = 1.0
     
     @property
     def avg_ai(self) -> float:
@@ -58,7 +58,7 @@ class HistoricDataStore:
                     if not track:
                         continue
                     
-                    # Qualifying data - now includes ratio
+                    # Qualifying data
                     try:
                         qual_ratio = float(row.get('Current QualRatio', '1.0'))
                         qual_best = float(row.get('Qual AI Best (s)', '0'))
@@ -73,7 +73,7 @@ class HistoricDataStore:
                     except (ValueError, KeyError):
                         pass
                     
-                    # Race data - now includes ratio
+                    # Race data
                     try:
                         race_ratio = float(row.get('Current RaceRatio', '1.0'))
                         race_best = float(row.get('Race AI Best (s)', '0'))
@@ -92,12 +92,10 @@ class HistoricDataStore:
             print(f"Error loading historic data: {e}")
     
     def get_qualifying_points(self, track_name: str) -> List[Tuple[float, float, float, float, str]]:
-        """Get qualifying data points for a track - returns (ratio, best, worst, user, timestamp)"""
-        # Try exact match first
+        """Get qualifying data points for a track"""
         if track_name in self.qualifying_data:
             return self.qualifying_data[track_name]
         
-        # Try case-insensitive partial match
         track_lower = track_name.lower()
         for key, points in self.qualifying_data.items():
             if track_lower in key.lower() or key.lower() in track_lower:
@@ -106,7 +104,7 @@ class HistoricDataStore:
         return []
     
     def get_race_points(self, track_name: str) -> List[Tuple[float, float, float, float, str]]:
-        """Get race data points for a track - returns (ratio, best, worst, user, timestamp)"""
+        """Get race data points for a track"""
         if track_name in self.race_data:
             return self.race_data[track_name]
         
@@ -138,7 +136,6 @@ class HistoricDataStore:
         
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        # Determine if we need to write header
         file_exists = self.csv_path.exists()
         
         try:
@@ -178,7 +175,6 @@ class HistoricDataStore:
                     ]
                 writer.writerow(row)
             
-            # Also add to in-memory store
             self.add_data_point(track_name, times, is_qualifying)
             return True
             

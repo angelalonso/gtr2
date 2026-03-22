@@ -1,6 +1,6 @@
 """
 Ratio Calculator GUI for AIW Ratio Editor - Data Collection Focus
-Now opens graph in a separate window
+Now uses global curve for predictions
 """
 
 from PyQt5.QtWidgets import *
@@ -9,6 +9,7 @@ from PyQt5.QtGui import *
 import cfg_manage
 import os
 from ratio_calc import LapTimes, TimeConverter, HistoricDataStore
+from track_formula import GlobalFormulaManager
 from ratio_graph import RatioGraphWindow
 
 
@@ -109,10 +110,11 @@ class ConfigWindow(QDialog):
 
 
 class RatioCalculatorDialog(QDialog):
-    """Main dialog for data collection - opens graph in separate window"""
+    """Main dialog for data collection - uses global curve for predictions"""
     
     def __init__(self, parent=None, track_name="", current_qual=1.0, current_race=1.0):
         super().__init__(parent)
+        self.parent_window = parent
         self.track_name = track_name
         self.current_qual = current_qual
         self.current_race = current_race
@@ -125,7 +127,9 @@ class RatioCalculatorDialog(QDialog):
         
         # Load configuration
         self.config_csv = cfg_manage.get_historic_csv()
+        self.formulas_dir = cfg_manage.get_formulas_dir()
         self.data_store = HistoricDataStore(self.config_csv)
+        self.global_manager = GlobalFormulaManager(self.formulas_dir)
         
         # Cache for historic points
         self.qual_points_cache = []
@@ -137,6 +141,7 @@ class RatioCalculatorDialog(QDialog):
         self.setup_ui()
         self.setup_connections()
         self.load_historic_data()
+        self.import_csv_data_to_global_curve()
         
     def setup_ui(self):
         self.setWindowTitle(f"Data Collection - {self.track_name}")
@@ -215,41 +220,69 @@ class RatioCalculatorDialog(QDialog):
         race_info.setStyleSheet("color: #9C27B0;")
         info_layout.addWidget(race_info)
         
-        # Stats label for historic points
-        self.historic_stats = QLabel("")
-        self.historic_stats.setStyleSheet("color: #4CAF50; font-size: 11px;")
-        info_layout.addWidget(self.historic_stats)
-        
         info_layout.addStretch()
         
         layout.addWidget(info_bar)
         
-        # Button to open graph window
-        graph_btn_widget = QWidget()
-        graph_btn_layout = QHBoxLayout(graph_btn_widget)
-        graph_btn_layout.setContentsMargins(0, 5, 0, 10)
+        # Global curve status
+        stats = self.global_manager.get_stats()
+        if stats['total_points'] > 0:
+            if stats.get('r_squared'):
+                status_text = f"✓ Global curve active: {stats['total_tracks']} tracks, {stats['total_points']} points | R² = {stats['r_squared']:.4f}"
+            else:
+                status_text = f"⚠ Global curve: {stats['total_tracks']} tracks, {stats['total_points']} points | Not fitted yet"
+        else:
+            status_text = "⚠ No global curve data. Add points from tracks to build the curve."
         
-        self.open_graph_btn = QPushButton("📊 OPEN GRAPH ANALYSIS WINDOW")
-        self.open_graph_btn.setToolTip("Open a separate window for graph analysis and curve fitting")
-        self.open_graph_btn.setFixedHeight(50)
+        self.status_label_global = QLabel(status_text)
+        self.status_label_global.setWordWrap(True)
+        self.status_label_global.setStyleSheet("color: #FFA500; font-size: 11px; padding: 5px; background-color: #3c3c3c; border-radius: 3px;")
+        layout.addWidget(self.status_label_global)
+        
+        # Buttons row
+        buttons_widget = QWidget()
+        buttons_layout = QHBoxLayout(buttons_widget)
+        buttons_layout.setContentsMargins(0, 5, 0, 10)
+        buttons_layout.setSpacing(10)
+        
+        self.open_graph_btn = QPushButton("📊 OPEN GLOBAL CURVE EDITOR")
+        self.open_graph_btn.setToolTip("Open window to view/manage the global curve and add points")
+        self.open_graph_btn.setFixedHeight(45)
         self.open_graph_btn.setCursor(Qt.PointingHandCursor)
         self.open_graph_btn.setStyleSheet("""
             QPushButton {
                 background-color: #9C27B0;
-                font-size: 14px;
+                font-size: 13px;
                 font-weight: bold;
             }
             QPushButton:hover {
                 background-color: #7B1FA2;
             }
         """)
-        graph_btn_layout.addWidget(self.open_graph_btn)
-        graph_btn_layout.addStretch()
+        buttons_layout.addWidget(self.open_graph_btn)
         
-        layout.addWidget(graph_btn_widget)
+        self.quick_calc_btn = QPushButton("🔢 CALCULATE RATIO FROM LAP TIME")
+        self.quick_calc_btn.setToolTip("Calculate ratio using the global curve")
+        self.quick_calc_btn.setFixedHeight(45)
+        self.quick_calc_btn.setCursor(Qt.PointingHandCursor)
+        self.quick_calc_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                font-size: 13px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+        """)
+        buttons_layout.addWidget(self.quick_calc_btn)
+        
+        buttons_layout.addStretch()
+        
+        layout.addWidget(buttons_widget)
         
         # Input section
-        input_group = QGroupBox("Enter New Lap Times")
+        input_group = QGroupBox("Enter New Lap Times (will be added to global curve)")
         input_group.setStyleSheet("""
             QGroupBox {
                 color: #FFA500;
@@ -401,21 +434,13 @@ class RatioCalculatorDialog(QDialog):
         button_layout = QHBoxLayout(button_bar)
         button_layout.setSpacing(10)
         
-        self.calc_btn = QPushButton("CALCULATE & SAVE")
-        self.calc_btn.setToolTip("Save data to CSV and keep current ratios")
-        self.calc_btn.setFixedHeight(50)
-        self.calc_btn.setFixedWidth(200)
-        self.calc_btn.setCursor(Qt.PointingHandCursor)
-        self.calc_btn.setStyleSheet("background-color: #9C27B0; font-size: 14px;")
-        button_layout.addWidget(self.calc_btn)
-        
-        self.save_only_btn = QPushButton("SAVE ONLY")
-        self.save_only_btn.setToolTip("Save lap times to CSV without changing ratios")
-        self.save_only_btn.setFixedHeight(50)
-        self.save_only_btn.setFixedWidth(150)
-        self.save_only_btn.setCursor(Qt.PointingHandCursor)
-        self.save_only_btn.setStyleSheet("background-color: #2196F3; font-size: 14px;")
-        button_layout.addWidget(self.save_only_btn)
+        self.save_btn = QPushButton("SAVE & ADD TO GLOBAL CURVE")
+        self.save_btn.setToolTip("Save lap times and add them to the global curve database")
+        self.save_btn.setFixedHeight(50)
+        self.save_btn.setFixedWidth(220)
+        self.save_btn.setCursor(Qt.PointingHandCursor)
+        self.save_btn.setStyleSheet("background-color: #9C27B0; font-size: 14px;")
+        button_layout.addWidget(self.save_btn)
         
         button_layout.addStretch()
         
@@ -449,10 +474,33 @@ class RatioCalculatorDialog(QDialog):
         self.status_label.setStyleSheet("color: #888; font-style: italic;")
         layout.addWidget(self.status_label)
         
-        # Initially disable calculate buttons until we have data
-        self.calc_btn.setEnabled(False)
-        self.save_only_btn.setEnabled(False)
+        # Initially disable save button until we have data
+        self.save_btn.setEnabled(False)
         self.apply_btn.setEnabled(False)
+        self.quick_calc_btn.setEnabled(stats['total_points'] >= 2 and stats.get('r_squared') is not None)
+    
+    def import_csv_data_to_global_curve(self):
+        """Import all historic data from CSV to global curve"""
+        # Load all qualifying data
+        all_qual_points = self.data_store.qualifying_data
+        for track_name, points in all_qual_points.items():
+            for ratio, best, worst, user, timestamp in points:
+                # Use median of best and worst
+                median_time = (best + worst) / 2
+                if median_time > 0 and ratio > 0:
+                    self.global_manager.add_point(track_name, ratio, median_time)
+        
+        # Load all race data
+        all_race_points = self.data_store.race_data
+        for track_name, points in all_race_points.items():
+            for ratio, best, worst, user, timestamp in points:
+                median_time = (best + worst) / 2
+                if median_time > 0 and ratio > 0:
+                    self.global_manager.add_point(track_name, ratio, median_time)
+        
+        stats = self.global_manager.get_stats()
+        if stats['total_points'] > 0:
+            print(f"Imported {stats['total_points']} points from {stats['total_tracks']} tracks to global curve")
     
     def create_spinbox(self, min_val, max_val, width):
         spin = QSpinBox()
@@ -476,7 +524,6 @@ class RatioCalculatorDialog(QDialog):
         self.qual_user_total.setText(f"{user:.3f}s")
         
         self.check_data_available()
-        self.update_graph_data()
     
     def update_race_totals(self):
         best = self.get_time_value(self.race_best_min, self.race_best_sec, self.race_best_ms)
@@ -488,7 +535,6 @@ class RatioCalculatorDialog(QDialog):
         self.race_user_total.setText(f"{user:.3f}s")
         
         self.check_data_available()
-        self.update_graph_data()
     
     def check_data_available(self):
         qual_has_data = (self.get_time_value(self.qual_best_min, self.qual_best_sec, self.qual_best_ms) > 0 and
@@ -498,12 +544,11 @@ class RatioCalculatorDialog(QDialog):
                          self.get_time_value(self.race_worst_min, self.race_worst_sec, self.race_worst_ms) > 0)
         
         has_data = qual_has_data or race_has_data
-        self.calc_btn.setEnabled(has_data)
-        self.save_only_btn.setEnabled(has_data)
+        self.save_btn.setEnabled(has_data)
     
     def setup_connections(self):
         # Qualifying connections
-        self.qual_ratio_spin.valueChanged.connect(self.update_graph_data)
+        self.qual_ratio_spin.valueChanged.connect(self.check_data_available)
         self.qual_best_min.valueChanged.connect(self.update_qual_totals)
         self.qual_best_sec.valueChanged.connect(self.update_qual_totals)
         self.qual_best_ms.valueChanged.connect(self.update_qual_totals)
@@ -515,7 +560,7 @@ class RatioCalculatorDialog(QDialog):
         self.qual_user_ms.valueChanged.connect(self.update_qual_totals)
         
         # Race connections
-        self.race_ratio_spin.valueChanged.connect(self.update_graph_data)
+        self.race_ratio_spin.valueChanged.connect(self.check_data_available)
         self.race_best_min.valueChanged.connect(self.update_race_totals)
         self.race_best_sec.valueChanged.connect(self.update_race_totals)
         self.race_best_ms.valueChanged.connect(self.update_race_totals)
@@ -528,65 +573,184 @@ class RatioCalculatorDialog(QDialog):
         
         # Button connections
         self.open_graph_btn.clicked.connect(self.open_graph_window)
-        self.calc_btn.clicked.connect(self.calculate_and_save)
-        self.save_only_btn.clicked.connect(self.save_only)
+        self.quick_calc_btn.clicked.connect(self.open_quick_calculator)
+        self.save_btn.clicked.connect(self.save_data)
         self.config_btn.clicked.connect(self.show_config_window)
         self.apply_btn.clicked.connect(self.accept)
     
-    def update_graph_data(self):
-        """Update the graph window with current data"""
-        if not self.graph_window or not self.graph_window.isVisible():
+    def open_quick_calculator(self):
+        """Open the standalone ratio calculator using global curve"""
+        stats = self.global_manager.get_stats()
+        if stats['total_points'] < 2:
+            QMessageBox.warning(self, "Insufficient Data", 
+                               "Not enough data points to make reliable predictions.\n\n"
+                               "Please add at least 2 data points from different tracks to build the global curve.")
             return
         
-        # Get current qualifying data
-        qual_ratio = self.qual_ratio_spin.value()
-        qual_best = self.get_time_value(self.qual_best_min, self.qual_best_sec, self.qual_best_ms)
-        qual_worst = self.get_time_value(self.qual_worst_min, self.qual_worst_sec, self.qual_worst_ms)
-        qual_user = self.get_time_value(self.qual_user_min, self.qual_user_sec, self.qual_user_ms)
+        if not stats.get('r_squared'):
+            QMessageBox.information(self, "Curve Not Fitted", 
+                                   "The global curve has not been fitted yet.\n\n"
+                                   "Please go to the Global Curve Editor and click 'Fit Global Curve' first.")
+            return
         
-        # Get current race data
-        race_ratio = self.race_ratio_spin.value()
-        race_best = self.get_time_value(self.race_best_min, self.race_best_sec, self.race_best_ms)
-        race_worst = self.get_time_value(self.race_worst_min, self.race_worst_sec, self.race_worst_ms)
-        race_user = self.get_time_value(self.race_user_min, self.race_user_sec, self.race_user_ms)
+        # Create a temporary calculator dialog using the global curve
+        class QuickCalcDialog(QDialog):
+            def __init__(self, parent, track_name, manager):
+                super().__init__(parent)
+                self.track_name = track_name
+                self.manager = manager
+                self.calculated_ratio = None
+                self.setup_ui()
+            
+            def setup_ui(self):
+                self.setWindowTitle(f"Calculate Ratio - {self.track_name}")
+                self.setModal(True)
+                self.setMinimumWidth(450)
+                
+                self.setStyleSheet("""
+                    QDialog {
+                        background-color: #2b2b2b;
+                    }
+                    QLabel {
+                        color: white;
+                        font-size: 12px;
+                    }
+                    QGroupBox {
+                        color: #4CAF50;
+                        font-weight: bold;
+                        border: 2px solid #555;
+                        border-radius: 5px;
+                    }
+                    QPushButton {
+                        background-color: #4CAF50;
+                        color: white;
+                        border: none;
+                        border-radius: 3px;
+                        padding: 8px;
+                        font-weight: bold;
+                    }
+                    QSpinBox, QDoubleSpinBox {
+                        background-color: #3c3c3c;
+                        color: white;
+                        border: 1px solid #4CAF50;
+                        border-radius: 3px;
+                        padding: 5px;
+                    }
+                """)
+                
+                layout = QVBoxLayout(self)
+                
+                # Track info
+                info_label = QLabel(f"Track: {self.track_name}")
+                info_label.setStyleSheet("color: #FFA500; font-size: 14px; font-weight: bold;")
+                layout.addWidget(info_label)
+                
+                # Formula info
+                stats = self.manager.get_stats()
+                formula = self.manager.global_curve.get_formula_string()
+                formula_label = QLabel(f"Global Curve:\n{formula}")
+                formula_label.setWordWrap(True)
+                formula_label.setStyleSheet("color: #4CAF50; font-family: monospace; font-size: 11px;")
+                layout.addWidget(formula_label)
+                
+                multiplier = self.manager.global_curve.get_track_multiplier(self.track_name)
+                multiplier_label = QLabel(f"Track multiplier: {multiplier:.6f}")
+                multiplier_label.setStyleSheet("color: #FFA500;")
+                layout.addWidget(multiplier_label)
+                
+                # Input
+                input_group = QGroupBox("Enter Your Lap Time")
+                input_layout = QGridLayout(input_group)
+                
+                input_layout.addWidget(QLabel("Minutes:"), 0, 0)
+                self.minutes_spin = QSpinBox()
+                self.minutes_spin.setRange(0, 99)
+                self.minutes_spin.setFixedWidth(80)
+                input_layout.addWidget(self.minutes_spin, 0, 1)
+                
+                input_layout.addWidget(QLabel("Seconds:"), 0, 2)
+                self.seconds_spin = QSpinBox()
+                self.seconds_spin.setRange(0, 59)
+                self.seconds_spin.setFixedWidth(80)
+                input_layout.addWidget(self.seconds_spin, 0, 3)
+                
+                input_layout.addWidget(QLabel("Milliseconds:"), 0, 4)
+                self.ms_spin = QSpinBox()
+                self.ms_spin.setRange(0, 999)
+                self.ms_spin.setSingleStep(10)
+                self.ms_spin.setFixedWidth(100)
+                input_layout.addWidget(self.ms_spin, 0, 5)
+                
+                layout.addWidget(input_group)
+                
+                # Result
+                result_group = QGroupBox("Calculated Ratio")
+                result_layout = QVBoxLayout(result_group)
+                
+                self.result_label = QLabel("---")
+                self.result_label.setAlignment(Qt.AlignCenter)
+                self.result_label.setStyleSheet("color: #9C27B0; font-size: 18px; font-weight: bold;")
+                result_layout.addWidget(self.result_label)
+                
+                layout.addWidget(result_group)
+                
+                # Buttons
+                btn_layout = QHBoxLayout()
+                
+                self.calc_btn = QPushButton("Calculate")
+                self.calc_btn.clicked.connect(self.calculate)
+                btn_layout.addWidget(self.calc_btn)
+                
+                self.apply_btn = QPushButton("Apply Ratio")
+                self.apply_btn.clicked.connect(self.accept)
+                self.apply_btn.setEnabled(False)
+                btn_layout.addWidget(self.apply_btn)
+                
+                cancel_btn = QPushButton("Cancel")
+                cancel_btn.clicked.connect(self.reject)
+                btn_layout.addWidget(cancel_btn)
+                
+                layout.addLayout(btn_layout)
+                
+                # Status
+                self.status_label = QLabel("")
+                self.status_label.setStyleSheet("color: #888;")
+                layout.addWidget(self.status_label)
+            
+            def get_user_time(self):
+                return self.minutes_spin.value() * 60 + self.seconds_spin.value() + self.ms_spin.value() / 1000.0
+            
+            def calculate(self):
+                user_time = self.get_user_time()
+                ratio = self.manager.global_curve.predict_ratio(user_time, self.track_name)
+                
+                if ratio is not None:
+                    self.calculated_ratio = ratio
+                    self.result_label.setText(f"{ratio:.6f}")
+                    self.apply_btn.setEnabled(True)
+                    self.status_label.setText("✓ Ratio calculated successfully")
+                else:
+                    self.result_label.setText("Outside range")
+                    self.apply_btn.setEnabled(False)
+                    self.status_label.setText("Time outside the valid range for this track")
+            
+            def get_ratio(self):
+                return self.calculated_ratio
         
-        # Determine which times to show
-        if qual_best > 0 and qual_worst > 0:
-            current_times = LapTimes(qual_best, qual_worst, qual_user, qual_ratio)
-            self.graph_window.set_data(
-                self.qual_points_cache,
-                self.race_points_cache,
-                current_times,
-                qual_ratio,
-                'qual'
-            )
-        elif race_best > 0 and race_worst > 0:
-            current_times = LapTimes(race_best, race_worst, race_user, race_ratio)
-            self.graph_window.set_data(
-                self.qual_points_cache,
-                self.race_points_cache,
-                current_times,
-                race_ratio,
-                'race'
-            )
-        else:
-            self.graph_window.set_data(
-                self.qual_points_cache,
-                self.race_points_cache
-            )
+        dialog = QuickCalcDialog(self, self.track_name, self.global_manager)
+        if dialog.exec_() == QDialog.Accepted:
+            ratio = dialog.get_ratio()
+            if ratio:
+                self.new_qual = ratio
+                self.new_race = ratio
+                self.apply_btn.setEnabled(True)
+                self.status_label.setText(f"Calculated ratio: {ratio:.6f}")
     
     def open_graph_window(self):
-        """Open the dedicated graph window"""
+        """Open the global curve editor window"""
         if not self.graph_window:
-            self.graph_window = RatioGraphWindow(self, self.track_name)
-            # Connect signals
+            self.graph_window = RatioGraphWindow(self, self.global_manager)
             self.graph_window.destroyed.connect(self.on_graph_window_closed)
-        
-        # Set the historic data in the graph window
-        self.graph_window.set_data(
-            self.qual_points_cache,
-            self.race_points_cache
-        )
         
         self.graph_window.show()
         self.graph_window.raise_()
@@ -594,27 +758,98 @@ class RatioCalculatorDialog(QDialog):
     def on_graph_window_closed(self):
         """Handle graph window closing"""
         self.graph_window = None
+        # Update quick calculate button state
+        stats = self.global_manager.get_stats()
+        self.quick_calc_btn.setEnabled(stats['total_points'] >= 2 and stats.get('r_squared') is not None)
+        # Update status label
+        if stats['total_points'] > 0:
+            if stats.get('r_squared'):
+                status_text = f"✓ Global curve active: {stats['total_tracks']} tracks, {stats['total_points']} points | R² = {stats['r_squared']:.4f}"
+            else:
+                status_text = f"⚠ Global curve: {stats['total_tracks']} tracks, {stats['total_points']} points | Not fitted yet"
+        else:
+            status_text = "⚠ No global curve data. Add points from tracks to build the curve."
+        
+        self.status_label_global.setText(status_text)
+    
+    def save_data(self):
+        """Save lap times and add to global curve"""
+        qual_times = self.get_qual_times()
+        race_times = self.get_race_times()
+        
+        saved = 0
+        
+        # Save qualifying data
+        if qual_times.pole > 0 and qual_times.last_ai > 0:
+            # Use median time
+            median_time = (qual_times.pole + qual_times.last_ai) / 2
+            self.global_manager.add_point(self.track_name, qual_times.ratio, median_time)
+            saved += 1
+            self.status_label.setText(f"✓ Added qualifying point: R={qual_times.ratio:.4f}, T={median_time:.2f}s")
+        
+        # Save race data
+        if race_times.pole > 0 and race_times.last_ai > 0:
+            median_time = (race_times.pole + race_times.last_ai) / 2
+            self.global_manager.add_point(self.track_name, race_times.ratio, median_time)
+            saved += 1
+            if saved == 1:
+                self.status_label.setText(f"✓ Added race point: R={race_times.ratio:.4f}, T={median_time:.2f}s")
+            else:
+                self.status_label.setText(f"✓ Added both points to global curve")
+        
+        if saved == 0:
+            QMessageBox.warning(self, "No Data", "Please enter at least Best and Worst AI times.")
+            return
+        
+        # Clear input fields
+        self.qual_best_min.setValue(0)
+        self.qual_best_sec.setValue(0)
+        self.qual_best_ms.setValue(0)
+        self.qual_worst_min.setValue(0)
+        self.qual_worst_sec.setValue(0)
+        self.qual_worst_ms.setValue(0)
+        self.qual_user_min.setValue(0)
+        self.qual_user_sec.setValue(0)
+        self.qual_user_ms.setValue(0)
+        
+        self.race_best_min.setValue(0)
+        self.race_best_sec.setValue(0)
+        self.race_best_ms.setValue(0)
+        self.race_worst_min.setValue(0)
+        self.race_worst_sec.setValue(0)
+        self.race_worst_ms.setValue(0)
+        self.race_user_min.setValue(0)
+        self.race_user_sec.setValue(0)
+        self.race_user_ms.setValue(0)
+        
+        # Update quick calculate button state
+        stats = self.global_manager.get_stats()
+        self.quick_calc_btn.setEnabled(stats['total_points'] >= 2 and stats.get('r_squared') is not None)
+        
+        # Update status label
+        if stats['total_points'] > 0:
+            if stats.get('r_squared'):
+                status_text = f"✓ Global curve active: {stats['total_tracks']} tracks, {stats['total_points']} points | R² = {stats['r_squared']:.4f}"
+            else:
+                status_text = f"⚠ Global curve: {stats['total_tracks']} tracks, {stats['total_points']} points | Not fitted yet"
+        else:
+            status_text = "⚠ No global curve data. Add points from tracks to build the curve."
+        
+        self.status_label_global.setText(status_text)
+        
+        QMessageBox.information(self, "Data Saved", 
+                               f"Data added to global curve.\n\n"
+                               f"Total points: {stats['total_points']} across {stats['total_tracks']} tracks.\n\n"
+                               f"Click 'Fit Global Curve' in the editor to build the model.")
     
     def load_historic_data(self):
-        """Load historic data for this track"""
+        """Load historic data from CSV for display"""
         self.qual_points_cache = self.data_store.get_qualifying_points(self.track_name)
         self.race_points_cache = self.data_store.get_race_points(self.track_name)
         
-        # Update stats display
-        qual_count = len(self.qual_points_cache)
-        race_count = len(self.race_points_cache)
-        total = qual_count + race_count
-        
-        if total > 0:
-            self.historic_stats.setText(f"📊 {total} historic points (Q:{qual_count} R:{race_count})")
-            self.status_label.setText(f"Loaded {total} historic data points for this track")
-        else:
-            self.historic_stats.setText("📊 No historic data")
-            self.status_label.setText("No historic data found for this track")
-        
-        # Update graph window if open
-        if self.graph_window and self.graph_window.isVisible():
-            self.graph_window.set_data(self.qual_points_cache, self.race_points_cache)
+        count = len(self.qual_points_cache) + len(self.race_points_cache)
+        if count > 0:
+            print(f"Loaded {count} historic data points for {self.track_name}")
     
     def get_qual_times(self):
         best = self.get_time_value(self.qual_best_min, self.qual_best_sec, self.qual_best_ms)
@@ -629,82 +864,6 @@ class RatioCalculatorDialog(QDialog):
         user = self.get_time_value(self.race_user_min, self.race_user_sec, self.race_user_ms)
         ratio = self.race_ratio_spin.value()
         return LapTimes(best, worst, user, ratio)
-    
-    def save_to_csv(self, times, is_qualifying):
-        """Save lap times to CSV"""
-        success = self.data_store.save_to_csv(self.track_name, times, is_qualifying)
-        if success:
-            self.status_label.setText(f"✓ Saved {('Qualifying' if is_qualifying else 'Race')} data to CSV")
-            return True
-        else:
-            self.status_label.setText("✗ Failed to save to CSV")
-            return False
-    
-    def calculate_and_save(self):
-        """Save data and keep current ratios"""
-        self._save_current_data()
-        
-        # Keep current ratios
-        self.new_qual = self.current_qual
-        self.new_race = self.current_race
-        self.apply_btn.setEnabled(True)
-        
-        QMessageBox.information(self, "Data Saved", 
-                               "Lap times have been saved to the CSV file.\n\n"
-                               "Click APPLY RATIOS to keep the current values.")
-    
-    def save_only(self):
-        """Save only - no calculation"""
-        self._save_current_data()
-        
-        QMessageBox.information(self, "Data Saved", 
-                               "Lap times have been saved to the CSV file.\n\n"
-                               "Click APPLY RATIOS to keep the current values.")
-    
-    def _save_current_data(self):
-        """Internal method to save all valid data"""
-        qual_times = self.get_qual_times()
-        race_times = self.get_race_times()
-        
-        saved_qual = False
-        saved_race = False
-        
-        if qual_times.pole > 0 and qual_times.last_ai > 0:
-            saved_qual = self.save_to_csv(qual_times, True)
-        
-        if race_times.pole > 0 and race_times.last_ai > 0:
-            saved_race = self.save_to_csv(race_times, False)
-        
-        # Reload data to update graph
-        self.load_historic_data()
-        
-        # Clear input fields after save
-        if saved_qual:
-            self.qual_best_min.setValue(0)
-            self.qual_best_sec.setValue(0)
-            self.qual_best_ms.setValue(0)
-            self.qual_worst_min.setValue(0)
-            self.qual_worst_sec.setValue(0)
-            self.qual_worst_ms.setValue(0)
-            self.qual_user_min.setValue(0)
-            self.qual_user_sec.setValue(0)
-            self.qual_user_ms.setValue(0)
-        
-        if saved_race:
-            self.race_best_min.setValue(0)
-            self.race_best_sec.setValue(0)
-            self.race_best_ms.setValue(0)
-            self.race_worst_min.setValue(0)
-            self.race_worst_sec.setValue(0)
-            self.race_worst_ms.setValue(0)
-            self.race_user_min.setValue(0)
-            self.race_user_sec.setValue(0)
-            self.race_user_ms.setValue(0)
-        
-        if not saved_qual and not saved_race:
-            QMessageBox.warning(self, "No Data", 
-                               "No valid lap times entered.\n\n"
-                               "Please enter at least Best and Worst AI times for qualifying or race.")
     
     def show_config_window(self):
         if not self.config_window:
@@ -728,6 +887,7 @@ class RatioCalculatorDialog(QDialog):
             self.config_csv = file_path
             self.data_store = HistoricDataStore(self.config_csv)
             self.load_historic_data()
+            self.import_csv_data_to_global_curve()
             
             if self.config_window and self.config_window.isVisible():
                 self.config_window.update_from_config(self.config_csv)

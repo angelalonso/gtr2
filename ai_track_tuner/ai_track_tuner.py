@@ -14,9 +14,11 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 
 # Import configuration management
-from cfg_manage import get_or_prompt_base_path, save_last_filter, load_last_filter
+from cfg_manage import get_or_prompt_base_path, save_last_filter, load_last_filter, get_formulas_dir
 # Import ratio calculator dialog
 from ratio_gui import RatioCalculatorDialog
+# Import global curve builder
+from global_curve_builder import GlobalCurveBuilderDialog
 
 
 class RatioItemDelegate(QStyledItemDelegate):
@@ -421,6 +423,7 @@ class AIWRatioEditor(QMainWindow):
         self.aiw_files = []  # List of (aiw_path, gdb_path, track_name, row_id)
         self.backup_dir = Path("./backup_originals")
         self.scan_worker = None
+        self.formulas_dir = get_formulas_dir()
         self.setup_ui()
         
         # Load last filter and apply it
@@ -457,6 +460,32 @@ class AIWRatioEditor(QMainWindow):
         header_layout.addWidget(self.stats_label)
         
         main_layout.addWidget(header)
+        
+        # Global Curve Builder Button
+        global_curve_widget = QWidget()
+        global_curve_layout = QHBoxLayout(global_curve_widget)
+        global_curve_layout.setContentsMargins(0, 0, 0, 10)
+        
+        self.global_curve_btn = QPushButton("📊 BUILD GLOBAL CURVE")
+        self.global_curve_btn.setToolTip("Build a global curve from all track data")
+        self.global_curve_btn.setFixedHeight(45)
+        self.global_curve_btn.setCursor(Qt.PointingHandCursor)
+        self.global_curve_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #9C27B0;
+                color: white;
+                font-size: 14px;
+                font-weight: bold;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #7B1FA2;
+            }
+        """)
+        global_curve_layout.addWidget(self.global_curve_btn)
+        global_curve_layout.addStretch()
+        
+        main_layout.addWidget(global_curve_widget)
         
         # Filter section
         filter_widget = QWidget()
@@ -614,6 +643,9 @@ class AIWRatioEditor(QMainWindow):
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("Ready")
+        
+        # Connect button
+        self.global_curve_btn.clicked.connect(self.open_global_curve_builder)
     
     def button_style(self, color):
         return f"""
@@ -691,6 +723,11 @@ class AIWRatioEditor(QMainWindow):
         save_last_filter("")
         self.apply_filter()
         self.status_bar.showMessage("Filter cleared", 2000)
+    
+    def open_global_curve_builder(self):
+        """Open the global curve builder dialog"""
+        dialog = GlobalCurveBuilderDialog(self, self.formulas_dir)
+        dialog.exec_()
     
     def find_matching_gdb(self, aiw_path):
         stem = aiw_path.stem

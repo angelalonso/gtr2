@@ -172,7 +172,8 @@ class PathSelectionDialog(QDialog):
 DEFAULT_CONFIG = {
     'base_path': '',
     'historic_csv': '',
-    'last_filter': ''
+    'last_filter': '',
+    'formulas_dir': './track_formulas'  # Directory to store global curve
 }
 
 
@@ -287,6 +288,17 @@ def get_historic_csv(config_file="cfg.yml"):
 def update_historic_csv(path, config_file="cfg.yml"):
     config = get_config_with_defaults(config_file)
     config['historic_csv'] = str(path) if path else ''
+    return save_config(config, config_file)
+
+
+def get_formulas_dir(config_file="cfg.yml"):
+    config = get_config_with_defaults(config_file)
+    return config.get('formulas_dir', './track_formulas')
+
+
+def update_formulas_dir(path, config_file="cfg.yml"):
+    config = get_config_with_defaults(config_file)
+    config['formulas_dir'] = str(path)
     return save_config(config, config_file)
 
 
