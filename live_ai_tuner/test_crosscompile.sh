@@ -60,8 +60,10 @@ wine python -m PyInstaller \
     --hidden-import=watchdog.events \
     --hidden-import=yaml \
     --hidden-import=_yaml \
+    --hidden-import=race_results_parser \
     --collect-all=watchdog \
     --collect-all=yaml \
+    --add-data="race_results_parser.py;." \
     --log-level=INFO \
     live_ai_tuner.py
 
