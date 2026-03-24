@@ -1,0 +1,10 @@
+2026-03-23 13:54:45,639 - INFO - Using base path: /home/aaf/Downloads/TMP/00_steamonly
+2026-03-23 13:54:45,639 - INFO - Monitoring folder: /home/aaf/Downloads/TMP/00_steamonly/UserData
+2026-03-23 13:54:45,640 - INFO - Tracking 1 existing files
+2026-03-23 13:54:45,640 - INFO - Started monitoring folder: /home/aaf/Downloads/TMP/00_steamonly/UserData
+2026-03-23 13:54:45,640 - INFO - Recursive mode: True
+2026-03-23 13:54:45,640 - INFO - Log file: file_monitor_20260323_135445.log
+2026-03-23 13:56:41,756 - INFO - File created: /home/aaf/Downloads/TMP/00_steamonly/UserData/new/new
+2026-03-23 13:56:41,757 - INFO - CREATED: /home/aaf/Downloads/TMP/00_steamonly/UserData/new/new
+2026-03-23 13:56:52,586 - INFO - File deleted: /home/aaf/Downloads/TMP/00_steamonly/UserData/new/new
+2026-03-23 13:56:52,589 - INFO - DELETED: /home/aaf/Downloads/TMP/00_steamonly/UserData/new/new

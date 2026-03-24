@@ -1,0 +1,15 @@
+base_path: /home/aaf/Downloads/TMP/00_steamonly
+exponential_params:
+  default_A: 300.0
+  default_B: 50.0
+  default_k: 3.0
+  max_ratio: 10.0
+  min_ratio: 0.1
+  power_factor: 1.0
+  ratio_offset: 0.0
+goal_offset: 0.0
+goal_percent: 50.0
+historic_csv: historic.csv
+last_filter: donin
+percent_ratio: 0.01
+use_exponential_model: true
