@@ -337,12 +337,15 @@ class MainWindow:
 class FileChangeHandler(FileSystemEventHandler):
     """Handles file system events and detects content changes"""
     
-    def __init__(self, watch_folder, main_window, target_file_path):
+    def __init__(self, watch_folder, main_window, target_file_path, base_path):
         super().__init__()
         self.watch_folder = Path(watch_folder)
         self.target_file_path = Path(target_file_path)  # The specific file we want to monitor
+        self.base_path = Path(base_path) if base_path else None  # Store base_path for AIW file lookup
         self.file_states = {}  # Store file size and modification time
         self.main_window = main_window
+        self.last_analysis_time = 0  # Track last analysis to avoid duplicates
+        self.pending_analysis = False  # Flag to track if analysis is pending
         
     def is_target_file(self, file_path):
         """Check if the given file path is the target file we want to monitor"""
@@ -358,15 +361,48 @@ class FileChangeHandler(FileSystemEventHandler):
     def analyze_race_results(self, file_path):
         """Analyze the race results file and show popup"""
         try:
-            logger.info(f"Analyzing race results from: {file_path}")
+            # Check if we already analyzed recently (within last 2 seconds)
+            current_time = time.time()
+            if current_time - self.last_analysis_time < 2.0:
+                logger.info(f"Skipping analysis (too soon since last analysis)")
+                return
+            
+            logger.info(f"=" * 60)
+            logger.info(f"Starting analysis of race results from: {file_path}")
+            logger.info(f"=" * 60)
+            
+            self.last_analysis_time = current_time
+            self.pending_analysis = False
+            
             # Call the analysis function in a separate thread to avoid blocking
             def analyze():
-                analyze_race_results(Path(file_path))
+                try:
+                    analyze_race_results(Path(file_path), self.base_path)
+                except Exception as e:
+                    logger.error(f"Error in analysis thread: {e}", exc_info=True)
             
             thread = threading.Thread(target=analyze, daemon=True)
             thread.start()
+            logger.info("Analysis thread started")
+            
         except Exception as e:
-            logger.error(f"Error analyzing race results: {e}")
+            logger.error(f"Error starting analysis: {e}", exc_info=True)
+        
+    def schedule_analysis(self, file_path):
+        """Schedule analysis with a delay to avoid multiple triggers"""
+        if self.pending_analysis:
+            logger.info("Analysis already pending, skipping...")
+            return
+        
+        self.pending_analysis = True
+        
+        def delayed_analysis():
+            time.sleep(1.0)  # Wait 1 second for file to be fully written
+            self.analyze_race_results(file_path)
+        
+        thread = threading.Thread(target=delayed_analysis, daemon=True)
+        thread.start()
+        logger.info(f"Scheduled analysis for {file_path} with 1 second delay")
         
     def show_notification(self, file_path, event_type, size_info=None):
         """Show popup notification for file change"""
@@ -375,15 +411,9 @@ class FileChangeHandler(FileSystemEventHandler):
             if not self.is_target_file(file_path):
                 return
             
-            # For modified events, also analyze the race results
+            # For modified events, schedule analysis
             if event_type == 'modified':
-                # Small delay to ensure file is fully written
-                def analyze_with_delay():
-                    time.sleep(0.5)  # Wait half a second for file to be completely written
-                    self.analyze_race_results(file_path)
-                
-                thread = threading.Thread(target=analyze_with_delay, daemon=True)
-                thread.start()
+                self.schedule_analysis(file_path)
                 
             # Create notification window in a separate thread to avoid blocking
             def show_window():
@@ -403,26 +433,32 @@ class FileChangeHandler(FileSystemEventHandler):
             # Run notification in separate thread
             thread = threading.Thread(target=show_window, daemon=True)
             thread.start()
+            
         except Exception as e:
-            logger.error(f"Error showing notification: {e}")
+            logger.error(f"Error showing notification: {e}", exc_info=True)
     
     def on_modified(self, event):
         """Called when a file is modified"""
         if not event.is_directory:
             file_path = Path(event.src_path)
+            logger.info(f"Modified event detected for: {file_path}")
             # Only process if it's the target file
             if self.is_target_file(file_path):
+                logger.info(f"Target file modified: {file_path}")
                 self._check_file_change(file_path)
     
     def on_created(self, event):
         """Called when a file is created"""
         if not event.is_directory:
             file_path = Path(event.src_path)
+            logger.info(f"Created event detected for: {file_path}")
             # Only process if it's the target file
             if self.is_target_file(file_path):
-                logger.info(f"File created: {file_path}")
+                logger.info(f"Target file created: {file_path}")
                 self._track_file(file_path)
                 self.show_notification(str(file_path), 'created')
+                # Also schedule analysis for created files (in case it's a new session)
+                self.schedule_analysis(file_path)
     
     def on_deleted(self, event):
         """Called when a file is deleted"""
@@ -430,7 +466,7 @@ class FileChangeHandler(FileSystemEventHandler):
             file_path = Path(event.src_path)
             # Only process if it's the target file
             if self.is_target_file(file_path):
-                logger.info(f"File deleted: {file_path}")
+                logger.info(f"Target file deleted: {file_path}")
                 if str(file_path) in self.file_states:
                     del self.file_states[str(file_path)]
                 self.show_notification(str(file_path), 'deleted')
@@ -440,9 +476,11 @@ class FileChangeHandler(FileSystemEventHandler):
         if not event.is_directory:
             src_path = Path(event.src_path)
             dest_path = Path(event.dest_path)
+            logger.info(f"Moved event: {src_path} -> {dest_path}")
+            
             # Only process if either source or destination is the target file
             if self.is_target_file(src_path) or self.is_target_file(dest_path):
-                logger.info(f"File moved: {src_path} -> {dest_path}")
+                logger.info(f"Target file moved: {src_path} -> {dest_path}")
                 
                 # Update tracking if we were tracking the source
                 if str(src_path) in self.file_states:
@@ -450,6 +488,10 @@ class FileChangeHandler(FileSystemEventHandler):
                     self._track_file(dest_path)
                 
                 self.show_notification(f"{src_path} -> {dest_path}", 'moved')
+                
+                # If the destination is the target file, schedule analysis
+                if self.is_target_file(dest_path):
+                    self.schedule_analysis(dest_path)
     
     def _track_file(self, file_path):
         """Track initial state of a file"""
@@ -460,6 +502,7 @@ class FileChangeHandler(FileSystemEventHandler):
                     'size': stat_info.st_size,
                     'mtime': stat_info.st_mtime
                 }
+                logger.info(f"Tracking file: {file_path}, size: {stat_info.st_size}")
         except (OSError, IOError) as e:
             logger.error(f"Error tracking file {file_path}: {e}")
     
@@ -494,8 +537,10 @@ class FileChangeHandler(FileSystemEventHandler):
                 # Update stored state
                 self.file_states[str(file_path)] = current_state
                 
-                # Show notification
+                # Show notification (this will trigger analysis)
                 self.show_notification(str(file_path), 'modified', size_info)
+            else:
+                logger.debug(f"File {file_path} reported modified but content didn't change")
                 
         except (OSError, IOError) as e:
             logger.error(f"Error checking file {file_path}: {e}")
@@ -503,12 +548,13 @@ class FileChangeHandler(FileSystemEventHandler):
 class FileMonitor:
     """Main file monitor class"""
     
-    def __init__(self, watch_folder, main_window, target_file_path, recursive=True):
+    def __init__(self, watch_folder, main_window, target_file_path, base_path, recursive=True):
         self.watch_folder = Path(watch_folder)
         self.target_file_path = Path(target_file_path)
+        self.base_path = Path(base_path) if base_path else None
         self.recursive = recursive
         self.observer = Observer()
-        self.event_handler = FileChangeHandler(self.watch_folder, main_window, self.target_file_path)
+        self.event_handler = FileChangeHandler(self.watch_folder, main_window, self.target_file_path, self.base_path)
         
     def start(self):
         """Start monitoring the folder"""
@@ -537,21 +583,24 @@ class FileMonitor:
         )
         self.observer.start()
         
-        # Track existing files (only the target file)
+        # Track existing files (only the target file) - NO ANALYSIS HERE
         self._track_existing_files()
         
         logger.info(f"Started monitoring folder: {self.watch_folder}")
         logger.info(f"Monitoring only: {self.target_file_path}")
+        logger.info(f"Base path for AIW: {self.base_path}")
         logger.info(f"Recursive mode: {self.recursive}")
         logger.info(f"Log file: {log_filename}")
         
         return True
     
     def _track_existing_files(self):
-        """Track only the target file if it exists"""
+        """Track only the target file if it exists - NO ANALYSIS, just tracking"""
         if self.target_file_path.exists() and self.target_file_path.is_file():
             self.event_handler._track_file(self.target_file_path)
-            logger.info(f"Tracking target file: {self.target_file_path}")
+            logger.info(f"Tracking existing target file: {self.target_file_path}")
+            # REMOVED: self.event_handler.schedule_analysis(self.target_file_path)
+            # We don't want to analyze existing files on startup
         else:
             logger.info(f"Target file does not exist yet: {self.target_file_path}")
         
@@ -687,6 +736,7 @@ def main():
             monitor_folder,
             main_window=None,
             target_file_path=target_file,
+            base_path=base_path,
             recursive=not args.no_recursive
         )
         
@@ -709,6 +759,7 @@ def main():
                 monitor_folder,
                 main_window,
                 target_file_path=target_file,
+                base_path=base_path,
                 recursive=not args.no_recursive
             )
             
@@ -727,7 +778,7 @@ def main():
                 # Clean up when GUI closes
                 monitor.stop()
         except Exception as e:
-            logger.error(f"Error starting GUI: {e}")
+            logger.error(f"Error starting GUI: {e}", exc_info=True)
             sys.exit(1)
 
 if __name__ == "__main__":
