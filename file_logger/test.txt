@@ -1,0 +1,74 @@
+[15:53:03] CREATED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\tmpvehicle.scn
+[15:53:03] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\tmpvehicle.scn Size: 0 -> 23150 bytes
+[15:53:04] DELETED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\tmpvehicle.scn
+[15:53:18] CREATED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\AngelAlonso.TMP
+[15:53:18] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\AngelAlonso.TMP Size: 20890 -> 51085 bytes
+[15:53:18] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\SIM_Formula_Senior.bch Size: 3269 -> 0 bytes
+[15:53:18] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\SIM_Formula_Senior.bch Size: 0 -> 3269 bytes
+[15:53:18] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\Career.blt Size: 103388 -> 103388 bytes
+[15:53:18] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\AngelAlonso.gal Size: 2731 -> 2731 bytes
+[15:53:18] DELETED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\AngelAlonso.PLR
+[15:53:18] MOVED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\AngelAlonso.TMP -> C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\AngelAlonso.PLR
+[15:53:18] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\stats.stc Size: 10620 -> 4096 bytes
+[15:53:18] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\stats.stc Size: 4096 -> 8192 bytes
+[15:53:18] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\stats.stc Size: 8192 -> 10620 bytes
+[15:53:19] CREATED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\tmp.TRK
+[15:53:19] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\tmp.TRK Size: 4096 -> 45056 bytes
+[15:53:19] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\tmp.TRK Size: 45056 -> 85843 bytes
+[15:53:22] DELETED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\tmp.TRK
+[15:53:24] DELETED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\HAT\4Monza.hat
+[15:53:24] CREATED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\HAT\4Monza.hat
+[15:53:24] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\HAT\4Monza.hat Size: 16384 -> 98304 bytes
+[15:53:24] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\HAT\4Monza.hat Size: 98304 -> 245760 bytes
+[15:53:25] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\HAT\4Monza.hat Size: 245760 -> 393216 bytes
+[15:53:26] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\HAT\4Monza.hat Size: 393216 -> 1805665 bytes
+[15:53:36] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\AngelAlonso.gal Size: 2731 -> 2864 bytes
+[15:53:36] DELETED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\tempGarage.svm
+[15:53:51] CREATED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\tempGarage.svm
+[15:53:51] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\vehicledata.spt Size: 1700068 -> 0 bytes
+[15:53:57] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\vehicledata.spt Size: 0 -> 16249 bytes
+[15:54:57] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\tempGarage.svm Size: 2535 -> 2535 bytes
+[15:54:57] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\vehicledata.spt Size: 16249 -> 0 bytes
+[15:55:03] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\vehicledata.spt Size: 0 -> 17792 bytes
+[15:57:58] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\tempGarage.svm Size: 2535 -> 2535 bytes
+[15:57:58] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\vehicledata.spt Size: 17792 -> 0 bytes
+[15:58:08] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\vehicledata.spt Size: 0 -> 26216 bytes
+[15:58:39] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\Save\GameSIMWEEKEND.sve Size: 3978661 -> 3978661 bytes
+[15:58:39] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\tempGarage.svm Size: 2535 -> 2535 bytes
+[15:58:39] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\Save\GameSIMWEEKENDGar.sve Size: 2534 -> 2535 bytes
+[15:58:39] DELETED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\Save\GameSIMWEEKEND.sve.ccrs
+[16:00:01] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\Results\raceresults.txt Size: 4526 -> 290 bytes
+[16:00:11] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\tempGarage.svm Size: 2535 -> 2535 bytes
+[16:00:11] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\vehicledata.spt Size: 26216 -> 0 bytes
+[16:01:23] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\vehicledata.spt Size: 0 -> 38991 bytes
+[16:01:34] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\Results\raceresults.txt Size: 290 -> 476 bytes
+[16:01:34] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\Results\raceresults.txt Size: 476 -> 693 bytes
+[16:01:34] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\Results\raceresults.txt Size: 693 -> 911 bytes
+[16:01:34] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\Results\raceresults.txt Size: 911 -> 1128 bytes
+[16:01:34] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\Results\raceresults.txt Size: 1128 -> 1336 bytes
+[16:01:34] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\Results\raceresults.txt Size: 1336 -> 1967 bytes
+[16:01:34] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\Results\raceresults.txt Size: 1967 -> 2385 bytes
+[16:01:34] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\Results\raceresults.txt Size: 2385 -> 3029 bytes
+[16:01:34] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\Results\raceresults.txt Size: 3029 -> 3237 bytes
+[16:01:34] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\Results\raceresults.txt Size: 3237 -> 3860 bytes
+[16:01:34] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\Log\Results\raceresults.txt Size: 3860 -> 4501 bytes
+[16:01:34] CREATED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\AngelAlonso.TMP
+[16:01:34] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\AngelAlonso.TMP Size: 20890 -> 51085 bytes
+[16:01:34] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\SIM_Formula_Senior.bch Size: 3269 -> 0 bytes
+[16:01:34] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\SIM_Formula_Senior.bch Size: 0 -> 3269 bytes
+[16:01:35] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\Career.blt Size: 103388 -> 103388 bytes
+[16:01:35] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\AngelAlonso.gal Size: 2864 -> 2731 bytes
+[16:01:35] DELETED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\AngelAlonso.PLR
+[16:01:35] MOVED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\AngelAlonso.TMP -> C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\AngelAlonso.PLR
+[16:01:35] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\stats.stc Size: 10620 -> 10620 bytes
+[16:01:43] CREATED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\AngelAlonso.TMP
+[16:01:43] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\AngelAlonso.TMP Size: 37584 -> 51085 bytes
+[16:01:43] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\SIM_Formula_Senior.bch Size: 3269 -> 0 bytes
+[16:01:43] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\SIM_Formula_Senior.bch Size: 0 -> 3269 bytes
+[16:01:43] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\Career.blt Size: 103388 -> 103388 bytes
+[16:01:43] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\AngelAlonso.gal Size: 2731 -> 2731 bytes
+[16:01:43] DELETED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\AngelAlonso.PLR
+[16:01:44] MOVED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\AngelAlonso.TMP -> C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\AngelAlonso.PLR
+[16:01:44] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\stats.stc Size: 10620 -> 4096 bytes
+[16:01:44] MODIFIED: C:\Program Files (x86)\Steam\steamapps\common\GTR 2 - FIA GT Racing Game\UserData\AngelAlonso\stats.stc Size: 4096 -> 10620 bytes
+

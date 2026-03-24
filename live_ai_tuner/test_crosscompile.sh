@@ -17,7 +17,7 @@ mkdir -p ${COMPILEDIR}
 
 # Copy files
 echo "Copying files to ${COMPILEDIR}..."
-cp live_ai_tuner.py ${COMPILEDIR}/
+cp *.py ${COMPILEDIR}/
 if [ -f "cfg.yml" ]; then
     cp cfg.yml ${COMPILEDIR}/
     echo "Copied cfg.yml"
