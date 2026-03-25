@@ -2,6 +2,7 @@
 AIW File Manager - Reading, writing, and backing up AIW files
 """
 
+import os
 import re
 import shutil
 import logging
@@ -21,7 +22,7 @@ class AIWManager:
     
     def find_aiw_file(self, aiw_filename: str, track_name: str, base_path: Path) -> Optional[Path]:
         """
-        Find the AIW file in the game directory
+        Find the AIW file in the game directory with case-insensitive search
         
         Args:
             aiw_filename: Name of the AIW file (e.g., "4Monza.AIW")
@@ -37,38 +38,78 @@ class AIWManager:
             logger.warning(f"Locations path not found: {locations_path}")
             return None
         
-        # Search recursively for the exact filename
+        # Try different search strategies
+        
+        # Strategy 1: Use track name with case-insensitive folder search
+        if track_name:
+            for track_folder in locations_path.iterdir():
+                if track_folder.is_dir() and track_folder.name.lower() == track_name.lower():
+                    # Look for AIW files in this folder
+                    for file in track_folder.glob('*'):
+                        if file.is_file() and file.name.lower() == aiw_filename.lower():
+                            logger.info(f"Found AIW file via track folder: {file}")
+                            return file
+                    
+                    # Also try common naming patterns
+                    for ext in ['.AIW', '.aiw', '.AIw']:
+                        candidate = track_folder / f"{track_folder.name}{ext}"
+                        if candidate.exists():
+                            logger.info(f"Found AIW file via track name: {candidate}")
+                            return candidate
+        
+        # Strategy 2: Search recursively in GameData/Locations
         for root, dirs, files in os.walk(locations_path):
             for file in files:
                 if file.lower() == aiw_filename.lower():
                     found_path = Path(root) / file
-                    logger.info(f"Found AIW file: {found_path}")
+                    logger.info(f"Found AIW file via recursive search: {found_path}")
                     return found_path
         
-        # Try with track name variations
-        if track_name:
-            track_variations = [
-                track_name,
-                track_name.lower(),
-                track_name.capitalize(),
-                track_name.title(),
-                f"4{track_name}",
-                f"4{track_name.lower()}"
-            ]
+        # Strategy 3: Try to reconstruct path from the original AIW path string
+        # The path might be like "GAMEDATA\LOCATIONS\Monza\4Monza.AIW"
+        # Convert to proper case by walking the directory structure
+        if aiw_filename:
+            # Clean up the path
+            clean_path = aiw_filename.replace('\\', '/')
+            path_parts = clean_path.split('/')
             
-            for variation in set(track_variations):
-                track_path = locations_path / variation
-                if track_path.exists():
-                    for ext in ['.AIW', '.aiw', '.AIw']:
-                        candidate = track_path / f"{variation}{ext}"
-                        if candidate.exists():
-                            logger.info(f"Found AIW file via track folder: {candidate}")
-                            return candidate
-                    
-                    # Also search for any AIW file in the folder
-                    for file in track_path.glob('*.AIW'):
-                        return file
-                    for file in track_path.glob('*.aiw'):
+            # Start from base_path
+            current_path = base_path
+            
+            for i, part in enumerate(path_parts[:-1]):  # Exclude the filename
+                # Try to find the folder case-insensitively
+                found = False
+                part_lower = part.lower()
+                
+                if current_path.exists():
+                    for item in current_path.iterdir():
+                        if item.is_dir() and item.name.lower() == part_lower:
+                            current_path = item
+                            found = True
+                            break
+                
+                if not found:
+                    # Try with the original case
+                    candidate = current_path / part
+                    if candidate.exists() and candidate.is_dir():
+                        current_path = candidate
+                        found = True
+                
+                if not found:
+                    logger.debug(f"Could not find path component: {part}")
+                    break
+            
+            # Check if the file exists
+            candidate = current_path / path_parts[-1]
+            if candidate.exists() and candidate.is_file():
+                logger.info(f"Found AIW file via path reconstruction: {candidate}")
+                return candidate
+            
+            # Try to find any file with matching name in the final directory
+            if current_path.exists():
+                for file in current_path.glob('*'):
+                    if file.is_file() and file.name.lower() == path_parts[-1].lower():
+                        logger.info(f"Found AIW file via filename match: {file}")
                         return file
         
         logger.warning(f"AIW file not found: {aiw_filename}")

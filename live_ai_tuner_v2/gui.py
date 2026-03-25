@@ -18,6 +18,11 @@ from ratio_calculator import RatioCalculator
 logger = logging.getLogger(__name__)
 
 
+class RaceResultsSignal(QObject):
+    """Signal for thread-safe GUI updates"""
+    results_detected = pyqtSignal(dict)
+
+
 class ConfirmApplyDialog(QDialog):
     """Dialog to confirm applying new ratio"""
     
@@ -301,6 +306,10 @@ class MainWindow(QMainWindow):
         self.monitor_folder = monitor_folder
         self.target_file = target_file
         
+        # Create signal for thread-safe updates
+        self.signal = RaceResultsSignal()
+        self.signal.results_detected.connect(self._update_race_results)
+        
         # Initialize managers
         formulas_dir = get_formulas_dir()
         self.curve_manager = GlobalCurveManager(formulas_dir)
@@ -549,10 +558,14 @@ class MainWindow(QMainWindow):
         logger.info(msg)
     
     def on_race_results_detected(self, data: dict):
-        """Called when new race results are detected"""
+        """Thread-safe entry point for race results (called from monitor thread)"""
+        self.signal.results_detected.emit(data)
+    
+    def _update_race_results(self, data: dict):
+        """Update race results in GUI (called from main thread via signal)"""
         self.last_results = data
         
-        # Update results text
+        # Update results text with safe formatting for None values
         track = data.get('track_name', 'Unknown')
         aiw = data.get('aiw_file', 'Unknown')
         best_ai = data.get('best_ai_lap', 'N/A')
@@ -562,19 +575,23 @@ class MainWindow(QMainWindow):
         qual_ratio = data.get('qual_ratio')
         race_ratio = data.get('race_ratio')
         
+        # Format ratios safely
+        qual_str = f"{qual_ratio:.6f}" if qual_ratio is not None else 'N/A'
+        race_str = f"{race_ratio:.6f}" if race_ratio is not None else 'N/A'
+        
         text = f"""
-Track: {track}
-AIW File: {aiw}
-Current Ratios: Qual={qual_ratio:.6f if qual_ratio else 'N/A'}, Race={race_ratio:.6f if race_ratio else 'N/A'}
+    Track: {track}
+    AIW File: {aiw}
+    Current Ratios: Qual={qual_str}, Race={race_str}
 
-AI Lap Times:
-  Best: {best_ai}
-  Worst: {worst_ai}
+    AI Lap Times:
+      Best: {best_ai}
+      Worst: {worst_ai}
 
-User Times:
-  Best Lap: {user_best}
-  Qualifying: {user_qual}
-"""
+    User Times:
+      Best Lap: {user_best}
+      Qualifying: {user_qual}
+    """
         self.results_text.setText(text)
         
         # Update AI lap labels
@@ -590,6 +607,7 @@ User Times:
             self.log_message(f"Detected user qualifying: {user_qual}", "success")
         
         self.log_message(f"Race results detected for {track}", "success")
+
     
     def calculate_ratio(self):
         """Calculate optimal ratio based on user time"""

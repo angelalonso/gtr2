@@ -4,6 +4,7 @@ Race Results Parser - Extracts lap times and AI information from raceresults.txt
 
 import re
 import logging
+import os
 from pathlib import Path
 from typing import Optional, List, Dict
 from dataclasses import dataclass, field
@@ -86,10 +87,11 @@ def parse_race_results(file_path: Path, base_path: Optional[Path] = None) -> Opt
                 track_name = re.sub(r'^\d+', '', track_name)
                 results.track_name = track_name
             
-            # AIW file
+            # AIW file - store as is, will handle case insensitivity later
             aiw_match = re.search(r'AIDB=(.*?)(?:\n|$)', race_section, re.IGNORECASE)
             if aiw_match:
-                results.aiw_path = Path(aiw_match.group(1).strip())
+                aiw_path_str = aiw_match.group(1).strip()
+                results.aiw_path = Path(aiw_path_str)
                 results.aiw_file = results.aiw_path.name
         
         # Parse driver slots
@@ -185,10 +187,10 @@ def _time_to_seconds(time_str: str) -> Optional[float]:
 
 
 def _parse_aiw_ratios(results: RaceResults, base_path: Path):
-    """Parse AIW file to get QualRatio and RaceRatio"""
+    """Parse AIW file to get QualRatio and RaceRatio with case-insensitive path handling"""
     try:
-        # Find the AIW file
-        aiw_path = _find_aiw_file(results.aiw_file, results.track_name, base_path)
+        # Find the AIW file with case-insensitive search
+        aiw_path = _find_aiw_file_case_insensitive(results.aiw_file, results.track_name, base_path)
         
         if not aiw_path or not aiw_path.exists():
             logger.warning(f"AIW file not found: {results.aiw_file}")
@@ -221,30 +223,89 @@ def _parse_aiw_ratios(results: RaceResults, base_path: Path):
         logger.info(f"Ratios - Qual: {results.qual_ratio}, Race: {results.race_ratio}")
         
     except Exception as e:
-        logger.error(f"Error parsing AIW file: {e}")
+        logger.error(f"Error parsing AIW file: {e}", exc_info=True)
 
 
-def _find_aiw_file(aiw_filename: str, track_name: str, base_path: Path) -> Optional[Path]:
-    """Find the AIW file in the game directory"""
+def _find_aiw_file_case_insensitive(aiw_filename: str, track_name: str, base_path: Path) -> Optional[Path]:
+    """
+    Find AIW file with case-insensitive search
+    Handles paths like GAMEDATA\LOCATIONS\Monza\4Monza.AIW -> GameData/Locations/Monza/4Monza.AIW
+    """
+    # First, try to construct the path from the filename and track name
     locations_path = base_path / 'GameData' / 'Locations'
     
     if not locations_path.exists():
+        logger.warning(f"Locations path not found: {locations_path}")
         return None
     
-    # Search for the AIW file
+    # Try different path variations
+    possible_paths = []
+    
+    # Variation 1: Use track name with case-insensitive folder search
+    if track_name:
+        # Try to find the track folder case-insensitively
+        for track_folder in locations_path.iterdir():
+            if track_folder.is_dir() and track_folder.name.lower() == track_name.lower():
+                # Look for AIW files in this folder
+                for ext in ['.AIW', '.aiw', '.AIw']:
+                    candidate = track_folder / f"{track_folder.name}{ext}"
+                    if candidate.exists():
+                        return candidate
+                    
+                    # Also try with the original filename
+                    if aiw_filename:
+                        candidate = track_folder / aiw_filename
+                        if candidate.exists():
+                            return candidate
+                        
+                        # Try different case combinations
+                        for file in track_folder.glob('*.AIW'):
+                            if file.name.lower() == aiw_filename.lower():
+                                return file
+    
+    # Variation 2: Search recursively in GameData/Locations for any matching AIW file
     for root, dirs, files in os.walk(locations_path):
         for file in files:
             if file.lower() == aiw_filename.lower():
                 return Path(root) / file
     
-    # Try with track name
-    if track_name:
-        for variation in [track_name, track_name.lower(), track_name.capitalize()]:
-            track_path = locations_path / variation
-            if track_path.exists():
-                for file in track_path.glob('*.AIW'):
-                    return file
-                for file in track_path.glob('*.aiw'):
+    # Variation 3: Try to reconstruct path from the original AIW path string
+    if aiw_filename:
+        # The path might be like "GAMEDATA\LOCATIONS\Monza\4Monza.AIW"
+        # Convert to proper case by walking the directory structure
+        path_parts = aiw_filename.replace('\\', '/').split('/')
+        
+        # Start from base_path
+        current_path = base_path
+        
+        for part in path_parts[:-1]:  # Exclude the filename
+            # Try to find the folder case-insensitively
+            found = False
+            part_lower = part.lower()
+            
+            if current_path.exists():
+                for item in current_path.iterdir():
+                    if item.is_dir() and item.name.lower() == part_lower:
+                        current_path = item
+                        found = True
+                        break
+            
+            if not found:
+                # Create the folder if it doesn't exist (should exist in game)
+                current_path = current_path / part
+                if not current_path.exists():
+                    logger.warning(f"Path not found: {current_path}")
+                    break
+        
+        # Check if the file exists
+        candidate = current_path / path_parts[-1]
+        if candidate.exists():
+            return candidate
+        
+        # Try to find any file with matching name in the final directory
+        if current_path.exists():
+            for file in current_path.glob('*'):
+                if file.name.lower() == path_parts[-1].lower():
                     return file
     
     return None
