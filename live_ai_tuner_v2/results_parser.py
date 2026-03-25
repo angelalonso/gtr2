@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 class RaceResults:
     """Container for parsed race results"""
     track_name: Optional[str] = None
+    track_folder: Optional[str] = None  # Store the actual folder name
     aiw_file: Optional[str] = None
     aiw_path: Optional[Path] = None
     qual_ratio: Optional[float] = None
@@ -39,6 +40,7 @@ class RaceResults:
         """Convert to dictionary for GUI"""
         return {
             'track_name': self.track_name,
+            'track_folder': self.track_folder,
             'aiw_file': self.aiw_file,
             'qual_ratio': self.qual_ratio,
             'race_ratio': self.race_ratio,
@@ -79,20 +81,40 @@ def parse_race_results(file_path: Path, base_path: Optional[Path] = None) -> Opt
         if race_match:
             race_section = race_match.group(1)
             
-            # Track name
+            # Track name - extract from Scene
             scene_match = re.search(r'Scene=(.*?)(?:\n|$)', race_section, re.IGNORECASE)
             if scene_match:
                 scene = scene_match.group(1).strip()
-                track_name = Path(scene).stem
+                # scene is like "GAMEDATA\LOCATIONS\Monza\4Monza.TRK"
+                # or "GameData/Locations/Monza/4Monza.trk"
+                
+                # Convert backslashes to forward slashes for consistent handling
+                scene_normalized = scene.replace('\\', '/')
+                
+                # Extract the track folder name (the part before the filename)
+                # Path like: .../Locations/Monza/4Monza.TRK
+                scene_path = Path(scene_normalized)
+                
+                # The track folder is the parent directory of the TRK file
+                # e.g., "Monza"
+                track_folder = scene_path.parent.name
+                results.track_folder = track_folder
+                
+                # Clean track name - remove numbers prefix if present
+                track_name = scene_path.stem
                 track_name = re.sub(r'^\d+', '', track_name)
                 results.track_name = track_name
+                
+                logger.info(f"Track: {results.track_name} (folder: {results.track_folder})")
+                logger.info(f"Scene: {scene}")
             
-            # AIW file - store as is, will handle case insensitivity later
+            # AIW file - store the raw path, we'll handle case insensitivity in finder
             aiw_match = re.search(r'AIDB=(.*?)(?:\n|$)', race_section, re.IGNORECASE)
             if aiw_match:
                 aiw_path_str = aiw_match.group(1).strip()
                 results.aiw_path = Path(aiw_path_str)
                 results.aiw_file = results.aiw_path.name
+                logger.info(f"AIW file from results: {results.aiw_file}")
         
         # Parse driver slots
         slot_pattern = r'\[Slot(\d+)\](.*?)(?=\[Slot|\[END\]|$)'
@@ -159,6 +181,7 @@ def parse_race_results(file_path: Path, base_path: Optional[Path] = None) -> Opt
         
         # Try to parse AIW file for ratios
         if results.aiw_file and base_path:
+            # Use track_folder for better matching (this is the actual folder name like "Monza")
             _parse_aiw_ratios(results, base_path)
         
         logger.info(f"Parsed {len(results.drivers)} drivers from {file_path}")
@@ -187,10 +210,15 @@ def _time_to_seconds(time_str: str) -> Optional[float]:
 
 
 def _parse_aiw_ratios(results: RaceResults, base_path: Path):
-    """Parse AIW file to get QualRatio and RaceRatio with case-insensitive path handling"""
+    """Parse AIW file to get QualRatio and RaceRatio"""
     try:
-        # Find the AIW file with case-insensitive search
-        aiw_path = _find_aiw_file_case_insensitive(results.aiw_file, results.track_name, base_path)
+        # Use track_folder (like "Monza") for finding the AIW file
+        track_folder = results.track_folder
+        if not track_folder:
+            track_folder = results.track_name
+        
+        # Find the AIW file using our case-insensitive finder
+        aiw_path = _find_aiw_file_case_insensitive(results.aiw_file, track_folder, base_path)
         
         if not aiw_path or not aiw_path.exists():
             logger.warning(f"AIW file not found: {results.aiw_file}")
@@ -226,59 +254,62 @@ def _parse_aiw_ratios(results: RaceResults, base_path: Path):
         logger.error(f"Error parsing AIW file: {e}", exc_info=True)
 
 
-def _find_aiw_file_case_insensitive(aiw_filename: str, track_name: str, base_path: Path) -> Optional[Path]:
+def _find_aiw_file_case_insensitive(aiw_filename: str, track_folder: str, base_path: Path) -> Optional[Path]:
     """
-    Find AIW file with case-insensitive search
-    Handles paths like GAMEDATA\LOCATIONS\Monza\4Monza.AIW -> GameData/Locations/Monza/4Monza.AIW
+    Find AIW file with case-insensitive search.
+    This version works with the actual folder name like "Monza".
     """
-    # First, try to construct the path from the filename and track name
     locations_path = base_path / 'GameData' / 'Locations'
     
     if not locations_path.exists():
         logger.warning(f"Locations path not found: {locations_path}")
         return None
     
-    # Try different path variations
-    possible_paths = []
-    
-    # Variation 1: Use track name with case-insensitive folder search
-    if track_name:
-        # Try to find the track folder case-insensitively
-        for track_folder in locations_path.iterdir():
-            if track_folder.is_dir() and track_folder.name.lower() == track_name.lower():
-                # Look for AIW files in this folder
+    # Strategy 1: Look in the track folder (case-insensitive)
+    if track_folder:
+        for folder in locations_path.iterdir():
+            if folder.is_dir() and folder.name.lower() == track_folder.lower():
+                # Found the correct folder
+                logger.info(f"Found track folder: {folder}")
+                
+                # Look for the AIW file (case-insensitive)
+                for file in folder.glob('*'):
+                    if file.is_file() and file.name.lower() == aiw_filename.lower():
+                        logger.info(f"Found AIW file: {file}")
+                        return file
+                
+                # Also try common naming patterns (folder name + .AIW)
                 for ext in ['.AIW', '.aiw', '.AIw']:
-                    candidate = track_folder / f"{track_folder.name}{ext}"
+                    candidate = folder / f"{folder.name}{ext}"
                     if candidate.exists():
+                        logger.info(f"Found AIW file via folder name: {candidate}")
                         return candidate
-                    
-                    # Also try with the original filename
-                    if aiw_filename:
-                        candidate = track_folder / aiw_filename
-                        if candidate.exists():
-                            return candidate
-                        
-                        # Try different case combinations
-                        for file in track_folder.glob('*.AIW'):
-                            if file.name.lower() == aiw_filename.lower():
-                                return file
+                
+                # Look for any AIW file in the folder
+                for file in folder.glob('*.AIW'):
+                    return file
+                for file in folder.glob('*.aiw'):
+                    return file
     
-    # Variation 2: Search recursively in GameData/Locations for any matching AIW file
+    # Strategy 2: Search recursively through all locations
     for root, dirs, files in os.walk(locations_path):
         for file in files:
             if file.lower() == aiw_filename.lower():
-                return Path(root) / file
+                found_path = Path(root) / file
+                logger.info(f"Found AIW file via recursive search: {found_path}")
+                return found_path
     
-    # Variation 3: Try to reconstruct path from the original AIW path string
+    # Strategy 3: Try to reconstruct path from the original AIW path string
+    # The path might be like "GAMEDATA\LOCATIONS\Monza\4Monza.AIW"
     if aiw_filename:
-        # The path might be like "GAMEDATA\LOCATIONS\Monza\4Monza.AIW"
-        # Convert to proper case by walking the directory structure
-        path_parts = aiw_filename.replace('\\', '/').split('/')
+        # Clean up the path
+        clean_path = aiw_filename.replace('\\', '/')
+        path_parts = clean_path.split('/')
         
         # Start from base_path
         current_path = base_path
         
-        for part in path_parts[:-1]:  # Exclude the filename
+        for i, part in enumerate(path_parts[:-1]):  # Exclude the filename
             # Try to find the folder case-insensitively
             found = False
             part_lower = part.lower()
@@ -291,23 +322,30 @@ def _find_aiw_file_case_insensitive(aiw_filename: str, track_name: str, base_pat
                         break
             
             if not found:
-                # Create the folder if it doesn't exist (should exist in game)
-                current_path = current_path / part
-                if not current_path.exists():
-                    logger.warning(f"Path not found: {current_path}")
-                    break
+                # Try with the original case
+                candidate = current_path / part
+                if candidate.exists() and candidate.is_dir():
+                    current_path = candidate
+                    found = True
+            
+            if not found:
+                logger.debug(f"Could not find path component: {part}")
+                break
         
         # Check if the file exists
         candidate = current_path / path_parts[-1]
-        if candidate.exists():
+        if candidate.exists() and candidate.is_file():
+            logger.info(f"Found AIW file via path reconstruction: {candidate}")
             return candidate
         
         # Try to find any file with matching name in the final directory
         if current_path.exists():
             for file in current_path.glob('*'):
-                if file.name.lower() == path_parts[-1].lower():
+                if file.is_file() and file.name.lower() == path_parts[-1].lower():
+                    logger.info(f"Found AIW file via filename match: {file}")
                     return file
     
+    logger.warning(f"AIW file not found: {aiw_filename}")
     return None
 
 

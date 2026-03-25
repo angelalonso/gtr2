@@ -2,19 +2,18 @@
 AIW File Manager - Reading, writing, and backing up AIW files
 """
 
-import os
 import re
 import shutil
 import logging
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
 
 class AIWManager:
-    """Manages AIW file operations"""
+    """Manages AIW file operations with proper backup preservation"""
     
     def __init__(self, backup_dir: Path = None):
         self.backup_dir = Path(backup_dir) if backup_dir else Path("./backups")
@@ -66,18 +65,13 @@ class AIWManager:
                     return found_path
         
         # Strategy 3: Try to reconstruct path from the original AIW path string
-        # The path might be like "GAMEDATA\LOCATIONS\Monza\4Monza.AIW"
-        # Convert to proper case by walking the directory structure
         if aiw_filename:
-            # Clean up the path
             clean_path = aiw_filename.replace('\\', '/')
             path_parts = clean_path.split('/')
             
-            # Start from base_path
             current_path = base_path
             
-            for i, part in enumerate(path_parts[:-1]):  # Exclude the filename
-                # Try to find the folder case-insensitively
+            for i, part in enumerate(path_parts[:-1]):
                 found = False
                 part_lower = part.lower()
                 
@@ -89,7 +83,6 @@ class AIWManager:
                             break
                 
                 if not found:
-                    # Try with the original case
                     candidate = current_path / part
                     if candidate.exists() and candidate.is_dir():
                         current_path = candidate
@@ -99,13 +92,11 @@ class AIWManager:
                     logger.debug(f"Could not find path component: {part}")
                     break
             
-            # Check if the file exists
             candidate = current_path / path_parts[-1]
             if candidate.exists() and candidate.is_file():
                 logger.info(f"Found AIW file via path reconstruction: {candidate}")
                 return candidate
             
-            # Try to find any file with matching name in the final directory
             if current_path.exists():
                 for file in current_path.glob('*'):
                     if file.is_file() and file.name.lower() == path_parts[-1].lower():
@@ -130,13 +121,11 @@ class AIWManager:
             with open(aiw_path, 'rb') as f:
                 raw_content = f.read()
             
-            # Remove null bytes and decode
             content = raw_content.replace(b'\x00', b'').decode('utf-8', errors='ignore')
             
             qual_ratio = None
             race_ratio = None
             
-            # Find Waypoint section
             waypoint_match = re.search(r'\[Waypoint\](.*?)(?=\[|$)', content, re.DOTALL | re.IGNORECASE)
             if waypoint_match:
                 waypoint_section = waypoint_match.group(1)
@@ -156,7 +145,76 @@ class AIWManager:
             logger.error(f"Error reading AIW file {aiw_path}: {e}")
             return None, None
     
-    def update_ratio(self, aiw_path: Path, ratio_type: str, new_value: float) -> bool:
+    def create_original_backup(self, aiw_path: Path) -> Optional[Path]:
+        """
+        Create a backup of the original AIW file (only once, never overwrite)
+        Uses the track name to create a unique, permanent original backup
+        
+        Returns:
+            Path to backup file or None if failed
+        """
+        try:
+            if not aiw_path.exists():
+                logger.error(f"AIW file not found: {aiw_path}")
+                return None
+            
+            # Create a permanent original backup filename
+            # Format: {track_name}_ORIGINAL{extension}
+            track_name = aiw_path.stem
+            original_backup_name = f"{track_name}_ORIGINAL{aiw_path.suffix}"
+            original_backup_path = self.backup_dir / original_backup_name
+            
+            # Only create backup if it doesn't exist
+            if not original_backup_path.exists():
+                shutil.copy2(aiw_path, original_backup_path)
+                logger.info(f"Created original backup: {original_backup_path}")
+                return original_backup_path
+            else:
+                logger.info(f"Original backup already exists: {original_backup_path}")
+                return original_backup_path
+                
+        except Exception as e:
+            logger.error(f"Error creating original backup: {e}")
+            return None
+    
+    def create_timestamp_backup(self, aiw_path: Path) -> Optional[Path]:
+        """
+        Create a timestamped backup of the current AIW file
+        Useful for tracking changes over time
+        
+        Returns:
+            Path to backup file or None if failed
+        """
+        try:
+            if not aiw_path.exists():
+                logger.error(f"AIW file not found: {aiw_path}")
+                return None
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_name = f"{aiw_path.stem}_{timestamp}{aiw_path.suffix}"
+            backup_path = self.backup_dir / backup_name
+            
+            shutil.copy2(aiw_path, backup_path)
+            logger.info(f"Created timestamped backup: {backup_path}")
+            return backup_path
+            
+        except Exception as e:
+            logger.error(f"Error creating timestamped backup: {e}")
+            return None
+    
+    def create_backup_before_modification(self, aiw_path: Path) -> Tuple[Optional[Path], Optional[Path]]:
+        """
+        Create both original (if not exists) and timestamped backups before modification
+        
+        Returns:
+            Tuple of (original_backup_path, timestamped_backup_path)
+        """
+        original_backup = self.create_original_backup(aiw_path)
+        timestamp_backup = self.create_timestamp_backup(aiw_path)
+        return original_backup, timestamp_backup
+    
+    def update_ratio(self, aiw_path: Path, ratio_type: str, new_value: float, 
+                     create_backup: bool = True) -> bool:
         """
         Update a single ratio in the AIW file
         
@@ -164,17 +222,25 @@ class AIWManager:
             aiw_path: Path to AIW file
             ratio_type: "QualRatio" or "RaceRatio"
             new_value: New ratio value
+            create_backup: Whether to create backup before modifying
         
         Returns:
             True if successful
         """
         try:
+            # Create backups before modification if requested
+            if create_backup:
+                original_backup, timestamp_backup = self.create_backup_before_modification(aiw_path)
+                if original_backup:
+                    logger.info(f"Original backup: {original_backup}")
+                if timestamp_backup:
+                    logger.info(f"Timestamp backup: {timestamp_backup}")
+            
             with open(aiw_path, 'rb') as f:
                 raw_content = f.read()
             
             content = raw_content.replace(b'\x00', b'').decode('utf-8', errors='ignore')
             
-            # Pattern to match the ratio
             pattern = rf'({ratio_type}\s*=\s*\(?)\s*[0-9.eE+-]+\s*(\)?)'
             
             def replacer(m):
@@ -195,56 +261,131 @@ class AIWManager:
             logger.error(f"Error updating ratio in {aiw_path}: {e}")
             return False
     
-    def create_backup(self, aiw_path: Path) -> Optional[Path]:
+    def restore_original(self, aiw_path: Path) -> bool:
         """
-        Create a backup of the AIW file
-        
-        Returns:
-            Path to backup file or None if failed
-        """
-        try:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            backup_path = self.backup_dir / f"{aiw_path.stem}_{timestamp}{aiw_path.suffix}"
-            
-            shutil.copy2(aiw_path, backup_path)
-            logger.info(f"Created backup: {backup_path}")
-            return backup_path
-            
-        except Exception as e:
-            logger.error(f"Error creating backup: {e}")
-            return None
-    
-    def restore_from_backup(self, aiw_path: Path, backup_path: Path) -> bool:
-        """
-        Restore AIW file from backup
+        Restore the original AIW file from the permanent original backup
         
         Returns:
             True if successful
         """
         try:
-            if not backup_path.exists():
-                logger.error(f"Backup file not found: {backup_path}")
+            track_name = aiw_path.stem
+            original_backup = self.backup_dir / f"{track_name}_ORIGINAL{aiw_path.suffix}"
+            
+            if not original_backup.exists():
+                logger.error(f"Original backup not found: {original_backup}")
                 return False
             
-            shutil.copy2(backup_path, aiw_path)
-            logger.info(f"Restored from backup: {backup_path} -> {aiw_path}")
+            # Create a timestamp backup of current state before restore
+            self.create_timestamp_backup(aiw_path)
+            
+            # Restore from original
+            shutil.copy2(original_backup, aiw_path)
+            logger.info(f"Restored original from: {original_backup}")
             return True
             
         except Exception as e:
-            logger.error(f"Error restoring from backup: {e}")
+            logger.error(f"Error restoring original: {e}")
             return False
     
-    def get_latest_backup(self, aiw_path: Path) -> Optional[Path]:
+    def restore_from_timestamp(self, aiw_path: Path, timestamp: str) -> bool:
         """
-        Get the most recent backup for an AIW file
+        Restore from a specific timestamped backup
+        
+        Args:
+            aiw_path: Path to AIW file
+            timestamp: Timestamp string (format: YYYYMMDD_HHMMSS)
         
         Returns:
-            Path to latest backup or None
+            True if successful
         """
-        backups = list(self.backup_dir.glob(f"{aiw_path.stem}_*{aiw_path.suffix}"))
-        if backups:
-            return max(backups, key=lambda p: p.stat().st_mtime)
+        try:
+            backup_path = self.backup_dir / f"{aiw_path.stem}_{timestamp}{aiw_path.suffix}"
+            
+            if not backup_path.exists():
+                logger.error(f"Backup not found: {backup_path}")
+                return False
+            
+            shutil.copy2(backup_path, aiw_path)
+            logger.info(f"Restored from timestamp backup: {backup_path}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error restoring from timestamp: {e}")
+            return False
+    
+    def get_original_backup(self, aiw_path: Path) -> Optional[Path]:
+        """
+        Get the path to the original backup file
+        
+        Returns:
+            Path to original backup or None if not found
+        """
+        track_name = aiw_path.stem
+        original_backup = self.backup_dir / f"{track_name}_ORIGINAL{aiw_path.suffix}"
+        
+        if original_backup.exists():
+            return original_backup
         return None
+    
+    def get_timestamp_backups(self, aiw_path: Path) -> List[Path]:
+        """
+        Get all timestamped backups for an AIW file, sorted by date (newest first)
+        
+        Returns:
+            List of backup paths
+        """
+        pattern = f"{aiw_path.stem}_*{aiw_path.suffix}"
+        backups = list(self.backup_dir.glob(pattern))
+        
+        # Filter out the original backup
+        original = self.get_original_backup(aiw_path)
+        if original:
+            backups = [b for b in backups if b != original]
+        
+        # Sort by modification time (newest first)
+        backups.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        return backups
+    
+    def get_backup_info(self, aiw_path: Path) -> dict:
+        """
+        Get information about backups for an AIW file
+        
+        Returns:
+            Dictionary with backup information
+        """
+        original = self.get_original_backup(aiw_path)
+        timestamp_backups = self.get_timestamp_backups(aiw_path)
+        
+        info = {
+            'original_exists': original is not None,
+            'original_path': str(original) if original else None,
+            'backup_count': len(timestamp_backups),
+            'backups': [str(b) for b in timestamp_backups[:10]]  # Last 10 backups
+        }
+        
+        return info
+    
+    def has_original_backup(self, aiw_path: Path) -> bool:
+        """Check if original backup exists"""
+        return self.get_original_backup(aiw_path) is not None
+    
+    def cleanup_old_backups(self, aiw_path: Path, keep_count: int = 10):
+        """
+        Clean up old timestamped backups, keeping only the most recent ones
+        
+        Args:
+            aiw_path: Path to AIW file
+            keep_count: Number of recent backups to keep
+        """
+        backups = self.get_timestamp_backups(aiw_path)
+        if len(backups) > keep_count:
+            for backup in backups[keep_count:]:
+                try:
+                    backup.unlink()
+                    logger.info(f"Removed old backup: {backup}")
+                except Exception as e:
+                    logger.error(f"Error removing old backup {backup}: {e}")
 
 
 import os

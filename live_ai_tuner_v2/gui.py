@@ -10,10 +10,9 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 
-from cfg_manage import get_formulas_dir, get_auto_apply, get_backup_enabled
+from cfg_manage import get_formulas_dir
 from global_curve import GlobalCurveManager
 from aiw_manager import AIWManager
-from ratio_calculator import RatioCalculator
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +35,8 @@ class ConfirmApplyDialog(QDialog):
         self.setup_ui()
     
     def setup_ui(self):
-        self.setWindowTitle("Confirm Ratio Change")
+        ratio_display = "Qualifying" if self.ratio_type == "QualRatio" else "Race"
+        self.setWindowTitle(f"Confirm {ratio_display} Ratio Change")
         self.setModal(True)
         self.setMinimumWidth(500)
         
@@ -62,36 +62,32 @@ class ConfirmApplyDialog(QDialog):
         
         layout = QVBoxLayout(self)
         
-        # Title
-        title = QLabel("Apply New AI Ratio?")
+        title = QLabel(f"Apply New {ratio_display} Ratio?")
         title.setStyleSheet("font-size: 14px; font-weight: bold; color: #FFA500;")
         layout.addWidget(title)
         
         layout.addSpacing(10)
         
-        # Track info
         track_label = QLabel(f"Track: {self.track_name}")
         track_label.setStyleSheet("font-size: 12px;")
         layout.addWidget(track_label)
         
         layout.addSpacing(5)
         
-        # Ratio comparison
-        current_label = QLabel(f"Current {self.ratio_type}: {self.current_ratio:.6f}")
+        current_label = QLabel(f"Current {ratio_display} Ratio: {self.current_ratio:.6f}")
         current_label.setStyleSheet("color: #f44336;")
         layout.addWidget(current_label)
         
-        new_label = QLabel(f"New {self.ratio_type}: {self.new_ratio:.6f}")
+        new_label = QLabel(f"New {ratio_display} Ratio: {self.new_ratio:.6f}")
         new_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
         layout.addWidget(new_label)
         
-        # Change direction
         diff = self.new_ratio - self.current_ratio
         if diff > 0:
-            change = f"AI will be FASTER by {diff:.4f}"
+            change = f"AI will be FASTER in {ratio_display.lower()} by {abs(diff):.4f}"
             change_color = "#4CAF50"
         elif diff < 0:
-            change = f"AI will be SLOWER by {abs(diff):.4f}"
+            change = f"AI will be SLOWER in {ratio_display.lower()} by {abs(diff):.4f}"
             change_color = "#f44336"
         else:
             change = "No change"
@@ -103,17 +99,15 @@ class ConfirmApplyDialog(QDialog):
         
         layout.addSpacing(20)
         
-        # Buttons
         btn_layout = QHBoxLayout()
         
         apply_btn = QPushButton("Apply Change")
         apply_btn.setFixedHeight(40)
-        apply_btn.setStyleSheet("background-color: #4CAF50; font-size: 12px;")
         apply_btn.clicked.connect(self.accept)
         
         cancel_btn = QPushButton("Cancel")
         cancel_btn.setFixedHeight(40)
-        cancel_btn.setStyleSheet("background-color: #f44336; font-size: 12px;")
+        cancel_btn.setStyleSheet("background-color: #f44336;")
         cancel_btn.clicked.connect(self.reject)
         
         btn_layout.addWidget(apply_btn)
@@ -138,7 +132,8 @@ class ManualEntryDialog(QDialog):
         self.setup_ui()
     
     def setup_ui(self):
-        self.setWindowTitle(f"Manual Entry - {self.track_name}")
+        ratio_display = "Qualifying" if self.ratio_type == "QualRatio" else "Race"
+        self.setWindowTitle(f"Manual Entry - {self.track_name} ({ratio_display})")
         self.setModal(True)
         self.setMinimumWidth(450)
         
@@ -178,39 +173,33 @@ class ManualEntryDialog(QDialog):
         
         layout = QVBoxLayout(self)
         
-        # Track info
         track_label = QLabel(f"Track: {self.track_name}")
         track_label.setStyleSheet("font-size: 12px; color: #FFA500;")
         layout.addWidget(track_label)
         
         layout.addSpacing(10)
         
-        # Current ratio
-        current_label = QLabel(f"Current {self.ratio_type}: {self.current_ratio:.6f}")
+        current_label = QLabel(f"Current {ratio_display} Ratio: {self.current_ratio:.6f}")
         current_label.setStyleSheet("color: #888;")
         layout.addWidget(current_label)
         
         layout.addSpacing(15)
         
-        # Lap time input group
-        time_group = QGroupBox("Enter Your Lap Time")
+        time_group = QGroupBox(f"Enter Your {ratio_display} Lap Time")
         time_layout = QGridLayout(time_group)
         
-        # Minutes
         time_layout.addWidget(QLabel("Minutes:"), 0, 0)
         self.minutes_spin = QSpinBox()
         self.minutes_spin.setRange(0, 99)
         self.minutes_spin.setFixedWidth(80)
         time_layout.addWidget(self.minutes_spin, 0, 1)
         
-        # Seconds
         time_layout.addWidget(QLabel("Seconds:"), 0, 2)
         self.seconds_spin = QSpinBox()
         self.seconds_spin.setRange(0, 59)
         self.seconds_spin.setFixedWidth(80)
         time_layout.addWidget(self.seconds_spin, 0, 3)
         
-        # Milliseconds
         time_layout.addWidget(QLabel("ms:"), 0, 4)
         self.ms_spin = QSpinBox()
         self.ms_spin.setRange(0, 999)
@@ -220,8 +209,7 @@ class ManualEntryDialog(QDialog):
         
         layout.addWidget(time_group)
         
-        # Result
-        result_group = QGroupBox("Calculated Ratio")
+        result_group = QGroupBox(f"Calculated {ratio_display} Ratio")
         result_layout = QVBoxLayout(result_group)
         
         self.result_label = QLabel("---")
@@ -231,14 +219,12 @@ class ManualEntryDialog(QDialog):
         
         layout.addWidget(result_group)
         
-        # Status
         self.status_label = QLabel("")
         self.status_label.setStyleSheet("color: #888; font-size: 10px;")
         layout.addWidget(self.status_label)
         
         layout.addSpacing(10)
         
-        # Buttons
         btn_layout = QHBoxLayout()
         
         self.calc_btn = QPushButton("Calculate")
@@ -256,25 +242,22 @@ class ManualEntryDialog(QDialog):
         
         layout.addLayout(btn_layout)
         
-        # Show curve stats if available
         stats = self.curve_manager.get_stats()
         if stats['total_points'] > 0:
             if stats['r_squared']:
                 info = f"Curve active: {stats['total_points']} points | R² = {stats['r_squared']:.4f}"
             else:
-                info = f"Curve has {stats['total_points']} points (not fitted)"
+                info = f"Curve has {stats['total_points']} points (click 'Fit Curve' in editor)"
             info_label = QLabel(info)
             info_label.setStyleSheet("color: #888; font-size: 9px;")
             layout.addWidget(info_label)
     
     def get_lap_time(self) -> float:
-        """Get lap time in seconds"""
         return (self.minutes_spin.value() * 60 + 
                 self.seconds_spin.value() + 
                 self.ms_spin.value() / 1000.0)
     
     def calculate(self):
-        """Calculate ratio from lap time"""
         lap_time = self.get_lap_time()
         
         if lap_time <= 0:
@@ -306,11 +289,9 @@ class MainWindow(QMainWindow):
         self.monitor_folder = monitor_folder
         self.target_file = target_file
         
-        # Create signal for thread-safe updates
         self.signal = RaceResultsSignal()
         self.signal.results_detected.connect(self._update_race_results)
         
-        # Initialize managers
         formulas_dir = get_formulas_dir()
         self.curve_manager = GlobalCurveManager(formulas_dir)
         self.aiw_manager = AIWManager(base_path / 'backups')
@@ -320,12 +301,12 @@ class MainWindow(QMainWindow):
         
         self.setup_ui()
         self.update_status()
+        self.update_backup_info()
     
     def setup_ui(self):
         self.setWindowTitle("Live AI Tuner")
-        self.setGeometry(100, 100, 800, 600)
+        self.setGeometry(100, 100, 900, 750)
         
-        # Apply dark theme
         self.setStyleSheet("""
             QMainWindow {
                 background-color: #1e1e1e;
@@ -344,15 +325,17 @@ class MainWindow(QMainWindow):
             QPushButton:hover {
                 background-color: #45a049;
             }
-            QPushButton:disabled {
-                background-color: #666;
-            }
             QGroupBox {
                 color: #4CAF50;
                 border: 2px solid #555;
                 border-radius: 5px;
                 margin-top: 8px;
                 padding-top: 8px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
             }
             QTextEdit {
                 background-color: #2b2b2b;
@@ -361,15 +344,19 @@ class MainWindow(QMainWindow):
                 border-radius: 3px;
                 font-family: monospace;
             }
-            QProgressBar {
-                border: 1px solid #555;
-                border-radius: 3px;
-                text-align: center;
+            QLineEdit {
+                background-color: #3c3c3c;
                 color: white;
+                border: 1px solid #4CAF50;
+                border-radius: 3px;
+                padding: 5px;
             }
-            QProgressBar::chunk {
-                background-color: #4CAF50;
-                border-radius: 2px;
+            QSpinBox, QDoubleSpinBox {
+                background-color: #3c3c3c;
+                color: white;
+                border: 1px solid #4CAF50;
+                border-radius: 3px;
+                padding: 4px;
             }
         """)
         
@@ -408,88 +395,52 @@ class MainWindow(QMainWindow):
         
         layout.addWidget(results_group)
         
-        # Calculation section
-        calc_group = QGroupBox("Ratio Calculation")
-        calc_layout = QGridLayout(calc_group)
+        # Separate sections for Qualifying and Race
+        ratio_tabs = QTabWidget()
+        ratio_tabs.setStyleSheet("QTabWidget::pane { border: 2px solid #4CAF50; } QTabBar::tab { color: white; padding: 8px; } QTabBar::tab:selected { color: #4CAF50; }")
         
-        # AI times
-        calc_layout.addWidget(QLabel("Best AI Lap:"), 0, 0)
-        self.best_ai_label = QLabel("---")
-        self.best_ai_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
-        calc_layout.addWidget(self.best_ai_label, 0, 1)
+        # Qualifying Tab
+        quali_tab = QWidget()
+        quali_layout = QVBoxLayout(quali_tab)
+        self._create_ratio_section(quali_layout, "Qualifying", "QualRatio")
+        ratio_tabs.addTab(quali_tab, "🏁 Qualifying")
         
-        calc_layout.addWidget(QLabel("Worst AI Lap:"), 0, 2)
-        self.worst_ai_label = QLabel("---")
-        self.worst_ai_label.setStyleSheet("color: #f44336; font-weight: bold;")
-        calc_layout.addWidget(self.worst_ai_label, 0, 3)
+        # Race Tab
+        race_tab = QWidget()
+        race_layout = QVBoxLayout(race_tab)
+        self._create_ratio_section(race_layout, "Race", "RaceRatio")
+        ratio_tabs.addTab(race_tab, "🏎️ Race")
         
-        # User time
-        calc_layout.addWidget(QLabel("Your Lap Time:"), 1, 0)
-        self.user_time_input = QLineEdit()
-        self.user_time_input.setPlaceholderText("Enter lap time (e.g., 1:55.364) or leave blank to use detected")
-        self.user_time_input.setStyleSheet("""
-            QLineEdit {
-                background-color: #3c3c3c;
-                color: white;
-                border: 1px solid #4CAF50;
-                border-radius: 3px;
-                padding: 5px;
-            }
-        """)
-        calc_layout.addWidget(self.user_time_input, 1, 1, 1, 3)
-        
-        # Buttons
-        btn_layout = QHBoxLayout()
-        
-        self.calc_btn = QPushButton("Calculate Optimal Ratio")
-        self.calc_btn.setFixedHeight(35)
-        self.calc_btn.clicked.connect(self.calculate_ratio)
-        btn_layout.addWidget(self.calc_btn)
-        
-        self.manual_btn = QPushButton("Manual Entry")
-        self.manual_btn.setFixedHeight(35)
-        self.manual_btn.clicked.connect(self.manual_entry)
-        btn_layout.addWidget(self.manual_btn)
-        
-        calc_layout.addLayout(btn_layout, 2, 0, 1, 4)
-        
-        # Result
-        calc_layout.addWidget(QLabel("Recommended Ratio:"), 3, 0)
-        self.recommended_label = QLabel("---")
-        self.recommended_label.setStyleSheet("color: #9C27B0; font-size: 14px; font-weight: bold;")
-        calc_layout.addWidget(self.recommended_label, 3, 1, 1, 3)
-        
-        layout.addWidget(calc_group)
+        layout.addWidget(ratio_tabs, 1)
         
         # Action buttons
         action_layout = QHBoxLayout()
         
-        self.apply_btn = QPushButton("Apply Change")
-        self.apply_btn.setFixedHeight(40)
-        self.apply_btn.setEnabled(False)
-        self.apply_btn.clicked.connect(self.apply_change)
-        action_layout.addWidget(self.apply_btn)
-        
-        self.reset_btn = QPushButton("Reset to Original")
-        self.reset_btn.setFixedHeight(40)
-        self.reset_btn.setEnabled(False)
-        self.reset_btn.clicked.connect(self.reset_original)
-        action_layout.addWidget(self.reset_btn)
-        
-        self.open_editor_btn = QPushButton("Open Global Curve Editor")
+        self.open_editor_btn = QPushButton("📊 Open Global Curve Editor")
         self.open_editor_btn.setFixedHeight(40)
         self.open_editor_btn.setStyleSheet("background-color: #9C27B0;")
         self.open_editor_btn.clicked.connect(self.open_curve_editor)
         action_layout.addWidget(self.open_editor_btn)
         
+        self.reset_btn = QPushButton("↺ Reset to Original")
+        self.reset_btn.setFixedHeight(40)
+        self.reset_btn.setStyleSheet("background-color: #f44336;")
+        self.reset_btn.clicked.connect(self.reset_original)
+        action_layout.addWidget(self.reset_btn)
+        
         layout.addLayout(action_layout)
         
-        # Curve info
-        info_layout = QHBoxLayout()
+        # Info section
+        info_layout = QVBoxLayout()
+        
         self.curve_info = QLabel("")
         self.curve_info.setStyleSheet("color: #888; font-size: 10px;")
         info_layout.addWidget(self.curve_info)
-        info_layout.addStretch()
+        
+        self.backup_info_label = QLabel("")
+        self.backup_info_label.setStyleSheet("color: #888; font-size: 10px;")
+        info_layout.addWidget(self.backup_info_label)
+        
         layout.addLayout(info_layout)
         
         # Log
@@ -503,8 +454,95 @@ class MainWindow(QMainWindow):
         
         layout.addWidget(log_group)
     
+    def _create_ratio_section(self, parent_layout, session_name: str, ratio_type: str):
+        """Create a section for either Qualifying or Race ratio"""
+        # Current ratio display
+        current_layout = QHBoxLayout()
+        current_layout.addWidget(QLabel(f"Current {session_name} Ratio:"))
+        ratio_label = QLabel("---")
+        ratio_label.setStyleSheet("color: #4CAF50; font-weight: bold; font-size: 14px;")
+        ratio_label.setMinimumWidth(150)
+        current_layout.addWidget(ratio_label)
+        current_layout.addStretch()
+        parent_layout.addLayout(current_layout)
+        
+        # Store reference to the label
+        if ratio_type == "QualRatio":
+            self.qual_ratio_label = ratio_label
+        else:
+            self.race_ratio_label = ratio_label
+        
+        # AI times display
+        ai_layout = QGridLayout()
+        ai_layout.addWidget(QLabel("Best AI Lap:"), 0, 0)
+        best_ai_label = QLabel("---")
+        best_ai_label.setStyleSheet("color: #4CAF50;")
+        ai_layout.addWidget(best_ai_label, 0, 1)
+        
+        ai_layout.addWidget(QLabel("Worst AI Lap:"), 0, 2)
+        worst_ai_label = QLabel("---")
+        worst_ai_label.setStyleSheet("color: #f44336;")
+        ai_layout.addWidget(worst_ai_label, 0, 3)
+        
+        parent_layout.addLayout(ai_layout)
+        
+        # Store references
+        if ratio_type == "QualRatio":
+            self.qual_best_ai = best_ai_label
+            self.qual_worst_ai = worst_ai_label
+        else:
+            self.race_best_ai = best_ai_label
+            self.race_worst_ai = worst_ai_label
+        
+        # User time input
+        time_layout = QHBoxLayout()
+        time_layout.addWidget(QLabel(f"Your {session_name} Lap Time:"))
+        time_input = QLineEdit()
+        time_input.setPlaceholderText("e.g., 1:55.364 or leave blank to use detected")
+        time_layout.addWidget(time_input, 1)
+        parent_layout.addLayout(time_layout)
+        
+        # Buttons
+        btn_layout = QHBoxLayout()
+        
+        calc_btn = QPushButton(f"Calculate {session_name} Ratio")
+        calc_btn.clicked.connect(lambda: self.calculate_ratio_for_type(ratio_type, time_input.text()))
+        btn_layout.addWidget(calc_btn)
+        
+        manual_btn = QPushButton("Manual Entry")
+        manual_btn.clicked.connect(lambda: self.manual_entry_for_type(ratio_type))
+        btn_layout.addWidget(manual_btn)
+        
+        parent_layout.addLayout(btn_layout)
+        
+        # Result display
+        result_layout = QHBoxLayout()
+        result_layout.addWidget(QLabel(f"Recommended {session_name} Ratio:"))
+        result_label = QLabel("---")
+        result_label.setStyleSheet("color: #9C27B0; font-size: 14px; font-weight: bold;")
+        result_layout.addWidget(result_label)
+        result_layout.addStretch()
+        parent_layout.addLayout(result_layout)
+        
+        # Apply button
+        apply_btn = QPushButton(f"Apply {session_name} Change")
+        apply_btn.setFixedHeight(35)
+        apply_btn.clicked.connect(lambda: self.apply_change_for_type(ratio_type))
+        parent_layout.addWidget(apply_btn)
+        
+        # Store references
+        if ratio_type == "QualRatio":
+            self.qual_time_input = time_input
+            self.qual_result_label = result_label
+            self.qual_apply_btn = apply_btn
+            self.qual_pending = None
+        else:
+            self.race_time_input = time_input
+            self.race_result_label = result_label
+            self.race_apply_btn = apply_btn
+            self.race_pending = None
+    
     def create_header(self):
-        """Create header widget"""
         header = QWidget()
         layout = QHBoxLayout(header)
         layout.setContentsMargins(0, 0, 0, 10)
@@ -515,31 +553,54 @@ class MainWindow(QMainWindow):
         
         layout.addStretch()
         
-        # Settings button (placeholder for future)
-        settings_btn = QPushButton("⚙ Settings")
-        settings_btn.setFixedHeight(30)
-        settings_btn.setFixedWidth(80)
-        settings_btn.setStyleSheet("background-color: #555;")
-        settings_btn.clicked.connect(self.open_settings)
-        layout.addWidget(settings_btn)
+        backup_path_label = QLabel(f"Backups: {self.aiw_manager.backup_dir}")
+        backup_path_label.setStyleSheet("color: #888; font-size: 9px;")
+        layout.addWidget(backup_path_label)
         
         return header
     
     def update_status(self):
-        """Update curve info display"""
         stats = self.curve_manager.get_stats()
         if stats['total_points'] > 0:
             if stats['r_squared']:
                 text = f"Global Curve: {stats['total_points']} points, R² = {stats['r_squared']:.4f}"
             else:
-                text = f"Global Curve: {stats['total_points']} points (not fitted)"
+                text = f"Global Curve: {stats['total_points']} points (not fitted - click 'Open Global Curve Editor' and click 'Fit Curve')"
         else:
-            text = "Global Curve: No data points. Add data from races."
+            text = "Global Curve: No data points. Add data from races to enable predictions."
         
         self.curve_info.setText(text)
     
+    def update_backup_info(self):
+        if not self.last_results:
+            return
+        
+        aiw_filename = self.last_results.get('aiw_file')
+        track_name = self.last_results.get('track_name')
+        track_folder = self.last_results.get('track_folder', track_name)
+        
+        if not aiw_filename:
+            return
+        
+        aiw_path = self.aiw_manager.find_aiw_file(aiw_filename, track_folder, self.base_path)
+        
+        if not aiw_path:
+            return
+        
+        backup_info = self.aiw_manager.get_backup_info(aiw_path)
+        
+        if backup_info['original_exists']:
+            backup_status = f"✓ Original backup: {backup_info['original_path']}"
+            backup_color = "#4CAF50"
+        else:
+            backup_status = "⚠ No original backup yet (will be created on first change)"
+            backup_color = "#FFA500"
+        
+        backup_text = f"{backup_status} | {backup_info['backup_count']} timestamp backups"
+        self.backup_info_label.setText(backup_text)
+        self.backup_info_label.setStyleSheet(f"color: {backup_color}; font-size: 10px;")
+    
     def log_message(self, msg: str, level: str = "info"):
-        """Add message to log display"""
         from datetime import datetime
         timestamp = datetime.now().strftime("%H:%M:%S")
         
@@ -554,19 +615,16 @@ class MainWindow(QMainWindow):
         self.log_text.append(f'<span style="color: {color};">[{timestamp}] {msg}</span>')
         self.log_text.ensureCursorVisible()
         
-        # Also log to console
         logger.info(msg)
     
     def on_race_results_detected(self, data: dict):
-        """Thread-safe entry point for race results (called from monitor thread)"""
         self.signal.results_detected.emit(data)
     
     def _update_race_results(self, data: dict):
-        """Update race results in GUI (called from main thread via signal)"""
         self.last_results = data
         
-        # Update results text with safe formatting for None values
         track = data.get('track_name', 'Unknown')
+        track_folder = data.get('track_folder', track)
         aiw = data.get('aiw_file', 'Unknown')
         best_ai = data.get('best_ai_lap', 'N/A')
         worst_ai = data.get('worst_ai_lap', 'N/A')
@@ -575,59 +633,54 @@ class MainWindow(QMainWindow):
         qual_ratio = data.get('qual_ratio')
         race_ratio = data.get('race_ratio')
         
-        # Format ratios safely
-        qual_str = f"{qual_ratio:.6f}" if qual_ratio is not None else 'N/A'
-        race_str = f"{race_ratio:.6f}" if race_ratio is not None else 'N/A'
+        # Update ratio labels
+        qual_str = f"{qual_ratio:.6f}" if qual_ratio is not None else 'Not found'
+        race_str = f"{race_ratio:.6f}" if race_ratio is not None else 'Not found'
         
+        if hasattr(self, 'qual_ratio_label'):
+            self.qual_ratio_label.setText(qual_str)
+            self.race_ratio_label.setText(race_str)
+        
+        # Update AI lap displays
+        if hasattr(self, 'qual_best_ai'):
+            self.qual_best_ai.setText(best_ai)
+            self.qual_worst_ai.setText(worst_ai)
+            self.race_best_ai.setText(best_ai)
+            self.race_worst_ai.setText(worst_ai)
+        
+        # Auto-populate time inputs
+        if user_qual and user_qual != 'N/A':
+            self.qual_time_input.setText(user_qual)
+        if user_best and user_best != 'N/A':
+            self.race_time_input.setText(user_best)
+        
+        # Update results text
         text = f"""
-    Track: {track}
-    AIW File: {aiw}
-    Current Ratios: Qual={qual_str}, Race={race_str}
+Track: {track}
+Track Folder: {track_folder}
+AIW File: {aiw}
 
-    AI Lap Times:
-      Best: {best_ai}
-      Worst: {worst_ai}
+Current Ratios:
+  Qualifying: {qual_str}
+  Race: {race_str}
 
-    User Times:
-      Best Lap: {user_best}
-      Qualifying: {user_qual}
-    """
+AI Lap Times:
+  Best: {best_ai}
+  Worst: {worst_ai}
+
+User Times:
+  Qualifying: {user_qual}
+  Best Race Lap: {user_best}
+"""
         self.results_text.setText(text)
         
-        # Update AI lap labels
-        self.best_ai_label.setText(best_ai)
-        self.worst_ai_label.setText(worst_ai)
-        
-        # Auto-populate user time if available
-        if user_best and user_best != 'N/A':
-            self.user_time_input.setText(user_best)
-            self.log_message(f"Detected user best lap: {user_best}", "success")
-        elif user_qual and user_qual != 'N/A':
-            self.user_time_input.setText(user_qual)
-            self.log_message(f"Detected user qualifying: {user_qual}", "success")
-        
+        self.update_backup_info()
         self.log_message(f"Race results detected for {track}", "success")
-
     
-    def calculate_ratio(self):
-        """Calculate optimal ratio based on user time"""
+    def calculate_ratio_for_type(self, ratio_type: str, user_time_str: str = None):
+        """Calculate ratio for a specific type (Qualifying or Race)"""
         if not self.last_results:
             self.log_message("No race results available. Waiting for race data...", "warning")
-            return
-        
-        # Get user time
-        user_time_str = self.user_time_input.text().strip()
-        if not user_time_str:
-            user_time_str = self.last_results.get('user_best_lap') or self.last_results.get('user_qualifying')
-        
-        if not user_time_str or user_time_str == 'N/A':
-            self.log_message("No user lap time available. Please enter a lap time or wait for race results.", "warning")
-            return
-        
-        # Parse time string
-        user_time = self._parse_time(user_time_str)
-        if user_time is None:
-            self.log_message(f"Invalid time format: {user_time_str}. Use format like '1:55.364'", "error")
             return
         
         track_name = self.last_results.get('track_name')
@@ -635,49 +688,47 @@ class MainWindow(QMainWindow):
             self.log_message("No track name found in results", "error")
             return
         
-        # Calculate ratio
+        # Get user time
+        if not user_time_str or not user_time_str.strip():
+            if ratio_type == "QualRatio":
+                user_time_str = self.last_results.get('user_qualifying')
+            else:
+                user_time_str = self.last_results.get('user_best_lap')
+        
+        if not user_time_str or user_time_str == 'N/A':
+            self.log_message(f"No user lap time available for {ratio_type}. Please enter a lap time.", "warning")
+            return
+        
+        # Parse time
+        user_time = self._parse_time(user_time_str)
+        if user_time is None:
+            self.log_message(f"Invalid time format: {user_time_str}. Use format like '1:55.364'", "error")
+            return
+        
+        # Calculate ratio using global curve
         ratio = self.curve_manager.predict_ratio(user_time, track_name)
         
         if ratio is None:
-            self.log_message(f"Could not calculate ratio for time {user_time_str} on {track_name}. Time may be outside valid range.", "error")
+            self.log_message(f"Could not calculate ratio for time {user_time_str}. The global curve may not be fitted yet or the time is outside range.", "error")
+            self.log_message("Go to 'Open Global Curve Editor' and click 'Fit Curve' to fit the curve to your data.", "info")
             return
         
         # Get current ratio
-        current_ratio = self.last_results.get('race_ratio') or self.last_results.get('qual_ratio')
-        if current_ratio is None:
-            current_ratio = 1.0
-        
-        self.recommended_label.setText(f"{ratio:.6f}")
-        self.pending_change = {
-            'track_name': track_name,
-            'current_ratio': current_ratio,
-            'new_ratio': ratio,
-            'user_time': user_time,
-            'ratio_type': 'RaceRatio'  # Default to RaceRatio
-        }
-        
-        self.apply_btn.setEnabled(True)
-        self.log_message(f"Calculated optimal ratio: {ratio:.6f} (current: {current_ratio:.6f})", "success")
+        if ratio_type == "QualRatio":
+            current_ratio = self.last_results.get('qual_ratio', 1.0)
+            self.qual_result_label.setText(f"{ratio:.6f}")
+            self.qual_pending = {'ratio_type': ratio_type, 'new_ratio': ratio, 'current_ratio': current_ratio, 'user_time': user_time}
+            self.qual_apply_btn.setEnabled(True)
+            self.log_message(f"Calculated {ratio_type}: {ratio:.6f} (current: {current_ratio:.6f})", "success")
+        else:
+            current_ratio = self.last_results.get('race_ratio', 1.0)
+            self.race_result_label.setText(f"{ratio:.6f}")
+            self.race_pending = {'ratio_type': ratio_type, 'new_ratio': ratio, 'current_ratio': current_ratio, 'user_time': user_time}
+            self.race_apply_btn.setEnabled(True)
+            self.log_message(f"Calculated {ratio_type}: {ratio:.6f} (current: {current_ratio:.6f})", "success")
     
-    def _parse_time(self, time_str: str) -> Optional[float]:
-        """Parse time string to seconds"""
-        try:
-            time_str = time_str.strip()
-            
-            # Format: mm:ss.sss or mm:ss.ms
-            if ':' in time_str:
-                parts = time_str.split(':')
-                minutes = int(parts[0])
-                seconds = float(parts[1])
-                return minutes * 60 + seconds
-            else:
-                # Just seconds as float
-                return float(time_str)
-        except (ValueError, IndexError):
-            return None
-    
-    def manual_entry(self):
-        """Open manual entry dialog"""
+    def manual_entry_for_type(self, ratio_type: str):
+        """Open manual entry dialog for a specific ratio type"""
         if not self.last_results:
             self.log_message("No race results available. Please wait for race data first.", "warning")
             return
@@ -687,42 +738,45 @@ class MainWindow(QMainWindow):
             self.log_message("No track name available", "error")
             return
         
-        current_ratio = self.last_results.get('race_ratio') or self.last_results.get('qual_ratio') or 1.0
+        if ratio_type == "QualRatio":
+            current_ratio = self.last_results.get('qual_ratio', 1.0)
+        else:
+            current_ratio = self.last_results.get('race_ratio', 1.0)
         
-        dialog = ManualEntryDialog(
-            track_name, 
-            current_ratio,
-            'RaceRatio',
-            self.curve_manager,
-            self
-        )
+        dialog = ManualEntryDialog(track_name, current_ratio, ratio_type, self.curve_manager, self)
         
         if dialog.exec_() == QDialog.Accepted:
             new_ratio = dialog.get_ratio()
             if new_ratio:
-                self.recommended_label.setText(f"{new_ratio:.6f}")
-                self.pending_change = {
-                    'track_name': track_name,
-                    'current_ratio': current_ratio,
-                    'new_ratio': new_ratio,
-                    'user_time': None,
-                    'ratio_type': 'RaceRatio'
-                }
-                self.apply_btn.setEnabled(True)
-                self.log_message(f"Manual entry: calculated ratio {new_ratio:.6f}", "success")
+                if ratio_type == "QualRatio":
+                    self.qual_result_label.setText(f"{new_ratio:.6f}")
+                    self.qual_pending = {'ratio_type': ratio_type, 'new_ratio': new_ratio, 'current_ratio': current_ratio, 'user_time': None}
+                    self.qual_apply_btn.setEnabled(True)
+                else:
+                    self.race_result_label.setText(f"{new_ratio:.6f}")
+                    self.race_pending = {'ratio_type': ratio_type, 'new_ratio': new_ratio, 'current_ratio': current_ratio, 'user_time': None}
+                    self.race_apply_btn.setEnabled(True)
+                self.log_message(f"Manual entry: calculated {ratio_type} {new_ratio:.6f}", "success")
     
-    def apply_change(self):
-        """Apply the pending ratio change"""
-        if not self.pending_change:
-            return
+    def apply_change_for_type(self, ratio_type: str):
+        """Apply pending change for a specific ratio type"""
+        if ratio_type == "QualRatio":
+            pending = self.qual_pending
+            if not pending:
+                return
+        else:
+            pending = self.race_pending
+            if not pending:
+                return
         
-        track_name = self.pending_change['track_name']
-        current_ratio = self.pending_change['current_ratio']
-        new_ratio = self.pending_change['new_ratio']
-        ratio_type = self.pending_change['ratio_type']
+        track_name = self.last_results.get('track_name')
+        track_folder = self.last_results.get('track_folder', track_name)
+        current_ratio = pending['current_ratio']
+        new_ratio = pending['new_ratio']
+        ratio_type_name = pending['ratio_type']
         
-        # Confirm with user
-        confirm = ConfirmApplyDialog(track_name, current_ratio, new_ratio, ratio_type, self)
+        # Confirm
+        confirm = ConfirmApplyDialog(track_name, current_ratio, new_ratio, ratio_type_name, self)
         if not confirm.get_decision():
             self.log_message("Change cancelled by user", "warning")
             return
@@ -733,33 +787,50 @@ class MainWindow(QMainWindow):
             self.log_message("Cannot find AIW file name in results", "error")
             return
         
-        aiw_path = self.aiw_manager.find_aiw_file(aiw_filename, track_name, self.base_path)
+        aiw_path = self.aiw_manager.find_aiw_file(aiw_filename, track_folder, self.base_path)
         
         if not aiw_path or not aiw_path.exists():
             self.log_message(f"AIW file not found: {aiw_filename}", "error")
             return
         
-        # Create backup
-        backup_path = self.aiw_manager.create_backup(aiw_path)
-        if not backup_path:
-            self.log_message("Failed to create backup", "error")
-            return
-        
-        # Update ratio
-        if self.aiw_manager.update_ratio(aiw_path, ratio_type, new_ratio):
-            self.log_message(f"Applied {ratio_type} change: {current_ratio:.6f} -> {new_ratio:.6f}", "success")
-            self.log_message(f"Backup saved: {backup_path}", "info")
-            self.apply_btn.setEnabled(False)
+        # Apply change
+        if self.aiw_manager.update_ratio(aiw_path, ratio_type_name, new_ratio, create_backup=True):
+            self.log_message(f"Applied {ratio_type_name} change: {current_ratio:.6f} -> {new_ratio:.6f}", "success")
             
-            # Add point to global curve
-            if self.pending_change.get('user_time'):
-                self.curve_manager.add_point(track_name, new_ratio, self.pending_change['user_time'])
+            backup_info = self.aiw_manager.get_backup_info(aiw_path)
+            self.log_message(f"Original backup: {backup_info['original_path']}", "info")
+            
+            # Clear pending
+            if ratio_type == "QualRatio":
+                self.qual_apply_btn.setEnabled(False)
+                self.qual_pending = None
+            else:
+                self.race_apply_btn.setEnabled(False)
+                self.race_pending = None
+            
+            # Add point to global curve if we have user time
+            if pending.get('user_time'):
+                self.curve_manager.add_point(track_name, new_ratio, pending['user_time'])
                 self.log_message(f"Added data point to global curve", "info")
                 self.update_status()
             
-            self.pending_change = None
+            # Update backup info
+            self.update_backup_info()
         else:
-            self.log_message(f"Failed to update {ratio_type}", "error")
+            self.log_message(f"Failed to update {ratio_type_name}", "error")
+    
+    def _parse_time(self, time_str: str) -> Optional[float]:
+        try:
+            time_str = time_str.strip()
+            if ':' in time_str:
+                parts = time_str.split(':')
+                minutes = int(parts[0])
+                seconds = float(parts[1])
+                return minutes * 60 + seconds
+            else:
+                return float(time_str)
+        except (ValueError, IndexError):
+            return None
     
     def reset_original(self):
         """Reset to original values from backup"""
@@ -767,68 +838,63 @@ class MainWindow(QMainWindow):
             return
         
         track_name = self.last_results.get('track_name')
+        track_folder = self.last_results.get('track_folder', track_name)
         aiw_filename = self.last_results.get('aiw_file')
         
         if not aiw_filename:
             return
         
-        aiw_path = self.aiw_manager.find_aiw_file(aiw_filename, track_name, self.base_path)
+        aiw_path = self.aiw_manager.find_aiw_file(aiw_filename, track_folder, self.base_path)
         
         if not aiw_path:
             self.log_message("AIW file not found", "error")
             return
         
-        backup_path = self.aiw_manager.get_latest_backup(aiw_path)
-        
-        if not backup_path:
-            self.log_message("No backup found for this file", "warning")
+        if not self.aiw_manager.has_original_backup(aiw_path):
+            self.log_message("No original backup found. Cannot restore.", "warning")
             return
         
-        if self.aiw_manager.restore_from_backup(aiw_path, backup_path):
-            self.log_message(f"Restored from backup: {backup_path.name}", "success")
-            self.apply_btn.setEnabled(False)
+        reply = QMessageBox.question(self, "Confirm Restore", 
+                                    f"Restore original AIW file for {track_name}?\n\n"
+                                    f"This will discard all changes made to this file.",
+                                    QMessageBox.Yes | QMessageBox.No)
+        
+        if reply != QMessageBox.Yes:
+            return
+        
+        if self.aiw_manager.restore_original(aiw_path):
+            self.log_message(f"Restored original AIW file for {track_name}", "success")
+            
+            # Refresh ratios
+            qual, race = self.aiw_manager.read_ratios(aiw_path)
+            if self.last_results:
+                self.last_results['qual_ratio'] = qual
+                self.last_results['race_ratio'] = race
+                self._update_race_results(self.last_results)
+            
+            self.update_backup_info()
+            
+            # Clear pending changes
+            if hasattr(self, 'qual_pending'):
+                self.qual_pending = None
+                self.qual_apply_btn.setEnabled(False)
+            if hasattr(self, 'race_pending'):
+                self.race_pending = None
+                self.race_apply_btn.setEnabled(False)
         else:
-            self.log_message("Failed to restore from backup", "error")
+            self.log_message("Failed to restore original backup", "error")
     
     def open_curve_editor(self):
-        """Open the global curve editor window"""
         try:
-            # Import here to avoid circular imports
             from global_curve_builder import GlobalCurveBuilderDialog
             dialog = GlobalCurveBuilderDialog(self, get_formulas_dir())
             dialog.exec_()
             self.update_status()
         except ImportError as e:
             self.log_message(f"Could not open curve editor: {e}", "error")
-            self.log_message("Make sure global_curve_builder.py is in the same directory", "error")
-    
-    def open_settings(self):
-        """Open settings dialog (placeholder)"""
-        QMessageBox.information(self, "Settings", 
-            "Settings will be available in a future update.\n\n"
-            "Currently, you can edit cfg.yml manually to adjust:\n"
-            "- formulas_dir: Path to global curve data\n"
-            "- auto_apply: Auto-apply calculated ratios\n"
-            "- backup_enabled: Enable/disable backups")
     
     def run(self):
-        """Run the GUI"""
         self.show()
     
     def quit(self):
-        """Quit the application"""
         self.close()
-
-
-def run_gui(base_path: Path):
-    """Run the GUI application"""
-    app = QApplication(sys.argv)
-    app.setStyle('Fusion')
-    
-    monitor_folder = base_path / 'UserData'
-    target_file = monitor_folder / 'Log' / 'Results' / 'raceresults.txt'
-    
-    window = MainWindow(base_path, monitor_folder, target_file)
-    window.run()
-    
-    return app.exec_()
