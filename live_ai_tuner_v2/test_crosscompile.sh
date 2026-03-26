@@ -25,6 +25,7 @@ PYTHON_FILES=(
     "file_monitor.py"
     "results_parser.py"
     "global_curve.py"
+    "global_curve_builder.py"
     "aiw_manager.py"
     "ratio_calculator.py"
 )
@@ -135,6 +136,7 @@ wine python -m PyInstaller \
     --hidden-import=file_monitor \
     --hidden-import=results_parser \
     --hidden-import=global_curve \
+    --hidden-import=global_curve_builder \
     --hidden-import=aiw_manager \
     --hidden-import=ratio_calculator \
     --hidden-import=gui \
@@ -148,6 +150,7 @@ wine python -m PyInstaller \
     --add-data="file_monitor.py;." \
     --add-data="results_parser.py;." \
     --add-data="global_curve.py;." \
+    --add-data="global_curve_builder.py;." \
     --add-data="aiw_manager.py;." \
     --add-data="ratio_calculator.py;." \
     --add-data="gui.py;." \
