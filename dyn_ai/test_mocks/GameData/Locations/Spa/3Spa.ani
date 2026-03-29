@@ -1,0 +1,169 @@
+Motions=FLAGMOTIONS
+{
+  Files=A-FlagMarshal-Idle.lma|||A-WaveFlag-L.lma|||A-WaveFlag-R.lma
+}
+
+
+
+Motions=CROWDMOTIONSIDLE1
+{
+  Files=A-Idle_Shuffle01.lma|||A-Idle_Shuffle01.lma
+}
+Motions=CROWDMOTIONSCHEER1
+{
+  Files=A-Idle_Shuffle01.lma|||A-CrowdCheer-1.lma
+}
+Motions=CROWDMOTIONSCHEER2
+{
+  Files=A-Idle_Shuffle01.lma|||A-CrowdCheer-2.lma
+}
+Motions=CROWDMOTIONSCHEER3
+{
+  Files=A-Idle_Shuffle01.lma|||A-CrowdCheer-3.lma
+}
+
+Motions=CAMMOTIONS1
+{
+  Files=A-Idle_CamStood-1.lma|||A-Idle_CamStood-1.lma
+}
+Motions=CAMMOTIONS2
+{
+  Files=A-Idle_CamStood-2.lma|||A-Idle_CamStood-2.lma
+}
+Motions=CAMMOTIONS3
+{
+  Files=A-Idle_CamCrouch-1.lma|||A-Idle_CamCrouch-1.lma
+}
+
+//crowd-camexit
+Object=SPECTATOR
+{
+ MeshFile=M-FanCam-2.gmt ActorFile=M-Crowd_Cam.lma Motions=CAMMOTIONS3 Pos=(51.402119, -24.384983, 666.510986) AutoRotate=along
+}
+
+//crowd-bloke1
+Object=SPECTATOR
+{
+ MeshFile=M-FanBloke-8.gmt ActorFile=M-Crowd_Bloke-2.lma Motions=CROWDMOTIONSIDLE1 Pos=(-39.878830, -18.447954, 766.023621) AutoRotate=towards
+}
+
+//crowd-bloke2
+Object=SPECTATOR
+{
+ MeshFile=M-FanBloke-3.gmt ActorFile=M-Crowd_Bloke-1.lma Motions=CROWDMOTIONSIDLE1 Pos=(-1.566843, -21.197201, 724.051941) AutoRotate=towards
+}
+
+//crowd-camentry
+Object=SPECTATOR
+{
+ MeshFile=M-FanCam-3.gmt ActorFile=M-Crowd_Cam.lma Motions=CAMMOTIONS1 Pos=(-142.410904, -11.081955, 872.962646) AutoRotate=along
+}
+
+//crowd-peepee
+Object=SPECTATOR
+{
+ MeshFile=M-FanBloke-1.gmt ActorFile=M-Crowd_Bloke-1.lma Motions=CROWDMOTIONSCHEER3 Pos=(-59.556889, -16.975607, 787.402466) AutoRotate=towards
+}
+
+//crowd-gal1
+Object=SPECTATOR
+{
+ MeshFile=M-FanFemale-3.gmt ActorFile=M-Crowd_Female-1.LMA Motions=CROWDMOTIONSIDLE1 Pos=(-82.484100, -15.224775, 812.298157) AutoRotate=towards
+}
+
+//crowd-gal2
+Object=SPECTATOR
+{
+ MeshFile=M-FanFemale-4.gmt ActorFile=M-Crowd_Female-1.LMA Motions=CROWDMOTIONSIDLE1 Pos=(18.100466, -22.488276, 702.784668) AutoRotate=towards
+}
+
+Object=FLAGMARSHAL
+{
+  MeshFile=M-FlagMarshal-1.gmt ActorFile=M-FlagMarshal-1.lma Motions=FLAGMOTIONS Pos=(302.209, 37.26, -1051.938) AutoRotate=along
+}
+
+Object=FLAGMARSHAL
+{
+  MeshFile=M-FlagMarshal-1.gmt ActorFile=M-FlagMarshal-1.lma Motions=FLAGMOTIONS Pos=(325.803, 26.966, -891.194) AutoRotate=along
+}
+
+Object=FLAGMARSHAL
+{
+  MeshFile=M-FlagMarshal-1.gmt ActorFile=M-FlagMarshal-1.lma Motions=FLAGMOTIONS Pos=(-99.994, -38.505, -740.271) AutoRotate=along
+}
+
+Object=FLAGMARSHAL
+{
+  MeshFile=M-FlagMarshal-1.gmt ActorFile=M-FlagMarshal-1.lma Motions=FLAGMOTIONS Pos=(-430.316, -43.312, -945.265) AutoRotate=along
+}
+
+Object=FLAGMARSHAL
+{
+  MeshFile=M-FlagMarshal-1.gmt ActorFile=M-FlagMarshal-1.lma Motions=FLAGMOTIONS Pos=(-647.595, -48.63, -776.172) AutoRotate=along
+}
+
+Object=FLAGMARSHAL
+{
+  MeshFile=M-FlagMarshal-1.gmt ActorFile=M-FlagMarshal-1.lma Motions=FLAGMOTIONS Pos=(-193.815, -10.965, 433.301) AutoRotate=along
+}
+
+Object=FLAGMARSHAL
+{
+  MeshFile=M-FlagMarshal-1.gmt ActorFile=M-FlagMarshal-1.lma Motions=FLAGMOTIONS Pos=(-453.313, 10.252, 1063.707) AutoRotate=along
+}
+
+Object=FLAGMARSHAL
+{
+  MeshFile=M-FlagMarshal-1.gmt ActorFile=M-FlagMarshal-1.lma Motions=FLAGMOTIONS Pos=(77.367, -25.22, 622.786) AutoRotate=along
+}
+
+Object=FLAGMARSHAL
+{
+  MeshFile=M-FlagMarshal-1.gmt ActorFile=M-FlagMarshal-1.lma Motions=FLAGMOTIONS Pos=(497.641, 27.871, -149.769) AutoRotate=along
+}
+
+Object=FLAGMARSHAL
+{
+  MeshFile=M-FlagMarshal-1.gmt ActorFile=M-FlagMarshal-1.lma Motions=FLAGMOTIONS Pos=(632.225, 47.035, -554.91) AutoRotate=along
+}
+
+Object=FLAGMARSHAL
+{
+  MeshFile=M-FlagMarshal-1.gmt ActorFile=M-FlagMarshal-1.lma Motions=FLAGMOTIONS Pos=(450.729, 19.522, -841.245) AutoRotate=along
+}
+
+Object=FLAGMARSHAL
+{
+  MeshFile=M-FlagMarshal-1.gmt ActorFile=M-FlagMarshal-1.lma Motions=FLAGMOTIONS Pos=(343.024, -7.766, -461.54) AutoRotate=along
+}
+
+Object=FLAGMARSHAL
+{
+  MeshFile=M-FlagMarshal-1.gmt ActorFile=M-FlagMarshal-1.lma Motions=FLAGMOTIONS Pos=(287.443, -19.985, -265.973) AutoRotate=along
+}
+
+Object=FLAGMARSHAL
+{
+  MeshFile=M-FlagMarshal-1.gmt ActorFile=M-FlagMarshal-1.lma Motions=FLAGMOTIONS Pos=(-39.558, -39.412, -482.859) AutoRotate=along
+}
+
+Object=FLAGMARSHAL
+{
+  MeshFile=M-FlagMarshal-1.gmt ActorFile=M-FlagMarshal-1.lma Motions=FLAGMOTIONS Pos=(-364.636, -39.884, -773.453) AutoRotate=along
+}
+
+Object=FLAGMARSHAL
+{
+  MeshFile=M-FlagMarshal-1.gmt ActorFile=M-FlagMarshal-1.lma Motions=FLAGMOTIONS Pos=(-86.662, -27.055, -175.136) AutoRotate=along
+}
+
+Object=FLAGMARSHAL
+{
+  MeshFile=M-FlagMarshal-1.gmt ActorFile=M-FlagMarshal-1.lma Motions=FLAGMOTIONS Pos=(-73.513, -20.374, 127.833) AutoRotate=along
+}
+
+Object=FLAGMARSHAL
+{
+  MeshFile=M-FlagMarshal-1.gmt ActorFile=M-FlagMarshal-1.lma Motions=FLAGMOTIONS Pos=(-47.223, -14.588, 797.044) AutoRotate=along
+}
+

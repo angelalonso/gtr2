@@ -1,0 +1,14 @@
+[GEAR_RATIOS]
+ratio=(12, 35)                       // 2.92
+ratio=(17, 30)                       // 1.765
+ratio=(20, 26)		// 1.300
+ratio=(27, 28)                      // 1.037
+ratio=(28, 24)		// 0.857
+
+
+[FINAL_DRIVE]
+bevel=(1, 1)		// none
+ratio= (10, 42)                       // 4.2
+
+
+

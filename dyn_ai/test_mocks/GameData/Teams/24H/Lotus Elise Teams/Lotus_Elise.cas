@@ -1,0 +1,434 @@
+// GTR2: LOTUS ELISE .CAS FILE
+//----------------------------------------
+
+ SearchPath=<TEAMDIR>..\
+ SearchPath=<TEAMDIR>
+ SearchPath=<VEHDIR>
+
+//----------------------------------------
+
+ MASFile=LOTUS_Elise_OBJ.GTR
+ MASFile=LOTUS_Elise_TEX.GTR
+ MASFile=LOTUS_Elise_CPIT.GTR
+ MASFile=LOTUS_Elise_WHEELS.GTR
+ MASFile=STEX.GTR
+ MASFile=TALENT.GTR
+
+
+ReflectPlane=(0.00, -1.00, 0.00, -0.38)
+//----------------------------------------
+
+
+Instance=SLOT<ID>
+{
+  Moveable=True
+
+  <NOTSPIN>MeshFile=LOTUS_ELISE_COLLISION.gmt Render=False CollTarget=True HATTarget=False LODIn=(0.0) LODOut=(0.0)
+  <LOW>    MeshFile=LOTUS_ELISE_SHADOW.gmt CollTarget=False HATTarget=False ShadowObject=(Static, Solid, 256, 256, AmbientShadA.dds) LODIn=(0.0) LODOut=(100.0)
+  <MED>    MeshFile=LOTUS_ELISE_SHADOW.gmt CollTarget=False HATTarget=False ShadowObject=(Static, Solid, 256, 256, AmbientShadA.dds) LODIn=(0.0) LODOut=(120.0)
+  <HIGH>   MeshFile=LOTUS_ELISE_SHADOW.gmt CollTarget=False HATTarget=False ShadowObject=(Static, Solid, 256, 256, AmbientShadA.dds) LODIn=(0.0) LODOut=(140.0)
+  <MAX>    MeshFile=LOTUS_ELISE_SHADOW.gmt CollTarget=False HATTarget=False ShadowObject=(Static, Solid, 256, 256, AmbientShadA.dds) LODIn=(0.0) LODOut=(160.0)
+
+  <SPIN>   MeshFile=LOTUS_ELISE_CHASSIS_STYLE<1>_C.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.0)
+  <EXPO>   MeshFile=LOTUS_ELISE_CHASSIS_STYLE<1>_A.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.0) Reflect=True
+
+  <LOW>    MeshFile=LOTUS_ELISE_CHASSIS_STYLE<1>_C.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(30.0)
+  <LOW>    MeshFile=LOTUS_ELISE_CHASSIS_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(30.0) LODOut=(400.0)
+
+  <MED>    MeshFile=LOTUS_ELISE_CHASSIS_STYLE<1>_C.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(40.0)
+  <MED>    MeshFile=LOTUS_ELISE_CHASSIS_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(40.0) LODOut=(500.0)
+
+  <HIGH>   MeshFile=LOTUS_ELISE_CHASSIS_STYLE<1>_B.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(50.0)
+  <HIGH>   MeshFile=LOTUS_ELISE_CHASSIS_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(50.0) LODOut=(600.0)
+
+  <MAX>    MeshFile=LOTUS_ELISE_CHASSIS_STYLE<1>_A.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(60.0)
+  <MAX>    MeshFile=LOTUS_ELISE_CHASSIS_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(60.0) LODOut=(700.0)
+
+  Actor=VEHICLE
+
+<NOTSPIN><DASHHIGH>  Instance=COCKPIT
+<NOTSPIN><DASHHIGH>  {
+<NOTSPIN><DASHHIGH>    Moveable=True
+<NOTSPIN><DASHHIGH>    MeshFile=LOTUS_ELISE_COCKPIT.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(2.0)
+<NOTSPIN><DASHHIGH>    MeshFile=LOTUS_ELISE_COCKPIT_CHASSIS_STYLE<1>.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(2.0)
+<NOTSPIN><DASHHIGH>  }
+
+<NOTSPIN><DASHHIGH>  Instance=MOTEC
+<NOTSPIN><DASHHIGH>  {
+<NOTSPIN><DASHHIGH>    Moveable=True
+<NOTSPIN><DASHHIGH>    MeshFile=LOTUS_ELISE_STACK_ST8100.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(1.0)
+<NOTSPIN><DASHHIGH>  }
+
+<NOTSPIN><DASHHIGH>  Instance=RAINSCREEN
+<NOTSPIN><DASHHIGH>  {
+<NOTSPIN><DASHHIGH>    Moveable=True
+<NOTSPIN><DASHHIGH>    MeshFile=LOTUS_ELISE_RAINSCREEN.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(2.0)
+<NOTSPIN><DASHHIGH>  }
+
+<NOTSPIN><DASHHIGH>  Instance=DIRTSCREEN
+<NOTSPIN><DASHHIGH>  {
+<NOTSPIN><DASHHIGH>    Moveable=True
+<NOTSPIN><DASHHIGH>    MeshFile=LOTUS_ELISE_DIRTSCREEN.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(2.0)
+<NOTSPIN><DASHHIGH>  }
+
+
+//-----------------DRIVER--------------------
+
+  Instance=FPDRIVER
+  {
+    Moveable=True
+
+   <NOTSPIN><DASHHIGH> MeshFile=INT_DRIVER_STYLE<34>.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(2.00)
+  }
+
+  Instance=EXTDRIVERBODY
+  {
+   Moveable=True
+
+   <LOW>    MeshFile=EXT_DRIVER_STYLE<34>.gmt CollTarget=False HATTarget=False  LODIn=(0.00) LODOut=(30.0)
+   <MED>    MeshFile=EXT_DRIVER_STYLE<34>.gmt CollTarget=False HATTarget=False  LODIn=(0.00) LODOut=(40.0)
+   <HIGH>   MeshFile=EXT_DRIVER_STYLE<34>.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(50.0)
+   <MAX>    MeshFile=EXT_DRIVER_STYLE<34>.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(60.0)
+  }
+
+  Instance=EXTDRIVERHEAD
+  {
+   Moveable=True
+
+   <LOW>    MeshFile=DRIVER_HELMET.gmt CollTarget=False HATTarget=False  LODIn=(0.00) LODOut=(30.0)
+   <MED>    MeshFile=DRIVER_HELMET.gmt CollTarget=False HATTarget=False  LODIn=(0.00) LODOut=(40.0)
+   <HIGH>   MeshFile=DRIVER_HELMET.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(50.0)
+   <MAX>    MeshFile=DRIVER_HELMET.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(60.0)
+  }
+
+//-----------------XXXXXX--------------------
+
+  Instance=WHEEL
+  {
+    Moveable=True
+  <NOTSPIN><DASHHIGH> MeshFile=LOTUS_ELISE_STEERINGWHEEL_A.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(2.00)
+  }
+
+  Instance=WHEELEXT
+  {
+    Moveable=True
+   <SPIN>   MeshFile=LOTUS_ELISE_STEERINGWHEEL_B.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.0)
+   <EXPO>   MeshFile=LOTUS_ELISE_STEERINGWHEEL_B.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.0) Reflect=True
+
+   <NOTSPIN>MeshFile=LOTUS_ELISE_STEERINGWHEEL_B.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(20.00)
+  }
+
+  Instance=SEAT
+  {
+    Moveable=True
+    <NOTSPIN> MeshFile=LOTUS_ELISE_SEAT.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(50.00)
+    <SPIN> MeshFile=LOTUS_ELISE_SEAT_EXPO.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(200.00)
+    <EXPO> MeshFile=LOTUS_ELISE_SEAT_EXPO.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(200.00)
+  }
+
+  Instance=BACKFIRE
+  {
+   Moveable=True
+   <NOTSPIN> MeshFile=LOTUS_ELISE_BACKFIRE.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(400.0)
+  }
+ 
+
+Projector=HL_2_PLR
+{
+Moveable=True Active=False Pos=(0.0, 0.10, -77.2) Dir=(0.0, -0.5, -1.0) Radius=(28.0) LODOut=(400.0) Blend=(InvDstColor, One) Dyn=True Texmap=HL_2_PLR.DDS
+}
+
+Projector=HL_1_PLR
+{
+Moveable=True Active=False Pos=(-0.482, 0.10, -77.2) Dir=(0.0, -0.5, -1.0) Radius=(28.0) LODOut=(400.0) Blend=(InvDstColor, One) Dyn=True Texmap=HL_1_PLR.DDS
+}
+
+Projector=HL_2_AI
+{
+Moveable=True Active=False Pos=(0.0, 0.10, -14.0) Dir=(0.0, -1.0, 0.0) Radius=(10.0) LODOut=(400.0) Blend=(InvDstColor, One) Dyn=True Texmap=HL_2_AI.DDS
+}
+
+Projector=HL_1_AI
+{
+Moveable=True Active=False Pos=(-0.482, 0.10, -14.0) Dir=(0.0, -1.0, 0.0) Radius=(10.0) LODOut=(400.0) Blend=(InvDstColor, One) Dyn=True Texmap=HL_1_AI.DDS
+}
+
+//-----------------WHEELS--------------------
+
+  Instance=LFTIRE
+  {
+   Moveable=True
+
+   <LOW>  MeshFile=LOTUS_ELISE_WHEEL_LF_C.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(40.0)
+   <LOW>  MeshFile=LOTUS_ELISE_WHEEL_LF_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(40.00) LODOut=(400.0)
+
+   <MED>  MeshFile=LOTUS_ELISE_WHEEL_LF_C.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(50.0)
+   <MED>  MeshFile=LOTUS_ELISE_WHEEL_LF_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(50.00) LODOut=(500.0)
+
+   <HIGH> MeshFile=LOTUS_ELISE_WHEEL_LF_B.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(50.0)
+   <HIGH> MeshFile=LOTUS_ELISE_WHEEL_LF_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(50.00) LODOut=(600.0)
+
+   <MAX>  MeshFile=LOTUS_ELISE_WHEEL_LF_A.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(60.0)
+   <MAX>  MeshFile=LOTUS_ELISE_WHEEL_LF_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(60.0) LODOut=(700.0)
+
+   <NOTSPIN> MeshFile=LOTUS_ELISE_DISKGLOW_LF.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(30.0)
+   <NOTSPIN> MeshFile=LOTUS_ELISE_DISK_LF.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(30.0)
+  }
+
+  Instance=LFSPINDLE
+  {
+   Moveable=True
+   <SPIN>   MeshFile=LOTUS_ELISE_CALIPER_LF.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.0)
+   <EXPO>   MeshFile=LOTUS_ELISE_CALIPER_LF.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.0) Reflect=True
+
+   <HIGH>  MeshFile=LOTUS_ELISE_CALIPER_LF.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(20.0)
+
+   <MAX>  MeshFile=LOTUS_ELISE_CALIPER_LF.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(30.0)
+  }
+
+  Instance=LFTIRE_EXPO
+  {
+  Moveable=True
+
+  <SPIN> MeshFile=LOTUS_ELISE_WHEEL_LF_A.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00)
+  <EXPO> MeshFile=LOTUS_ELISE_WHEEL_LF_A.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00) Reflect=True
+  <EXPO> MeshFile=LOTUS_ELISE_DISK_LF.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(200.0)
+  }
+
+//----
+
+  Instance=RFTIRE
+  {
+   Moveable=True
+
+   <LOW>  MeshFile=LOTUS_ELISE_WHEEL_RF_C.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(40.0)
+   <LOW>  MeshFile=LOTUS_ELISE_WHEEL_RF_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(40.00) LODOut=(400.0)
+
+   <MED>  MeshFile=LOTUS_ELISE_WHEEL_RF_C.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(50.0)
+   <MED>  MeshFile=LOTUS_ELISE_WHEEL_RF_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(50.00) LODOut=(500.0)
+
+   <HIGH> MeshFile=LOTUS_ELISE_WHEEL_RF_B.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(50.0)
+   <HIGH> MeshFile=LOTUS_ELISE_WHEEL_RF_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(50.00) LODOut=(600.0)
+
+   <MAX>  MeshFile=LOTUS_ELISE_WHEEL_RF_A.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(60.0)
+   <MAX>  MeshFile=LOTUS_ELISE_WHEEL_RF_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(60.0) LODOut=(700.0)
+
+   <NOTSPIN> MeshFile=LOTUS_ELISE_DISKGLOW_RF.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(30.0)
+   <NOTSPIN> MeshFile=LOTUS_ELISE_DISK_RF.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(30.0)
+  }
+
+  Instance=RFSPINDLE
+  {
+   Moveable=True
+   <SPIN>   MeshFile=LOTUS_ELISE_CALIPER_RF.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.0)
+   <EXPO>   MeshFile=LOTUS_ELISE_CALIPER_RF.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.0) Reflect=True
+
+   <HIGH>  MeshFile=LOTUS_ELISE_CALIPER_RF.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(20.0)
+
+   <MAX>  MeshFile=LOTUS_ELISE_CALIPER_RF.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(30.0)
+  }
+
+  Instance=RFTIRE_EXPO
+  {
+  Moveable=True
+
+  <SPIN> MeshFile=LOTUS_ELISE_WHEEL_RF_A.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00)
+  <EXPO> MeshFile=LOTUS_ELISE_WHEEL_RF_A.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00) Reflect=True
+  <EXPO> MeshFile=LOTUS_ELISE_DISK_RF.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(200.0)
+  }
+
+//----
+
+  Instance=LRTIRE
+  {
+   Moveable=True
+
+   <LOW>  MeshFile=LOTUS_ELISE_WHEEL_LR_C.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(40.0)
+   <LOW>  MeshFile=LOTUS_ELISE_WHEEL_LR_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(40.00) LODOut=(400.0)
+
+   <MED>  MeshFile=LOTUS_ELISE_WHEEL_LR_C.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(50.0)
+   <MED>  MeshFile=LOTUS_ELISE_WHEEL_LR_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(50.00) LODOut=(500.0)
+
+   <HIGH> MeshFile=LOTUS_ELISE_WHEEL_LR_B.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(50.0)
+   <HIGH> MeshFile=LOTUS_ELISE_WHEEL_LR_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(50.00) LODOut=(600.0)
+
+   <MAX>  MeshFile=LOTUS_ELISE_WHEEL_LR_A.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(60.0)
+   <MAX>  MeshFile=LOTUS_ELISE_WHEEL_LR_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(60.0) LODOut=(700.0)
+
+   <NOTSPIN> MeshFile=LOTUS_ELISE_DISKGLOW_LR.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(30.0)
+   <NOTSPIN> MeshFile=LOTUS_ELISE_DISK_LR.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(30.0)
+  }
+
+  Instance=LRSPINDLE
+  {
+   Moveable=True
+   <SPIN>   MeshFile=LOTUS_ELISE_CALIPER_LR.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.0)
+   <EXPO>   MeshFile=LOTUS_ELISE_CALIPER_LR.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.0) Reflect=True
+
+   <HIGH>  MeshFile=LOTUS_ELISE_CALIPER_LR.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(20.0)
+
+   <MAX>  MeshFile=LOTUS_ELISE_CALIPER_LR.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(30.0)
+  }
+
+  Instance=LRTIRE_EXPO
+  {
+  Moveable=True
+
+  <SPIN> MeshFile=LOTUS_ELISE_WHEEL_LR_A.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00)
+  <EXPO> MeshFile=LOTUS_ELISE_WHEEL_LR_A.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00) Reflect=True
+  <EXPO> MeshFile=LOTUS_ELISE_DISK_LR.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(200.0)
+  }
+
+//----
+
+  Instance=RRTIRE
+  {
+   Moveable=True
+
+   <LOW>  MeshFile=LOTUS_ELISE_WHEEL_RR_C.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(40.0)
+   <LOW>  MeshFile=LOTUS_ELISE_WHEEL_RR_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(40.00) LODOut=(400.0)
+
+   <MED>  MeshFile=LOTUS_ELISE_WHEEL_RR_C.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(50.0)
+   <MED>  MeshFile=LOTUS_ELISE_WHEEL_RR_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(50.00) LODOut=(500.0)
+
+   <HIGH> MeshFile=LOTUS_ELISE_WHEEL_RR_B.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(50.0)
+   <HIGH> MeshFile=LOTUS_ELISE_WHEEL_RR_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(50.00) LODOut=(600.0)
+
+   <MAX>  MeshFile=LOTUS_ELISE_WHEEL_RR_A.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(60.0)
+   <MAX>  MeshFile=LOTUS_ELISE_WHEEL_RR_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(60.0) LODOut=(700.0)
+
+   <NOTSPIN> MeshFile=LOTUS_ELISE_DISKGLOW_RR.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(30.0)
+   <NOTSPIN> MeshFile=LOTUS_ELISE_DISK_RR.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(30.0)
+  }
+
+  Instance=RRSPINDLE
+  {
+   Moveable=True
+   <SPIN>   MeshFile=LOTUS_ELISE_CALIPER_RR.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.0)
+   <EXPO>   MeshFile=LOTUS_ELISE_CALIPER_RR.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.0) Reflect=True
+
+   <HIGH>  MeshFile=LOTUS_ELISE_CALIPER_RR.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(20.0)
+
+   <MAX>  MeshFile=LOTUS_ELISE_CALIPER_RR.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(30.0)
+  }
+
+  Instance=RRTIRE_EXPO
+  {
+  Moveable=True
+
+  <SPIN> MeshFile=LOTUS_ELISE_WHEEL_RR_A.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00)
+  <EXPO> MeshFile=LOTUS_ELISE_WHEEL_RR_A.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00) Reflect=True
+  <EXPO> MeshFile=LOTUS_ELISE_DISK_RR.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(200.0)
+  }
+
+//----------------------------------------= BUMPERS AND WINGS =----------------------------------------\\
+
+  Instance=RWING
+  {
+   Moveable=True
+
+   <SPIN> MeshFile=LOTUS_ELISE_WING_STYLE1_A.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00)
+   <EXPO> MeshFile=LOTUS_ELISE_WING_STYLE1_A.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00) Reflect=True
+
+   <LOW>  MeshFile=LOTUS_ELISE_WING_STYLE1_C.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(400.0)
+
+   <MED>  MeshFile=LOTUS_ELISE_WING_STYLE1_B.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(40.00)
+   <MED>  MeshFile=LOTUS_ELISE_WING_STYLE1_C.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(40.0) LODOut=(500.0)
+
+   <HIGH> MeshFile=LOTUS_ELISE_WING_STYLE1_A.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(50.00)
+   <HIGH> MeshFile=LOTUS_ELISE_WING_STYLE1_C.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(50.0) LODOut=(600.0)
+
+   <MAX>  MeshFile=LOTUS_ELISE_WING_STYLE1_A.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(60.00)
+   <MAX>  MeshFile=LOTUS_ELISE_WING_STYLE1_C.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(60.0) LODOut=(700.0)
+  }
+
+  Instance=DIFFUSER
+  {
+   Moveable=True
+
+   <SPIN> MeshFile=LOTUS_ELISE_DIFFUSER_C.gmt CollTarget=False HATTarget=False LODIn=(00.0) LODOut=(200.0)
+   <EXPO> MeshFile=LOTUS_ELISE_DIFFUSER_A.gmt CollTarget=False HATTarget=False LODIn=(00.0) LODOut=(200.0) Reflect=True
+
+   <LOW>  MeshFile=LOTUS_ELISE_DIFFUSER_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(400.0)
+
+   <MED>  MeshFile=LOTUS_ELISE_DIFFUSER_C.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(40.00)
+   <MED>  MeshFile=LOTUS_ELISE_DIFFUSER_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(40.0) LODOut=(500.0)
+
+   <HIGH> MeshFile=LOTUS_ELISE_DIFFUSER_A.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(50.00)
+   <HIGH> MeshFile=LOTUS_ELISE_DIFFUSER_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(50.0) LODOut=(600.0)
+
+   <MAX>  MeshFile=LOTUS_ELISE_DIFFUSER_A.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(60.00)
+   <MAX>  MeshFile=LOTUS_ELISE_DIFFUSER_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(60.0) LODOut=(700.0)
+  }
+
+//--------------------------------------= ADDITIONAL DETACHABLES =--------------------------------------\\
+
+  Instance=DEBRIS0 // HEADLIGHT LEFT
+  {
+    Moveable=True
+   <LOW> MeshFile=LOTUS_ELISE_LIGHT_LF.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(400.0) 
+
+   <MED> MeshFile=LOTUS_ELISE_LIGHT_LF.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(500.0) 
+
+   <HIGH> MeshFile=LOTUS_ELISE_LIGHT_LF.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(600.0) 
+
+   <MAX> MeshFile=LOTUS_ELISE_LIGHT_LF.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(700.0) 
+  } 
+
+  Instance=DEBRIS1 // HEADLIGHT RIGHT
+  {
+    Moveable=True
+   <LOW> MeshFile=LOTUS_ELISE_LIGHT_RF.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(400.0) 
+
+   <MED> MeshFile=LOTUS_ELISE_LIGHT_RF.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(500.0) 
+
+   <HIGH> MeshFile=LOTUS_ELISE_LIGHT_RF.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(600.0) 
+
+   <MAX> MeshFile=LOTUS_ELISE_LIGHT_RF.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(700.0) 
+  }
+
+  Instance=DEBRIS2 // BRAKELIGHT LEFT
+  {
+    Moveable=True
+   <LOW> MeshFile=LOTUS_ELISE_LIGHT_LR.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(400.0) 
+
+   <MED> MeshFile=LOTUS_ELISE_LIGHT_LR.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(500.0) 
+
+   <HIGH> MeshFile=LOTUS_ELISE_LIGHT_LR.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(600.0) 
+
+   <MAX> MeshFile=LOTUS_ELISE_LIGHT_LR.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(700.0) 
+  } 
+
+  Instance=DEBRIS3 // BRAKELIGHT RIGHT
+  {
+    Moveable=True
+   <LOW> MeshFile=LOTUS_ELISE_LIGHT_RR.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(400.0) 
+
+   <MED> MeshFile=LOTUS_ELISE_LIGHT_RR.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(500.0) 
+
+   <HIGH> MeshFile=LOTUS_ELISE_LIGHT_RR.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(600.0) 
+
+   <MAX> MeshFile=LOTUS_ELISE_LIGHT_RR.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(700.0) 
+  }
+
+  Instance=DEBRIS4 // BUMPER
+  {
+    Moveable=True
+
+   <SPIN> MeshFile=LOTUS_ELISE_BUMPER_STYLE1_C.GMT CollTarget=False HATTarget=False LODIn=(00.0) LODOut=(200.0)
+   <EXPO> MeshFile=LOTUS_ELISE_BUMPER_STYLE1_A.GMT CollTarget=False HATTarget=False LODIn=(00.0) LODOut=(200.0) Reflect=True
+
+   <LOW>  MeshFile=LOTUS_ELISE_BUMPER_STYLE1_C.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(400.0)
+
+   <MED>  MeshFile=LOTUS_ELISE_BUMPER_STYLE1_B.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(40.00)
+   <MED>  MeshFile=LOTUS_ELISE_BUMPER_STYLE1_C.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(40.0) LODOut=(500.0)
+
+   <HIGH> MeshFile=LOTUS_ELISE_BUMPER_STYLE1_B.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(50.00)
+   <HIGH> MeshFile=LOTUS_ELISE_BUMPER_STYLE1_C.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(50.0) LODOut=(600.0)
+
+   <MAX>  MeshFile=LOTUS_ELISE_BUMPER_STYLE1_A.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(60.00)
+   <MAX>  MeshFile=LOTUS_ELISE_BUMPER_STYLE1_C.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(60.0) LODOut=(700.0)
+
+  <EXPO> MeshFile=LOTUS_ELISE_EXPO_FLOOR.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00)
+  }
+}

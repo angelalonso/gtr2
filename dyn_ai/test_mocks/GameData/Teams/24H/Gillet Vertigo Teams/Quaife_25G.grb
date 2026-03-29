@@ -1,0 +1,35 @@
+//Transmission as fitted to the Gillet Vertigo Copyright 10tacle Studios AG 2006 2004
+[GEAR_RATIOS]
+//First gears
+ratio=(13,41)     //3.154
+//Second gears
+ratio=(19,41)  //2.158
+ratio=(20,40)  //2.00
+ratio=(19,36) //1.895
+ratio=(22,39) //1.773
+// Third gears
+ratio=(21,37) //1.762
+ratio=(22,37) //1.682
+ratio=(21,34) //1.619
+ratio=(25,39) //1.560
+ratio=(25,35)  //1.522
+//Fourth gears
+ratio=(25,36) //1.440
+ratio=(24,33)  //1.375
+ratio=(26,34)  //1.308
+ratio=(29,36)  //1.241
+ratio=(30,36)  //1.200
+//Fifth & Sixth gears (interchangable)
+ratio=(30,34)  //1.133
+ratio=(32,35)  //1.094
+ratio=(32,33)  //1.031
+ratio=(33,32)  //0.970
+ratio=(34,32)  //0.941
+ratio=(34,31)  //0.912
+ratio=(35,31)  //0.886
+ratio=(35,30)  //0.857   
+     
+
+[FINAL_DRIVE]
+bevel=(1,1)   // 1.00
+ratio=(9,31)  //3.44

@@ -1,0 +1,4476 @@
+//-------------------------------------------------------
+
+SearchPath=GAMEDATA\LOCATIONS\SHARED
+SearchPath=GAMEDATA\LOCATIONS\SPA
+
+MASFile=SPAP1.gtr
+MASFile=skies_central.gtr
+MASFile=3SPA.gtr
+MASFile=SPA.gtr
+MASFile=SPAMAP.gtr
+MASFile=TEAMMAPS2.gtr
+MASFile=Misc.gtr
+
+//-------------------------------------------------------
+
+
+View=mainview
+{
+  Clear=True
+  Color=(0, 0, 0)
+  Size=(1.00, 1.00) Center=(0.5, 0.5)
+  FOV=(77.75, 62.50)
+  ClipPlanes=(0.50, 1200.00)
+  View=rearview
+  {
+    Clear=True
+    Color=(149, 218, 254)
+    Size=(512.00, 256.00) Center=(256.00, 128.00)
+    FOV=(62.5, 62.5)
+    ClipPlanes=(0.50, 200.00)
+  }
+}
+
+
+//-------------------------------------------------------
+
+Instance=skyboxi
+{
+  Moveable=True 
+  MeshFile=skyboxi.gmt CollTarget=False HATTarget=False 
+  Instance=day
+  {
+    Moveable=True 
+    MeshFile=day.gmt CollTarget=False HATTarget=False 
+  }
+  Instance=night
+  {
+    Moveable=True 
+    MeshFile=night.gmt CollTarget=False HATTarget=False 
+  }
+  Instance=sunrise
+  {
+    Moveable=True 
+    MeshFile=sunrise.gmt CollTarget=False HATTarget=False 
+  }
+  Instance=sunset
+  {
+    Moveable=True 
+    MeshFile=sunset.gmt CollTarget=False HATTarget=False 
+  }
+  Instance=sun
+  {
+    Moveable=True VisGroups=(32)
+    MeshFile=sun.gmt CollTarget=False HATTarget=False 
+  }
+  Instance=moon
+  {
+    Moveable=True VisGroups=(32)
+    MeshFile=moon.gmt CollTarget=False HATTarget=False 
+  }
+  Instance=dayR
+  {
+    Moveable=True
+    MeshFile=dayR.gmt CollTarget=False HATTarget=False
+  }
+  Instance=nightR
+  {
+    Moveable=True
+    MeshFile=nightR.gmt CollTarget=False HATTarget=False
+  }
+  Instance=sunriseR
+  {
+    Moveable=True
+    MeshFile=sunriseR.gmt CollTarget=False HATTarget=False
+  }
+  Instance=sunsetR
+  {
+    Moveable=True
+    MeshFile=sunsetR.gmt CollTarget=False HATTarget=False
+  }
+}
+
+Instance=GarWind00
+{
+  VisGroups=(32)
+  MeshFile=GarWind00.gmt CollTarget=True HATTarget=False 
+}
+
+//----------Track---------------------------------------------
+
+Instance=Track03
+{
+  MeshFile=Track03.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track01
+{
+  MeshFile=Track01.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track04
+{
+  MeshFile=Track04.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track05
+{
+  MeshFile=Track05.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track06
+{
+  MeshFile=Track06.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track07
+{
+  MeshFile=Track07.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track08
+{
+  MeshFile=Track08.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track09
+{
+  MeshFile=Track09.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track10
+{
+  MeshFile=Track10.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track11
+{
+  MeshFile=Track11.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track12
+{
+  MeshFile=Track12.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track13
+{
+  MeshFile=Track13.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track02
+{
+  MeshFile=Track02.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track14
+{
+  MeshFile=Track14.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track15
+{
+  MeshFile=Track15.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track16
+{
+  MeshFile=Track16.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track17
+{
+  MeshFile=Track17.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track18
+{
+  MeshFile=Track18.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track00
+{
+  MeshFile=Track00.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track19
+{
+  MeshFile=Track19.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track20
+{
+  MeshFile=Track20.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track21
+{
+  MeshFile=Track21.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track22
+{
+  MeshFile=Track22.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track23
+{
+  MeshFile=Track23.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track24
+{
+  MeshFile=Track24.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track25
+{
+  MeshFile=Track25.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track26
+{
+  MeshFile=Track26.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track27
+{
+  MeshFile=Track27.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track28
+{
+  MeshFile=Track28.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track29
+{
+  MeshFile=Track29.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track30
+{
+  MeshFile=Track30.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track31
+{
+  MeshFile=Track31.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track32
+{
+  MeshFile=Track32.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track33
+{
+  MeshFile=Track33.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track34
+{
+  MeshFile=Track34.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track35
+{
+  MeshFile=Track35.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track36
+{
+  MeshFile=Track36.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track37
+{
+  MeshFile=Track37.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track38
+{
+  MeshFile=Track38.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track39
+{
+  MeshFile=Track39.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track40
+{
+  MeshFile=Track40.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track41
+{
+  MeshFile=Track41.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track42
+{
+  MeshFile=Track42.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track43
+{
+  MeshFile=Track43.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track44
+{
+  MeshFile=Track44.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track45
+{
+  MeshFile=Track45.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track46
+{
+  MeshFile=Track46.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track47
+{
+  MeshFile=Track47.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track48
+{
+  MeshFile=Track48.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track49
+{
+  MeshFile=Track49.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track50
+{
+  MeshFile=Track50.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track51
+{
+  MeshFile=Track51.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track52
+{
+  MeshFile=Track52.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track53
+{
+  MeshFile=Track53.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track54
+{
+  MeshFile=Track54.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track55
+{
+  MeshFile=Track55.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Track56
+{
+  MeshFile=Track56.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+
+Instance=TrackEdge00
+{
+  VisGroups=(32)
+  MeshFile=TrackEdge00.gmt CollTarget=False HATTarget=False ShadowReceiver=False  
+}
+Instance=TrackEdge01
+{
+  VisGroups=(32)
+  MeshFile=TrackEdge01.gmt CollTarget=False HATTarget=False ShadowReceiver=False  
+}
+Instance=TrackEdge02
+{
+  VisGroups=(32)
+  MeshFile=TrackEdge02.gmt CollTarget=False HATTarget=False ShadowReceiver=False  
+}
+Instance=TrackEdge03
+{
+  VisGroups=(32)
+  MeshFile=TrackEdge03.gmt CollTarget=False HATTarget=False ShadowReceiver=False  
+}
+Instance=TrackEdge04
+{
+  VisGroups=(32)
+  MeshFile=TrackEdge04.gmt CollTarget=False HATTarget=False ShadowReceiver=False 
+}
+Instance=TrackEdge05
+{
+  VisGroups=(32)
+  MeshFile=TrackEdge05.gmt CollTarget=False HATTarget=False ShadowReceiver=False 
+}
+Instance=TrackEdge06
+{
+  VisGroups=(32)
+  MeshFile=TrackEdge06.gmt CollTarget=False HATTarget=False ShadowReceiver=False 
+}
+Instance=TrackEdge07
+{
+  VisGroups=(32)
+  MeshFile=TrackEdge07.gmt CollTarget=False HATTarget=False ShadowReceiver=False  
+}
+Instance=TrackEdge08
+{
+  VisGroups=(32)
+  MeshFile=TrackEdge08.gmt CollTarget=False HATTarget=False ShadowReceiver=False 
+}
+Instance=TrackEdge09
+{
+  VisGroups=(32)
+  MeshFile=TrackEdge09.gmt CollTarget=False HATTarget=False ShadowReceiver=False  
+}
+Instance=TrackEdge10
+{
+  VisGroups=(32)
+  MeshFile=TrackEdge10.gmt CollTarget=False HATTarget=False ShadowReceiver=False  
+}
+Instance=TrackEdge11
+{
+  VisGroups=(32)
+  MeshFile=TrackEdge11.gmt CollTarget=False HATTarget=False ShadowReceiver=False  
+}
+
+//--------Dirt Edges-----------------------------------------------
+
+Instance=DirtEdge01
+{
+  VisGroups=(32)
+  MeshFile=DirtEdge01.gmt CollTarget=False HATTarget=False ShadowReceiver=False 
+}
+Instance=DirtEdge02
+{
+  VisGroups=(32)
+  MeshFile=DirtEdge02.gmt CollTarget=False HATTarget=False ShadowReceiver=False 
+}
+Instance=DirtEdge03
+{
+  VisGroups=(32)
+  MeshFile=DirtEdge03.gmt CollTarget=False HATTarget=False ShadowReceiver=False 
+}
+Instance=DirtEdge04
+{
+  VisGroups=(32)
+  MeshFile=DirtEdge04.gmt CollTarget=False HATTarget=False ShadowReceiver=False 
+}
+Instance=DirtEdge05
+{
+  VisGroups=(32)
+  MeshFile=DirtEdge05.gmt CollTarget=False HATTarget=False ShadowReceiver=False 
+}
+Instance=DirtEdge06
+{
+  VisGroups=(32)
+  MeshFile=DirtEdge06.gmt CollTarget=False HATTarget=False ShadowReceiver=False 
+}
+Instance=DirtEdge07
+{
+  VisGroups=(32)
+  MeshFile=DirtEdge07.gmt CollTarget=False HATTarget=False ShadowReceiver=False 
+}
+Instance=DirtEdge08
+{
+  VisGroups=(32)
+  MeshFile=DirtEdge08.gmt CollTarget=False HATTarget=False ShadowReceiver=False 
+}
+Instance=DirtEdge09
+{
+  VisGroups=(32)
+  MeshFile=DirtEdge09.gmt CollTarget=False HATTarget=False ShadowReceiver=False 
+}
+Instance=DirtEdge10
+{
+  VisGroups=(32)
+  MeshFile=DirtEdge10.gmt CollTarget=False HATTarget=False ShadowReceiver=False 
+}
+Instance=DirtEdge11
+{
+  VisGroups=(32)
+  MeshFile=DirtEdge11.gmt CollTarget=False HATTarget=False ShadowReceiver=False 
+}
+Instance=DirtEdge12
+{
+  VisGroups=(32)
+  MeshFile=DirtEdge12.gmt CollTarget=False HATTarget=False ShadowReceiver=False 
+}
+Instance=DirtEdge13
+{
+  VisGroups=(32)
+  MeshFile=DirtEdge13.gmt CollTarget=False HATTarget=False ShadowReceiver=False 
+}
+Instance=DirtEdge14
+{
+  VisGroups=(32)
+  MeshFile=DirtEdge14.gmt CollTarget=False HATTarget=False ShadowReceiver=False 
+}
+Instance=DirtEdge15
+{
+  VisGroups=(32)
+  MeshFile=DirtEdge15.gmt CollTarget=False HATTarget=False ShadowReceiver=False 
+}
+
+//-----------Shadow Casters--------------------------------------------
+
+Instance=ShadowCasters00
+{
+  VisGroups=(32)
+  MeshFile=ShadowCasters00.gmt CollTarget=False HATTarget=False ShadowObject=(Dynamic, Solid, 64, 64) 
+}
+Instance=ShadowCasters01
+{
+  VisGroups=(32)
+  MeshFile=ShadowCasters01.gmt CollTarget=False HATTarget=False ShadowObject=(Dynamic, Solid, 64, 64) 
+}
+Instance=ShadowCasters02
+{
+  VisGroups=(32)
+  MeshFile=ShadowCasters02.gmt CollTarget=False HATTarget=False ShadowObject=(Dynamic, Solid, 64, 64) 
+}
+Instance=ShadowCasters03
+{
+  VisGroups=(32)
+  MeshFile=ShadowCasters03.gmt CollTarget=False HATTarget=False ShadowObject=(Dynamic, Solid, 64, 64) 
+}
+Instance=ShadowCasters04
+{
+  VisGroups=(32)
+  MeshFile=ShadowCasters04.gmt CollTarget=False HATTarget=False ShadowObject=(Dynamic, Solid, 128, 128) 
+}
+Instance=ShadowCasters05
+{
+  VisGroups=(32)
+  MeshFile=ShadowCasters05.gmt CollTarget=False HATTarget=False ShadowObject=(Dynamic, Solid, 128, 128) 
+}
+Instance=ShadowCasters06
+{
+  VisGroups=(32)
+  MeshFile=ShadowCasters06.gmt CollTarget=False HATTarget=False ShadowObject=(Dynamic, Solid, 64, 64) 
+}
+Instance=ShadowCasters06
+{
+  VisGroups=(32)
+  MeshFile=ShadowCasters06.gmt CollTarget=False HATTarget=False ShadowObject=(Dynamic, Solid, 64, 64) 
+}
+Instance=ShadowCasters07
+{
+  VisGroups=(32)
+  MeshFile=ShadowCasters07.gmt CollTarget=False HATTarget=False ShadowObject=(Dynamic, Solid, 128, 128) 
+}
+Instance=ShadowCasters08
+{
+  VisGroups=(32)
+  MeshFile=ShadowCasters08.gmt CollTarget=False HATTarget=False ShadowObject=(Dynamic, Solid, 64, 64) 
+}
+
+//-----------Omnis--------------------------------------------
+
+Light=NightLight00
+{
+ Type=Omni Pos=(-261.669739, 2.344240, 809.355225) Range=(0.000000, 80.000000) Active=True Intensity=(0.750000) Color=(230, 235, 255)
+}
+Light=NightLight01
+{
+ Type=Omni Pos=(-76.998566, -11.292562, 799.835388) Range=(0.000000, 60.0) Active=True Intensity=(1.22) Color=(245, 235, 185)
+}
+Light=NightLight02
+{
+ Type=Omni Pos=(17.793953, -18.510817, 695.810913) Range=(0.000000, 60.0) Active=True Intensity=(1.22) Color=(245, 235, 185) 
+}
+Light=NightLight03
+{
+ Type=Omni Pos=(-257.321716, 13.302442, 967.250671) Range=(0.000000, 60.0) Active=True Intensity=(1.22) Color=(210, 235, 255) 
+}
+Light=NightLight04
+{
+ Type=Omni Pos=(-376.999695, 12.011032, 975.228577) Range=(0.000000, 80.000000) Active=True Intensity=(1.050000) Color=(230, 235, 155)
+}
+Light=NightLight05
+{
+ Type=Omni Pos=(-461.822510, 23.295542, 1039.051514) Range=(0.000000, 60.0) Active=True Intensity=(1.22) Color=(210, 235, 255)
+}
+Light=NightLight06
+{
+ Type=Omni Pos=(-374.464233, 26.360640, 853.205444) Range=(0.000000, 80.000000) Active=True Intensity=(0.750000) Color=(230, 235, 255)
+}
+
+Light=NightLight08
+{
+ Type=Omni Pos=(199.245728, -3.203913, 608.183594) Range=(0.000000, 60.0) Active=True Intensity=(1.22) Color=(210, 235, 255) 
+}
+Light=NightLight09
+{
+ Type=Omni Pos=(423.369263, 32.742172, -654.224243) Range=(0.000000, 60.0) Active=True Intensity=(1.22) Color=(245, 235, 165)
+}
+Light=NightLight10
+{
+ Type=Omni Pos=(243.523590, 82.618088, -1049.523682) Range=(0.000000, 60.000000) Active=True Intensity=(1.200000) Color=(210, 235, 255)
+}
+Light=NightLight11
+{
+ Type=Omni Pos=(-317.494934, 22.605721, 913.234619) Range=(0.000000, 80.000000) Active=True Intensity=(1.00000) Color=(230, 235, 255)
+}
+Light=NightLight12
+{
+ Type=Omni Pos=(-264.391235, 19.664583, 838.462341) Range=(0.000000, 80.000000) Active=True Intensity=(0.750000) Color=(230, 235, 255)
+}
+Light=NightLight13
+{
+ Type=Omni Pos=(-291.030212, 21.000994, 739.128357) Range=(0.000000, 80.000000) Active=True Intensity=(0.750000) Color=(230, 235, 255)
+}
+Light=NightLight14
+{
+ Type=Omni Pos=(-229.821472, 15.405221, 895.441223) Range=(0.000000, 60.000000) Active=True Intensity=(1.20000) Color=(230, 235, 255)
+}
+Light=NightLight15
+{
+ Type=Omni Pos=(-180.472778, 13.370498, 770.696899) Range=(0.000000, 120.000000) Active=True Intensity=(1.50000) Color=(230, 235, 215)
+}
+Light=NightLight16
+{
+ Type=Omni Pos=(-159.685181, 8.277751, 833.149231) Range=(0.000000, 70.000000) Active=True Intensity=(1.20000) Color=(235, 255, 155)
+}
+Light=NightLight17
+{
+ Type=Omni Pos=(-105.132080, 4.077343, 768.957092) Range=(0.000000, 70.000000) Active=True Intensity=(1.20000) Color=(235, 255, 155)
+}
+Light=NightLight18
+{
+ Type=Omni Pos=(-48.267441, -0.633093, 698.484436) Range=(0.000000, 70.000000) Active=True Intensity=(1.20000) Color=(235, 255, 155)
+}
+Light=NightLight19
+{
+ Type=Omni Pos=(83.129051, -4.324881, 696.260498) Range=(0.000000, 60.0) Active=True Intensity=(1.22) Color=(210, 235, 255) 
+}
+Light=NightLight20
+{
+ Type=Omni Pos=(-17.326904, 4.989210, 831.432373) Range=(0.000000, 60.0) Active=True Intensity=(1.22) Color=(210, 235, 255) 
+}
+Light=NightLight21
+{
+ Type=Omni Pos=(-144.210037, 10.935381, 935.292297) Range=(0.000000, 60.0) Active=True Intensity=(1.22) Color=(210, 235, 255) 
+}
+Light=NightLight22
+{
+ Type=Omni Pos=(-214.503845, 13.444479, 435.364746) Range=(0.000000, 60.0) Active=True Intensity=(1.22) Color=(210, 235, 255)
+}
+Light=NightLight23
+{
+ Type=Omni Pos=(305.801636, 0.435932, -239.021835) Range=(0.000000, 60.0) Active=True Intensity=(1.22) Color=(245, 235, 165)
+}
+Light=NightLight24
+{
+ Type=Omni Pos=(364.009674, 9.390031, -442.046631) Range=(0.000000, 60.0) Active=True Intensity=(1.22) Color=(245, 235, 165)
+}
+Light=NightLight25
+{
+ Type=Omni Pos=(-299.033020, 4.205933, 862.023499) Range=(0.000000, 80.000000) Active=True Intensity=(0.750000) Color=(230, 235, 255)
+}
+Light=NightLight26
+{
+ Type=Omni Pos=(682.158447, 57.366791, -596.989502) Range=(0.000000, 60.0) Active=True Intensity=(1.22) Color=(245, 235, 165)
+}
+Light=NightLight27
+{
+ Type=Omni Pos=(668.590332, 60.982147, -788.375305) Range=(0.000000, 60.0) Active=True Intensity=(1.22) Color=(245, 235, 165)
+}
+Light=NightLight28
+{
+ Type=Omni Pos=(-191.265930, 3.079021, 683.973145) Range=(0.000000, 80.000000) Active=True Intensity=(0.750000) Color=(230, 235, 255)
+}
+Light=NightLight29
+{
+ Type=Omni Pos=(-165.416321, 0.106644, 562.363831) Range=(0.000000, 80.000000) Active=True Intensity=(0.750000) Color=(230, 235, 255)
+}
+Light=NightLight30
+{
+ Type=Omni Pos=(-114.598129, -3.044441, 443.257507) Range=(0.000000, 60.000000) Active=True Intensity=(1.220000) Color=(230, 235, 155)
+}
+Light=NightLight31
+{
+ Type=Omni Pos=(-381.789673, -30.764368, -517.415466) Range=(0.000000, 80.000000) Active=True Intensity=(0.750000) Color=(230, 235, 255)
+}
+Light=NightLight32
+{
+ Type=Omni Pos=(-123.380638, -8.406164, 852.532166) Range=(0.000000, 60.0) Active=True Intensity=(1.22) Color=(245, 235, 185)
+}
+Light=NightLight33
+{
+ Type=Omni Pos=(-28.583595, -16.932333, 749.114136) Range=(0.000000, 60.0) Active=True Intensity=(1.22) Color=(245, 235, 185)
+}
+Light=NightLight34
+{
+ Type=Omni Pos=(-225.072952, 13.444479, 523.767456) Range=(0.000000, 80.000000) Active=True Intensity=(0.750000) Color=(230, 235, 255)
+}
+Light=NightLight35
+{
+ Type=Omni Pos=(-30.695143, -8.369358, 39.886612) Range=(0.000000, 80.000000) Active=True Intensity=(0.750000) Color=(230, 235, 255)
+}
+Light=NightLight07
+{
+ Type=Omni Pos=(-48.176670, -10.536612, -82.359444) Range=(0.000000, 80.000000) Active=True Intensity=(0.750000) Color=(230, 235, 255)
+}
+
+//-----------Night Light Glows--------------------------------------------
+
+Instance=NightLight00Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight00Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight01Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight01Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight02Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight02Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight03Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight03Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight04Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight04Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight05Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight05Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight06Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight06Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight07Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight07Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight08Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight08Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight09Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight09Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight100Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight100Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight101Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight101Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight102Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight102Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight103Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight103Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight104Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight104Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight105Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight105Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight106Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight106Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight107Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight107Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight108Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight108Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight109Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight109Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight10Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight10Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight11Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight11Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight12Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight12Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight13Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight13Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight14Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight14Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight15Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight15Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight16Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight16Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight17Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight17Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight18Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight18Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight19Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight19Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight20Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight20Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight21Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight21Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight22Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight22Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight23Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight23Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight24Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight24Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight25Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight25Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight26Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight26Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight27Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight27Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight28Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight28Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight29Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight29Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight30Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight30Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight31Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight31Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight32Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight32Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight33Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight33Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight34Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight34Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight35Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight35Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight36Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight36Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight37Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight37Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight38Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight38Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight39Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight39Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight40Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight40Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight41Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight41Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight42Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight42Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight43Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight43Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight44Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight44Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight45Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight45Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight46Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight46Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight47Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight47Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight48Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight48Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight49Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight49Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight50Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight50Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight51Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight51Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight52Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight52Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight53Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight53Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight54Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight54Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight55Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight55Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight56Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight56Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight57Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight57Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight58Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight58Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight59Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight59Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight60Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight60Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight61Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight61Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight62Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight62Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight63Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight63Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight64Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight64Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight65Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight65Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight66Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight66Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight67Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight67Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight68Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight68Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight69Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight69Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight70Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight70Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight71Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight71Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight72Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight72Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight73Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight73Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight74Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight74Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight75Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight75Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight76Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight76Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight77Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight77Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight78Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight78Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight79Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight79Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight80Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight80Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight81Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight81Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight82Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight82Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight83Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight83Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight84Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight84Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight85Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight85Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight86Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight86Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight87Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight87Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight88Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight88Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight89Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight89Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight90Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight90Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight91Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight91Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight92Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight92Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight93Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight93Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight94Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight94Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight95Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight95Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight96Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight96Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight97Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight97Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight98Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight98Glow.gmt CollTarget=False HATTarget=False 
+}
+Instance=NightLight99Glow
+{
+  Moveable=True Billboard=True VisGroups=(32)
+  MeshFile=NightLight99Glow.gmt CollTarget=False HATTarget=False 
+}
+
+//------------Ad Boards-------------------------------------------
+
+Instance=Ads00
+{
+  VisGroups=(38)
+  MeshFile=Ads00.gmt CollTarget=True HATTarget=False 
+}
+Instance=Ads01
+{
+  VisGroups=(38)
+  MeshFile=Ads01.gmt CollTarget=True HATTarget=False 
+}
+Instance=Ads02
+{
+  VisGroups=(38)
+  MeshFile=Ads02.gmt CollTarget=True HATTarget=False 
+}
+Instance=Ads03
+{
+  VisGroups=(38)
+  MeshFile=Ads03.gmt CollTarget=True HATTarget=False 
+}
+Instance=Ads04
+{
+  VisGroups=(38)
+  MeshFile=Ads04.gmt CollTarget=True HATTarget=False 
+}
+Instance=Ads05
+{
+  VisGroups=(38)
+  MeshFile=Ads05.gmt CollTarget=True HATTarget=False 
+}
+
+//-----------Buildings's--------------------------------------------
+
+Instance=Building00
+{
+  VisGroups=(36)
+  MeshFile=Building00.gmt CollTarget=True HATTarget=False 
+}
+Instance=Building01
+{
+  VisGroups=(36)
+  MeshFile=Building01.gmt CollTarget=True HATTarget=False 
+}
+Instance=Building02
+{
+  VisGroups=(36)
+  MeshFile=Building02.gmt CollTarget=True HATTarget=False 
+}
+Instance=Building04
+{
+  VisGroups=(36)
+  MeshFile=Building04.gmt CollTarget=True HATTarget=False 
+}
+Instance=Building05
+{
+  VisGroups=(36)
+  MeshFile=Building05.gmt CollTarget=True HATTarget=False 
+}
+Instance=Building06
+{
+  VisGroups=(36)
+  MeshFile=Building06.gmt CollTarget=True HATTarget=False 
+}
+Instance=Building08
+{
+  VisGroups=(36)
+  MeshFile=Building08.gmt CollTarget=True HATTarget=False 
+}
+Instance=Building09
+{
+  VisGroups=(36)
+  MeshFile=Building09.gmt CollTarget=True HATTarget=False 
+}
+Instance=Building10
+{
+  VisGroups=(36)
+  MeshFile=Building10.gmt CollTarget=True HATTarget=False 
+}
+Instance=Building11
+{
+  VisGroups=(36)
+  MeshFile=Building11.gmt CollTarget=True HATTarget=False 
+}
+Instance=Building12
+{
+  VisGroups=(36)
+  MeshFile=Building12.gmt CollTarget=True HATTarget=False 
+}
+Instance=Building12A
+{
+  VisGroups=(36)
+  MeshFile=Building12A.gmt CollTarget=True HATTarget=False 
+}
+Instance=Building13
+{
+  MeshFile=Building13.gmt CollTarget=True HATTarget=True 
+}
+Instance=Building14
+{
+  VisGroups=(36)
+  MeshFile=Building14.gmt CollTarget=True HATTarget=False 
+}
+Instance=Building15
+{
+  VisGroups=(36)
+  MeshFile=Building15.gmt CollTarget=True HATTarget=False 
+}
+Instance=Building16
+{
+  VisGroups=(36)
+  MeshFile=Building16.gmt CollTarget=True HATTarget=False 
+}
+Instance=Building17
+{
+  VisGroups=(36)
+  MeshFile=Building17.gmt CollTarget=True HATTarget=False 
+}
+Instance=Building18
+{
+  VisGroups=(36)
+  MeshFile=Building18.gmt CollTarget=True HATTarget=False 
+}
+Instance=Building20
+{
+  VisGroups=(36)
+  MeshFile=Building20.gmt CollTarget=True HATTarget=False 
+}
+Instance=Building21
+{
+  VisGroups=(36)
+  MeshFile=Building21.gmt CollTarget=True HATTarget=False 
+}
+Instance=Building21A
+{
+  VisGroups=(36)
+  MeshFile=Building21A.gmt CollTarget=True HATTarget=False 
+}
+Instance=Building22
+{
+  VisGroups=(36)
+  MeshFile=Building22.gmt CollTarget=True HATTarget=False 
+}
+Instance=Building22A
+{
+  VisGroups=(36)
+  MeshFile=Building22A.gmt CollTarget=True HATTarget=False 
+}
+Instance=Building23
+{
+  VisGroups=(36)
+  MeshFile=Building23.gmt CollTarget=True HATTarget=False 
+}
+Instance=Building24
+{
+  VisGroups=(36)
+  MeshFile=Building24.gmt CollTarget=True HATTarget=False 
+}
+
+//-----------Camera's--------------------------------------------
+
+Instance=CAM1B
+{
+  VisGroups=(38)
+  MeshFile=CAM1B.gmt CollTarget=False HATTarget=False 
+}
+Instance=CAM1B01
+{
+  VisGroups=(38)
+  MeshFile=CAM1B01.gmt CollTarget=False HATTarget=False 
+}
+Instance=CAM1B02
+{
+  VisGroups=(38)
+  MeshFile=CAM1B02.gmt CollTarget=False HATTarget=False 
+}
+Instance=CAM1B03
+{
+  VisGroups=(38)
+  MeshFile=CAM1B03.gmt CollTarget=False HATTarget=False 
+}
+Instance=CAM1B04
+{
+  VisGroups=(38)
+  MeshFile=CAM1B04.gmt CollTarget=False HATTarget=False 
+}
+Instance=CAM1B05
+{
+  VisGroups=(38)
+  MeshFile=CAM1B05.gmt CollTarget=False HATTarget=False 
+}
+Instance=CAM1B06
+{
+  VisGroups=(38)
+  MeshFile=CAM1B06.gmt CollTarget=False HATTarget=False 
+}
+Instance=CAM2A
+{
+  VisGroups=(38)
+  MeshFile=CAM2A.gmt CollTarget=False HATTarget=False 
+}
+Instance=CAM2A01
+{
+  VisGroups=(38)
+  MeshFile=CAM2A01.gmt CollTarget=False HATTarget=False 
+}
+Instance=CAM2A02
+{
+  VisGroups=(38)
+  MeshFile=CAM2A02.gmt CollTarget=False HATTarget=False 
+}
+Instance=CAM2A03
+{
+  VisGroups=(38)
+  MeshFile=CAM2A03.gmt CollTarget=False HATTarget=False 
+}
+Instance=CAM2A04
+{
+  VisGroups=(38)
+  MeshFile=CAM2A04.gmt CollTarget=False HATTarget=False 
+}
+Instance=CAM2A05
+{
+  VisGroups=(38)
+  MeshFile=CAM2A05.gmt CollTarget=False HATTarget=False 
+}
+Instance=CAM2A06
+{
+  VisGroups=(38)
+  MeshFile=CAM2A06.gmt CollTarget=False HATTarget=False 
+}
+
+//--------------Caravans-----------------------------------------
+
+Instance=CaravansA00
+{
+  VisGroups=(39)
+  MeshFile=CaravansA00.gmt CollTarget=False HATTarget=False 
+}
+Instance=CaravansA01
+{
+  VisGroups=(39)
+  MeshFile=CaravansA01.gmt CollTarget=False HATTarget=False 
+}
+Instance=CaravansA02
+{
+  VisGroups=(39)
+  MeshFile=CaravansA02.gmt CollTarget=False HATTarget=False 
+}
+
+
+Instance=CaravansB00
+{
+  VisGroups=(38)
+  MeshFile=CaravansB00.gmt CollTarget=False HATTarget=False 
+}
+Instance=CaravansB01
+{
+  VisGroups=(39)
+  MeshFile=CaravansB01.gmt CollTarget=False HATTarget=False 
+}
+Instance=CaravansB02
+{
+  VisGroups=(39)
+  MeshFile=CaravansB02.gmt CollTarget=False HATTarget=False 
+}
+Instance=CaravansB03
+{
+  VisGroups=(39)
+  MeshFile=CaravansB03.gmt CollTarget=False HATTarget=False 
+}
+
+//-------Cars------------------------------------------------
+
+Instance=Cars00
+{
+  VisGroups=(38)
+  MeshFile=Cars00.gmt CollTarget=True HATTarget=False ZBias=(0) 
+}
+Instance=Cars01
+{
+  VisGroups=(38)
+  MeshFile=Cars01.gmt CollTarget=True HATTarget=False ZBias=(0) 
+}
+Instance=Cars02
+{
+  VisGroups=(38)
+  MeshFile=Cars02.gmt CollTarget=True HATTarget=False 
+}
+Instance=Cars03
+{
+  VisGroups=(38)
+  MeshFile=Cars03.gmt CollTarget=True HATTarget=False 
+}
+Instance=Cars04
+{
+  VisGroups=(38)
+  MeshFile=Cars04.gmt CollTarget=True HATTarget=False 
+}
+Instance=Cars05
+{
+  VisGroups=(38)
+  MeshFile=Cars05.gmt CollTarget=True HATTarget=False 
+}
+
+//--------------Cones-----------------------------------------
+
+Instance=Cone00
+{
+  Moveable=True VisGroups=(32)
+  MeshFile=Cone00.gmt CollTarget=True HATTarget=False 
+}
+Instance=Cone01
+{
+  Moveable=True VisGroups=(32)
+  MeshFile=Cone01.gmt CollTarget=True HATTarget=False 
+}
+Instance=Cone02
+{
+  Moveable=True VisGroups=(32)
+  MeshFile=Cone02.gmt CollTarget=True HATTarget=False 
+}
+Instance=Cone03
+{
+  Moveable=True VisGroups=(32)
+  MeshFile=Cone03.gmt CollTarget=True HATTarget=False 
+}
+Instance=Cone04
+{
+  Moveable=True VisGroups=(32)
+  MeshFile=Cone04.gmt CollTarget=True HATTarget=False 
+}
+Instance=Cone05
+{
+  Moveable=True VisGroups=(32)
+  MeshFile=Cone05.gmt CollTarget=True HATTarget=False 
+}
+Instance=Cone06
+{
+  Moveable=True VisGroups=(32)
+  MeshFile=Cone06.gmt CollTarget=True HATTarget=False 
+}
+
+//--------------Crowd-----------------------------------------
+
+Instance=Crowd01
+{
+  VisGroups=(102)
+  MeshFile=Crowd01.gmt CollTarget=False HATTarget=False 
+}
+Instance=Crowd02
+{
+  VisGroups=(100)
+  MeshFile=Crowd02.gmt CollTarget=False HATTarget=False 
+}
+Instance=Crowd07
+{
+  VisGroups=(100)
+  MeshFile=Crowd07.gmt CollTarget=False HATTarget=False 
+}
+Instance=Crowd08
+{
+  VisGroups=(100)
+  MeshFile=Crowd08.gmt CollTarget=False HATTarget=False 
+}
+Instance=Crowd09
+{
+  VisGroups=(100)
+  MeshFile=Crowd09.gmt CollTarget=False HATTarget=False 
+}
+Instance=Crowd10
+{
+  VisGroups=(100)
+  MeshFile=Crowd10.gmt CollTarget=False HATTarget=False 
+}
+Instance=Crowd11
+{
+  VisGroups=(100)
+  MeshFile=Crowd11.gmt CollTarget=False HATTarget=False 
+}
+Instance=Crowd12
+{
+  VisGroups=(100)
+  MeshFile=Crowd12.gmt CollTarget=False HATTarget=False 
+}
+Instance=Crowd13
+{
+  VisGroups=(100)
+  MeshFile=Crowd13.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa01
+{
+  VisGroups=(100)
+  MeshFile=Pessoa01.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa02
+{
+  VisGroups=(100)
+  MeshFile=Pessoa02.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa03
+{
+  VisGroups=(100)
+  MeshFile=Pessoa03.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa04
+{
+  VisGroups=(100)
+  MeshFile=Pessoa04.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa05
+{
+  VisGroups=(100)
+  MeshFile=Pessoa05.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa06
+{
+  VisGroups=(100)
+  MeshFile=Pessoa06.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa07
+{
+  VisGroups=(100)
+  MeshFile=Pessoa07.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa08
+{
+  VisGroups=(100)
+  MeshFile=Pessoa08.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa09
+{
+  VisGroups=(100)
+  MeshFile=Pessoa09.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa10
+{
+  VisGroups=(100)
+  MeshFile=Pessoa10.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa11
+{
+  VisGroups=(100)
+  MeshFile=Pessoa11.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa12
+{
+  VisGroups=(100)
+  MeshFile=Pessoa12.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa13
+{
+  VisGroups=(100)
+  MeshFile=Pessoa13.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa14
+{
+  VisGroups=(100)
+  MeshFile=Pessoa14.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa15
+{
+  VisGroups=(100)
+  MeshFile=Pessoa15.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa16
+{
+  VisGroups=(100)
+  MeshFile=Pessoa16.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa17
+{
+  VisGroups=(100)
+  MeshFile=Pessoa17.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa18
+{
+  VisGroups=(100)
+  MeshFile=Pessoa18.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa19
+{
+  VisGroups=(100)
+  MeshFile=Pessoa19.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa20
+{
+  VisGroups=(100)
+  MeshFile=Pessoa20.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa21
+{
+  VisGroups=(100)
+  MeshFile=Pessoa21.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa22
+{
+  VisGroups=(100)
+  MeshFile=Pessoa22.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa23
+{
+  VisGroups=(100)
+  MeshFile=Pessoa23.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa24
+{
+  VisGroups=(100)
+  MeshFile=Pessoa24.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa25
+{
+  VisGroups=(100)
+  MeshFile=Pessoa25.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa26
+{
+  VisGroups=(100)
+  MeshFile=Pessoa26.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa27
+{
+  VisGroups=(100)
+  MeshFile=Pessoa27.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa28
+{
+  VisGroups=(100)
+  MeshFile=Pessoa28.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa29
+{
+  VisGroups=(100)
+  MeshFile=Pessoa29.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa30
+{
+  VisGroups=(100)
+  MeshFile=Pessoa30.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa31
+{
+  VisGroups=(100)
+  MeshFile=Pessoa31.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa32
+{
+  VisGroups=(100)
+  MeshFile=Pessoa32.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa33
+{
+  VisGroups=(100)
+  MeshFile=Pessoa33.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa34
+{
+  VisGroups=(100)
+  MeshFile=Pessoa34.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa35
+{
+  VisGroups=(100)
+  MeshFile=Pessoa35.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa36
+{
+  VisGroups=(100)
+  MeshFile=Pessoa36.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa37
+{
+  VisGroups=(100)
+  MeshFile=Pessoa37.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa38
+{
+  VisGroups=(100)
+  MeshFile=Pessoa38.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa39
+{
+  VisGroups=(100)
+  MeshFile=Pessoa39.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa40
+{
+  VisGroups=(100)
+  MeshFile=Pessoa40.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa41
+{
+  VisGroups=(100)
+  MeshFile=Pessoa41.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa42
+{
+  VisGroups=(100)
+  MeshFile=Pessoa42.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa43
+{
+  VisGroups=(100)
+  MeshFile=Pessoa43.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa44
+{
+  VisGroups=(100)
+  MeshFile=Pessoa44.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa45
+{
+  VisGroups=(100)
+  MeshFile=Pessoa45.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa46
+{
+  VisGroups=(100)
+  MeshFile=Pessoa46.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa47
+{
+  VisGroups=(100)
+  MeshFile=Pessoa47.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa48
+{
+  VisGroups=(100)
+  MeshFile=Pessoa48.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa49
+{
+  VisGroups=(100)
+  MeshFile=Pessoa49.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa50
+{
+  VisGroups=(100)
+  MeshFile=Pessoa50.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa51
+{
+  VisGroups=(100)
+  MeshFile=Pessoa51.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa52
+{
+  VisGroups=(100)
+  MeshFile=Pessoa52.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa53
+{
+  VisGroups=(100)
+  MeshFile=Pessoa53.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa54
+{
+  VisGroups=(100)
+  MeshFile=Pessoa54.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa55
+{
+  VisGroups=(100)
+  MeshFile=Pessoa55.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa56
+{
+  VisGroups=(100)
+  MeshFile=Pessoa56.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoa57
+{
+  VisGroups=(100)
+  MeshFile=Pessoa57.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoas_S01
+{
+  VisGroups=(100)
+  MeshFile=Pessoas_S01.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoas_S02
+{
+  VisGroups=(100)
+  MeshFile=Pessoas_S02.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoas_S03
+{
+  VisGroups=(100)
+  MeshFile=Pessoas_S03.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoas_S04
+{
+  VisGroups=(100)
+  MeshFile=Pessoas_S04.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoas_S05
+{
+  VisGroups=(100)
+  MeshFile=Pessoas_S05.gmt CollTarget=False HATTarget=False 
+}
+Instance=Pessoas_S06
+{
+  VisGroups=(100)
+  MeshFile=Pessoas_S06.gmt CollTarget=False HATTarget=False 
+}
+
+//-----------Armco/Barriers--------------------------------------------
+
+
+Instance=ArmcoNoRender
+{
+  Render=False 
+  MeshFile=ArmcoNoRender.gmt CollTarget=True HATTarget=False 
+}
+Instance=Armco00
+{
+  MeshFile=Armco00.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Armco01
+{
+  MeshFile=Armco01.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Armco01A
+{
+  MeshFile=Armco01A.gmt CollTarget=True HATTarget=True 
+}
+Instance=Armco02
+{
+  MeshFile=Armco02.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Armco03
+{
+  MeshFile=Armco03.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Armco04
+{
+  MeshFile=Armco04.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Armco05
+{
+  MeshFile=Armco05.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Armco06
+{
+  MeshFile=Armco06.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Armco07
+{
+  MeshFile=Armco07.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Armco08
+{
+  MeshFile=Armco08.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Armco09
+{
+  MeshFile=Armco09.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Armco10
+{
+  MeshFile=Armco10.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Armco11
+{
+  MeshFile=Armco11.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Armco12
+{
+  MeshFile=Armco12.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Armco13
+{
+  MeshFile=Armco13.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Armco14
+{
+  MeshFile=Armco14.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Armco15
+{
+  MeshFile=Armco15.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Armco16
+{
+  MeshFile=Armco16.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Armco17
+{
+  MeshFile=Armco17.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Armco18
+{
+  MeshFile=Armco18.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Armco19
+{
+  MeshFile=Armco19.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Armco20
+{
+  MeshFile=Armco20.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Armco21
+{
+  MeshFile=Armco21.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Armco22
+{
+  MeshFile=Armco22.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Armco23
+{
+  MeshFile=Armco23.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Armco24
+{
+  MeshFile=Armco24.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Armco25
+{
+  MeshFile=Armco25.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Armco26
+{
+  MeshFile=Armco26.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Armco27
+{
+  MeshFile=Armco27.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=Armco28
+{
+  MeshFile=Armco28.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+Instance=HotelWall
+{
+  MeshFile=HotelWall.gmt CollTarget=True HATTarget=True ShadowReceiver=True 
+}
+
+//-----------BrakeMarkers--------------------------------------------
+
+Instance=BrakeMarker00
+{
+  VisGroups=(32)
+  MeshFile=BrakeMarker00.gmt CollTarget=False HATTarget=False 
+}
+Instance=BrakeMarker01
+{
+  VisGroups=(32)
+  MeshFile=BrakeMarker01.gmt CollTarget=False HATTarget=False 
+}
+Instance=BrakeMarker02
+{
+  VisGroups=(32)
+  MeshFile=BrakeMarker02.gmt CollTarget=False HATTarget=False 
+}
+Instance=BrakeMarker03
+{
+  VisGroups=(32)
+  MeshFile=BrakeMarker03.gmt CollTarget=False HATTarget=False 
+}
+Instance=BrakeMarker04
+{
+  VisGroups=(32)
+  MeshFile=BrakeMarker04.gmt CollTarget=False HATTarget=False 
+}
+Instance=BrakeMarker05
+{
+  VisGroups=(32)
+  MeshFile=BrakeMarker05.gmt CollTarget=False HATTarget=False 
+}
+Instance=BrakeMarker06
+{
+  VisGroups=(32)
+  MeshFile=BrakeMarker06.gmt CollTarget=False HATTarget=False 
+}
+Instance=BrakeMarker07
+{
+  VisGroups=(32)
+  MeshFile=BrakeMarker07.gmt CollTarget=False HATTarget=False 
+}
+Instance=BrakeMarker08
+{
+  VisGroups=(32)
+  MeshFile=BrakeMarker08.gmt CollTarget=False HATTarget=False 
+}
+Instance=BrakeMarker09
+{
+  VisGroups=(32)
+  MeshFile=BrakeMarker09.gmt CollTarget=False HATTarget=False 
+}
+Instance=BrakeMarker10
+{
+  VisGroups=(32)
+  MeshFile=BrakeMarker10.gmt CollTarget=False HATTarget=False 
+}
+Instance=BrakeMarker11
+{
+  VisGroups=(32)
+  MeshFile=BrakeMarker11.gmt CollTarget=False HATTarget=False 
+}
+Instance=BrakeMarker12
+{
+  VisGroups=(32)
+  MeshFile=BrakeMarker12.gmt CollTarget=False HATTarget=False 
+}
+Instance=BrakeMarker13
+{
+  VisGroups=(32)
+  MeshFile=BrakeMarker13.gmt CollTarget=False HATTarget=False 
+}
+Instance=BrakeMarker14
+{
+  VisGroups=(32)
+  MeshFile=BrakeMarker14.gmt CollTarget=False HATTarget=False 
+}
+
+Instance=BuildingSm00
+{
+  VisGroups=(36)
+  MeshFile=BuildingSm00.gmt CollTarget=True HATTarget=False 
+}
+Instance=BuildingSm01
+{
+  VisGroups=(36)
+  MeshFile=BuildingSm01.gmt CollTarget=True HATTarget=False 
+}
+
+//---------------Garage Lights----------------------------------------
+
+Instance=InsideGarageLight00
+{
+  VisGroups=(32)
+  MeshFile=InsideGarageLight00.gmt CollTarget=False HATTarget=False 
+}
+Instance=InsideGarageLight01
+{
+  VisGroups=(32)
+  MeshFile=InsideGarageLight01.gmt CollTarget=False HATTarget=False 
+}
+Instance=InsideGarageLight02
+{
+  VisGroups=(32)
+  MeshFile=InsideGarageLight02.gmt CollTarget=False HATTarget=False 
+}
+Instance=OutsideGarageLights00
+{
+  VisGroups=(32)
+  MeshFile=OutsideGarageLights00.gmt CollTarget=False HATTarget=False 
+}
+Instance=OutsideGarageLights01
+{
+  VisGroups=(32)
+  MeshFile=OutsideGarageLights01.gmt CollTarget=False HATTarget=False 
+}
+Instance=OutsideGarageLights02
+{
+  VisGroups=(32)
+  MeshFile=OutsideGarageLights02.gmt CollTarget=False HATTarget=False 
+}
+
+//--------------Garages-----------------------------------------
+
+Instance=GarTowOut00
+{
+  MeshFile=GarTowOut00.gmt CollTarget=True HATTarget=False 
+}
+Instance=GarTowOut01
+{
+  MeshFile=GarTowOut01.gmt CollTarget=True HATTarget=False 
+}
+
+Instance=GarWind00
+{
+  VisGroups=(32)
+  MeshFile=GarWind00.gmt CollTarget=True HATTarget=False 
+}
+Instance=GarageInside00
+{
+  MeshFile=GarageInside00.gmt CollTarget=True HATTarget=True 
+}
+Instance=GarageInside01
+{
+  MeshFile=GarageInside01.gmt CollTarget=True HATTarget=True 
+}
+Instance=GarageInside02
+{
+  MeshFile=GarageInside02.gmt CollTarget=True HATTarget=True 
+}
+Instance=GarageInside03
+{
+  MeshFile=GarageInside03.gmt CollTarget=True HATTarget=True 
+}
+Instance=GarageInside04
+{
+  MeshFile=GarageInside04.gmt CollTarget=True HATTarget=True 
+}
+Instance=GarageInside05
+{
+  MeshFile=GarageInside05.gmt CollTarget=True HATTarget=True 
+}
+Instance=GarageInside06
+{
+  MeshFile=GarageInside06.gmt CollTarget=True HATTarget=True 
+}
+Instance=GarageInside07
+{
+  MeshFile=GarageInside07.gmt CollTarget=True HATTarget=True 
+}
+Instance=GarageInside08
+{
+  MeshFile=GarageInside08.gmt CollTarget=True HATTarget=True 
+}
+Instance=GarageInside09
+{
+  MeshFile=GarageInside09.gmt CollTarget=True HATTarget=True 
+}
+Instance=GarageInside10
+{
+  MeshFile=GarageInside10.gmt CollTarget=True HATTarget=True 
+}
+Instance=GarageInside11
+{
+  MeshFile=GarageInside11.gmt CollTarget=True HATTarget=True 
+}
+//Instance=GarageInside12
+//{
+//  MeshFile=GarageInside12.gmt CollTarget=True HATTarget=True 
+//}
+Instance=GarageInside13
+{
+  MeshFile=GarageInside13.gmt CollTarget=True HATTarget=True 
+}
+
+Instance=GarDoors
+{
+  MeshFile=GarDoors.gmt CollTarget=True HATTarget=True 
+}
+Instance=GarOutside00
+{
+  MeshFile=GarOutside00.gmt CollTarget=True HATTarget=True 
+}
+Instance=GarOutside01
+{
+  MeshFile=GarOutside01.gmt CollTarget=True HATTarget=True 
+}
+Instance=GarOutside02
+{
+  MeshFile=GarOutside02.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR00
+{
+  MeshFile=PDOOR00.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR01
+{
+  MeshFile=PDOOR01.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR02
+{
+  MeshFile=PDOOR02.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR03
+{
+  MeshFile=PDOOR03.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR04
+{
+  MeshFile=PDOOR04.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR05
+{
+  MeshFile=PDOOR05.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR06
+{
+  MeshFile=PDOOR06.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR07
+{
+  MeshFile=PDOOR07.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR08
+{
+  MeshFile=PDOOR08.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR09
+{
+  MeshFile=PDOOR09.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR10
+{
+  MeshFile=PDOOR10.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR11
+{
+  MeshFile=PDOOR11.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR12
+{
+  MeshFile=PDOOR12.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR13
+{
+  MeshFile=PDOOR13.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR14
+{
+  MeshFile=PDOOR14.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR15
+{
+  MeshFile=PDOOR15.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR16
+{
+  MeshFile=PDOOR16.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR17
+{
+  MeshFile=PDOOR17.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR18
+{
+  MeshFile=PDOOR18.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR19
+{
+  MeshFile=PDOOR19.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR20
+{
+  MeshFile=PDOOR20.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR21
+{
+  MeshFile=PDOOR21.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR22
+{
+  MeshFile=PDOOR22.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR23
+{
+  MeshFile=PDOOR23.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR24
+{
+  MeshFile=PDOOR24.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR25
+{
+  MeshFile=PDOOR25.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR26
+{
+  MeshFile=PDOOR26.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR27
+{
+  MeshFile=PDOOR27.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR28
+{
+  MeshFile=PDOOR28.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR29
+{
+  MeshFile=PDOOR29.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR30
+{
+  MeshFile=PDOOR30.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR31
+{
+  MeshFile=PDOOR31.gmt CollTarget=True HATTarget=True 
+}
+Instance=PDOOR32
+{
+  MeshFile=PDOOR32.gmt CollTarget=True HATTarget=True 
+}
+Instance=GarOutside03
+{
+  MeshFile=GarOutside03.gmt CollTarget=True HATTarget=True 
+}
+Instance=GarOutside04
+{
+  MeshFile=GarOutside04.gmt CollTarget=True HATTarget=True 
+}
+Instance=GarOutside05
+{
+  MeshFile=GarOutside05.gmt CollTarget=True HATTarget=True 
+}
+Instance=GarOutside06
+{
+  MeshFile=GarOutside06.gmt CollTarget=True HATTarget=True 
+}
+Instance=GarOutside07
+{
+  MeshFile=GarOutside07.gmt CollTarget=True HATTarget=True 
+}
+Instance=GarOutside08
+{
+  MeshFile=GarOutside08.gmt CollTarget=True HATTarget=True 
+}
+Instance=GarOutside09
+{
+  MeshFile=GarOutside09.gmt CollTarget=True HATTarget=True 
+}
+Instance=GarOutside10
+{
+  MeshFile=GarOutside10.gmt CollTarget=True HATTarget=True 
+}
+Instance=GarageInside03
+{
+  MeshFile=GarageInside03.gmt CollTarget=True HATTarget=True 
+}
+Instance=GarageInside05
+{
+  MeshFile=GarageInside05.gmt CollTarget=True HATTarget=True 
+}
+Instance=GarageInside06
+{
+  MeshFile=GarageInside06.gmt CollTarget=True HATTarget=True 
+}
+Instance=GarageInside07
+{
+  MeshFile=GarageInside07.gmt CollTarget=True HATTarget=True 
+}
+
+//--------------Garages Flags-----------------------------------------
+
+Instance=GarFlags00
+{
+  VisGroups=(38)
+  MeshFile=GarFlags00.gmt CollTarget=False HATTarget=False 
+}
+Instance=GarFlags01
+{
+  VisGroups=(38)
+  MeshFile=GarFlags01.gmt CollTarget=False HATTarget=False 
+}
+Instance=GarFlags02
+{
+  VisGroups=(38)
+  MeshFile=GarFlags02.gmt CollTarget=False HATTarget=False 
+}
+Instance=GarFlags03
+{
+  VisGroups=(38)
+  MeshFile=GarFlags03.gmt CollTarget=False HATTarget=False 
+}
+Instance=GarFlags04
+{
+  VisGroups=(38)
+  MeshFile=GarFlags04.gmt CollTarget=False HATTarget=False 
+}
+
+//----------Grass Rows--------------------------------------------------
+
+Instance=GRASSROWS01
+{
+  VisGroups=(38)
+  MeshFile=GRASSROWS01.gmt CollTarget=False HATTarget=False 
+}
+Instance=GRASSROWS02
+{
+  VisGroups=(38)
+  MeshFile=GRASSROWS02.gmt CollTarget=False HATTarget=False 
+}
+Instance=GRASSROWS03
+{
+  VisGroups=(38)
+  MeshFile=GRASSROWS03.gmt CollTarget=False HATTarget=False 
+}
+Instance=GRASSROWS04
+{
+  VisGroups=(38)
+  MeshFile=GRASSROWS04.gmt CollTarget=False HATTarget=False 
+}
+Instance=GRASSROWS05
+{
+  VisGroups=(38)
+  MeshFile=GRASSROWS05.gmt CollTarget=False HATTarget=False 
+}
+Instance=GRASSROWS06
+{
+  VisGroups=(38)
+  MeshFile=GRASSROWS06.gmt CollTarget=False HATTarget=False 
+}
+Instance=GRASSROWS07
+{
+  VisGroups=(38)
+  MeshFile=GRASSROWS07.gmt CollTarget=False HATTarget=False 
+}
+Instance=GRASSROWS08
+{
+  VisGroups=(38)
+  MeshFile=GRASSROWS08.gmt CollTarget=False HATTarget=False 
+}
+Instance=GRASSROWS09
+{
+  VisGroups=(38)
+  MeshFile=GRASSROWS09.gmt CollTarget=False HATTarget=False 
+}
+Instance=GRASSROWS10
+{
+  VisGroups=(38)
+  MeshFile=GRASSROWS10.gmt CollTarget=False HATTarget=False 
+}
+Instance=GRASSROWS11
+{
+  VisGroups=(38)
+  MeshFile=GRASSROWS11.gmt CollTarget=False HATTarget=False 
+}
+Instance=GRASSROWS12
+{
+  VisGroups=(38)
+  MeshFile=GRASSROWS12.gmt CollTarget=False HATTarget=False 
+}
+Instance=GRASSROWS13
+{
+  VisGroups=(38)
+  MeshFile=GRASSROWS13.gmt CollTarget=False HATTarget=False 
+}
+Instance=GRASSROWS14
+{
+  VisGroups=(38)
+  MeshFile=GRASSROWS14.gmt CollTarget=False HATTarget=False 
+}
+Instance=GRASSROWS15
+{
+  VisGroups=(38)
+  MeshFile=GRASSROWS15.gmt CollTarget=False HATTarget=False 
+}
+Instance=GRASSROWS16
+{
+  VisGroups=(38)
+  MeshFile=GRASSROWS16.gmt CollTarget=False HATTarget=False 
+}
+Instance=GRASSROWS17
+{
+  VisGroups=(38)
+  MeshFile=GRASSROWS17.gmt CollTarget=False HATTarget=False 
+}
+Instance=GRASSROWS18
+{
+  VisGroups=(38)
+  MeshFile=GRASSROWS18.gmt CollTarget=False HATTarget=False 
+}
+Instance=GRASSROWS192003
+{
+  VisGroups=(38)
+  MeshFile=GRASSROWS192003.gmt CollTarget=False HATTarget=False 
+}
+Instance=GRASSROWS20
+{
+  VisGroups=(38)
+  MeshFile=GRASSROWS20.gmt CollTarget=False HATTarget=False 
+}
+
+//-------Edge Shadows------------------------------------------------
+
+Instance=Edgeshadows00
+{
+  VisGroups=(38)
+  MeshFile=Edgeshadows00.gmt CollTarget=False HATTarget=False 
+}
+Instance=Edgeshadows01
+{
+  VisGroups=(38)
+  MeshFile=Edgeshadows01.gmt CollTarget=False HATTarget=False 
+}
+Instance=Edgeshadows02
+{
+  VisGroups=(38)
+  MeshFile=Edgeshadows02.gmt CollTarget=False HATTarget=False 
+}
+Instance=Edgeshadows03
+{
+  VisGroups=(38)
+  MeshFile=Edgeshadows03.gmt CollTarget=False HATTarget=False 
+}
+Instance=Edgeshadows04
+{
+  VisGroups=(38)
+  MeshFile=Edgeshadows04.gmt CollTarget=False HATTarget=False 
+}
+Instance=Edgeshadows05
+{
+  VisGroups=(38)
+  MeshFile=Edgeshadows05.gmt CollTarget=False HATTarget=False 
+}
+Instance=Edgeshadows06
+{
+  VisGroups=(38)
+  MeshFile=Edgeshadows06.gmt CollTarget=False HATTarget=False 
+}
+Instance=Edgeshadows07
+{
+  VisGroups=(38)
+  MeshFile=Edgeshadows07.gmt CollTarget=False HATTarget=False 
+}
+Instance=Edgeshadows08
+{
+  VisGroups=(38)
+  MeshFile=Edgeshadows08.gmt CollTarget=False HATTarget=False 
+}
+
+//--------------GrandStands/Gantry-----------------------------------------
+
+Instance=GrandStand00
+{
+  VisGroups=(36)
+  MeshFile=GrandStand00.gmt CollTarget=True HATTarget=False 
+}
+Instance=GrandStand01
+{
+  VisGroups=(36)
+  MeshFile=GrandStand01.gmt CollTarget=True HATTarget=False 
+}
+Instance=GrandStand02
+{
+  VisGroups=(36)
+  MeshFile=GrandStand02.gmt CollTarget=True HATTarget=False 
+}
+Instance=GrandStand03
+{
+  VisGroups=(36)
+  MeshFile=GrandStand03.gmt CollTarget=True HATTarget=False 
+}
+Instance=GrandStand04
+{
+  VisGroups=(36)
+  MeshFile=GrandStand04.gmt CollTarget=True HATTarget=False 
+}
+Instance=GrandStand05
+{
+  VisGroups=(36)
+  MeshFile=GrandStand05.gmt CollTarget=True HATTarget=False 
+}
+Instance=GrandStand06
+{
+  VisGroups=(36)
+  MeshFile=GrandStand06.gmt CollTarget=True HATTarget=False 
+}
+Instance=GrandStand07
+{
+  VisGroups=(36)
+  MeshFile=GrandStand07.gmt CollTarget=True HATTarget=False 
+}
+
+Instance=GTGantry
+{
+  VisGroups=(38)
+  MeshFile=GTGantry.gmt CollTarget=True HATTarget=False 
+}
+
+Instance=F1GantryA
+{
+  VisGroups=(38)
+  MeshFile=F1GantryA.gmt CollTarget=True HATTarget=False 
+}
+Instance=F1GantryB
+{
+  VisGroups=(38)
+  MeshFile=F1GantryB.gmt CollTarget=True HATTarget=False 
+}
+
+//------------Fences-------------------------------------------
+
+Instance=Fence00
+{
+  VisGroups=(36)
+  MeshFile=Fence00.gmt CollTarget=True HATTarget=True 
+}
+Instance=Fence01
+{
+  VisGroups=(36)
+  MeshFile=Fence01.gmt CollTarget=True HATTarget=True 
+}
+Instance=Fence02
+{
+  VisGroups=(32)
+  MeshFile=Fence02.gmt CollTarget=True HATTarget=True 
+}
+Instance=Fence03
+{
+  VisGroups=(32)
+  MeshFile=Fence03.gmt CollTarget=True HATTarget=True 
+}
+Instance=Fence04
+{
+  VisGroups=(32)
+  MeshFile=Fence04.gmt CollTarget=True HATTarget=True 
+}
+Instance=Fence06
+{
+  VisGroups=(32)
+  MeshFile=Fence06.gmt CollTarget=True HATTarget=True 
+}
+Instance=Fence07
+{
+  VisGroups=(32)
+  MeshFile=Fence07.gmt CollTarget=True HATTarget=True 
+}
+Instance=Fence08
+{
+  VisGroups=(32)
+  MeshFile=Fence08.gmt CollTarget=True HATTarget=True 
+}
+Instance=Fence09
+{
+  VisGroups=(32)
+  MeshFile=Fence09.gmt CollTarget=True HATTarget=True 
+}
+Instance=Fence10
+{
+  VisGroups=(32)
+  MeshFile=Fence10.gmt CollTarget=True HATTarget=True 
+}
+Instance=Fence11
+{
+  VisGroups=(32)
+  MeshFile=Fence11.gmt CollTarget=True HATTarget=True 
+}
+Instance=FencePole01
+{
+  VisGroups=(36)
+  MeshFile=FencePole01.gmt CollTarget=True HATTarget=True 
+}
+Instance=FencePole02
+{
+  VisGroups=(36)
+  MeshFile=FencePole02.gmt CollTarget=True HATTarget=True 
+}
+Instance=FencePole03
+{
+  VisGroups=(36)
+  MeshFile=FencePole03.gmt CollTarget=True HATTarget=True 
+}
+Instance=FencePole04
+{
+  VisGroups=(36)
+  MeshFile=FencePole04.gmt CollTarget=True HATTarget=True 
+}
+Instance=FencePole05
+{
+  VisGroups=(36)
+  MeshFile=FencePole05.gmt CollTarget=True HATTarget=True 
+}
+Instance=FencePole06
+{
+  VisGroups=(36)
+  MeshFile=FencePole06.gmt CollTarget=True HATTarget=True 
+}
+Instance=FencePole07
+{
+  VisGroups=(36)
+  MeshFile=FencePole07.gmt CollTarget=True HATTarget=True 
+}
+Instance=FencePole08
+{
+  VisGroups=(36)
+  MeshFile=FencePole08.gmt CollTarget=True HATTarget=True 
+}
+Instance=FencePole09
+{
+  VisGroups=(36)
+  MeshFile=FencePole09.gmt CollTarget=True HATTarget=True 
+}
+Instance=FencePole10
+{
+  VisGroups=(36)
+  MeshFile=FencePole10.gmt CollTarget=True HATTarget=True 
+}
+Instance=FencePole11
+{
+  VisGroups=(36)
+  MeshFile=FencePole11.gmt CollTarget=True HATTarget=True 
+}
+Instance=FencePole12
+{
+  VisGroups=(36)
+  MeshFile=FencePole12.gmt CollTarget=True HATTarget=True 
+}
+Instance=FencePole13
+{
+  VisGroups=(36)
+  MeshFile=FencePole13.gmt CollTarget=True HATTarget=True 
+}
+Instance=FencePole14
+{
+  VisGroups=(36)
+  MeshFile=FencePole14.gmt CollTarget=True HATTarget=True 
+}
+Instance=FencePole15
+{
+  VisGroups=(36)
+  MeshFile=FencePole15.gmt CollTarget=True HATTarget=True 
+}
+Instance=FencePole16
+{
+  VisGroups=(36)
+  MeshFile=FencePole16.gmt CollTarget=True HATTarget=True 
+}
+Instance=FencePole17
+{
+  VisGroups=(36)
+  MeshFile=FencePole17.gmt CollTarget=True HATTarget=True 
+}
+
+//------------Light Poles-------------------------------------------
+
+Instance=LightPoles00
+{
+  VisGroups=(32)
+  MeshFile=LightPoles00.gmt CollTarget=True HATTarget=False 
+}
+Instance=LightPoles01
+{
+  VisGroups=(32)
+  MeshFile=LightPoles01.gmt CollTarget=True HATTarget=False 
+}
+Instance=LightPoles02
+{
+  VisGroups=(32)
+  MeshFile=LightPoles02.gmt CollTarget=True HATTarget=False 
+}
+Instance=LightPoles03
+{
+  VisGroups=(32)
+  MeshFile=LightPoles03.gmt CollTarget=True HATTarget=False 
+}
+Instance=LightPoles04
+{
+  VisGroups=(32)
+  MeshFile=LightPoles04.gmt CollTarget=True HATTarget=False 
+}
+Instance=LightPoles05
+{
+  VisGroups=(32)
+  MeshFile=LightPoles05.gmt CollTarget=True HATTarget=False 
+}
+Instance=LightPoles06
+{
+  VisGroups=(32)
+  MeshFile=LightPoles06.gmt CollTarget=True HATTarget=False 
+}
+
+//-------------------------------------------------------
+
+Instance=Logo00
+{
+  VisGroups=(38)
+  MeshFile=Logo00.gmt CollTarget=True HATTarget=False 
+}
+Instance=Logo01
+{
+  VisGroups=(38)
+  MeshFile=Logo01.gmt CollTarget=True HATTarget=False 
+}
+Instance=Logo02
+{
+  VisGroups=(38)
+  MeshFile=Logo02.gmt CollTarget=True HATTarget=False 
+}
+Instance=Logo03
+{
+  VisGroups=(38)
+  MeshFile=Logo03.gmt CollTarget=True HATTarget=False 
+}
+Instance=Logo04
+{
+  VisGroups=(38)
+  MeshFile=Logo04.gmt CollTarget=True HATTarget=False 
+}
+Instance=Logo05
+{
+  VisGroups=(38)
+  MeshFile=Logo05.gmt CollTarget=True HATTarget=False 
+}
+
+//---------Marshall Huts----------------------------------------------
+
+Instance=MHut00
+{
+  VisGroups=(32)
+  MeshFile=MHut00.gmt CollTarget=True HATTarget=False 
+}
+Instance=MHut01
+{
+  VisGroups=(32)
+  MeshFile=MHut01.gmt CollTarget=True HATTarget=False 
+}
+Instance=MHut02
+{
+  VisGroups=(32)
+  MeshFile=MHut02.gmt CollTarget=True HATTarget=False 
+}
+Instance=MHut03
+{
+  VisGroups=(32)
+  MeshFile=MHut03.gmt CollTarget=True HATTarget=False 
+}
+Instance=MHut04
+{
+  VisGroups=(32)
+  MeshFile=MHut04.gmt CollTarget=True HATTarget=False 
+}
+Instance=MHut05
+{
+  VisGroups=(32)
+  MeshFile=MHut05.gmt CollTarget=True HATTarget=False 
+}
+Instance=MHut06
+{
+  VisGroups=(32)
+  MeshFile=MHut06.gmt CollTarget=True HATTarget=False 
+}
+Instance=MHut07
+{
+  VisGroups=(32)
+  MeshFile=MHut07.gmt CollTarget=True HATTarget=False 
+}
+
+Instance=OBJ_BR1
+{
+  VisGroups=(38)
+  MeshFile=OBJ_BR1.gmt CollTarget=True HATTarget=False 
+}
+Instance=OBJ_BR2
+{
+  VisGroups=(38)
+  MeshFile=OBJ_BR2.gmt CollTarget=True HATTarget=False 
+}
+Instance=OBJ_BR3
+{
+  VisGroups=(38)
+  MeshFile=OBJ_BR3.gmt CollTarget=True HATTarget=False 
+}
+Instance=OBJ_BR4
+{
+  VisGroups=(38)
+  MeshFile=OBJ_BR4.gmt CollTarget=True HATTarget=False 
+}
+Instance=OBJ_FOODST00
+{
+  VisGroups=(38)
+  MeshFile=OBJ_FOODST00.gmt CollTarget=False HATTarget=False 
+}
+Instance=OBJ_FOODST01
+{
+  VisGroups=(38)
+  MeshFile=OBJ_FOODST01.gmt CollTarget=False HATTarget=False 
+}
+Instance=OBJ_FOODST02
+{
+  VisGroups=(38)
+  MeshFile=OBJ_FOODST02.gmt CollTarget=False HATTarget=False 
+}
+Instance=OBJ_FOODST03
+{
+  VisGroups=(38)
+  MeshFile=OBJ_FOODST03.gmt CollTarget=False HATTarget=False 
+}
+Instance=OBJ_FOODST04
+{
+  VisGroups=(38)
+  MeshFile=OBJ_FOODST04.gmt CollTarget=False HATTarget=False 
+}
+Instance=OBJ_FOODST05
+{
+  VisGroups=(38)
+  MeshFile=OBJ_FOODST05.gmt CollTarget=False HATTarget=False 
+}
+
+//---------Start/PitLights----------------------------------------------
+
+Instance=OBJ_PITLANELIGHTS01
+{
+  VisGroups=(32)
+  MeshFile=OBJ_PITLANELIGHTS01.gmt CollTarget=True HATTarget=False 
+}
+Instance=OBJ_PITLANELIGHTS02
+{
+  VisGroups=(32)
+  MeshFile=OBJ_PITLANELIGHTS02.gmt CollTarget=True HATTarget=False 
+}
+Instance=OBJ_STARTLIGHTS
+{
+  VisGroups=(32)
+  MeshFile=OBJ_STARTLIGHTS.gmt CollTarget=False HATTarget=False 
+}
+
+//---------Tents----------------------------------------------
+
+Instance=Tent00
+{
+  VisGroups=(38)
+  MeshFile=Tent00.gmt CollTarget=False HATTarget=False 
+}
+Instance=Tent01
+{
+  VisGroups=(38)
+  MeshFile=Tent01.gmt CollTarget=False HATTarget=False 
+}
+Instance=Tent02
+{
+  VisGroups=(38)
+  MeshFile=Tent02.gmt CollTarget=False HATTarget=False 
+}
+Instance=Tent02A
+{
+  VisGroups=(38)
+  MeshFile=Tent02A.gmt CollTarget=False HATTarget=False 
+}
+Instance=Tent02B
+{
+  VisGroups=(38)
+  MeshFile=Tent02B.gmt CollTarget=False HATTarget=False 
+}
+
+//---------PitExitBoards----------------------------------------------
+
+Instance=PitExitBldA
+{
+  MeshFile=PitExitBldA.gmt CollTarget=False HATTarget=False 
+}
+Instance=PitExitBldB
+{
+  MeshFile=PitExitBldB.gmt CollTarget=False HATTarget=False 
+}
+Instance=PitExitBoard
+{
+  MeshFile=PitExitBoard.gmt CollTarget=False HATTarget=False 
+}
+
+//-----------PitWall--------------------------------------------
+
+Instance=PitWall00
+{
+  MeshFile=PitWall00.gmt CollTarget=True HATTarget=True ShadowReceiver=True  
+}
+Instance=PitWall01
+{
+  MeshFile=PitWall01.gmt CollTarget=True HATTarget=True ShadowReceiver=True  
+}
+
+Instance=LGBanners
+{
+  VisGroups=(36)
+  MeshFile=LGBanners.gmt CollTarget=True HATTarget=False 
+}
+Instance=LGBarriers
+{
+  VisGroups=(36)
+  MeshFile=LGBarriers.gmt CollTarget=True HATTarget=False 
+}
+
+Instance=PTLIT01
+{
+  VisGroups=(32)
+  MeshFile=PTLIT01.gmt CollTarget=False HATTarget=False 
+}
+Instance=PTLIT02
+{
+  VisGroups=(32)
+  MeshFile=PTLIT02.gmt CollTarget=False HATTarget=False 
+}
+
+//----------Wind Sheilds Pit Wall---------------------------------------------
+
+Instance=WINDSH00
+{
+  VisGroups=(38)
+  MeshFile=WINDSH00.gmt CollTarget=False HATTarget=False 
+}
+Instance=WINDSH01
+{
+  VisGroups=(38)
+  MeshFile=WINDSH01.gmt CollTarget=False HATTarget=False 
+}
+Instance=WINDSH02
+{
+  VisGroups=(38)
+  MeshFile=WINDSH02.gmt CollTarget=False HATTarget=False 
+}
+Instance=WINDSH03
+{
+  VisGroups=(38)
+  MeshFile=WINDSH03.gmt CollTarget=False HATTarget=False 
+}
+Instance=WINDSH04
+{
+  VisGroups=(38)
+  MeshFile=WINDSH04.gmt CollTarget=False HATTarget=False 
+}
+
+//-------------Sand Edge------------------------------------------
+
+Instance=SandEdge00
+{
+  VisGroups=(32)
+  MeshFile=SandEdge00.gmt CollTarget=False HATTarget=False 
+}
+Instance=SandEdge01
+{
+  VisGroups=(32)
+  MeshFile=SandEdge01.gmt CollTarget=False HATTarget=False 
+}
+Instance=SandEdge02
+{
+  VisGroups=(32)
+  MeshFile=SandEdge02.gmt CollTarget=False HATTarget=False 
+}
+Instance=SandEdge03
+{
+  VisGroups=(32)
+  MeshFile=SandEdge03.gmt CollTarget=False HATTarget=False 
+}
+Instance=SandEdge04
+{
+  VisGroups=(32)
+  MeshFile=SandEdge04.gmt CollTarget=False HATTarget=False 
+}
+Instance=SandEdge05
+{
+  VisGroups=(32)
+  MeshFile=SandEdge05.gmt CollTarget=False HATTarget=False 
+}
+Instance=SandEdge06
+{
+  VisGroups=(32)
+  MeshFile=SandEdge06.gmt CollTarget=False HATTarget=False 
+}
+
+
+Instance=SFPostFacet
+{
+  VisGroups=(32)
+  MeshFile=SFPostFacet.gmt CollTarget=True HATTarget=False 
+}
+Instance=SFPostSm3
+{
+  VisGroups=(32)
+  MeshFile=SFPostSm3.gmt CollTarget=True HATTarget=False 
+}
+Instance=SFPostSm4
+{
+  VisGroups=(32)
+  MeshFile=SFPostSm4.gmt CollTarget=True HATTarget=False 
+}
+Instance=SFPostWindow
+{
+  VisGroups=(32)
+  MeshFile=SFPostWindow.gmt CollTarget=True HATTarget=False 
+}
+
+//---------PitExitBoards----------------------------------------------
+
+Instance=SignChicaneBox1
+{
+  Moveable=True VisGroups=(32)
+  MeshFile=SignChicaneBox1.gmt CollTarget=True HATTarget=True ShadowCaster=(Static, Solid, 16, 16) 
+}
+Instance=SignChicaneBox2
+{
+  Moveable=True VisGroups=(32)
+  MeshFile=SignChicaneBox2.gmt CollTarget=True HATTarget=True ShadowCaster=(Static, Solid, 16, 16) 
+}
+Instance=SignChicaneBox3
+{
+  Moveable=True VisGroups=(32)
+  MeshFile=SignChicaneBox3.gmt CollTarget=True HATTarget=True ShadowCaster=(Static, Solid, 16, 16) 
+}
+Instance=SignChicaneBox4
+{
+  Moveable=True VisGroups=(32)
+  MeshFile=SignChicaneBox4.gmt CollTarget=True HATTarget=True ShadowCaster=(Static, Solid, 16, 16) 
+}
+Instance=SignChicaneBox6
+{
+  Moveable=True VisGroups=(32)
+  MeshFile=SignChicaneBox6.gmt CollTarget=True HATTarget=True ShadowCaster=(Static, Solid, 16, 16) 
+}
+Instance=SignChicaneBox7
+{
+  Moveable=True VisGroups=(32)
+  MeshFile=SignChicaneBox7.gmt CollTarget=True HATTarget=True ShadowCaster=(Static, Solid, 16, 16) 
+}
+Instance=SignChicaneBox8
+{
+  Moveable=True VisGroups=(32)
+  MeshFile=SignChicaneBox8.gmt CollTarget=True HATTarget=True ShadowCaster=(Static, Solid, 16, 16) 
+}
+
+//---------Skid Marks----------------------------------------------
+
+Instance=Skid00
+{
+  VisGroups=(38)
+  MeshFile=Skid00.gmt CollTarget=False HATTarget=False 
+}
+Instance=Skid01
+{
+  VisGroups=(38)
+  MeshFile=Skid01.gmt CollTarget=False HATTarget=False 
+}
+Instance=Skid02
+{
+  VisGroups=(38)
+  MeshFile=Skid02.gmt CollTarget=False HATTarget=False 
+}
+Instance=Skid03
+{
+  VisGroups=(38)
+  MeshFile=Skid03.gmt CollTarget=False HATTarget=False 
+}
+Instance=Skid04
+{
+  VisGroups=(38)
+  MeshFile=Skid04.gmt CollTarget=False HATTarget=False 
+}
+Instance=Skid05
+{
+  VisGroups=(38)
+  MeshFile=Skid05.gmt CollTarget=False HATTarget=False 
+}
+Instance=Skid06
+{
+  VisGroups=(38)
+  MeshFile=Skid06.gmt CollTarget=False HATTarget=False 
+}
+Instance=Skid07
+{
+  VisGroups=(38)
+  MeshFile=Skid07.gmt CollTarget=False HATTarget=False 
+}
+Instance=Skid08
+{
+  VisGroups=(38)
+  MeshFile=Skid08.gmt CollTarget=False HATTarget=False 
+}
+Instance=Skid09
+{
+  VisGroups=(38)
+  MeshFile=Skid09.gmt CollTarget=False HATTarget=False 
+}
+Instance=Skid10
+{
+  VisGroups=(38)
+  MeshFile=Skid10.gmt CollTarget=False HATTarget=False 
+}
+Instance=Skid11
+{
+  VisGroups=(38)
+  MeshFile=Skid11.gmt CollTarget=False HATTarget=False 
+}
+
+//----------Speakers A LOD---------------------------------------------
+
+Instance=Speaker00
+{
+  VisGroups=(33)
+  MeshFile=Speaker00.gmt CollTarget=True HATTarget=False 
+}
+Instance=Speaker01
+{
+  VisGroups=(33)
+  MeshFile=Speaker01.gmt CollTarget=True HATTarget=False 
+}
+Instance=Speaker02
+{
+  VisGroups=(33)
+  MeshFile=Speaker02.gmt CollTarget=True HATTarget=False 
+}
+Instance=Speaker03
+{
+  VisGroups=(33)
+  MeshFile=Speaker03.gmt CollTarget=True HATTarget=False 
+}
+Instance=Speaker04
+{
+  VisGroups=(33)
+  MeshFile=Speaker04.gmt CollTarget=True HATTarget=False 
+}
+
+//----------Sart Lights / Pit Lights---------------------------------------------
+
+Instance=STLITE
+{
+  VisGroups=(32)
+  MeshFile=STLITE.gmt CollTarget=False HATTarget=False 
+}
+
+//------------Terrain-------------------------------------------
+
+Instance=Terrain00
+{
+  MeshFile=Terrain00.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain01
+{
+  MeshFile=Terrain01.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain02
+{
+  MeshFile=Terrain02.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain03
+{
+  MeshFile=Terrain03.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain04
+{
+  MeshFile=Terrain04.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain05
+{
+  MeshFile=Terrain05.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain06
+{
+  MeshFile=Terrain06.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain06A
+{
+  MeshFile=Terrain06A.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain07
+{
+  MeshFile=Terrain07.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain08
+{
+  MeshFile=Terrain08.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain09
+{
+  MeshFile=Terrain09.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain10
+{
+  MeshFile=Terrain10.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain11
+{
+  MeshFile=Terrain11.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain12
+{
+  MeshFile=Terrain12.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain13
+{
+  MeshFile=Terrain13.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain14
+{
+  MeshFile=Terrain14.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain15
+{
+  MeshFile=Terrain15.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain16
+{
+  MeshFile=Terrain16.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain17
+{
+  MeshFile=Terrain17.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain18
+{
+  MeshFile=Terrain18.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain19
+{
+  MeshFile=Terrain19.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain20
+{
+  MeshFile=Terrain20.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain21
+{
+  MeshFile=Terrain21.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain21a
+{
+  MeshFile=Terrain21a.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain22
+{
+  MeshFile=Terrain22.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain23
+{
+  MeshFile=Terrain23.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain24
+{
+  MeshFile=Terrain24.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain25
+{
+  MeshFile=Terrain25.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain26
+{
+  MeshFile=Terrain26.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain27
+{
+  MeshFile=Terrain27.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain28
+{
+  MeshFile=Terrain28.gmt CollTarget=True HATTarget=True 
+}
+Instance=Terrain29
+{
+  MeshFile=Terrain29.gmt CollTarget=True HATTarget=True 
+}
+
+Instance=Tunnel01
+{
+  MeshFile=Tunnel01.gmt CollTarget=True HATTarget=True 
+}
+Instance=Tunnel02
+{
+  MeshFile=Tunnel02.gmt CollTarget=True HATTarget=True 
+}
+
+//---------------Toilets----------------------------------------
+
+Instance=Toilet00
+{
+  VisGroups=(39)
+  MeshFile=Toilet00.gmt CollTarget=True HATTarget=False 
+}
+Instance=Toilet01
+{
+  VisGroups=(39)
+  MeshFile=Toilet01.gmt CollTarget=True HATTarget=False 
+}
+Instance=Toilet02
+{
+  VisGroups=(39)
+  MeshFile=Toilet02.gmt CollTarget=True HATTarget=False 
+}
+Instance=Toilet03
+{
+  VisGroups=(39)
+  MeshFile=Toilet03.gmt CollTarget=True HATTarget=False 
+}
+Instance=Toilet04
+{
+  VisGroups=(39)
+  MeshFile=Toilet04.gmt CollTarget=True HATTarget=False 
+}
+Instance=Toilet05
+{
+  VisGroups=(39)
+  MeshFile=Toilet05.gmt CollTarget=True HATTarget=False 
+}
+
+//----------Trucks---------------------------------------------
+
+Instance=Trucks00
+{
+  VisGroups=(36)
+  MeshFile=Trucks00.gmt CollTarget=True HATTarget=False 
+}
+Instance=Trucks01
+{
+  VisGroups=(36)
+  MeshFile=Trucks01.gmt CollTarget=True HATTarget=False 
+}
+Instance=Trucks02
+{
+  VisGroups=(36)
+  MeshFile=Trucks02.gmt CollTarget=True HATTarget=False 
+}
+Instance=Trucks03
+{
+  VisGroups=(36)
+  MeshFile=Trucks03.gmt CollTarget=True HATTarget=False 
+}
+Instance=Trucks04
+{
+  VisGroups=(36)
+  MeshFile=Trucks04.gmt CollTarget=True HATTarget=False 
+}
+Instance=Trucks05
+{
+  VisGroups=(36)
+  MeshFile=Trucks05.gmt CollTarget=True HATTarget=False 
+}
+Instance=Trucks06
+{
+  VisGroups=(36)
+  MeshFile=Trucks06.gmt CollTarget=True HATTarget=False 
+}
+Instance=Trucks07
+{
+  VisGroups=(36)
+  MeshFile=Trucks07.gmt CollTarget=True HATTarget=False 
+}
+
+Instance=TentRoofs00
+{
+  VisGroups=(36)
+  MeshFile=TentRoofs00.gmt CollTarget=True HATTarget=False 
+}
+Instance=TentRoofs01
+{
+  VisGroups=(36)
+  MeshFile=TentRoofs01.gmt CollTarget=True HATTarget=False 
+}
+Instance=TentRoofs02
+{
+  VisGroups=(36)
+  MeshFile=TentRoofs02.gmt CollTarget=True HATTarget=False 
+}
+Instance=TentRoofs03
+{
+  VisGroups=(36)
+  MeshFile=TentRoofs03.gmt CollTarget=True HATTarget=False 
+}
+Instance=TentRoofs04
+{
+  VisGroups=(36)
+  MeshFile=TentRoofs04.gmt CollTarget=True HATTarget=False 
+}
+Instance=TentRoofs05
+{
+  VisGroups=(36)
+  MeshFile=TentRoofs05.gmt CollTarget=True HATTarget=False 
+}
+Instance=TentRoofs06
+{
+  VisGroups=(36)
+  MeshFile=TentRoofs06.gmt CollTarget=True HATTarget=False 
+}
+Instance=TentRoofs07
+{
+  VisGroups=(36)
+  MeshFile=TentRoofs07.gmt CollTarget=True HATTarget=False 
+}
+
+//----------Walls---------------------------------------------
+
+Instance=Wall00
+{
+  MeshFile=Wall00.gmt CollTarget=True HATTarget=True ShadowReceiver=True ZBias=(0) 
+}
+Instance=Wall01
+{
+  MeshFile=Wall01.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=Wall02
+{
+  MeshFile=Wall02.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=Wall03
+{
+  MeshFile=Wall03.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+
+//---------Trees----------------------------------------------
+
+Instance=LPTrees00
+{
+   VisGroups=(36)
+  MeshFile=LPTrees00.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees01
+{
+   VisGroups=(36)
+  MeshFile=LPTrees01.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees02
+{
+   VisGroups=(36)
+  MeshFile=LPTrees02.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees03
+{
+   VisGroups=(36)
+  MeshFile=LPTrees03.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees04
+{
+   VisGroups=(36)
+  MeshFile=LPTrees04.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees05
+{
+   VisGroups=(36)
+  MeshFile=LPTrees05.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees06
+{
+   VisGroups=(36)
+  MeshFile=LPTrees06.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees07
+{
+   VisGroups=(36)
+  MeshFile=LPTrees07.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees08
+{
+   VisGroups=(36)
+  MeshFile=LPTrees08.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees09
+{
+   VisGroups=(36)
+  MeshFile=LPTrees09.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees10
+{
+   VisGroups=(36)
+  MeshFile=LPTrees10.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees11
+{
+   VisGroups=(36)
+  MeshFile=LPTrees11.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees12
+{
+   VisGroups=(36)
+  MeshFile=LPTrees12.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees13
+{
+   VisGroups=(36)
+  MeshFile=LPTrees13.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees14
+{
+   VisGroups=(36)
+  MeshFile=LPTrees14.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees15
+{
+   VisGroups=(36)
+  MeshFile=LPTrees15.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees16
+{
+   VisGroups=(36)
+  MeshFile=LPTrees16.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees17
+{
+   VisGroups=(36)
+  MeshFile=LPTrees17.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees18
+{
+   VisGroups=(36)
+  MeshFile=LPTrees18.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees19
+{
+   VisGroups=(36)
+  MeshFile=LPTrees19.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees20
+{
+   VisGroups=(36)
+  MeshFile=LPTrees20.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees21
+{
+   VisGroups=(36)
+  MeshFile=LPTrees21.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees22
+{
+   VisGroups=(36)
+  MeshFile=LPTrees22.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees23
+{
+   VisGroups=(36)
+  MeshFile=LPTrees23.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees24
+{
+   VisGroups=(36)
+  MeshFile=LPTrees24.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees25
+{
+   VisGroups=(36)
+  MeshFile=LPTrees25.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees26
+{
+   VisGroups=(36)
+  MeshFile=LPTrees26.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees27
+{
+   VisGroups=(36)
+  MeshFile=LPTrees27.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees28
+{
+   VisGroups=(36)
+  MeshFile=LPTrees28.gmt CollTarget=False HATTarget=False 
+}
+Instance=LPTrees29
+{
+   VisGroups=(36)
+  MeshFile=LPTrees29.gmt CollTarget=False HATTarget=False 
+}
+
+Instance=TreeWall00
+{
+  MeshFile=TreeWall00.gmt CollTarget=False HATTarget=False 
+}
+Instance=TreeWall01
+{
+  MeshFile=TreeWall01.gmt CollTarget=False HATTarget=False 
+}
+Instance=TreeWall02
+{
+  MeshFile=TreeWall02.gmt CollTarget=False HATTarget=False 
+}
+Instance=TreeWall03
+{
+  MeshFile=TreeWall03.gmt CollTarget=False HATTarget=False 
+}
+Instance=TreeWall04
+{
+  MeshFile=TreeWall04.gmt CollTarget=False HATTarget=False 
+}
+Instance=TreeWall05
+{
+  MeshFile=TreeWall05.gmt CollTarget=False HATTarget=False 
+}
+Instance=TreeWall06
+{
+  MeshFile=TreeWall06.gmt CollTarget=False HATTarget=False 
+}
+Instance=TreeWall07
+{
+  MeshFile=TreeWall07.gmt CollTarget=False HATTarget=False 
+}
+Instance=TreeWall08
+{
+  MeshFile=TreeWall08.gmt CollTarget=False HATTarget=False 
+}
+Instance=TreeWall09
+{
+  MeshFile=TreeWall09.gmt CollTarget=False HATTarget=False 
+}
+Instance=TreeWall10
+{
+  MeshFile=TreeWall10.gmt CollTarget=False HATTarget=False 
+}
+Instance=TreeWall11
+{
+  MeshFile=TreeWall11.gmt CollTarget=False HATTarget=False 
+}
+Instance=TreeWall12
+{
+  MeshFile=TreeWall12.gmt CollTarget=False HATTarget=False 
+}
+Instance=smallbirch
+{
+  MeshFile=smallbirch.gmt CollTarget=True HATTarget=False 
+}
+Instance=bushes01
+{
+  MeshFile=bushes01.gmt CollTarget=True HATTarget=False 
+}
+Instance=bushes02
+{
+  MeshFile=bushes02.gmt CollTarget=True HATTarget=False 
+}
+Instance=bushes03
+{
+  MeshFile=bushes03.gmt CollTarget=True HATTarget=False 
+}
+Instance=bushes04
+{
+  MeshFile=bushes04.gmt CollTarget=True HATTarget=False 
+}
+Instance=bushes05
+{
+  MeshFile=bushes05.gmt CollTarget=True HATTarget=False 
+}
+Instance=bushes06
+{
+  MeshFile=bushes06.gmt CollTarget=True HATTarget=False 
+}
+Instance=bushes12
+{
+  MeshFile=bushes12.gmt CollTarget=True HATTarget=False 
+}
+Instance=bushes13
+{
+  MeshFile=bushes13.gmt CollTarget=True HATTarget=False 
+}
+Instance=bushes14
+{
+  MeshFile=bushes14.gmt CollTarget=True HATTarget=False 
+}
+Instance=bushes15
+{
+  MeshFile=bushes15.gmt CollTarget=True HATTarget=False 
+}
+Instance=bushes16
+{
+  MeshFile=bushes16.gmt CollTarget=True HATTarget=False 
+}
+Instance=bushes17
+{
+  MeshFile=bushes17.gmt CollTarget=True HATTarget=False 
+}
+
+//---------Tyres----------------------------------------------
+
+Instance=TWALL01
+{
+  VisGroups=(36)
+  MeshFile=TWALL01.gmt CollTarget=True HATTarget=False 
+}
+Instance=TWALL02
+{
+  VisGroups=(36)
+  MeshFile=TWALL02.gmt CollTarget=True HATTarget=False 
+}
+Instance=TWALL03
+{
+  VisGroups=(36)
+  MeshFile=TWALL03.gmt CollTarget=True HATTarget=False 
+}
+Instance=TWALL04
+{
+  VisGroups=(36)
+  MeshFile=TWALL04.gmt CollTarget=True HATTarget=False 
+}
+Instance=TWALL05
+{
+  VisGroups=(36)
+  MeshFile=TWALL05.gmt CollTarget=True HATTarget=False 
+}
+Instance=TWALL06
+{
+  VisGroups=(36)
+  MeshFile=TWALL06.gmt CollTarget=True HATTarget=False 
+}
+Instance=TWALL07
+{
+  VisGroups=(36)
+  MeshFile=TWALL07.gmt CollTarget=True HATTarget=False 
+}
+Instance=TWALL08
+{
+  VisGroups=(36)
+  MeshFile=TWALL08.gmt CollTarget=True HATTarget=False 
+}
+Instance=TWALL09
+{
+  VisGroups=(36)
+  MeshFile=TWALL09.gmt CollTarget=True HATTarget=False 
+}
+Instance=TWALL10
+{
+  VisGroups=(36)
+  MeshFile=TWALL10.gmt CollTarget=True HATTarget=False 
+}
+Instance=TWALL11
+{
+  VisGroups=(36)
+  MeshFile=TWALL11.gmt CollTarget=True HATTarget=False 
+}
+Instance=TWALL12
+{
+  VisGroups=(36)
+  MeshFile=TWALL12.gmt CollTarget=True HATTarget=False 
+}
+Instance=TWALL13
+{
+  VisGroups=(36)
+  MeshFile=TWALL13.gmt CollTarget=True HATTarget=False 
+}
+Instance=TWALL15
+{
+  VisGroups=(36)
+  MeshFile=TWALL15.gmt CollTarget=True HATTarget=False 
+}
+Instance=TWALL16
+{
+  VisGroups=(36)
+  MeshFile=TWALL16.gmt CollTarget=True HATTarget=False 
+}
+Instance=TWALL17
+{
+  VisGroups=(36)
+  MeshFile=TWALL17.gmt CollTarget=True HATTarget=False 
+}
+Instance=TWALL18
+{
+  VisGroups=(36)
+  MeshFile=TWALL18.gmt CollTarget=True HATTarget=False 
+}
+Instance=TWALL19
+{
+  VisGroups=(36)
+  MeshFile=TWALL19.gmt CollTarget=True HATTarget=False 
+}
+Instance=TWALL20
+{
+  VisGroups=(36)
+  MeshFile=TWALL20.gmt CollTarget=True HATTarget=False 
+}
+
+//---------Marbles----------------------------------------------
+
+Instance=MARBLES00
+{
+  VisGroups=(36)
+  MeshFile=MARBLES00.gmt CollTarget=False HATTarget=False 
+}
+Instance=MARBLES01
+{
+  VisGroups=(36)
+  MeshFile=MARBLES01.gmt CollTarget=False HATTarget=False 
+}
+Instance=MARBLES03
+{
+  VisGroups=(36)
+  MeshFile=MARBLES03.gmt CollTarget=False HATTarget=False 
+}
+Instance=MARBLES04
+{
+  VisGroups=(36)
+  MeshFile=MARBLES04.gmt CollTarget=False HATTarget=False 
+}
+Instance=MARBLES05
+{
+  VisGroups=(36)
+  MeshFile=MARBLES05.gmt CollTarget=False HATTarget=False 
+}
+
+//-------------PTENTS------------------------------------------
+
+Instance=PTENT00
+{
+  VisGroups=(32)
+  MeshFile=PTENT00.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT01
+{
+  VisGroups=(32)
+  MeshFile=PTENT01.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT02
+{
+  VisGroups=(32)
+  MeshFile=PTENT02.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT03
+{
+  VisGroups=(32)
+  MeshFile=PTENT03.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT04
+{
+  VisGroups=(32)
+  MeshFile=PTENT04.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT05
+{
+  VisGroups=(32)
+  MeshFile=PTENT05.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT06
+{
+  VisGroups=(32)
+  MeshFile=PTENT06.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT07
+{
+  VisGroups=(32)
+  MeshFile=PTENT07.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT08
+{
+  VisGroups=(32)
+  MeshFile=PTENT08.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT09
+{
+  VisGroups=(32)
+  MeshFile=PTENT09.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT10
+{
+  VisGroups=(32)
+  MeshFile=PTENT10.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT11
+{
+  VisGroups=(32)
+  MeshFile=PTENT11.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT12
+{
+  VisGroups=(32)
+  MeshFile=PTENT12.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT13
+{
+  VisGroups=(32)
+  MeshFile=PTENT13.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT14
+{
+  VisGroups=(32)
+  MeshFile=PTENT14.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT15
+{
+  VisGroups=(32)
+  MeshFile=PTENT15.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT16
+{
+  VisGroups=(32)
+  MeshFile=PTENT16.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT17
+{
+  VisGroups=(32)
+  MeshFile=PTENT17.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT18
+{
+  VisGroups=(32)
+  MeshFile=PTENT18.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT19
+{
+  VisGroups=(32)
+  MeshFile=PTENT19.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT20
+{
+  VisGroups=(32)
+  MeshFile=PTENT20.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT21
+{
+  VisGroups=(32)
+  MeshFile=PTENT21.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT22
+{
+  VisGroups=(32)
+  MeshFile=PTENT22.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT23
+{
+  VisGroups=(32)
+  MeshFile=PTENT23.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT24
+{
+  VisGroups=(32)
+  MeshFile=PTENT24.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT25
+{
+  VisGroups=(32)
+  MeshFile=PTENT25.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT26
+{
+  VisGroups=(32)
+  MeshFile=PTENT26.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT27
+{
+  VisGroups=(32)
+  MeshFile=PTENT27.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT28
+{
+  VisGroups=(32)
+  MeshFile=PTENT28.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+Instance=PTENT29
+{
+  VisGroups=(32)
+  MeshFile=PTENT29.gmt CollTarget=True HATTarget=False ShadowReceiver=True 
+}
+
+//---------XFiles----------------------------------------------
+
+Instance=XCornerL3
+{
+  Render=False 
+  MeshFile=XCornerL3.gmt CollTarget=False HATTarget=False 
+  Response=VEHICLE,CORNER
+}
+Instance=XCornerL4
+{
+  Render=False 
+  MeshFile=XCornerL4.gmt CollTarget=False HATTarget=False 
+  Response=VEHICLE,CORNER
+}
+Instance=XCornerL5
+{
+  Render=False 
+  MeshFile=XCornerL5.gmt CollTarget=False HATTarget=False 
+  Response=VEHICLE,CORNER
+}
+Instance=XCornerL6
+{
+  Render=False 
+  MeshFile=XCornerL6.gmt CollTarget=False HATTarget=False 
+  Response=VEHICLE,CORNER
+}
+Instance=XCornerLR2
+{
+  Render=False 
+  MeshFile=XCornerLR2.gmt CollTarget=False HATTarget=False 
+  Response=VEHICLE,CORNER
+}
+Instance=XCornerR1
+{
+  Render=False 
+  MeshFile=XCornerR1.gmt CollTarget=False HATTarget=False 
+  Response=VEHICLE,CORNER
+}
+Instance=XCornerR3
+{
+  Render=False 
+  MeshFile=XCornerR3.gmt CollTarget=False HATTarget=False 
+  Response=VEHICLE,CORNER
+}
+Instance=XCornerR5
+{
+  Render=False 
+  MeshFile=XCornerR5.gmt CollTarget=False HATTarget=False 
+  Response=VEHICLE,CORNER
+}
+Instance=XCornerR6
+{
+  Render=False 
+  MeshFile=XCornerR6.gmt CollTarget=False HATTarget=False 
+  Response=VEHICLE,CORNER
+}
+Instance=XCornerRL1
+{
+  Render=False 
+  MeshFile=XCornerRL1.gmt CollTarget=False HATTarget=False 
+  Response=VEHICLE,CORNER
+}
+Instance=XCornerRL3
+{
+  Render=False 
+  MeshFile=XCornerRL3.gmt CollTarget=False HATTarget=False 
+  Response=VEHICLE,CORNER
+}
+Instance=XFinish
+{
+  Render=False 
+  MeshFile=XFinish.gmt CollTarget=True HATTarget=False ZBias=(0) 
+  Response=VEHICLE,TIMING
+}
+Instance=Xpitin
+{
+  Render=False 
+  MeshFile=Xpitin.gmt CollTarget=True HATTarget=False 
+  Response=VEHICLE,PITSTOP
+}
+Instance=Xpitout
+{
+  Render=False 
+  MeshFile=Xpitout.gmt CollTarget=True HATTarget=False ZBias=(0) 
+  Response=VEHICLE,PITSTOP
+}
+Instance=Xsector1
+{
+  Render=False 
+  MeshFile=Xsector1.gmt CollTarget=True HATTarget=False ZBias=(0) 
+  Response=VEHICLE,TIMING
+}
+Instance=Xsector2
+{
+  Render=False 
+  MeshFile=Xsector2.gmt CollTarget=True HATTarget=False 
+  Response=VEHICLE,TIMING
+}
+
+//-------------------------------------------------------
+
+Instance=RREFLECT01
+{
+  MeshFile=RREFLECT01.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT37
+{
+  MeshFile=RREFLECT37.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT55
+{
+  MeshFile=RREFLECT55.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT43
+{
+  MeshFile=RREFLECT43.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT44
+{
+  MeshFile=RREFLECT44.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT45
+{
+  MeshFile=RREFLECT45.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT46
+{
+  MeshFile=RREFLECT46.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT42
+{
+  MeshFile=RREFLECT42.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT41
+{
+  MeshFile=RREFLECT41.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT50
+{
+  MeshFile=RREFLECT50.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT47
+{
+  MeshFile=RREFLECT47.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT48
+{
+  MeshFile=RREFLECT48.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT51
+{
+  MeshFile=RREFLECT51.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT52
+{
+  MeshFile=RREFLECT52.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT49
+{
+  MeshFile=RREFLECT49.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT53
+{
+  MeshFile=RREFLECT53.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT54
+{
+  MeshFile=RREFLECT54.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT56
+{
+  MeshFile=RREFLECT56.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT02
+{
+  MeshFile=RREFLECT02.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT03
+{
+  MeshFile=RREFLECT03.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT04
+{
+  MeshFile=RREFLECT04.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT05
+{
+  MeshFile=RREFLECT05.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT06
+{
+  MeshFile=RREFLECT06.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT40
+{
+  MeshFile=RREFLECT40.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT39
+{
+  MeshFile=RREFLECT39.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT38
+{
+  MeshFile=RREFLECT38.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT07
+{
+  MeshFile=RREFLECT07.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT08
+{
+  MeshFile=RREFLECT08.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT09
+{
+  MeshFile=RREFLECT09.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT10
+{
+  MeshFile=RREFLECT10.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT11
+{
+  MeshFile=RREFLECT11.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT13
+{
+  MeshFile=RREFLECT13.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT14
+{
+  MeshFile=RREFLECT14.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT12
+{
+  MeshFile=RREFLECT12.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT15
+{
+  MeshFile=RREFLECT15.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT16
+{
+  MeshFile=RREFLECT16.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT17
+{
+  MeshFile=RREFLECT17.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT18
+{
+  MeshFile=RREFLECT18.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT19
+{
+  MeshFile=RREFLECT19.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT20
+{
+  MeshFile=RREFLECT20.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT21
+{
+  MeshFile=RREFLECT21.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT22
+{
+  MeshFile=RREFLECT22.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT23
+{
+  MeshFile=RREFLECT23.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT24
+{
+  MeshFile=RREFLECT24.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT25
+{
+  MeshFile=RREFLECT25.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT26
+{
+  MeshFile=RREFLECT26.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT27
+{
+  MeshFile=RREFLECT27.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT28
+{
+  MeshFile=RREFLECT28.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT29
+{
+  MeshFile=RREFLECT29.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT30
+{
+  MeshFile=RREFLECT30.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT31
+{
+  MeshFile=RREFLECT31.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT32
+{
+  MeshFile=RREFLECT32.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT58
+{
+  MeshFile=RREFLECT58.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT59
+{
+  MeshFile=RREFLECT59.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT60
+{
+  MeshFile=RREFLECT60.gmt CollTarget=False HATTarget=False 
+}
+Instance=RREFLECT61
+{
+  MeshFile=RREFLECT61.gmt CollTarget=False HATTarget=False 
+}
+
+//-----------Jumbo Tron--------------------------------------------
+
+Instance=TRUCKJ02
+{
+  VisGroups=(100)
+  MeshFile=TRUCKJ02.gmt CollTarget=False HATTarget=False 
+}
+Instance=JB02
+{
+  VisGroups=(100)
+  MeshFile=JB02.gmt CollTarget=False HATTarget=False 
+}
+
+
+
+
+

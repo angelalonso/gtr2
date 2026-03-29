@@ -1,0 +1,341 @@
+StaticCam=STATIC001
+{
+  Position=(274.014679, -5.164486, 235.783661)
+  Orientation=(-0.088163, -1.842220, 0.000000)
+  Fov=(24.000000, 18.000000)
+  Clear=FALSE
+  Color=(0, 0, 0)
+  ClipPlanes=(5.000000, 1300.000000)
+  LODMultiplier=(8.000000)
+  Size=(1.000000, 1.000000)
+  Center=(0.500000, 0.500000)
+  MipmapLODBias=(0.000000)
+  Flags1=(0)
+  Flags2=(0)
+  ActivationLocation=(230.675140, -5.004333, 251.627258)
+  ActivationRadius=(12.000000)
+}
+TrackingCam=TRACKING001
+{
+  Position=(-48.580322, -2.091833, 55.896473)
+  Orientation=(-0.220454, 0.246044, 0.000000)
+  Fov=(32.000000, 24.000000)
+  Clear=FALSE
+  Color=(0, 0, 0)
+  ClipPlanes=(2.500000, 1200.000000)
+  LODMultiplier=(8.000000)
+  Size=(1.000000, 1.000000)
+  Center=(0.500000, 0.500000)
+  MipmapLODBias=(0.000000)
+  Flags1=(1)
+  Flags2=(0)
+  ActivationLocation=(7.094131, -3.435751, 0.456604)
+  ActivationRadius=(60.000000)
+  TrackingRate=(0.000000)
+  MovementRate=(0.000000)
+  ShakeRate=(0.000000)
+  ShakeMagnitude=(0.000000)
+}
+TrackingCam=TRACKING002
+{
+  Position=(-403.587097, -3.655055, 326.059052)
+  Orientation=(-0.045882, 1.020299, 0.000000)
+  Fov=(16.000000, 12.000000)
+  Clear=FALSE
+  Color=(0, 0, 0)
+  ClipPlanes=(5.000000, 1200.000000)
+  LODMultiplier=(6.000000)
+  Size=(1.000000, 1.000000)
+  Center=(0.500000, 0.500000)
+  MipmapLODBias=(0.000000)
+  Flags1=(13)
+  Flags2=(0)
+  ActivationLocation=(-334.941650, -4.661732, 353.987030)
+  ActivationRadius=(60.000000)
+  TrackingRate=(0.000000)
+  MovementRate=(0.000000)
+  ShakeRate=(3.500000)
+  ShakeMagnitude=(1.800000)
+}
+TrackingCam=TRACKING003
+{
+  Position=(-56.810619, -6.708881, 402.321075)
+  Orientation=(-0.233547, -1.504538, 0.000000)
+  Fov=(16.000000, 12.000000)
+  Clear=FALSE
+  Color=(0, 0, 0)
+  ClipPlanes=(3.000000, 1200.000000)
+  LODMultiplier=(16.000000)
+  Size=(1.000000, 1.000000)
+  Center=(0.500000, 0.500000)
+  MipmapLODBias=(0.000000)
+  Flags1=(1)
+  Flags2=(0)
+  ActivationLocation=(-136.700134, -7.608706, 390.088501)
+  ActivationRadius=(60.000000)
+  TrackingRate=(0.000000)
+  MovementRate=(0.000000)
+  ShakeRate=(0.000000)
+  ShakeMagnitude=(0.000000)
+}
+TrackingCam=TRACKING004
+{
+  Position=(286.080688, -2.811117, 267.153351)
+  Orientation=(0.044180, 5.119231, 0.000000)
+  Fov=(40.000000, 30.000000)
+  Clear=FALSE
+  Color=(0, 0, 0)
+  ClipPlanes=(2.000000, 1200.000000)
+  LODMultiplier=(4.000000)
+  Size=(1.000000, 1.000000)
+  Center=(0.500000, 0.500000)
+  MipmapLODBias=(0.000000)
+  Flags1=(4)
+  Flags2=(0)
+  ActivationLocation=(293.885559, -4.726418, 284.076050)
+  ActivationRadius=(40.000000)
+  TrackingRate=(25.000000)
+  MovementRate=(0.000000)
+  ShakeRate=(2.500000)
+  ShakeMagnitude=(8.500000)
+}
+TrackingCam=TRACKING005
+{
+  Position=(571.960083, -4.646190, 385.955536)
+  Orientation=(-0.190372, 5.000106, 0.000000)
+  Fov=(2.400000, 18.000000)
+  Clear=FALSE
+  Color=(0, 0, 0)
+  ClipPlanes=(3.000000, 1200.000000)
+  LODMultiplier=(20.000000)
+  Size=(1.000000, 1.000000)
+  Center=(0.500000, 0.500000)
+  MipmapLODBias=(0.000000)
+  Flags1=(5)
+  Flags2=(0)
+  ActivationLocation=(560.288269, 1.235819, 385.438354)
+  ActivationRadius=(65.000000)
+  TrackingRate=(0.000000)
+  MovementRate=(0.000000)
+  ShakeRate=(1.500000)
+  ShakeMagnitude=(4.000000)
+}
+TrackingCam=TRACKING006
+{
+  Position=(881.563232, 0.660172, 340.522614)
+  Orientation=(-0.137242, 4.528473, 0.000000)
+  Fov=(16.000000, 12.000000)
+  Clear=FALSE
+  Color=(0, 0, 0)
+  ClipPlanes=(3.000000, 1200.000000)
+  LODMultiplier=(15.000000)
+  Size=(1.000000, 1.000000)
+  Center=(0.500000, 0.500000)
+  MipmapLODBias=(0.000000)
+  Flags1=(5)
+  Flags2=(0)
+  ActivationLocation=(929.564575, 1.866964, 335.685028)
+  ActivationRadius=(55.000000)
+  TrackingRate=(0.000000)
+  MovementRate=(0.000000)
+  ShakeRate=(1.500000)
+  ShakeMagnitude=(6.000000)
+}
+TrackingCam=TRACKING007
+{
+  Position=(580.161255, 1.139791, 206.211243)
+  Orientation=(-0.055191, 2.716072, 0.000000)
+  Fov=(48.000000, 36.000000)
+  Clear=FALSE
+  Color=(0, 0, 0)
+  ClipPlanes=(3.000000, 1200.000000)
+  LODMultiplier=(8.000000)
+  Size=(1.000000, 1.000000)
+  Center=(0.500000, 0.500000)
+  MipmapLODBias=(-0.300000)
+  Flags1=(3)
+  Flags2=(0)
+  ActivationLocation=(576.727234, -0.066166, 209.629807)
+  ActivationRadius=(45.000000)
+  TrackingRate=(0.000000)
+  MovementRate=(0.700000)
+  ShakeRate=(3.600000)
+  ShakeMagnitude=(1.700000)
+  MovementPath
+  {
+    ControlPoint=(797.789612, 4.516101, 290.407654)
+    ControlPoint=(743.382507, 3.672024, 269.358551)
+    ControlPoint=(688.975403, 2.827946, 248.309448)
+    ControlPoint=(634.568359, 1.983869, 227.260345)
+    ControlPoint=(580.161255, 1.139791, 206.211243)
+    ControlPoint=(525.754150, 0.295713, 185.162140)
+  }
+}
+TrackingCam=TRACKING008
+{
+  Position=(212.448898, -38.979111, 209.427841)
+  Orientation=(-0.339529, 1.605630, 0.000000)
+  Fov=(52.000000, 39.000000)
+  Clear=FALSE
+  Color=(0, 0, 0)
+  ClipPlanes=(8.000000, 1220.000000)
+  LODMultiplier=(10.000000)
+  Size=(1.000000, 1.000000)
+  Center=(0.500000, 0.500000)
+  MipmapLODBias=(0.000000)
+  Flags1=(5)
+  Flags2=(0)
+  ActivationLocation=(345.539978, -1.172169, 163.409424)
+  ActivationRadius=(60.000000)
+  TrackingRate=(0.000000)
+  MovementRate=(0.000000)
+  ShakeRate=(2.500000)
+  ShakeMagnitude=(1.400000)
+}
+TrackingCam=TRACKING009
+{
+  Position=(419.871552, -4.042858, -21.662970)
+  Orientation=(-0.107094, -1.889602, 0.000000)
+  Fov=(32.000000, 24.000000)
+  Clear=FALSE
+  Color=(0, 0, 0)
+  ClipPlanes=(3.000000, 1200.000000)
+  LODMultiplier=(9.000000)
+  Size=(1.000000, 1.000000)
+  Center=(0.500000, 0.500000)
+  MipmapLODBias=(0.000000)
+  Flags1=(5)
+  Flags2=(0)
+  ActivationLocation=(377.627747, -0.270384, -2.570402)
+  ActivationRadius=(50.000000)
+  TrackingRate=(0.000000)
+  MovementRate=(0.000000)
+  ShakeRate=(2.100000)
+  ShakeMagnitude=(3.000000)
+}
+TrackingCam=TRACKING010
+{
+  Position=(644.497314, -11.619744, 33.785839)
+  Orientation=(-0.329939, 4.905682, 0.000000)
+  Fov=(12.000000, 9.000000)
+  Clear=FALSE
+  Color=(0, 0, 0)
+  ClipPlanes=(3.000000, 1200.000000)
+  LODMultiplier=(16.000000)
+  Size=(1.000000, 1.000000)
+  Center=(0.500000, 0.500000)
+  MipmapLODBias=(0.000000)
+  Flags1=(5)
+  Flags2=(0)
+  ActivationLocation=(633.223083, 2.292551, 39.527691)
+  ActivationRadius=(55.000000)
+  TrackingRate=(0.000000)
+  MovementRate=(0.000000)
+  ShakeRate=(2.600000)
+  ShakeMagnitude=(0.500000)
+}
+TrackingCam=TRACKING011
+{
+  Position=(687.131042, -10.832359, -72.021584)
+  Orientation=(-0.103822, 2.075072, 0.000000)
+  Fov=(22.000000, 16.500000)
+  Clear=FALSE
+  Color=(0, 0, 0)
+  ClipPlanes=(10.000000, 1200.000000)
+  LODMultiplier=(9.000000)
+  Size=(1.000000, 1.000000)
+  Center=(0.500000, 0.500000)
+  MipmapLODBias=(0.000000)
+  Flags1=(1)
+  Flags2=(0)
+  ActivationLocation=(659.433655, -3.757662, -50.460938)
+  ActivationRadius=(60.000000)
+  TrackingRate=(0.000000)
+  MovementRate=(0.000000)
+  ShakeRate=(0.000000)
+  ShakeMagnitude=(0.000000)
+}
+TrackingCam=TRACKING012
+{
+  Position=(405.104462, -8.916019, -118.264015)
+  Orientation=(-0.003991, 1.732460, 0.000000)
+  Fov=(24.000000, 18.000000)
+  Clear=FALSE
+  Color=(0, 0, 0)
+  ClipPlanes=(10.000000, 1200.000000)
+  LODMultiplier=(8.000000)
+  Size=(1.000000, 1.000000)
+  Center=(0.500000, 0.500000)
+  MipmapLODBias=(0.000000)
+  Flags1=(1)
+  Flags2=(0)
+  ActivationLocation=(434.639160, -7.187286, -121.980392)
+  ActivationRadius=(45.000000)
+  TrackingRate=(0.000000)
+  MovementRate=(0.000000)
+  ShakeRate=(0.000000)
+  ShakeMagnitude=(0.000000)
+}
+TrackingCam=TRACKING013
+{
+  Position=(893.743042, -1.547797, 97.476372)
+  Orientation=(-0.230497, -1.089912, 0.000000)
+  Fov=(12.000000, 9.000000)
+  Clear=FALSE
+  Color=(0, 0, 0)
+  ClipPlanes=(3.000000, 1200.000000)
+  LODMultiplier=(6.000000)
+  Size=(1.000000, 1.000000)
+  Center=(0.500000, 0.500000)
+  MipmapLODBias=(-0.330000)
+  Flags1=(1)
+  Flags2=(0)
+  ActivationLocation=(976.283813, -0.683334, 109.664291)
+  ActivationRadius=(30.000000)
+  TrackingRate=(0.000000)
+  MovementRate=(0.000000)
+  ShakeRate=(1.500000)
+  ShakeMagnitude=(3.000000)
+}
+TrackingCam=TRACKING014
+{
+  Position=(-160.650879, -8.979012, 161.151108)
+  Orientation=(-0.226783, 0.615364, 0.000000)
+  Fov=(20.000000, 15.000000)
+  Clear=FALSE
+  Color=(0, 0, 0)
+  ClipPlanes=(10.000000, 1200.000000)
+  LODMultiplier=(9.000000)
+  Size=(1.000000, 1.000000)
+  Center=(0.500000, 0.500000)
+  MipmapLODBias=(0.000000)
+  Flags1=(1)
+  Flags2=(0)
+  ActivationLocation=(-294.984497, -2.378438, 237.020813)
+  ActivationRadius=(105.000000)
+  TrackingRate=(0.000000)
+  MovementRate=(0.000000)
+  ShakeRate=(0.000000)
+  ShakeMagnitude=(0.000000)
+}
+TrackingCam=TRACKING015
+{
+  Position=(183.247223, -5.287889, -116.733994)
+  Orientation=(-0.193766, 1.471917, 0.000000)
+  Fov=(30.000000, 25.000000)
+  Clear=FALSE
+  Color=(0, 0, 0)
+  ClipPlanes=(3.000000, 1200.000000)
+  LODMultiplier=(6.000000)
+  Size=(1.000000, 1.000000)
+  Center=(0.500000, 0.500000)
+  MipmapLODBias=(0.000000)
+  Flags1=(1)
+  Flags2=(0)
+  ActivationLocation=(228.975388, -8.756972, -86.233719)
+  ActivationRadius=(59.000000)
+  TrackingRate=(0.000000)
+  MovementRate=(0.000000)
+  ShakeRate=(0.000000)
+  ShakeMagnitude=(0.000000)
+}

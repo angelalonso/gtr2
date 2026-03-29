@@ -1,0 +1,6 @@
+build/**
+dist/**
+Pipfile.lock
+__pycache__/**
+track_formulas/**
+

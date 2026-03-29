@@ -1,0 +1,63 @@
+//  118 - 24H - Lotus Elise, Simulation
+//----------------------------------------------------
+
+HDVehicle=Elise.hdc
+Graphics=Lotus_Elise.cas
+GenString=1108
+Sounds=Elisesounds.aud
+HeadPhysics=headphysics.hed
+Eyepoint=(0.00, 0.57, 0.12)
+CameraTarget=(0.000, 0.520, 0.230)
+MaxSeatRear=0.01
+MaxSeatFront=-0.06
+MaxSeatUp=0.01
+MaxSeatDown=-0.01 
+FrontWheelsInCockpit=0
+
+SteeringWheelAxis=(0.0, 0.2588, 0.9659)
+SteeringWheelType=8
+ExternalDriverPosition=(-0.002, -0.24, 0.12)
+FirstPersonDriverPosition=(-0.297, 0.087, 0.795)
+ShiftStickPosition=(-0.238, 0.24, -0.365)
+
+ClutchPedalPosition=(0.15, -0.16, -0.6)
+BrakePedalPosition=(0.0, -0.16, -0.6)
+AcceleratorPedalPosition=(-0.15, -0.16, -0.6)
+LeftLegBendAngle=15.0
+RightLegBendAngle=-15.0
+
+DigitalDisplays=1
+Display1Instance=MOTEC
+Display1RPMLights=3 (max=8)
+Display1RPMLightsRange=(7500,9000)
+Display1FuelParams=SMALL,RIGHT
+Display1FuelPos=(235,5)
+Display1SpeedParams=SMALL,RIGHT
+Display1SpeedPos=(235,34)
+Display1LapTImeParams=SMALL,RIGHT
+Display1LapTimePos=(480,5)
+Display1GearParams=SMALL,RIGHT
+Display1GearPos=(480,34)
+
+TachometerRange=(2000.0, 10000.0, 206.5, 334.0)
+TachometerNeedle=(1.05, 1.00)
+
+FuelRigType=2
+FuelCapPositionL=(0.597, 0.466, 0.585)
+FuelCapAngleL= 55.0
+FuelCapPositionR=(-0.597, 0.466, 0.585)
+FuelCapAngleR= -55.0
+
+Number=03118
+Team="Campus Automobile"
+PitGroup=""
+Driver="Jose Close"
+Driver1="Jose Close"
+Driver2="Lino Pecoraro"
+Description="Lotus Elise"
+Engine="Rover K-Series"
+Manufacturer="Lotus_Elise"
+classes="FULL, 2003, NG3_2003, 24H_2003, BB, ELISE, SPA_2003"
+ComparativeTime=111
+
+

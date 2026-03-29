@@ -1,0 +1,24 @@
+
+
+
+
+<LOGO>
+GameData\Teams\24H\Lotus Elise Teams\Campus Automobile\03118_NG3_ELISEgraph.bmp
+
+
+
+
+
+
+
+
+
+
+
+
+<SET_FONT>
+FT_LISTBOX_RED_SMALL
+      HorsePower
+<SET_FONT>
+FT_LISTBOX_BLUE_SMALL
+      Torque (NM)

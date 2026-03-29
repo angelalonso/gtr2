@@ -1,0 +1,400 @@
+
+ SearchPath=<TEAMDIR>..\
+ SearchPath=<TEAMDIR>
+ SearchPath=<VEHDIR>
+
+//----------------------------------------
+
+ MASFile=GILLET_VERTIGO_CPIT.GTR 
+ MASFile=GILLET_VERTIGO_OBJ.GTR 
+ MASFile=GILLET_VERTIGO_TEX.GTR
+ MASFile=GILLET_VERTIGO_WHEELS.GTR
+ MASFile=STEX.GTR
+ MASFile=TALENT.GTR
+
+//----------------------------------------
+
+ReflectPlane=(0.0, -1.0, 0.0, -0.38)
+
+Instance=SLOT<ID>
+{
+  Moveable=True
+   <NOTSPIN> MeshFile=GILLET_VERTIGO_COLLISION.gmt Render=False CollTarget=True HATTarget=False LODIn=(0.0) LODOut=(0.0)
+
+   <LOW>  MeshFile=GILLET_VERTIGO_SHADOW.gmt CollTarget=False HATTarget=False ShadowObject=(Static, Solid, 256, 256, AmbientShadA.dds) LODIn=(0.0) LODOut=(100.0)
+   <MED>  MeshFile=GILLET_VERTIGO_SHADOW.gmt CollTarget=False HATTarget=False ShadowObject=(Static, Solid, 256, 256, AmbientShadA.dds) LODIn=(0.0) LODOut=(120.0)
+   <HIGH> MeshFile=GILLET_VERTIGO_SHADOW.gmt CollTarget=False HATTarget=False ShadowObject=(Static, Solid, 256, 256, AmbientShadA.dds) LODIn=(0.0) LODOut=(140.0)
+   <MAX>  MeshFile=GILLET_VERTIGO_SHADOW.gmt CollTarget=False HATTarget=False ShadowObject=(Static, Solid, 256, 256, AmbientShadA.dds) LODIn=(0.0) LODOut=(160.0)
+
+   <SPIN> MeshFile=GILLET_VERTIGO_CHASSIS_A.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.0)
+   <EXPO> MeshFile=GILLET_VERTIGO_CHASSIS_EXPO.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.0) Reflect=True
+   <EXPO> MeshFile=GILLET_VERTIGO_HOOD_EXPO.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.0) Reflect=True
+   <EXPO> MeshFile=GILLET_VERTIGO_WING_EXPO.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.0) Reflect=True
+   <EXPO> MeshFile=GILLET_VERTIGO_WHEELS_EXPO_STYLE<1>.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00) Reflect=True
+   
+   <LOW>  MeshFile=GILLET_VERTIGO_CHASSIS_C.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(30.0)
+   <LOW>  MeshFile=GILLET_VERTIGO_CHASSIS_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(30.0) LODOut=(400.0)
+
+   <MED>  MeshFile=GILLET_VERTIGO_CHASSIS_C.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(40.0)
+   <MED>  MeshFile=GILLET_VERTIGO_CHASSIS_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(40.0) LODOut=(500.0)
+
+   <HIGH> MeshFile=GILLET_VERTIGO_CHASSIS_B.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(50.0)
+   <HIGH> MeshFile=GILLET_VERTIGO_CHASSIS_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(50.0) LODOut=(600.0)
+
+   <MAX>  MeshFile=GILLET_VERTIGO_CHASSIS_A.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(60.0)
+   <MAX>  MeshFile=GILLET_VERTIGO_CHASSIS_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(60.0) LODOut=(700.0)
+
+  Actor=VEHICLE
+
+<NOTSPIN><DASHHIGH>  Instance=COCKPIT
+<NOTSPIN><DASHHIGH>  {
+<NOTSPIN><DASHHIGH>    Moveable=True
+<NOTSPIN><DASHHIGH>    MeshFile=GILLET_VERTIGO_COCKPIT_STYLE<2>.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(2.0)
+<NOTSPIN><DASHHIGH>    MeshFile=GILLET_VERTIGO_COCKPIT_CHASSIS.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(2.0)
+<NOTSPIN><DASHHIGH>    MeshFile=GILLET_VERTIGO_COCKPIT_WINDOWS.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(2.0)
+<NOTSPIN><DASHHIGH>  }
+
+<NOTSPIN><DASHHIGH>  Instance=RAINSCREEN
+<NOTSPIN><DASHHIGH>  {
+<NOTSPIN><DASHHIGH>    Moveable=True
+<NOTSPIN><DASHHIGH>    MeshFile=GILLET_VERTIGO_RAINSCREEN.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(2.0)
+<NOTSPIN><DASHHIGH>  }
+
+<NOTSPIN><DASHHIGH>  Instance=DIRTSCREEN
+<NOTSPIN><DASHHIGH>  {
+<NOTSPIN><DASHHIGH>    Moveable=True
+<NOTSPIN><DASHHIGH>    MeshFile=GILLET_VERTIGO_DIRTSCREEN.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(2.0)
+<NOTSPIN><DASHHIGH>  }
+
+<NOTSPIN><DASHHIGH>  Instance=MOTEC
+<NOTSPIN><DASHHIGH>  {
+<NOTSPIN><DASHHIGH>    Moveable=True
+<NOTSPIN><DASHHIGH>    MeshFile=GILLET_VERTIGO_MAGNETI_MT940.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(2.0)
+<NOTSPIN><DASHHIGH>  }
+
+<NOTSPIN><DASHHIGH>  Instance=MOTEC2
+<NOTSPIN><DASHHIGH>  {
+<NOTSPIN><DASHHIGH>    Moveable=True
+<NOTSPIN><DASHHIGH>    MeshFile=GILLET_VERTIGO_DISPLAY2.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(2.0)
+<NOTSPIN><DASHHIGH>  }
+
+//----------------DRIVER-------------------
+
+  Instance=FPDRIVER
+  {
+    Moveable=True
+
+   <NOTSPIN><DASHHIGH> MeshFile=INT_DRIVER_STYLE<34>.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(2.00)
+  }
+
+  Instance=EXTDRIVERBODY
+  {
+   Moveable=True
+
+   <LOW>    MeshFile=EXT_DRIVER_STYLE<34>.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(30.0)
+   <MED>    MeshFile=EXT_DRIVER_STYLE<34>.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(40.0)
+   <HIGH>   MeshFile=EXT_DRIVER_STYLE<34>.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(50.0)
+   <MAX>    MeshFile=EXT_DRIVER_STYLE<34>.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(60.0)
+  }
+
+  Instance=EXTDRIVERHEAD
+  {
+   Moveable=True
+
+   <LOW>    MeshFile=DRIVER_HELMET.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(30.0)
+   <MED>    MeshFile=DRIVER_HELMET.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(40.0)
+   <HIGH>   MeshFile=DRIVER_HELMET.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(50.0)
+   <MAX>    MeshFile=DRIVER_HELMET.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(60.0)
+  }
+  
+  Instance=WHEEL
+  {
+    Moveable=True
+    <NOTSPIN><DASHHIGH> MeshFile=GILLET_VERTIGO_STEERINGWHEEL_STYLE<2>_A.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(1.00)
+  } 
+
+  Instance=WHEELEXT
+  {
+    Moveable=True
+    <SPIN>  MeshFile=GILLET_VERTIGO_STEERINGWHEEL_B.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(100.00)
+    <EXPO>  MeshFile=GILLET_VERTIGO_STEERINGWHEEL_B.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(100.00) Reflect=True
+
+   <NOTSPIN> MeshFile=GILLET_VERTIGO_STEERINGWHEEL_B.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(30.00)
+  }
+
+  Instance=SEAT
+  {
+    Moveable=True
+   <SPIN> MeshFile=GILLET_VERTIGO_SEAT.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(50.00)
+   <EXPO> MeshFile=GILLET_VERTIGO_SEAT.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(50.00) Reflect=True
+
+   <NOTSPIN> MeshFile=GILLET_VERTIGO_SEAT.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(50.00)
+  }
+
+//----------------DAMAGE-------------------
+     
+ Instance=SIMPLEENGINE  
+ {
+   Moveable=True
+   <NOTSPIN> MeshFile=GILLET_VERTIGO_SIMPLEENGINE.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(1.0)
+ }
+
+ Instance=DETAILEDENGINE  
+ {
+   Moveable=True Render=False
+   <LOW>  MeshFile=GILLET_VERTIGO_DETAILEDENGINE_C.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(30.0)
+   <LOW>  MeshFile=GILLET_VERTIGO_DETAILEDENGINE_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(30.0) LODOut=(400.0)
+
+   <MED>  MeshFile=GILLET_VERTIGO_DETAILEDENGINE_B.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(40.0)
+   <MED>  MeshFile=GILLET_VERTIGO_DETAILEDENGINE_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(40.0) LODOut=(500.0)
+
+   <HIGH> MeshFile=GILLET_VERTIGO_DETAILEDENGINE_B.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(50.0)
+   <HIGH> MeshFile=GILLET_VERTIGO_DETAILEDENGINE_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(50.0) LODOut=(600.0)
+
+   <MAX>  MeshFile=GILLET_VERTIGO_DETAILEDENGINE_A.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(60.0)
+   <MAX>  MeshFile=GILLET_VERTIGO_DETAILEDENGINE_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(60.0) LODOut=(700.0)
+ }
+
+//----------------EFFECTS-------------------
+
+  Instance=BACKFIRE
+  {
+   Moveable=True
+   <NOTSPIN>MeshFile=GILLET_VERTIGO_BACKFIRE.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(500.0)
+  }
+
+Projector=HL_2_PLR
+{
+Moveable=True Active=False Pos=(0.0, 0.10, -76.5) Dir=(0.0, -0.5, -1.0) Radius=(28.0) LODOut=(400.0) Blend=(InvDstColor, One) Dyn=True Texmap=HL_2_PLR.DDS
+}
+
+Projector=HL_1_PLR
+{
+Moveable=True Active=False Pos=(-0.482, 0.10, -76.5) Dir=(0.0, -0.5, -1.0) Radius=(28.0) LODOut=(400.0) Blend=(InvDstColor, One) Dyn=True Texmap=HL_1_PLR.DDS
+}
+
+Projector=HL_2_AI
+{
+Moveable=True Active=False Pos=(0.0, 0.10, -13.7) Dir=(0.0, -1.0, 0.0) Radius=(10.0) LODOut=(400.0) Blend=(InvDstColor, One) Dyn=True Texmap=HL_2_AI.DDS
+}
+
+Projector=HL_1_AI
+{
+Moveable=True Active=False Pos=(-0.482, 0.10, -13.7) Dir=(0.0, -1.0, 0.0) Radius=(10.0) LODOut=(400.0) Blend=(InvDstColor, One) Dyn=True Texmap=HL_1_AI.DDS
+}
+
+//-----------------WHEELS--------------------
+
+  Instance=LFTIRE
+  {
+   Moveable=True
+   <SPIN> MeshFile=GILLET_VERTIGO_WHEEL_LF_A_STYLE<1>.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00)
+   <SPIN> MeshFile=GILLET_VERTIGO_DISK_LF.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00)
+
+   <LOW>  MeshFile=GILLET_VERTIGO_WHEEL_LF_C_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(40.0)
+   <LOW>  MeshFile=GILLET_VERTIGO_WHEEL_LF_D_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(40.00) LODOut=(400.0)
+
+   <MED>  MeshFile=GILLET_VERTIGO_WHEEL_LF_C_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(50.0)
+   <MED>  MeshFile=GILLET_VERTIGO_WHEEL_LF_D_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(50.00) LODOut=(500.0)
+
+   <HIGH> MeshFile=GILLET_VERTIGO_WHEEL_LF_B_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(50.0)
+   <HIGH> MeshFile=GILLET_VERTIGO_WHEEL_LF_D_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(50.00) LODOut=(600.0)
+
+   <MAX>  MeshFile=GILLET_VERTIGO_WHEEL_LF_A_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(60.0)
+   <MAX>  MeshFile=GILLET_VERTIGO_WHEEL_LF_D_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(60.00) LODOut=(700.0)
+
+   <HIGH> MeshFile=GILLET_VERTIGO_DISKGLOW_LF.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(20.0)
+   <HIGH> MeshFile=GILLET_VERTIGO_DISK_LF.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(20.0)
+
+   <MAX>  MeshFile=GILLET_VERTIGO_DISKGLOW_LF.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(30.0)
+   <MAX>  MeshFile=GILLET_VERTIGO_DISK_LF.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(30.0)
+  }
+
+  Instance=LFSPINDLE
+  {
+   Moveable=True
+   <SPIN> MeshFile=GILLET_VERTIGO_CALIPER_LF.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00)
+   <EXPO> MeshFile=GILLET_VERTIGO_CALIPER_LF.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00) Reflect=True
+
+   <HIGH> MeshFile=GILLET_VERTIGO_CALIPER_LF.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(20.0)
+   <MAX>  MeshFile=GILLET_VERTIGO_CALIPER_LF.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(30.0)
+  }
+
+//----
+
+  Instance=RFTIRE
+  {
+   Moveable=True
+   <SPIN> MeshFile=GILLET_VERTIGO_WHEEL_RF_A_STYLE<1>.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00)
+   <SPIN> MeshFile=GILLET_VERTIGO_DISK_RF.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00)
+
+   <LOW>  MeshFile=GILLET_VERTIGO_WHEEL_RF_C_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(40.0)
+   <LOW>  MeshFile=GILLET_VERTIGO_WHEEL_RF_D_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(40.00) LODOut=(400.0)
+
+   <MED>  MeshFile=GILLET_VERTIGO_WHEEL_RF_C_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(50.0)
+   <MED>  MeshFile=GILLET_VERTIGO_WHEEL_RF_D_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(50.00) LODOut=(500.0)
+
+   <HIGH> MeshFile=GILLET_VERTIGO_WHEEL_RF_B_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(50.0)
+   <HIGH> MeshFile=GILLET_VERTIGO_WHEEL_RF_D_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(50.00) LODOut=(600.0)
+
+   <MAX>  MeshFile=GILLET_VERTIGO_WHEEL_RF_A_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(60.0)
+   <MAX>  MeshFile=GILLET_VERTIGO_WHEEL_RF_D_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(60.00) LODOut=(700.0)
+
+   <HIGH> MeshFile=GILLET_VERTIGO_DISKGLOW_RF.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(20.0)
+   <HIGH> MeshFile=GILLET_VERTIGO_DISK_RF.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(20.0)
+
+   <MAX>  MeshFile=GILLET_VERTIGO_DISKGLOW_RF.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(30.0)
+   <MAX>  MeshFile=GILLET_VERTIGO_DISK_RF.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(30.0)
+  }
+
+  Instance=RFSPINDLE
+  {
+   Moveable=True
+   <SPIN> MeshFile=GILLET_VERTIGO_CALIPER_RF.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00)
+   <EXPO> MeshFile=GILLET_VERTIGO_CALIPER_RF.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00) Reflect=True
+
+   <HIGH> MeshFile=GILLET_VERTIGO_CALIPER_RF.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(20.0)
+   <MAX>  MeshFile=GILLET_VERTIGO_CALIPER_RF.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(30.0)
+  }
+
+//----
+
+  Instance=LRTIRE
+  {
+   Moveable=True
+   <SPIN> MeshFile=GILLET_VERTIGO_WHEEL_LR_A_STYLE<1>.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00)
+   <SPIN> MeshFile=GILLET_VERTIGO_DISK_LR.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00)
+
+   <LOW>  MeshFile=GILLET_VERTIGO_WHEEL_LR_C_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(40.0)
+   <LOW>  MeshFile=GILLET_VERTIGO_WHEEL_LR_D_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(40.00) LODOut=(400.0)
+
+   <MED>  MeshFile=GILLET_VERTIGO_WHEEL_LR_C_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(50.0)
+   <MED>  MeshFile=GILLET_VERTIGO_WHEEL_LR_D_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(50.00) LODOut=(500.0)
+
+   <HIGH> MeshFile=GILLET_VERTIGO_WHEEL_LR_B_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(50.0)
+   <HIGH> MeshFile=GILLET_VERTIGO_WHEEL_LR_D_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(50.00) LODOut=(600.0)
+
+   <MAX>  MeshFile=GILLET_VERTIGO_WHEEL_LR_A_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(60.0)
+   <MAX>  MeshFile=GILLET_VERTIGO_WHEEL_LR_D_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(60.00) LODOut=(700.0)
+
+   <HIGH> MeshFile=GILLET_VERTIGO_DISKGLOW_LR.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(20.0)
+   <HIGH> MeshFile=GILLET_VERTIGO_DISK_LR.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(20.0)
+
+   <MAX>  MeshFile=GILLET_VERTIGO_DISKGLOW_LR.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(30.0)
+   <MAX>  MeshFile=GILLET_VERTIGO_DISK_LR.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(30.0)
+ }
+
+  Instance=LRSPINDLE
+  {
+   Moveable=True
+   <SPIN> MeshFile=GILLET_VERTIGO_CALIPER_LR.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00)
+   <EXPO> MeshFile=GILLET_VERTIGO_CALIPER_LR.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00) Reflect=True
+
+   <HIGH> MeshFile=GILLET_VERTIGO_CALIPER_LR.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(20.0)
+   <MAX>  MeshFile=GILLET_VERTIGO_CALIPER_LR.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(30.0)
+  }
+
+//----
+
+  Instance=RRTIRE
+  {
+   Moveable=True
+   <SPIN> MeshFile=GILLET_VERTIGO_WHEEL_RR_A_STYLE<1>.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00)
+   <SPIN> MeshFile=GILLET_VERTIGO_DISK_RR.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00)
+
+   <LOW>  MeshFile=GILLET_VERTIGO_WHEEL_RR_C_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(40.0)
+   <LOW>  MeshFile=GILLET_VERTIGO_WHEEL_RR_D_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(40.00) LODOut=(400.0)
+
+   <MED>  MeshFile=GILLET_VERTIGO_WHEEL_RR_C_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(50.0)
+   <MED>  MeshFile=GILLET_VERTIGO_WHEEL_RR_D_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(50.00) LODOut=(500.0)
+
+   <HIGH> MeshFile=GILLET_VERTIGO_WHEEL_RR_B_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.00) LODOut=(50.0)
+   <HIGH> MeshFile=GILLET_VERTIGO_WHEEL_RR_D_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(50.00) LODOut=(600.0)
+
+   <MAX>  MeshFile=GILLET_VERTIGO_WHEEL_RR_A_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(60.0)
+   <MAX>  MeshFile=GILLET_VERTIGO_WHEEL_RR_D_STYLE<1>.GMT CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(60.00) LODOut=(700.0)
+
+   <HIGH> MeshFile=GILLET_VERTIGO_DISKGLOW_RR.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(20.0)
+   <HIGH> MeshFile=GILLET_VERTIGO_DISK_RR.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(20.0)
+
+   <MAX>  MeshFile=GILLET_VERTIGO_DISKGLOW_RR.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(30.0)
+   <MAX>  MeshFile=GILLET_VERTIGO_DISK_RR.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(30.0)
+  }
+
+  Instance=RRSPINDLE
+  {
+   Moveable=True
+   <SPIN> MeshFile=GILLET_VERTIGO_CALIPER_RR.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00)
+   <EXPO> MeshFile=GILLET_VERTIGO_CALIPER_RR.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00) Reflect=True
+
+   <HIGH> MeshFile=GILLET_VERTIGO_CALIPER_RR.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(20.0)
+   <MAX>  MeshFile=GILLET_VERTIGO_CALIPER_RR.gmt CollTarget=False HATTarget=False LODIn=(0.00) LODOut=(30.0)
+  }
+
+//----------------------------------------= BUMPERS AND WINGS =----------------------------------------\\
+
+  Instance=FWING
+  {
+   Moveable=True
+   <SPIN> MeshFile=GILLET_VERTIGO_HOOD_A.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00)
+   <EXPO> MeshFile=GILLET_VERTIGO_EXPO_FLOOR.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00)
+
+   <LOW>  MeshFile=GILLET_VERTIGO_HOOD_C.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(30.0)
+   <LOW>  MeshFile=GILLET_VERTIGO_HOOD_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(30.0) LODOut=(400.0)
+
+   <MED>  MeshFile=GILLET_VERTIGO_HOOD_C.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(40.0)
+   <MED>  MeshFile=GILLET_VERTIGO_HOOD_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(40.0) LODOut=(500.0)
+
+   <HIGH> MeshFile=GILLET_VERTIGO_HOOD_B.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(50.0)
+   <HIGH> MeshFile=GILLET_VERTIGO_HOOD_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(50.0) LODOut=(600.0)
+
+   <MAX>  MeshFile=GILLET_VERTIGO_COCKPIT_HOOD.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(2.0)
+   <MAX>  MeshFile=GILLET_VERTIGO_HOOD_A.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(2.0) LODOut=(60.0)
+   <MAX>  MeshFile=GILLET_VERTIGO_HOOD_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(60.0) LODOut=(700.0)
+  }
+   
+  Instance=RWING
+  {
+   Moveable=True
+   <SPIN>   MeshFile=GILLET_VERTIGO_WING_A.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(200.00)
+
+   <LOW>    MeshFile=GILLET_VERTIGO_WING_C.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(30.0)
+   <LOW>    MeshFile=GILLET_VERTIGO_WING_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(30.0) LODOut=(400.0)
+
+   <MED>    MeshFile=GILLET_VERTIGO_WING_C.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(40.0)
+   <MED>    MeshFile=GILLET_VERTIGO_WING_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(40.0) LODOut=(500.0)
+
+   <HIGH>   MeshFile=GILLET_VERTIGO_WING_B.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(50.0)
+   <HIGH>   MeshFile=GILLET_VERTIGO_WING_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(50.0) LODOut=(600.0)
+
+   <MAX>    MeshFile=GILLET_VERTIGO_WING_A.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(0.0) LODOut=(60.0)
+   <MAX>    MeshFile=GILLET_VERTIGO_WING_D.gmt CollTarget=False HATTarget=False ShadowReceiver=True LODIn=(60.0) LODOut=(700.0)
+  }
+
+//----------------------------------------= DETACHABLES =----------------------------------------\\
+
+  Instance=DEBRIS0 // HEADLIGHT LEFT
+  {
+   Moveable=True
+   <NOTSPIN>  MeshFile=GILLET_VERTIGO_LIGHT_LF_STYLE<2>.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(500.0) 
+  } 
+
+  Instance=DEBRIS1 // HEADLIGHT RIGHT
+  {
+   Moveable=True
+   <NOTSPIN>  MeshFile=GILLET_VERTIGO_LIGHT_RF_STYLE<2>.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(500.0) 
+ }
+
+  Instance=DEBRIS2 // BRAKELIGHT LEFT
+  {
+   Moveable=True
+   <NOTSPIN>  MeshFile=GILLET_VERTIGO_LIGHT_LR.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(500.0) 
+  } 
+
+  Instance=DEBRIS3 // BRAKELIGHT RIGHT
+  {
+   Moveable=True
+   <NOTSPIN>  MeshFile=GILLET_VERTIGO_LIGHT_RR.gmt CollTarget=False HATTarget=False LODIn=(0.0) LODOut=(500.0) 
+ }
+
+}

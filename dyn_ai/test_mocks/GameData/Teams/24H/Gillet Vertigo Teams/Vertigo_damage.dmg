@@ -1,0 +1,64 @@
+[PHYSICAL]
+RadiusAdd=0.7              // Base radius to apply damage
+RadiusMult=0.00020         // Multiplied by collision impulse to increase radius
+RadiusMax=2.0              // Maximum radius to apply damage
+Engine=20000.0             // Impulse to seize engine
+AeroDiv=1.25e-5            // Multiplied by impulse to affect aerodynamics and vertices
+AeroMin=1100.0              // Minimum impulse to damage aero and verts (unlike everything else, computed BEFORE damage multiplier)
+VertMult=1.0               // Multiplied by aero damage to get vert damage
+RadiatorCoverInstance=FWING    // If this gets knocked off, engine cools but aerodynamics suffer
+DeactivateInstance=SimpleEngine  // Deactivate this instance if any parts get knocked off
+ActivateInstance=DetailedEngine  // Activate this instance if any parts get knocked off
+WallSkidThresh=2500.0      // Minimum impulse to generate wall skid (ignores damage setting and multiplier)
+FrontWingDetach=12500.0     // Minimum impulse to detach front wing
+FrontWingRandom=0.95        // Fraction of time wing breaks off
+FrontWingPos=(0.0,0.0,0.0) // If zero, automatically finds position of wing from graphics to check for damage
+FrontWingMassInertia=(22.0, 12.0, 11.0, 17.5) // Mass and inertia
+FrontWingCollParams=(10000.0, 2400.0, 1.00)   // Spring/damper/friction
+RearWingDetach=7000.0      // Minimum impulse to detach rear wing
+RearWingRandom=1.0         // Fraction of time wing breaks off
+RearWingPos=(0.0,0.0,0.0)  // If zero, automatically finds position of wing from graphics to check for damage
+RearWingMassInertia=(3.9, 1.72, 0.61, 1.77) // Mass and inertia
+RearWingCollParams=(7500.0, 2000.0, 1.00)   // Spring/damper/friction
+WheelBend=12000.0           // Impulse to bend wheel
+WheelDetach=18000.0         // Threshold to detach wheel
+WheelRandom=0.50           // Fraction of incidents where wheel actually breaks off
+Wheel0MassInertia=(22.0, 1.292,0.724,0.724) // Mass and inertia
+Wheel0CollParams=(11250.0, 110.0, 1.00) // Spring/damper/friction
+Wheel1MassInertia=(22.0, 1.292,0.724,0.724) // Mass and inertia
+Wheel1CollParams=(11250.0, 110.0, 1.00) // Spring/damper/friction
+Wheel2MassInertia=(26.0, 1.446,0.875,0.875) // Mass and inertia
+Wheel2CollParams=(11250.0, 110.0, 1.00) // Spring/damper/friction
+Wheel3MassInertia=(26.0, 1.446,0.875,0.875) // Mass and inertia
+Wheel3CollParams=(11250.0, 110.0, 1.00) // Spring/damper/friction
+Part0Detach=3200.0         // Impulse to make part become debris (see .gen file)
+Part0Random=1.0            // Fraction of time part breaks off
+Part0Pos=(0.0,0.0,0.0)     // If zero, automatically finds position of part from graphics to check for damage
+Part0MassInertia=(3.0, 3.0, 3.0, 3.0) // Mass and inertia
+Part0CollParams=(7200.0, 1000.0, 0.80)  // Spring/damper/friction
+Part1Detach=3200.0         // Impulse to make part become debris (see .gen file)
+Part1Random=1.0            // Fraction of time part breaks off
+Part1Pos=(0.0,0.0,0.0)     // If zero, automatically finds position of part from graphics to check for damage
+Part1MassInertia=(3.0, 3.0, 3.0, 3.0) // Mass and inertia
+Part1CollParams=(8600.0, 1650.0, 0.90)   // Spring/damper/friction
+Part2Detach=4000.0         // Impulse to make part become debris (see .gen file)
+Part2Random=0.95            // Fraction of time part breaks off
+Part2Pos=(0.0,0.0,0.0)     // If zero, automatically finds position of part from graphics to check for damage
+Part2MassInertia=(3.0, 3.0, 3.0, 3.0) // Mass and inertia
+Part2CollParams=(7200.0, 1000.0, 0.80)   // Spring/damper/friction
+Part3Detach=4000.0         // Impulse to make part become debris (see .gen file)
+Part3Random=0.95            // Fraction of time part breaks off
+Part3Pos=(0.0,0.0,0.0)     // If zero, automatically finds position of part from graphics to check for damage
+Part3MassInertia=(3.0, 3.0, 3.0, 3.0) // Mass and inertia
+Part3CollParams=(7200.0, 1000.0, 0.80)  // Spring/damper/friction
+
+[VERTEX]
+DefaultLimit=0.17
+
+RestrictionLimit=0.04
+RestrictionSphere=(0.34, 0.45, 0.70, 0.8)
+RestrictionSphere=( 0.74, -0.07, -1.17, 0.50)
+RestrictionSphere=(-0.74, -0.07, -1.17, 0.50)
+RestrictionSphere=( 0.80, -0.05,  1.17, 0.50)
+RestrictionSphere=(-0.80, -0.05,  1.17, 0.50)
+

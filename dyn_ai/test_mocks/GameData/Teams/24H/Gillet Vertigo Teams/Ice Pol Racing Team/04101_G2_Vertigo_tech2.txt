@@ -1,0 +1,21 @@
+
+
+
+<SET_FONT>
+FT_HEADER_Orange
+ 
+
+<SET_FONT>
+FT_Standard_VALUE
+3.0L V6 4-valve
+Front
+242 @ 6300
+325 @ 5000
+1030
+52/48
+2.97-1
+3070
+2340
+1580
+1618
+Dunlop

@@ -1,0 +1,24 @@
+
+
+
+<SET_FONT>
+FT_HEADER_Orange
+Technical Specifications
+
+<SET_FONT>
+FT_Standard_TEXT
+Engine Type:
+Engine Location:
+Horsepower:
+Torque (NM):
+Weight (KG):
+Weight % F/R:
+Lift/Drag:
+Downforce:
+Wheelbase:
+Front Track:
+Rear Track:
+Tyres:
+
+
+

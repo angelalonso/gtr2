@@ -1,0 +1,21 @@
+
+
+
+<SET_FONT>
+FT_HEADER_Orange
+ 
+
+<SET_FONT>
+FT_Standard_VALUE
+1.8L Inline-4 2-valve
+Mid
+200 @ 8200
+220 @ 5500
+700
+43/57
+2.06-1
+2045
+2300
+1454
+1489
+Dunlop

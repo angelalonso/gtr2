@@ -1,0 +1,78 @@
+//  2004 101 - 24H - Gillet Vertigo Streiff, Simulation
+//----------------------------------------------------
+
+HDVehicle=VERTIGO.hdc
+Graphics=GILLET_VERTIGO.cas
+GenString=1306
+Sounds=VERTIGOsounds.aud
+HeadPhysics=headphysics.hed
+
+Eyepoint=(0.342, 0.55, 0.70)
+CameraTarget=(0.000, 0.620, 0.230)
+MaxSeatRear=0.04
+MaxSeatFront=-0.09
+MaxSeatUp=0.03
+MaxSeatDown=-0.03 
+FrontWheelsInCockpit=0
+
+SteeringWheelAxis=(0.0,0.174,0.985)
+SteeringWheelType=5
+ExternalDriverPosition=(0.34, -0.25, 0.55)
+FirstPersonDriverPosition=(0.339, -0.399, 0.48)
+LeftSideSteering=1
+ShiftStickPosition=(0.0, 0.26, 0.20)
+
+ClutchPedalPosition=(0.45, -0.06, -0.10)
+BrakePedalPosition=(0.33, -0.06, -0.10)
+AcceleratorPedalPosition=(0.23, -0.06, -0.10)
+LeftLegBendAngle=15.0
+RightLegBendAngle=-15.0
+
+DigitalDisplays=2
+Display1Instance=MOTEC
+Display1RPMBars=40
+Display1RPMBarsRange=(1000,9000)
+Display1RPMLights=2
+Display1RPMLightsRange=(6000,6500)
+Display1SessionPractice=(376,36)
+Display1SessionWarmup=(376,23)
+Display1SessionRace=(376,10)
+Display1GearHeadingParams=LARGE,CENTER
+Display1GearHeadingPos=(352,60)
+Display1FuelHeadingParams=LARGE,CENTER
+Display1FuelHeadingPos=(220,60)
+Display1FuelParams=LARGE,CENTER
+Display1FuelPos=(185,100)
+Display1SpeedHeadingParams=LARGE,RIGHT
+Display1SpeedHeadingPos=(500,76)
+Display1SpeedParams=MEDIUM,RIGHT
+Display1SpeedPos=(465,120)
+Display1GearParams=LARGE,CENTER
+Display1GearPos=(342,100)
+Display1LapTimeHeadingParams=LARGE,RIGHT
+Display1LapTimeHeadingPos=(240,145)
+Display1LapTImeParams=MEDIUM,RIGHT
+Display1LapTimePos=(281,187)
+
+Display2Instance=MOTEC2
+Display2GearParams=LARGE,CENTER
+Display2GearPos=(32,64)
+
+FuelAnimations=5
+FuelRigType=2
+FuelCapPositionL=(0.305, 0.46, 1.29)
+FuelCapAngleL=90.0
+FuelCapPositionR=(-0.305, 0.45, 1.29)
+FuelCapAngleR=-90.0
+
+Number=04101
+Team="Ice Pol Racing Team"
+PitGroup=""
+Driver="Yves Lambert"
+Driver1="Yves Lambert"
+Driver2="Christian Lefort"
+Description="Gillet Vertigo Streiff"
+Engine="Alfa Romeo V6"
+Manufacturer="Gillet_Vertigo"
+classes="FULL, 2004, VERTIGO, NG3_2004, 24H_2004, CC001, SPA_2004"
+ComparativeTime=108
