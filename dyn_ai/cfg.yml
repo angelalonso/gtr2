@@ -1,6 +1,6 @@
 auto_apply: false
 autopilot_enabled: false
 backup_enabled: true
-base_path: /home/aaf/Software/000_Recovery_Windows/GTR2/00_COPIES/00_steamonly
+base_path: ''
 formulas_dir: ./track_formulas
 logging_enabled: false
