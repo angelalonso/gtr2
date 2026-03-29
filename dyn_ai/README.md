@@ -80,13 +80,12 @@ To help the calculations, make sure you enter the "Global Curve Editor" and unde
 
 ## Known issues
 - It is slow
-- It needsome babysitting - Get data, check the graph editor, save... 
+- It needs some babysitting - Get data, check the graph editor, save... 
 - The Autopilot hangs for whatever reason
-- The Curve graph shows points for all tracks instead of only showing the currently selected track.
 - The autofit curve does not work but it can be done by hand.
 - We need a better way to manually add or edit the results before sending it to historic.csv
 - A proper historic.csv for all tracks would be very good to have, regardless of car.
-- THe crosscompilation (linux to windows) seems to produce a good .exe BUT it fails to run on wine so...don't trust the exe unless you must.
+- The crosscompilation (linux to windows) seems to produce a good .exe BUT it fails to run on wine so...don't trust the exe unless you must.
 
 ## Wishlist
 - We need a way to not always set the middle point in terms of laptime. E.g.: "I want a ratio that makes my laptime top-ten" or "I want to be 0.5 secs faster than the fastest AI". The idea is to adapt the challenge

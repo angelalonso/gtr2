@@ -2,6 +2,7 @@
 AIW File Manager - Reading, writing, and backing up AIW files
 """
 
+import os
 import re
 import shutil
 import logging
@@ -310,6 +311,3 @@ class AIWManager:
     def has_original_backup(self, aiw_path: Path, track_name: str) -> bool:
         """Check if original backup exists"""
         return track_name in self.backup_created_for_track or self.get_original_backup(aiw_path) is not None
-
-
-import os

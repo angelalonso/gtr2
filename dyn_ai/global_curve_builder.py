@@ -102,7 +102,8 @@ class ParameterEditor(QGroupBox):
         """Update track list"""
         self.track_combo.blockSignals(True)
         self.track_combo.clear()
-        self.track_combo.addItem("-- Global Curve --")
+        # Add "-- Select Track --" as first option
+        self.track_combo.addItem("-- Select Track --")
         for track in sorted(tracks):
             self.track_combo.addItem(track)
         if current_track and current_track in tracks:
@@ -141,58 +142,65 @@ class ParameterEditor(QGroupBox):
     def get_selected_track(self) -> Optional[str]:
         """Get currently selected track"""
         text = self.track_combo.currentText()
-        if text == "-- Global Curve --":
+        if text == "-- Select Track --":
             return None
         return text
 
 
 class DataPointsTable(QTableWidget):
-    """Table for displaying data points"""
+    """Table for displaying data points for the selected track"""
     
-    point_selected = pyqtSignal(int)
     point_deleted = pyqtSignal(int)
     
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setup_ui()
+        self.current_track = None
+        self.all_points = {}  # track_name -> list of (ratio, time)
         
     def setup_ui(self):
-        self.setColumnCount(4)
-        self.setHorizontalHeaderLabels(["Track", "Ratio", "Lap Time (s)", ""])
+        self.setColumnCount(3)
+        self.setHorizontalHeaderLabels(["Ratio", "Lap Time (s)", ""])
         
-        self.setColumnWidth(0, 150)
+        self.setColumnWidth(0, 100)
         self.setColumnWidth(1, 100)
-        self.setColumnWidth(2, 100)
-        self.setColumnWidth(3, 60)
+        self.setColumnWidth(2, 60)
         
         self.setAlternatingRowColors(True)
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
         
         self.horizontalHeader().setStretchLastSection(False)
+    
+    def set_track_points(self, track_name: str, points: List[Tuple[float, float]]):
+        """Update table to show points for the selected track"""
+        self.current_track = track_name
+        self.clear_all()
         
-    def add_point(self, track_name: str, ratio: float, time: float, row_index: int = None):
+        if not track_name or track_name not in self.all_points:
+            return
+        
+        points = self.all_points[track_name]
+        for ratio, time in points:
+            self.add_point(ratio, time)
+    
+    def add_point(self, ratio: float, time: float, row_index: int = None):
         """Add a data point to the table"""
         if row_index is None:
             row_index = self.rowCount()
             self.insertRow(row_index)
         
-        # Track name
-        track_item = QTableWidgetItem(track_name)
-        track_item.setFlags(track_item.flags() & ~Qt.ItemIsEditable)
-        self.setItem(row_index, 0, track_item)
-        
         # Ratio
         ratio_item = QTableWidgetItem(f"{ratio:.4f}")
         ratio_item.setFlags(ratio_item.flags() & ~Qt.ItemIsEditable)
-        self.setItem(row_index, 1, ratio_item)
+        self.setItem(row_index, 0, ratio_item)
         
         # Time
         time_item = QTableWidgetItem(f"{time:.3f}")
         time_item.setFlags(time_item.flags() & ~Qt.ItemIsEditable)
-        self.setItem(row_index, 2, time_item)
+        self.setItem(row_index, 1, time_item)
         
         # Delete button
-        delete_btn = QPushButton("×")
+        delete_btn = QPushButton("x")
         delete_btn.setFixedSize(30, 25)
         delete_btn.setStyleSheet("""
             QPushButton {
@@ -207,7 +215,7 @@ class DataPointsTable(QTableWidget):
             }
         """)
         delete_btn.clicked.connect(lambda: self.point_deleted.emit(row_index))
-        self.setCellWidget(row_index, 3, delete_btn)
+        self.setCellWidget(row_index, 2, delete_btn)
         
         return row_index
     
@@ -215,22 +223,30 @@ class DataPointsTable(QTableWidget):
         """Clear all rows"""
         self.setRowCount(0)
     
-    def get_point(self, row: int) -> Tuple[str, float, float]:
+    def get_point(self, row: int) -> Tuple[float, float]:
         """Get point data from row"""
-        track = self.item(row, 0).text()
-        ratio = float(self.item(row, 1).text())
-        time = float(self.item(row, 2).text())
-        return track, ratio, time
+        ratio = float(self.item(row, 0).text())
+        time = float(self.item(row, 1).text())
+        return ratio, time
+    
+    def update_all_points(self, all_points: Dict[str, List[Tuple[float, float]]]):
+        """Update the internal storage of all points"""
+        self.all_points = all_points.copy()
+        # Refresh current track display
+        if self.current_track:
+            self.set_track_points(self.current_track, self.all_points.get(self.current_track, []))
+        else:
+            self.clear_all()
 
 
 class CurveGraphWidget(QWidget):
-    """Widget for displaying the curve and data points"""
+    """Widget for displaying the curve and data points for selected track only"""
     
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setup_ui()
         
-        self.track_points = {}  # track_name -> list of (ratio, time)
+        self.current_points = []  # points for current track [(ratio, time)]
         self.current_track = None
         self.curve_params = None  # (a, b) for current curve
         
@@ -267,16 +283,25 @@ class CurveGraphWidget(QWidget):
         self.ax.xaxis.set_minor_locator(AutoMinorLocator())
         self.ax.yaxis.set_minor_locator(AutoMinorLocator())
         
+        # Disable legend by default
+        self.ax.get_legend().remove() if self.ax.get_legend() else None
+    
     def update_data(self, track_points: Dict[str, List[Tuple[float, float]]], 
                     current_track: str = None, curve_params: Tuple[float, float] = None):
-        """Update the graph with new data"""
-        self.track_points = track_points
+        """Update the graph with data for the selected track only"""
         self.current_track = current_track
         self.curve_params = curve_params
+        
+        # Get points only for the selected track
+        if current_track and current_track in track_points:
+            self.current_points = track_points[current_track]
+        else:
+            self.current_points = []
+        
         self.redraw()
     
     def redraw(self):
-        """Redraw the graph"""
+        """Redraw the graph - only shows selected track points"""
         self.ax.clear()
         
         # Restyle
@@ -294,31 +319,22 @@ class CurveGraphWidget(QWidget):
         self.ax.set_xlim(0.3, 3.0)
         self.ax.set_ylim(50, 200)
         
-        # Plot data points
-        import matplotlib.pyplot as plt
-        colors = plt.cm.tab10(np.linspace(0, 1, max(1, len(self.track_points))))
-        
-        for i, (track_name, points) in enumerate(self.track_points.items()):
-            if not points:
-                continue
+        # Plot data points for selected track only
+        if self.current_points:
+            ratios = [p[0] for p in self.current_points]
+            times = [p[1] for p in self.current_points]
             
-            ratios = [p[0] for p in points]
-            times = [p[1] for p in points]
+            # Use a single color for all points
+            self.ax.scatter(ratios, times, c='#FFA500', s=60, alpha=0.9,
+                           edgecolors='white', linewidth=1, zorder=3)
             
-            # Highlight current track
-            if track_name == self.current_track:
-                color = '#FFA500'
-                size = 80
-                alpha = 1.0
-                label = f"{track_name} (selected)"
-            else:
-                color = colors[i % len(colors)]
-                size = 50
-                alpha = 0.7
-                label = track_name
-            
-            self.ax.scatter(ratios, times, c=[color], s=size, alpha=alpha, 
-                           label=label, edgecolors='white', linewidth=1, zorder=3)
+            # Add labels to show point coordinates
+            for r, t in self.current_points:
+                self.ax.annotate(f'({r:.2f}, {t:.1f})', 
+                               xy=(r, t), xytext=(5, 5),
+                               textcoords='offset points',
+                               fontsize=8, color='#AAAAAA',
+                               alpha=0.7)
         
         # Plot curve if parameters available
         if self.curve_params:
@@ -326,26 +342,19 @@ class CurveGraphWidget(QWidget):
             ratios_curve = np.linspace(0.3, 3.0, 200)
             times_curve = [a / r + b for r in ratios_curve]
             
-            # Determine if this is global or track-specific
+            # Curve label
             if self.current_track:
-                label = f"Curve for {self.current_track}: T = {a:.3f}/R + {b:.3f}"
+                label = f"T = {a:.3f}/R + {b:.3f}"
             else:
-                label = f"Global Curve: T = {a:.3f}/R + {b:.3f}"
+                label = f"Global: T = {a:.3f}/R + {b:.3f}"
             
             self.ax.plot(ratios_curve, times_curve, c='cyan', linewidth=2.5,
                         label=label, zorder=4)
-        
-        # Legend
-        handles, labels = self.ax.get_legend_handles_labels()
-        if handles:
-            unique = {}
-            for h, l in zip(handles, labels):
-                if l not in unique:
-                    unique[l] = h
-            self.ax.legend(handles=unique.values(), labels=unique.keys(),
-                          loc='upper left', framealpha=0.8,
+            
+            # Add legend only for the curve (not for points)
+            self.ax.legend(loc='upper left', framealpha=0.8,
                           facecolor='#2b2b2b', edgecolor='#4CAF50',
-                          labelcolor='white', fontsize=8)
+                          labelcolor='white', fontsize=9)
         
         self.canvas.draw()
     
@@ -454,7 +463,7 @@ class GlobalCurveBuilderDialog(QDialog):
         left_layout.addWidget(self.param_editor)
         
         # Data points table
-        data_group = QGroupBox("Data Points")
+        data_group = QGroupBox("Data Points (Selected Track Only)")
         data_layout = QVBoxLayout(data_group)
         
         self.points_table = DataPointsTable()
@@ -516,19 +525,19 @@ class GlobalCurveBuilderDialog(QDialog):
         layout.setContentsMargins(0, 0, 0, 10)
         
         # Auto-fit button
-        self.fit_btn = QPushButton("📈 Auto-Fit Current Track")
+        self.fit_btn = QPushButton("Auto-Fit Current Track")
         self.fit_btn.setFixedHeight(35)
         self.fit_btn.clicked.connect(self.auto_fit)
         layout.addWidget(self.fit_btn)
         
         # Fit all button
-        self.fit_all_btn = QPushButton("🌍 Fit Global k")
+        self.fit_all_btn = QPushButton("Fit Global k")
         self.fit_all_btn.setFixedHeight(35)
         self.fit_all_btn.clicked.connect(self.fit_global_k)
         layout.addWidget(self.fit_all_btn)
         
         # Apply to manager button
-        self.apply_btn = QPushButton("💾 Apply to AI Tuner")
+        self.apply_btn = QPushButton("Apply to AI Tuner")
         self.apply_btn.setFixedHeight(35)
         self.apply_btn.setStyleSheet("background-color: #9C27B0;")
         self.apply_btn.clicked.connect(self.apply_to_manager)
@@ -541,13 +550,13 @@ class GlobalCurveBuilderDialog(QDialog):
         layout.addWidget(sep)
         
         # Reset view
-        reset_btn = QPushButton("🔄 Reset Graph View")
+        reset_btn = QPushButton("Reset Graph View")
         reset_btn.setFixedHeight(35)
         reset_btn.clicked.connect(self.reset_graph_view)
         layout.addWidget(reset_btn)
         
         # Import CSV
-        import_btn = QPushButton("📁 Import CSV Data")
+        import_btn = QPushButton("Import CSV Data")
         import_btn.setFixedHeight(35)
         import_btn.clicked.connect(self.import_csv)
         layout.addWidget(import_btn)
@@ -569,12 +578,6 @@ class GlobalCurveBuilderDialog(QDialog):
             self.track_points = self.curve_manager.curve.points_by_track.copy()
             self.track_params = self.curve_manager.curve.track_params.copy()
             self.global_k = self.curve_manager.curve.global_k
-            
-            # Populate table
-            self.points_table.clear_all()
-            for track_name, points in self.track_points.items():
-                for ratio, time in points:
-                    self.points_table.add_point(track_name, ratio, time)
         
         # Try to load from historic.csv
         historic_csv = Path("./historic.csv")
@@ -584,6 +587,9 @@ class GlobalCurveBuilderDialog(QDialog):
         # Update track list in parameter editor
         tracks = list(set(self.track_points.keys()))
         self.param_editor.set_tracks(tracks)
+        
+        # Update points table with all points
+        self.points_table.update_all_points(self.track_points)
         
         # Set default parameters
         if tracks and any(t in self.track_params for t in tracks):
@@ -651,18 +657,6 @@ class GlobalCurveBuilderDialog(QDialog):
                 # Sort points by ratio
                 for track in self.track_points:
                     self.track_points[track].sort(key=lambda x: x[0])
-                    
-                    # Add to table if not already there
-                    for ratio, time in self.track_points[track]:
-                        # Check if already in table
-                        exists = False
-                        for row in range(self.points_table.rowCount()):
-                            t, r, tm = self.points_table.get_point(row)
-                            if t == track and abs(r - ratio) < 0.001:
-                                exists = True
-                                break
-                        if not exists:
-                            self.points_table.add_point(track, ratio, time)
                 
                 self.log_message(f"Loaded {loaded} points from {csv_path.name}")
                 
@@ -691,12 +685,17 @@ class GlobalCurveBuilderDialog(QDialog):
         self.track_points[track].append((ratio, time))
         self.track_points[track].sort(key=lambda x: x[0])
         
-        # Add to table
-        self.points_table.add_point(track, ratio, time)
+        # Update points table
+        self.points_table.update_all_points(self.track_points)
         
         # Update track list
         tracks = list(set(self.track_points.keys()))
         self.param_editor.set_tracks(tracks)
+        
+        # If this is the currently selected track, refresh the table display
+        selected_track = self.param_editor.get_selected_track()
+        if selected_track == track:
+            self.points_table.set_track_points(track, self.track_points[track])
         
         self.log_message(f"Added point: {track} - R={ratio:.4f}, T={time:.3f}s", "success")
         self.update_graph()
@@ -704,27 +703,38 @@ class GlobalCurveBuilderDialog(QDialog):
     
     def on_point_deleted(self, row: int):
         """Handle point deletion"""
-        track, ratio, time = self.points_table.get_point(row)
+        ratio, time = self.points_table.get_point(row)
+        selected_track = self.param_editor.get_selected_track()
         
-        if track in self.track_points:
+        if not selected_track:
+            return
+        
+        if selected_track in self.track_points:
             # Find and remove the point
-            for i, (r, t) in enumerate(self.track_points[track]):
+            for i, (r, t) in enumerate(self.track_points[selected_track]):
                 if abs(r - ratio) < 0.001 and abs(t - time) < 0.01:
-                    del self.track_points[track][i]
+                    del self.track_points[selected_track][i]
                     break
             
             # Remove track if no points left
-            if not self.track_points[track]:
-                del self.track_points[track]
+            if not self.track_points[selected_track]:
+                del self.track_points[selected_track]
+                # Also remove parameters if they exist
+                if selected_track in self.track_params:
+                    del self.track_params[selected_track]
         
-        # Remove from table
-        self.points_table.removeRow(row)
+        # Update points table
+        self.points_table.update_all_points(self.track_points)
         
         # Update track list
         tracks = list(set(self.track_points.keys()))
         self.param_editor.set_tracks(tracks)
         
-        self.log_message(f"Deleted point: {track} - R={ratio:.4f}", "info")
+        # If track still exists, refresh display
+        if selected_track in self.track_points:
+            self.points_table.set_track_points(selected_track, self.track_points[selected_track])
+        
+        self.log_message(f"Deleted point: {selected_track} - R={ratio:.4f}", "info")
         self.update_graph()
         self.update_stats()
     
@@ -791,7 +801,7 @@ class GlobalCurveBuilderDialog(QDialog):
             self.global_k = np.mean(k_values)
             k_std = np.std(k_values)
             self.param_editor.global_k_spin.setValue(self.global_k)
-            self.log_message(f"Global k = {self.global_k:.4f} ± {k_std:.4f} from {len(k_values)} tracks", "success")
+            self.log_message(f"Global k = {self.global_k:.4f} +- {k_std:.4f} from {len(k_values)} tracks", "success")
         else:
             self.log_message(f"Need at least 2 tracks with fitted parameters to fit global k (have {len(k_values)})", "warning")
     
@@ -820,7 +830,14 @@ class GlobalCurveBuilderDialog(QDialog):
             a, b = self.param_editor.get_params()
             curve_params = (a, b)
         
+        # Pass only the selected track's points
         self.graph.update_data(self.track_points, selected_track, curve_params)
+        
+        # Update the points table to show only selected track's points
+        if selected_track and selected_track in self.track_points:
+            self.points_table.set_track_points(selected_track, self.track_points[selected_track])
+        else:
+            self.points_table.clear_all()
     
     def update_stats(self):
         """Update statistics display"""
@@ -828,7 +845,7 @@ class GlobalCurveBuilderDialog(QDialog):
         total_tracks = len(self.track_points)
         fitted_tracks = len(self.track_params)
         
-        self.stats_label.setText(f"📊 {total_points} points | {total_tracks} tracks | {fitted_tracks} fitted")
+        self.stats_label.setText(f"Stats: {total_points} points | {total_tracks} tracks | {fitted_tracks} fitted")
         self.status_bar.showMessage(f"Ready - {total_points} data points loaded")
     
     def reset_graph_view(self):
@@ -849,6 +866,9 @@ class GlobalCurveBuilderDialog(QDialog):
             # Update track list
             tracks = list(set(self.track_points.keys()))
             self.param_editor.set_tracks(tracks)
+            
+            # Update points table
+            self.points_table.update_all_points(self.track_points)
     
     def apply_to_manager(self):
         """Apply current parameters to the AI Tuner's curve manager"""
@@ -863,7 +883,10 @@ class GlobalCurveBuilderDialog(QDialog):
         
         # Re-fit each track
         for track_name in self.track_points:
-            self.curve_manager.curve._update_track_params(track_name)
+            try:
+                self.curve_manager.curve._update_track_params(track_name)
+            except Exception as e:
+                self.log_message(f"Error updating track {track_name}: {e}", "warning")
         
         # Save
         self.curve_manager.save()
@@ -887,7 +910,3 @@ class GlobalCurveBuilderDialog(QDialog):
         """Log message to status bar and console"""
         self.status_bar.showMessage(msg, 3000)
         logger.info(f"[CurveBuilder] {msg}")
-
-
-# Import for numpy
-import numpy as np

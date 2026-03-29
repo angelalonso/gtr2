@@ -418,6 +418,3 @@ def _find_aiw_file_case_insensitive(aiw_filename: str, track_folder: str, base_p
     
     logger.warning(f"AIW file not found: {aiw_filename}")
     return None
-
-
-import os
