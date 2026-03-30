@@ -1359,29 +1359,26 @@ User Times:
             self.apply_all_btn.setEnabled(False)
         else:
             self.log_message("Failed to restore original backup", "error")
-    
+
     def open_curve_editor(self):
         """Open the global curve builder dialog"""
         try:
             from global_curve_builder import GlobalCurveBuilderDialog
             
-            # Store reference to current curve manager
-            old_curve_manager = self.curve_manager
-            
-            # Create dialog with current curve manager
+            # Create dialog with current curve manager (passing the actual instance)
             dialog = GlobalCurveBuilderDialog(
                 parent=self,
                 formulas_dir=get_formulas_dir(),
-                curve_manager=self.curve_manager
+                curve_manager=self.curve_manager  # Pass the existing instance
             )
             
             # Connect to signal when dialog is accepted
             result = dialog.exec_()
             
             if result == QDialog.Accepted:
-                # Refresh the curve manager
-                self.curve_manager = GlobalCurveManager(get_formulas_dir())
-                self.curve_manager.load()  # Reload from saved file
+                # The curve_manager instance was already updated by the dialog
+                # No need to create a new one - just refresh the display
+                self.curve_manager.load()  # Optional: reload to ensure sync
                 
                 # Update status display
                 self.update_status()
@@ -1392,12 +1389,13 @@ User Times:
                     self._update_race_results(self.last_results)
                 
                 self.log_message("Global curve updated from editor", "success")
-                
+                    
         except ImportError as e:
             self.log_message(f"Could not open curve editor: {e}", "error")
             self.log_message("Make sure global_curve_builder.py is in the same directory", "error")
         except Exception as e:
             self.log_message(f"Error opening curve editor: {e}", "error")
+    
         
     def run(self):
         self.show()

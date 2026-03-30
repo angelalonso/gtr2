@@ -1,69 +1,151 @@
 """
-File monitor for raceresults.txt using watchdog
+File monitor for raceresults.txt - OPTIMIZED with timer-based polling
 """
 
-import os
 import time
 import logging
 import threading
 from pathlib import Path
 from datetime import datetime
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
 
-from results_parser import parse_race_results, RaceResults
+from results_parser import parse_race_results
 
 logger = logging.getLogger(__name__)
 
 
-class ResultsFileHandler(FileSystemEventHandler):
-    """Handles file system events for raceresults.txt"""
+class FileMonitor:
+    """Main file monitor class - uses timer-based polling instead of watchdog"""
     
-    def __init__(self, target_file: Path, base_path: Path, callback, console_mode=False):
-        super().__init__()
+    def __init__(self, watch_folder: Path, target_file: Path, base_path: Path, 
+                 callback=None, console_mode=False):
+        self.watch_folder = Path(watch_folder)
         self.target_file = Path(target_file)
         self.base_path = Path(base_path) if base_path else None
-        self.callback = callback
         self.console_mode = console_mode
+        self.callback = callback
+        self.running = False
+        self.timer = None
+        self.poll_interval = 5.0  # Check every 5 seconds
+        self.last_mtime = None
+        self.last_size = None
+        self.lock = threading.Lock()
         self.last_analysis_time = 0
-        self.pending_analysis = False
-        self.file_states = {}
+        
+    def start(self) -> bool:
+        """Start monitoring with timer-based polling"""
+        if not self.watch_folder.exists():
+            logger.info(f"Creating watch folder: {self.watch_folder}")
+            self.watch_folder.mkdir(parents=True, exist_ok=True)
+        
+        # Ensure target file directory exists
+        self.target_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Record initial file state
+        self._update_file_state()
+        
+        self.running = True
+        self._schedule_check()
+        
+        logger.info(f"Started monitoring (polling every {self.poll_interval}s): {self.target_file}")
+        
+        return True
     
-    def is_target_file(self, file_path):
-        """Check if the given file is our target file"""
-        try:
-            return Path(file_path).resolve() == self.target_file.resolve()
-        except Exception:
-            return str(file_path) == str(self.target_file)
+    def stop(self):
+        """Stop monitoring"""
+        self.running = False
+        if self.timer:
+            self.timer.cancel()
+        logger.info("Stopped monitoring")
     
-    def analyze_results(self, file_path):
-        """Analyze the race results file"""
+    def _schedule_check(self):
+        """Schedule the next file check"""
+        if self.running:
+            self.timer = threading.Timer(self.poll_interval, self._check_file)
+            self.timer.daemon = True
+            self.timer.start()
+    
+    def _check_file(self):
+        """Check if the target file has changed"""
         try:
-            # Debounce: ignore if analyzed recently (within 2 seconds)
+            if not self.running:
+                return
+            
+            # Check if file exists
+            if not self.target_file.exists():
+                # File doesn't exist, just reschedule
+                self._schedule_check()
+                return
+            
+            # Get current file stats
+            try:
+                stat = self.target_file.stat()
+                current_mtime = stat.st_mtime
+                current_size = stat.st_size
+            except OSError:
+                # File might be locked or inaccessible, skip this check
+                self._schedule_check()
+                return
+            
+            # Check if file has changed
+            changed = False
+            if self.last_mtime is None:
+                # First check
+                changed = True
+            elif current_mtime != self.last_mtime or current_size != self.last_size:
+                changed = True
+            
+            # Update stored state
+            self.last_mtime = current_mtime
+            self.last_size = current_size
+            
+            # Analyze if changed
+            if changed:
+                self._analyze_file()
+            
+        except Exception as e:
+            logger.error(f"Error checking file: {e}")
+        finally:
+            # Always schedule next check
+            self._schedule_check()
+    
+    def _analyze_file(self):
+        """Analyze the race results file with debouncing"""
+        with self.lock:
             current_time = time.time()
+            # Debounce: wait at least 2 seconds between analyses
             if current_time - self.last_analysis_time < 2.0:
                 logger.debug("Skipping analysis (too soon)")
                 return
             
-            logger.info(f"Analyzing race results: {file_path}")
+            logger.info(f"File changed, analyzing: {self.target_file}")
             self.last_analysis_time = current_time
-            self.pending_analysis = False
             
-            # Parse the results
-            results = parse_race_results(file_path, self.base_path)
-            
-            if results and results.has_data():
-                if self.callback:
-                    self.callback(results.to_dict())
-                elif self.console_mode:
-                    self._print_results(results)
-            else:
-                logger.info("No valid race data found in file")
+            try:
+                # Parse the results
+                results = parse_race_results(self.target_file, self.base_path)
                 
-        except Exception as e:
-            logger.error(f"Error analyzing results: {e}", exc_info=True)
+                if results and results.has_data():
+                    if self.callback:
+                        self.callback(results.to_dict())
+                    elif self.console_mode:
+                        self._print_results(results)
+                else:
+                    logger.info("No valid race data found in file")
+                    
+            except Exception as e:
+                logger.error(f"Error analyzing results: {e}", exc_info=True)
     
-    def _print_results(self, results: RaceResults):
+    def _update_file_state(self):
+        """Update the stored file state"""
+        try:
+            if self.target_file.exists():
+                stat = self.target_file.stat()
+                self.last_mtime = stat.st_mtime
+                self.last_size = stat.st_size
+        except Exception:
+            pass
+    
+    def _print_results(self, results):
         """Print results to console"""
         print("\n" + "=" * 60)
         print("RACE RESULTS DETECTED!")
@@ -79,122 +161,3 @@ class ResultsFileHandler(FileSystemEventHandler):
         print(f"  Best User Lap: {results.user_best_lap or 'N/A'}")
         print(f"  User Qualifying: {results.user_qualifying or 'N/A'}")
         print("=" * 60 + "\n")
-    
-    def schedule_analysis(self, file_path):
-        """Schedule analysis with a delay"""
-        if self.pending_analysis:
-            return
-        
-        self.pending_analysis = True
-        
-        def delayed_analysis():
-            time.sleep(1.0)  # Wait for file to be fully written
-            self.analyze_results(file_path)
-        
-        thread = threading.Thread(target=delayed_analysis, daemon=True)
-        thread.start()
-        logger.info(f"Scheduled analysis for {file_path}")
-    
-    def on_modified(self, event):
-        """Called when a file is modified"""
-        if not event.is_directory and self.is_target_file(event.src_path):
-            logger.info(f"Target file modified: {event.src_path}")
-            self._check_file_change(Path(event.src_path))
-    
-    def on_created(self, event):
-        """Called when a file is created"""
-        if not event.is_directory and self.is_target_file(event.src_path):
-            logger.info(f"Target file created: {event.src_path}")
-            self._track_file(Path(event.src_path))
-            self.schedule_analysis(Path(event.src_path))
-    
-    def _track_file(self, file_path):
-        """Track initial state of a file"""
-        try:
-            if file_path.exists() and file_path.is_file():
-                stat_info = file_path.stat()
-                self.file_states[str(file_path)] = {
-                    'size': stat_info.st_size,
-                    'mtime': stat_info.st_mtime
-                }
-        except Exception as e:
-            logger.error(f"Error tracking file {file_path}: {e}")
-    
-    def _check_file_change(self, file_path):
-        """Check if file content has actually changed"""
-        try:
-            if not file_path.exists():
-                return
-            
-            current_state = {
-                'size': file_path.stat().st_size,
-                'mtime': file_path.stat().st_mtime
-            }
-            
-            previous_state = self.file_states.get(str(file_path))
-            
-            if previous_state is None:
-                self.file_states[str(file_path)] = current_state
-                self.schedule_analysis(file_path)
-                return
-            
-            if (current_state['size'] != previous_state['size'] or 
-                current_state['mtime'] != previous_state['mtime']):
-                
-                logger.info(f"File content changed: {file_path}")
-                self.file_states[str(file_path)] = current_state
-                self.schedule_analysis(file_path)
-                
-        except Exception as e:
-            logger.error(f"Error checking file {file_path}: {e}")
-
-
-class FileMonitor:
-    """Main file monitor class"""
-    
-    def __init__(self, watch_folder: Path, target_file: Path, base_path: Path, 
-                 callback=None, console_mode=False):
-        self.watch_folder = Path(watch_folder)
-        self.target_file = Path(target_file)
-        self.base_path = Path(base_path) if base_path else None
-        self.console_mode = console_mode
-        self.callback = callback
-        self.observer = Observer()
-        self.event_handler = ResultsFileHandler(
-            self.target_file, 
-            self.base_path, 
-            self.callback,
-            self.console_mode
-        )
-    
-    def start(self) -> bool:
-        """Start monitoring"""
-        if not self.watch_folder.exists():
-            logger.info(f"Creating watch folder: {self.watch_folder}")
-            self.watch_folder.mkdir(parents=True, exist_ok=True)
-        
-        # Ensure target file directory exists
-        self.target_file.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Schedule monitoring
-        self.observer.schedule(
-            self.event_handler,
-            str(self.watch_folder),
-            recursive=True
-        )
-        self.observer.start()
-        
-        # Track existing file
-        if self.target_file.exists():
-            self.event_handler._track_file(self.target_file)
-        
-        logger.info(f"Started monitoring: {self.watch_folder}")
-        logger.info(f"Target file: {self.target_file}")
-        
-        return True
-    
-    def stop(self):
-        """Stop monitoring"""
-        self.observer.stop()
-        self.observer.join()
-        logger.info("Stopped monitoring")

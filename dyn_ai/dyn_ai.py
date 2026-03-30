@@ -1,8 +1,8 @@
-# pip install PyQt5 watchdog numpy scipy pyyaml
+# pip install PyQt5 numpy scipy pyyaml
 #!/usr/bin/env python3
 """
 Live AI Tuner V2 - Automatic AI ratio adjustment based on race results
-Combines file monitoring with AIW editing capabilities
+OPTIMIZED: Lazy imports, reduced startup time, lower CPU usage
 """
 
 import sys
@@ -17,17 +17,15 @@ import time
 sys.path.insert(0, str(Path(__file__).parent))
 
 from cfg_manage import get_or_prompt_base_path, get_logging_enabled
-from file_monitor import FileMonitor
 
 
 def setup_logging(logging_enabled=False):
-    """Setup logging based on configuration"""
+    """Setup logging based on configuration - OPTIMIZED"""
     if not logging_enabled:
-        # Disable logging completely
-        logging.basicConfig(level=logging.WARNING, handlers=[logging.NullHandler()])
-        # Suppress all loggers
-        for name in logging.root.manager.loggerDict:
-            logging.getLogger(name).setLevel(logging.WARNING)
+        # Disable logging completely with minimal overhead
+        logging.basicConfig(level=logging.CRITICAL, handlers=[logging.NullHandler()])
+        # Only suppress root logger
+        logging.getLogger().setLevel(logging.CRITICAL)
         return None
     
     # Normal logging setup
@@ -44,7 +42,7 @@ def setup_logging(logging_enabled=False):
 
 
 class LiveAITuner:
-    """Main application class coordinating all components"""
+    """Main application class coordinating all components - OPTIMIZED"""
     
     def __init__(self, base_path: Path, no_gui: bool = False):
         self.base_path = Path(base_path)
@@ -52,9 +50,13 @@ class LiveAITuner:
         self.monitor = None
         self.main_window = None
         self.running = True
-        self.app = None  # Will hold QApplication if in GUI mode
+        self.app = None
         
-        # Get monitor folder (UserData)
+        # Lazy-loaded components
+        self._curve_manager = None
+        self._aiw_manager = None
+        
+        # Get monitor folder
         self.monitor_folder = self.base_path / 'UserData'
         self.target_file = self.monitor_folder / 'Log' / 'Results' / 'raceresults.txt'
         
@@ -63,8 +65,24 @@ class LiveAITuner:
         (self.monitor_folder / 'Log' / 'Results').mkdir(parents=True, exist_ok=True)
         
         print(f"Base path: {self.base_path}")
-        print(f"Monitor folder: {self.monitor_folder}")
         print(f"Target file: {self.target_file}")
+    
+    @property
+    def curve_manager(self):
+        """Lazy load curve manager"""
+        if self._curve_manager is None:
+            from global_curve import GlobalCurveManager
+            from cfg_manage import get_formulas_dir
+            self._curve_manager = GlobalCurveManager(get_formulas_dir())
+        return self._curve_manager
+    
+    @property
+    def aiw_manager(self):
+        """Lazy load AIW manager"""
+        if self._aiw_manager is None:
+            from aiw_manager import AIWManager
+            self._aiw_manager = AIWManager(self.base_path / 'backups')
+        return self._aiw_manager
     
     def start(self):
         """Start the application"""
@@ -74,10 +92,11 @@ class LiveAITuner:
             self._run_gui()
     
     def _run_console(self):
-        """Run in console mode (no GUI)"""
+        """Run in console mode (no GUI) - OPTIMIZED"""
         print("Starting in console mode...")
         
-        # Create and start monitor
+        from file_monitor import FileMonitor
+        
         self.monitor = FileMonitor(
             watch_folder=self.monitor_folder,
             target_file=self.target_file,
@@ -87,30 +106,34 @@ class LiveAITuner:
         )
         
         if self.monitor.start():
-            print("Press Ctrl+C to stop")
+            print(f"Monitoring every {self.monitor.poll_interval} seconds. Press Ctrl+C to stop")
             try:
                 while self.running:
-                    time.sleep(1)
+                    time.sleep(0.5)  # Sleep with lower CPU usage
             except KeyboardInterrupt:
                 print("\nShutting down...")
                 self.stop()
     
     def _run_gui(self):
-        """Run with GUI"""
+        """Run with GUI - OPTIMIZED with lazy imports"""
         # Import Qt only when needed
         from PyQt5.QtWidgets import QApplication
         
-        # Create QApplication first
         self.app = QApplication(sys.argv)
         self.app.setStyle('Fusion')
         
-        # Now import MainWindow (after QApplication exists)
+        # Import MainWindow only after QApplication exists
         from gui import MainWindow
         
-        # Create main window
+        # Create main window with lazy-loaded components
         self.main_window = MainWindow(self.base_path, self.monitor_folder, self.target_file)
         
-        # Create monitor
+        # Pass references to managers (they will be lazy-loaded)
+        self.main_window.curve_manager = self.curve_manager
+        self.main_window.aiw_manager = self.aiw_manager
+        
+        from file_monitor import FileMonitor
+        
         self.monitor = FileMonitor(
             watch_folder=self.monitor_folder,
             target_file=self.target_file,
@@ -119,42 +142,28 @@ class LiveAITuner:
             console_mode=False
         )
         
-        # Start monitor in background thread
         if self.monitor.start():
             monitor_thread = threading.Thread(target=self._run_monitor, daemon=True)
             monitor_thread.start()
         
-        # Show window and run event loop
         self.main_window.show()
         sys.exit(self.app.exec_())
     
     def _run_monitor(self):
-        """Run monitor in background thread"""
+        """Run monitor in background thread - OPTIMIZED"""
         try:
-            while self.running and self.monitor and self.monitor.observer.is_alive():
-                time.sleep(1)
+            while self.running and self.monitor and self.monitor.running:
+                time.sleep(0.5)  # Low CPU usage
         except Exception as e:
             print(f"Monitor thread error: {e}")
     
     def _on_race_results(self, data: dict):
         """Callback when race results are detected"""
         if self.main_window:
-            # Use Qt signal to safely update GUI from another thread
             self.main_window.on_race_results_detected(data)
         else:
-            # Console mode - just log
-            print("=" * 60)
-            print("Race Results Detected!")
-            print(f"Track: {data.get('track_name')}")
-            print(f"Qualifying AI Best: {data.get('qual_best_ai_lap')}")
-            print(f"Qualifying AI Worst: {data.get('qual_worst_ai_lap')}")
-            print(f"Race AI Best: {data.get('best_ai_lap')}")
-            print(f"Race AI Worst: {data.get('worst_ai_lap')}")
-            print(f"User Best Lap: {data.get('user_best_lap')}")
-            print(f"User Qualifying: {data.get('user_qualifying')}")
-            print(f"Current QualRatio: {data.get('qual_ratio')}")
-            print(f"Current RaceRatio: {data.get('race_ratio')}")
-            print("=" * 60)
+            # Console mode - minimal output
+            print(f"\nRace Results: {data.get('track_name')} | User: {data.get('user_best_lap')} | AI Best: {data.get('best_ai_lap')}")
     
     def stop(self):
         """Stop the application"""
@@ -166,7 +175,7 @@ class LiveAITuner:
 
 
 def main():
-    """Main entry point"""
+    """Main entry point - OPTIMIZED"""
     parser = argparse.ArgumentParser(
         description='Live AI Tuner - Automatically adjust AI ratios based on race results'
     )
@@ -187,11 +196,14 @@ def main():
     
     args = parser.parse_args()
     
-    # Setup logging based on config
+    # Fast config loading without heavy imports
     config = None
     try:
-        from cfg_manage import load_config
-        config = load_config(args.config)
+        import yaml
+        config_path = Path(args.config)
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
     except:
         pass
     

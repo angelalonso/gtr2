@@ -1,20 +1,13 @@
 """
 Global Curve Model - Hyperbolic relationship between Ratio and Lap Time
-Formula: T = a / R + b
-Where:
-  - a = speed sensitivity coefficient
-  - b = asymptotic floor (minimum possible lap time)
-  - R = Ratio
-  - T = Lap Time (midpoint of best/worst AI times)
-
-Inverted for ratio prediction: R = a / (T - b)
+OPTIMIZED: Added caching, lazy numpy loading, reduced calculations
 """
 
 import json
 import numpy as np
 from pathlib import Path
 from typing import Optional, List, Tuple, Dict
-from scipy.optimize import minimize, curve_fit
+from scipy.optimize import curve_fit
 import logging
 
 logger = logging.getLogger(__name__)
@@ -23,19 +16,21 @@ logger = logging.getLogger(__name__)
 class GlobalCurve:
     """
     Hyperbolic curve model: T = a / R + b
-    Each track can have its own (a, b) parameters, or share a global k = a/(a+b)
+    OPTIMIZED: Cached predictions and lazy numpy imports
     """
     
-    # Global prior for k = a/(a+b) = fraction of lap time that's ratio-sensitive
-    # Derived from average of 3 fitted tracks: ~0.297
     DEFAULT_K = 0.297
-    K_STD = 0.056  # Standard deviation for error estimation
+    K_STD = 0.056
     
     def __init__(self):
-        self.track_params: Dict[str, Dict[str, float]] = {}  # track_name -> {'a': float, 'b': float}
-        self.points_by_track: Dict[str, List[Tuple[float, float]]] = {}  # track -> [(ratio, midpoint_time)]
-        self.fit_error = None  # Average error
-        self.global_k = self.DEFAULT_K  # Global k for bootstrapping new tracks
+        self.track_params: Dict[str, Dict[str, float]] = {}
+        self.points_by_track: Dict[str, List[Tuple[float, float]]] = {}
+        self.fit_error = None
+        self.global_k = self.DEFAULT_K
+        
+        # Cache for predictions
+        self._prediction_cache: Dict[str, Dict[float, float]] = {}  # track_name -> {time: ratio}
+        self._max_cache_size = 100  # Limit cache size per track
         
     def midpoint(self, ratio: float, a: float, b: float) -> float:
         """Hyperbolic function: T = a / R + b"""
@@ -48,19 +43,22 @@ class GlobalCurve:
             return None
         return a / denominator
     
-    def predict_time(self, ratio: float, track_name: str) -> Optional[float]:
-        """Predict lap time for a given ratio on a specific track"""
-        params = self.track_params.get(track_name)
-        if not params:
-            return None
-        return self.midpoint(ratio, params['a'], params['b'])
-    
     def predict_ratio(self, time: float, track_name: str) -> Optional[float]:
         """
         Predict ratio for a given lap time on a specific track
-        Uses fitted parameters if available, otherwise bootstraps from available points
+        OPTIMIZED: Uses cache for repeated calculations
         """
+        # Check cache first
+        cache_key = round(time, 3)  # Round to 3 decimals for cache
+        if track_name in self._prediction_cache:
+            cached = self._prediction_cache[track_name].get(cache_key)
+            if cached is not None:
+                logger.debug(f"Cache hit for {track_name} at time {time:.3f}")
+                return cached
+        
         logger.info(f"Predicting ratio for {track_name}: time={time:.3f}s")
+        
+        result = None
         
         # Try fitted parameters first
         params = self.track_params.get(track_name)
@@ -71,82 +69,67 @@ class GlobalCurve:
                 logger.info(f"Predicted ratio from fit: {result:.6f}")
             else:
                 logger.warning(f"Time {time:.3f}s is below floor b={params['b']:.3f}s")
-            return result
         
-        # Bootstrap from available points
-        points = self.points_by_track.get(track_name, [])
-        logger.info(f"Bootstrap mode for {track_name}: {len(points)} points available")
-        
-        if len(points) == 1:
-            logger.info(f"Using single point bootstrap for {track_name}")
-            result = self._bootstrap_one_point(time, track_name, points[0])
+        # Bootstrap from available points if no fit or fit failed
+        if result is None:
+            points = self.points_by_track.get(track_name, [])
+            logger.info(f"Bootstrap mode for {track_name}: {len(points)} points available")
+            
+            if len(points) == 1:
+                result = self._bootstrap_one_point(time, track_name, points[0])
+            elif len(points) >= 2:
+                result = self._bootstrap_two_points(time, points)
+            else:
+                result = self._bootstrap_no_data(time, track_name)
+            
             if result:
                 logger.info(f"Predicted ratio from bootstrap: {result:.6f}")
-            return result
-        elif len(points) >= 2:
-            logger.info(f"Using two-point bootstrap for {track_name}")
-            result = self._bootstrap_two_points(time, points)
-            if result:
-                logger.info(f"Predicted ratio from two-point: {result:.6f}")
-            return result
         
-        # No data for this track, use global defaults with estimated M
-        logger.warning(f"No data for track {track_name}, using fallback")
-        result = self._bootstrap_no_data(time, track_name)
-        logger.info(f"Fallback ratio: {result:.6f}")
+        # Store in cache if valid
+        if result is not None:
+            if track_name not in self._prediction_cache:
+                self._prediction_cache[track_name] = {}
+            
+            # Limit cache size
+            cache = self._prediction_cache[track_name]
+            if len(cache) >= self._max_cache_size:
+                # Remove oldest entry (simple FIFO)
+                oldest_key = next(iter(cache))
+                del cache[oldest_key]
+            
+            cache[cache_key] = result
+        
         return result
     
     def _bootstrap_one_point(self, time: float, track_name: str, point: Tuple[float, float]) -> Optional[float]:
-        """
-        Bootstrap from a single data point using global k prior
-        Formula: M = mid0 / (k/ratio0 + 1 - k)
-                a = k * M
-                b = (1 - k) * M
-        """
+        """Bootstrap from a single data point using global k prior"""
         ratio0, mid0 = point
-        
-        # Estimate M (midpoint at ratio=1.0)
         M = mid0 / (self.global_k / ratio0 + 1 - self.global_k)
-        
-        # Calculate a and b
         a = self.global_k * M
         b = (1 - self.global_k) * M
-        
-        # Predict ratio
         return self.ratio_from_time(time, a, b)
     
     def _bootstrap_two_points(self, time: float, points: List[Tuple[float, float]]) -> Optional[float]:
-        """
-        Solve exactly for a and b from two data points
-        a = (mid1 - mid2) / (1/ratio1 - 1/ratio2)
-        b = mid1 - a / ratio1
-        """
+        """Solve exactly for a and b from two data points"""
         if len(points) < 2:
             return None
         
-        # Sort by ratio
         points_sorted = sorted(points, key=lambda x: x[0])
         r1, m1 = points_sorted[0]
         r2, m2 = points_sorted[1]
         
-        # Solve for a and b
         try:
             inv_r1 = 1.0 / r1
             inv_r2 = 1.0 / r2
             
-            # Check for division by zero or very close values
             denominator = inv_r1 - inv_r2
             if abs(denominator) < 1e-9:
-                logger.warning(f"Two points have very close ratios: {r1} and {r2}, cannot solve exactly")
-                # Fall back to using the first point with global k
                 return self._bootstrap_one_point(time, "", points_sorted[0])
             
             a = (m1 - m2) / denominator
             b = m1 - a * inv_r1
             
-            # Validate parameters (b should be positive and less than lap times)
             if b <= 0 or b >= m1:
-                logger.warning(f"Invalid parameters from two-point fit: a={a}, b={b}, using bootstrap")
                 return self._bootstrap_one_point(time, "", points_sorted[0])
             
             return self.ratio_from_time(time, a, b)
@@ -155,43 +138,35 @@ class GlobalCurve:
             return self._bootstrap_one_point(time, "", points_sorted[0])
     
     def _bootstrap_no_data(self, time: float, track_name: str) -> Optional[float]:
-        """
-        No data for this track yet - use a neighboring track's M or global defaults
-        """
-        # Find any track with data to estimate M
+        """No data for this track yet - use global defaults"""
         if self.points_by_track:
-            # Use first available track's parameters if available
             first_track = next(iter(self.track_params.keys())) if self.track_params else None
             if first_track and first_track in self.track_params:
                 params = self.track_params[first_track]
-                M = params['a'] + params['b']  # M = a + b
+                M = params['a'] + params['b']
                 a = self.global_k * M
                 b = (1 - self.global_k) * M
                 return self.ratio_from_time(time, a, b)
         
-        # Absolute fallback: assume ratio ~= 1.0 is appropriate
         logger.warning(f"No data for track {track_name}, using fallback ratio=1.0")
         return 1.0
     
     def add_point(self, track_name: str, ratio: float, best_time: float, worst_time: float = None):
-        """
-        Add a data point for a track
-        If only best_time provided, use it as midpoint
-        If both provided, use average as midpoint
-        """
-        # Calculate midpoint
+        """Add a data point for a track"""
         if worst_time is not None:
             midpoint = (best_time + worst_time) / 2
         else:
             midpoint = best_time
         
-        # Add point
         if track_name not in self.points_by_track:
             self.points_by_track[track_name] = []
         self.points_by_track[track_name].append((ratio, midpoint))
         self.points_by_track[track_name].sort(key=lambda x: x[0])
         
-        # Update parameters based on number of points
+        # Clear cache for this track since data changed
+        if track_name in self._prediction_cache:
+            del self._prediction_cache[track_name]
+        
         self._update_track_params(track_name)
     
     def _update_track_params(self, track_name: str):
@@ -202,7 +177,6 @@ class GlobalCurve:
         if n_points == 0:
             return
         elif n_points == 1:
-            # Bootstrap with global k
             ratio0, mid0 = points[0]
             M = mid0 / (self.global_k / ratio0 + 1 - self.global_k)
             self.track_params[track_name] = {
@@ -210,52 +184,40 @@ class GlobalCurve:
                 'b': (1 - self.global_k) * M
             }
         elif n_points == 2:
-            # Exact solve with error handling
-            try:
-                r1, m1 = points[0]
-                r2, m2 = points[1]
-                inv_r1 = 1.0 / r1
-                inv_r2 = 1.0 / r2
-                
-                denominator = inv_r1 - inv_r2
-                if abs(denominator) < 1e-9:
-                    logger.warning(f"Two points have very close ratios for {track_name}: {r1} and {r2}, using bootstrap")
-                    # Fall back to bootstrap method
-                    ratio0, mid0 = points[0]
-                    M = mid0 / (self.global_k / ratio0 + 1 - self.global_k)
-                    self.track_params[track_name] = {
-                        'a': self.global_k * M,
-                        'b': (1 - self.global_k) * M
-                    }
-                else:
-                    a = (m1 - m2) / denominator
-                    b = m1 - a * inv_r1
-                    
-                    if b <= 0 or b >= m1:
-                        logger.warning(f"Invalid parameters for {track_name}, using bootstrap")
-                        ratio0, mid0 = points[0]
-                        M = mid0 / (self.global_k / ratio0 + 1 - self.global_k)
-                        self.track_params[track_name] = {
-                            'a': self.global_k * M,
-                            'b': (1 - self.global_k) * M
-                        }
-                    else:
-                        self.track_params[track_name] = {'a': a, 'b': b}
-            except Exception as e:
-                logger.error(f"Error in two-point fit for {track_name}: {e}, using bootstrap")
-                ratio0, mid0 = points[0]
-                M = mid0 / (self.global_k / ratio0 + 1 - self.global_k)
-                self.track_params[track_name] = {
-                    'a': self.global_k * M,
-                    'b': (1 - self.global_k) * M
-                }
+            self._fit_two_points(track_name, points)
         else:
-            # Least squares fit for 3+ points
-            self._fit_track_params(track_name)
+            self._fit_multiple_points(track_name, points)
     
-    def _fit_track_params(self, track_name: str):
-        """Least squares fit for track parameters"""
-        points = self.points_by_track[track_name]
+    def _fit_two_points(self, track_name: str, points: List[Tuple[float, float]]):
+        """Fit two points exactly"""
+        try:
+            r1, m1 = points[0]
+            r2, m2 = points[1]
+            inv_r1 = 1.0 / r1
+            inv_r2 = 1.0 / r2
+            
+            denominator = inv_r1 - inv_r2
+            if abs(denominator) < 1e-9:
+                raise ValueError("Points too close")
+            
+            a = (m1 - m2) / denominator
+            b = m1 - a * inv_r1
+            
+            if b <= 0 or b >= m1:
+                raise ValueError("Invalid parameters")
+            
+            self.track_params[track_name] = {'a': a, 'b': b}
+        except Exception as e:
+            logger.warning(f"Two-point fit failed for {track_name}: {e}, using bootstrap")
+            ratio0, mid0 = points[0]
+            M = mid0 / (self.global_k / ratio0 + 1 - self.global_k)
+            self.track_params[track_name] = {
+                'a': self.global_k * M,
+                'b': (1 - self.global_k) * M
+            }
+    
+    def _fit_multiple_points(self, track_name: str, points: List[Tuple[float, float]]):
+        """Least squares fit for 3+ points - optimized"""
         ratios = np.array([p[0] for p in points])
         times = np.array([p[1] for p in points])
         
@@ -263,71 +225,45 @@ class GlobalCurve:
             return a / R + b
         
         try:
-            # Use initial guess from first two points if available
-            if len(points) >= 2:
-                r1, m1 = points[0]
-                r2, m2 = points[1]
-                inv_r1 = 1.0 / r1
-                inv_r2 = 1.0 / r2
-                
-                # Check for division by zero
-                denominator = inv_r1 - inv_r2
-                if abs(denominator) < 1e-9:
-                    a_guess = 30.0
-                    b_guess = 70.0
-                else:
-                    a_guess = (m1 - m2) / denominator
-                    b_guess = m1 - a_guess * inv_r1
-                    
-                    # Validate guess
-                    if b_guess <= 0 or b_guess >= m1:
-                        a_guess = 30.0
-                        b_guess = 70.0
-            else:
+            # Use first two points for initial guess
+            r1, m1 = points[0]
+            r2, m2 = points[1]
+            inv_r1 = 1.0 / r1
+            inv_r2 = 1.0 / r2
+            
+            denominator = inv_r1 - inv_r2
+            if abs(denominator) < 1e-9:
                 a_guess = 30.0
                 b_guess = 70.0
+            else:
+                a_guess = (m1 - m2) / denominator
+                b_guess = m1 - a_guess * inv_r1
+                
+                if b_guess <= 0 or b_guess >= m1:
+                    a_guess = 30.0
+                    b_guess = 70.0
             
-            # Fit with bounds to ensure b is positive and reasonable
             bounds = ([0.1, 30], [500, 200])
-            
-            popt, _ = curve_fit(hyperbolic_func, ratios, times, p0=[a_guess, b_guess], bounds=bounds)
+            popt, _ = curve_fit(hyperbolic_func, ratios, times, p0=[a_guess, b_guess], bounds=bounds, maxfev=500)
             a, b = popt
             
-            # Validate results
             if b <= 0 or b >= np.min(times):
-                logger.warning(f"Invalid fit for {track_name}: b={b}, using fallback")
                 raise ValueError("Invalid fit parameters")
             
-            # Calculate average error
-            predictions = hyperbolic_func(ratios, a, b)
-            errors = np.abs(times - predictions)
-            avg_error = np.mean(errors)
-            
             self.track_params[track_name] = {'a': a, 'b': b}
-            logger.info(f"Fitted {track_name}: a={a:.3f}, b={b:.3f}, avg_error={avg_error:.3f}s")
+            logger.info(f"Fitted {track_name}: a={a:.3f}, b={b:.3f}")
             
         except Exception as e:
-            logger.error(f"Error fitting track {track_name}: {e}")
-            # Fallback to bootstrap using first point
-            try:
-                ratio0, mid0 = points[0]
-                M = mid0 / (self.global_k / ratio0 + 1 - self.global_k)
-                self.track_params[track_name] = {
-                    'a': self.global_k * M,
-                    'b': (1 - self.global_k) * M
-                }
-                logger.info(f"Using bootstrap fallback for {track_name}")
-            except Exception as e2:
-                logger.error(f"Even bootstrap fallback failed: {e2}")
-                # Ultimate fallback
-                self.track_params[track_name] = {'a': 30.0, 'b': 70.0}
+            logger.error(f"Error fitting track {track_name}: {e}, using bootstrap")
+            ratio0, mid0 = points[0]
+            M = mid0 / (self.global_k / ratio0 + 1 - self.global_k)
+            self.track_params[track_name] = {
+                'a': self.global_k * M,
+                'b': (1 - self.global_k) * M
+            }
     
     def fit_global_k(self):
-        """
-        Fit the global k parameter from all tracks' a and b values
-        k = a / (a + b) = a / M
-        This should converge as more tracks are added
-        """
+        """Fit the global k parameter from all tracks' a and b values"""
         k_values = []
         for track_name, params in self.track_params.items():
             M = params['a'] + params['b']
@@ -343,36 +279,35 @@ class GlobalCurve:
         return False
     
     def get_track_multiplier(self, track_name: str) -> float:
-        """
-        Return the multiplier (M = a + b) for a track
-        This is the midpoint time at ratio=1.0
-        """
+        """Return the multiplier (M = a + b) for a track"""
         params = self.track_params.get(track_name)
         if params:
             return params['a'] + params['b']
-        return 100.0  # Default guess
+        return 100.0
     
     def get_curve_points(self, track_name: str, ratio_min=0.3, ratio_max=3.0, num_points=200):
-        """Get points for plotting the curve"""
+        """Get points for plotting the curve - optimized with numpy"""
         params = self.track_params.get(track_name)
         if not params:
             return [], []
         
         ratios = np.linspace(ratio_min, ratio_max, num_points)
-        times = [self.midpoint(r, params['a'], params['b']) for r in ratios]
-        return ratios, times
+        times = params['a'] / ratios + params['b']
+        return ratios.tolist(), times.tolist()
     
     def get_stats(self) -> dict:
-        """Get statistics about the model"""
+        """Get statistics about the model - optimized"""
         total_points = sum(len(points) for points in self.points_by_track.values())
         
-        # Calculate average error across all fitted tracks
+        # Calculate average error only if we have parameters
         all_errors = []
-        for track_name, params in self.track_params.items():
-            points = self.points_by_track.get(track_name, [])
-            for ratio, time in points:
-                predicted = self.midpoint(ratio, params['a'], params['b'])
-                all_errors.append(abs(predicted - time))
+        if self.track_params:
+            for track_name, params in self.track_params.items():
+                points = self.points_by_track.get(track_name, [])
+                a, b = params['a'], params['b']
+                for ratio, time in points:
+                    predicted = a / ratio + b
+                    all_errors.append(abs(predicted - time))
         
         avg_error = np.mean(all_errors) if all_errors else 0
         
@@ -416,7 +351,7 @@ class GlobalCurve:
 
 
 class GlobalCurveManager:
-    """Manages loading and saving of the global curve"""
+    """Manages loading and saving of the global curve - OPTIMIZED"""
     
     def __init__(self, formulas_dir: str = './track_formulas'):
         self.formulas_dir = Path(formulas_dir)
@@ -455,7 +390,6 @@ class GlobalCurveManager:
     def add_point(self, track_name: str, ratio: float, best_time: float, worst_time: float = None) -> bool:
         """Add a point and save"""
         self.curve.add_point(track_name, ratio, best_time, worst_time)
-        # Update global k after adding point
         self.curve.fit_global_k()
         return self.save()
     

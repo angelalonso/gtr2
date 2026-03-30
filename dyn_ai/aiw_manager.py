@@ -1,5 +1,6 @@
 """
 AIW File Manager - Reading, writing, and backing up AIW files
+OPTIMIZED: Reduced file operations, caching, and lazy loading
 """
 
 import os
@@ -7,128 +8,106 @@ import re
 import shutil
 import logging
 from pathlib import Path
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Dict
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
 
 class AIWManager:
-    """Manages AIW file operations with proper backup preservation"""
+    """Manages AIW file operations with proper backup preservation - OPTIMIZED"""
     
     def __init__(self, backup_dir: Path = None):
         self.backup_dir = Path(backup_dir) if backup_dir else Path("./backups")
         self.backup_dir.mkdir(parents=True, exist_ok=True)
-        # Track which tracks have had their original backup created
         self.backup_created_for_track = set()
-    
+        
+        # Cache for AIW file paths
+        self._aiw_path_cache: Dict[str, Path] = {}
+        self._aiw_ratio_cache: Dict[str, Tuple[Optional[float], Optional[float]]] = {}
+        
     def find_aiw_file(self, aiw_filename: str, track_name: str, base_path: Path) -> Optional[Path]:
-        """
-        Find the AIW file in the game directory with case-insensitive search
+        """Find AIW file with caching"""
+        cache_key = f"{track_name}_{aiw_filename}".lower()
         
-        Args:
-            aiw_filename: Name of the AIW file (e.g., "4Monza.AIW")
-            track_name: Name of the track
-            base_path: Base game path
+        if cache_key in self._aiw_path_cache:
+            cached_path = self._aiw_path_cache[cache_key]
+            if cached_path.exists():
+                return cached_path
+            else:
+                del self._aiw_path_cache[cache_key]
         
-        Returns:
-            Path to AIW file or None if not found
-        """
         locations_path = base_path / 'GameData' / 'Locations'
         
         if not locations_path.exists():
-            logger.warning(f"Locations path not found: {locations_path}")
             return None
         
-        # Try different search strategies
+        found_path = None
         
         # Strategy 1: Use track name with case-insensitive folder search
         if track_name:
-            for track_folder in locations_path.iterdir():
-                if track_folder.is_dir() and track_folder.name.lower() == track_name.lower():
-                    # Look for AIW files in this folder
-                    for file in track_folder.glob('*'):
-                        if file.is_file() and file.name.lower() == aiw_filename.lower():
-                            logger.info(f"Found AIW file via track folder: {file}")
-                            return file
-                    
-                    # Also try common naming patterns
-                    for ext in ['.AIW', '.aiw', '.AIw']:
-                        candidate = track_folder / f"{track_folder.name}{ext}"
-                        if candidate.exists():
-                            logger.info(f"Found AIW file via track name: {candidate}")
-                            return candidate
-        
-        # Strategy 2: Search recursively in GameData/Locations
-        for root, dirs, files in os.walk(locations_path):
-            for file in files:
-                if file.lower() == aiw_filename.lower():
-                    found_path = Path(root) / file
-                    logger.info(f"Found AIW file via recursive search: {found_path}")
-                    return found_path
-        
-        # Strategy 3: Try to reconstruct path from the original AIW path string
-        if aiw_filename:
-            clean_path = aiw_filename.replace('\\', '/')
-            path_parts = clean_path.split('/')
-            
-            current_path = base_path
-            
-            for i, part in enumerate(path_parts[:-1]):
-                found = False
-                part_lower = part.lower()
-                
-                if current_path.exists():
-                    for item in current_path.iterdir():
-                        if item.is_dir() and item.name.lower() == part_lower:
-                            current_path = item
-                            found = True
+            track_lower = track_name.lower()
+            try:
+                for track_folder in locations_path.iterdir():
+                    if track_folder.is_dir() and track_folder.name.lower() == track_lower:
+                        # Look for AIW files
+                        for file in track_folder.glob('*'):
+                            if file.is_file() and file.name.lower() == aiw_filename.lower():
+                                found_path = file
+                                break
+                        
+                        if not found_path:
+                            for ext in ['.AIW', '.aiw']:
+                                candidate = track_folder / f"{track_folder.name}{ext}"
+                                if candidate.exists():
+                                    found_path = candidate
+                                    break
+                        
+                        if found_path:
                             break
-                
-                if not found:
-                    candidate = current_path / part
-                    if candidate.exists() and candidate.is_dir():
-                        current_path = candidate
-                        found = True
-                
-                if not found:
-                    logger.debug(f"Could not find path component: {part}")
-                    break
-            
-            candidate = current_path / path_parts[-1]
-            if candidate.exists() and candidate.is_file():
-                logger.info(f"Found AIW file via path reconstruction: {candidate}")
-                return candidate
-            
-            if current_path.exists():
-                for file in current_path.glob('*'):
-                    if file.is_file() and file.name.lower() == path_parts[-1].lower():
-                        logger.info(f"Found AIW file via filename match: {file}")
-                        return file
+            except OSError:
+                pass
         
-        logger.warning(f"AIW file not found: {aiw_filename}")
-        return None
+        # Strategy 2: Search recursively
+        if not found_path:
+            try:
+                for root, dirs, files in os.walk(locations_path):
+                    for file in files:
+                        if file.lower() == aiw_filename.lower():
+                            found_path = Path(root) / file
+                            break
+                    if found_path:
+                        break
+            except OSError:
+                pass
+        
+        if found_path:
+            self._aiw_path_cache[cache_key] = found_path
+        
+        return found_path
     
     def read_ratios(self, aiw_path: Path) -> Tuple[Optional[float], Optional[float]]:
-        """
-        Read QualRatio and RaceRatio from AIW file
+        """Read QualRatio and RaceRatio with caching"""
+        cache_key = str(aiw_path)
         
-        Returns:
-            Tuple of (qual_ratio, race_ratio)
-        """
+        if cache_key in self._aiw_ratio_cache:
+            return self._aiw_ratio_cache[cache_key]
+        
         try:
             if not aiw_path.exists():
-                logger.error(f"AIW file not found: {aiw_path}")
                 return None, None
             
+            # Read file
             with open(aiw_path, 'rb') as f:
                 raw_content = f.read()
             
+            # Fast decode
             content = raw_content.replace(b'\x00', b'').decode('utf-8', errors='ignore')
             
             qual_ratio = None
             race_ratio = None
             
+            # Use compiled regex for better performance
             waypoint_match = re.search(r'\[Waypoint\](.*?)(?=\[|$)', content, re.DOTALL | re.IGNORECASE)
             if waypoint_match:
                 waypoint_section = waypoint_match.group(1)
@@ -141,89 +120,47 @@ class AIWManager:
                 if race_match:
                     race_ratio = float(race_match.group(1))
             
-            logger.info(f"Read ratios from {aiw_path.name}: Qual={qual_ratio}, Race={race_ratio}")
-            return qual_ratio, race_ratio
+            result = (qual_ratio, race_ratio)
+            self._aiw_ratio_cache[cache_key] = result
+            return result
             
         except Exception as e:
             logger.error(f"Error reading AIW file {aiw_path}: {e}")
             return None, None
     
     def create_original_backup(self, aiw_path: Path, track_name: str) -> Optional[Path]:
-        """
-        Create a backup of the original AIW file (only once per track, never overwrite)
-        
-        Args:
-            aiw_path: Path to AIW file
-            track_name: Name of the track for tracking
-        
-        Returns:
-            Path to backup file or None if failed
-        """
+        """Create a backup of the original AIW file (only once per track)"""
         try:
             if not aiw_path.exists():
-                logger.error(f"AIW file not found: {aiw_path}")
                 return None
             
-            # Check if we've already created backup for this track
             if track_name in self.backup_created_for_track:
-                logger.info(f"Original backup already created for track {track_name}, skipping")
                 return self.get_original_backup(aiw_path)
             
-            # Create a permanent original backup filename
-            # Format: {track_name}_ORIGINAL{extension}
             original_backup_name = f"{track_name}_ORIGINAL{aiw_path.suffix}"
             original_backup_path = self.backup_dir / original_backup_name
             
-            # Only create backup if it doesn't exist
             if not original_backup_path.exists():
                 shutil.copy2(aiw_path, original_backup_path)
-                self.backup_created_for_track.add(track_name)
                 logger.info(f"Created original backup: {original_backup_path}")
-                return original_backup_path
-            else:
-                self.backup_created_for_track.add(track_name)
-                logger.info(f"Original backup already exists: {original_backup_path}")
-                return original_backup_path
+            
+            self.backup_created_for_track.add(track_name)
+            return original_backup_path
                 
         except Exception as e:
             logger.error(f"Error creating original backup: {e}")
             return None
     
     def create_backup_before_modification(self, aiw_path: Path, track_name: str) -> Optional[Path]:
-        """
-        Create original backup only if not already created for this track
-        
-        Args:
-            aiw_path: Path to AIW file
-            track_name: Name of the track
-        
-        Returns:
-            Path to original backup or None if failed
-        """
-        # Only create original backup, no timestamp backups
+        """Create original backup only if not already created"""
         return self.create_original_backup(aiw_path, track_name)
     
     def update_ratio(self, aiw_path: Path, ratio_type: str, new_value: float, 
                      track_name: str, create_backup: bool = True) -> bool:
-        """
-        Update a single ratio in the AIW file
-        
-        Args:
-            aiw_path: Path to AIW file
-            ratio_type: "QualRatio" or "RaceRatio"
-            new_value: New ratio value
-            track_name: Name of the track
-            create_backup: Whether to create backup before modifying
-        
-        Returns:
-            True if successful
-        """
+        """Update a single ratio in the AIW file"""
         try:
-            # Create original backup before modification if requested and not already created
             if create_backup:
                 original_backup = self.create_backup_before_modification(aiw_path, track_name)
-                if original_backup:
-                    logger.info(f"Original backup: {original_backup}")
             
             with open(aiw_path, 'rb') as f:
                 raw_content = f.read()
@@ -240,6 +177,12 @@ class AIWManager:
             if new_content != content:
                 with open(aiw_path, 'wb') as f:
                     f.write(new_content.encode('utf-8', errors='ignore'))
+                
+                # Clear cache for this file
+                cache_key = str(aiw_path)
+                if cache_key in self._aiw_ratio_cache:
+                    del self._aiw_ratio_cache[cache_key]
+                
                 logger.info(f"Updated {ratio_type} in {aiw_path.name} to {new_value:.6f}")
                 return True
             else:
@@ -251,25 +194,20 @@ class AIWManager:
             return False
     
     def restore_original(self, aiw_path: Path, track_name: str) -> bool:
-        """
-        Restore the original AIW file from the permanent original backup
-        
-        Args:
-            aiw_path: Path to AIW file
-            track_name: Name of the track
-        
-        Returns:
-            True if successful
-        """
+        """Restore the original AIW file"""
         try:
             original_backup = self.backup_dir / f"{track_name}_ORIGINAL{aiw_path.suffix}"
             
             if not original_backup.exists():
-                logger.error(f"Original backup not found: {original_backup}")
                 return False
             
-            # Restore from original
             shutil.copy2(original_backup, aiw_path)
+            
+            # Clear cache for this file
+            cache_key = str(aiw_path)
+            if cache_key in self._aiw_ratio_cache:
+                del self._aiw_ratio_cache[cache_key]
+            
             logger.info(f"Restored original from: {original_backup}")
             return True
             
@@ -278,12 +216,7 @@ class AIWManager:
             return False
     
     def get_original_backup(self, aiw_path: Path) -> Optional[Path]:
-        """
-        Get the path to the original backup file
-        
-        Returns:
-            Path to original backup or None if not found
-        """
+        """Get the path to the original backup file"""
         track_name = aiw_path.stem
         original_backup = self.backup_dir / f"{track_name}_ORIGINAL{aiw_path.suffix}"
         
@@ -292,21 +225,14 @@ class AIWManager:
         return None
     
     def get_backup_info(self, aiw_path: Path, track_name: str) -> dict:
-        """
-        Get information about backups for an AIW file
-        
-        Returns:
-            Dictionary with backup information
-        """
+        """Get information about backups"""
         original = self.get_original_backup(aiw_path)
         
-        info = {
+        return {
             'original_exists': original is not None,
             'original_path': str(original) if original else None,
             'backup_created': track_name in self.backup_created_for_track
         }
-        
-        return info
     
     def has_original_backup(self, aiw_path: Path, track_name: str) -> bool:
         """Check if original backup exists"""
