@@ -3,6 +3,7 @@
 Test Harness for Live AI Tuner
 Launches the application with test configuration and simulates game behavior
 Uses existing test data from ./test_mocks
+UPDATED: Generates realistic raceresults.txt format with proper fields
 """
 
 import os
@@ -14,8 +15,9 @@ import logging
 import shutil
 import threading
 import queue
+import random
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, Dict, List
 
 # Add current directory to path
@@ -52,51 +54,99 @@ class LiveAITunerTestHarness:
         # Track information from existing data
         self.tracks = self._discover_tracks()
         
-        # Default test scenario
+        # Default test scenario with realistic times
         self.default_scenario = {
             "description": "Default test - user slightly faster than AI",
+            "user_name": "TestDriver",
+            "user_team": "Test Team",
+            "user_vehicle": "Formula Senior",
             "user_time": "1:56.500",
             "ai_best": "1:57.234",
             "ai_worst": "2:01.567",
-            "track_index": 0
+            "ai_best_driver": "Fast AI",
+            "ai_best_team": "AI Racing Team",
+            "ai_worst_driver": "Slow AI",
+            "ai_worst_team": "AI Racing Team",
+            "track_index": 0,
+            "num_laps": 8
         }
         
         # Full test scenarios
         self.full_test_scenarios = [
             {
                 "description": "User faster than AI - should decrease ratios",
+                "user_name": "TestDriver",
+                "user_team": "Test Team",
+                "user_vehicle": "Formula Senior",
                 "user_time": "1:54.500",
                 "ai_best": "1:57.234",
                 "ai_worst": "2:01.567",
-                "track_index": 0
+                "ai_best_driver": "Fast AI",
+                "ai_best_team": "AI Racing Team",
+                "ai_worst_driver": "Slow AI",
+                "ai_worst_team": "AI Racing Team",
+                "track_index": 0,
+                "num_laps": 8
             },
             {
                 "description": "User slower than AI - should increase ratios",
+                "user_name": "TestDriver",
+                "user_team": "Test Team",
+                "user_vehicle": "Formula Senior",
                 "user_time": "2:00.000",
                 "ai_best": "1:57.234",
                 "ai_worst": "2:01.567",
-                "track_index": 0
+                "ai_best_driver": "Fast AI",
+                "ai_best_team": "AI Racing Team",
+                "ai_worst_driver": "Slow AI",
+                "ai_worst_team": "AI Racing Team",
+                "track_index": 0,
+                "num_laps": 8
             },
             {
                 "description": "User close to AI - minor adjustment",
+                "user_name": "TestDriver",
+                "user_team": "Test Team",
+                "user_vehicle": "Formula Senior",
                 "user_time": "1:57.500",
                 "ai_best": "1:57.234",
                 "ai_worst": "2:01.567",
-                "track_index": 0
+                "ai_best_driver": "Fast AI",
+                "ai_best_team": "AI Racing Team",
+                "ai_worst_driver": "Slow AI",
+                "ai_worst_team": "AI Racing Team",
+                "track_index": 0,
+                "num_laps": 8
             },
             {
                 "description": "Different track - Spa",
+                "user_name": "TestDriver",
+                "user_team": "Test Team",
+                "user_vehicle": "Formula Senior",
                 "user_time": "2:20.000",
                 "ai_best": "2:22.500",
                 "ai_worst": "2:27.000",
-                "track_index": 1 if len(self.tracks) > 1 else 0
+                "ai_best_driver": "Fast AI",
+                "ai_best_team": "AI Racing Team",
+                "ai_worst_driver": "Slow AI",
+                "ai_worst_team": "AI Racing Team",
+                "track_index": 1 if len(self.tracks) > 1 else 0,
+                "num_laps": 6
             },
             {
                 "description": "Different track - Silverstone",
+                "user_name": "TestDriver",
+                "user_team": "Test Team",
+                "user_vehicle": "Formula Senior",
                 "user_time": "1:52.000",
                 "ai_best": "1:54.000",
                 "ai_worst": "1:58.000",
-                "track_index": 2 if len(self.tracks) > 2 else 0
+                "ai_best_driver": "Fast AI",
+                "ai_best_team": "AI Racing Team",
+                "ai_worst_driver": "Slow AI",
+                "ai_worst_team": "AI Racing Team",
+                "track_index": 2 if len(self.tracks) > 2 else 0,
+                "num_laps": 10
             }
         ]
     
@@ -114,11 +164,16 @@ class LiveAITunerTestHarness:
                 # Find AIW files in the track directory
                 aiw_files = list(track_dir.glob("*.AIW")) + list(track_dir.glob("*.aiw"))
                 for aiw_file in aiw_files:
+                    # Find corresponding TRK file
+                    trk_files = list(track_dir.glob("*.TRK")) + list(track_dir.glob("*.trk"))
+                    trk_file = trk_files[0] if trk_files else None
+                    
                     tracks.append({
                         "name": track_dir.name,
                         "folder": track_dir.name,
                         "aiw_file": aiw_file.name,
-                        "aiw_path": aiw_file
+                        "aiw_path": aiw_file,
+                        "trk_file": trk_file.name if trk_file else f"{track_dir.name}.TRK"
                     })
                     logger.info(f"Discovered track: {track_dir.name} with AIW: {aiw_file.name}")
                     break  # Take first AIW file per track
@@ -133,7 +188,9 @@ class LiveAITunerTestHarness:
             'base_path': str(self.test_dir),
             'formulas_dir': str(self.test_dir / 'track_formulas'),
             'auto_apply': False,
-            'backup_enabled': True
+            'backup_enabled': True,
+            'logging_enabled': True,
+            'autopilot_enabled': False
         }
         
         try:
@@ -172,51 +229,161 @@ class LiveAITunerTestHarness:
                 return False
         return True
     
-    def _get_race_results_content(self, track: Dict, user_time: str, 
-                                   ai_best: str, ai_worst: str, 
-                                   user_name: str = "TestDriver") -> str:
-        """Generate race results file content"""
-        aiw_filename = track["aiw_file"]
-        trk_filename = aiw_filename.replace('.AIW', '.TRK').replace('.aiw', '.trk')
+    def _parse_time_to_seconds(self, time_str: str) -> float:
+        """Convert time string to seconds"""
+        try:
+            if ':' in time_str:
+                parts = time_str.split(':')
+                return int(parts[0]) * 60 + float(parts[1])
+            return float(time_str)
+        except:
+            return 0.0
+    
+    def _format_time(self, seconds: float) -> str:
+        """Format seconds as mm:ss.xxx"""
+        if seconds <= 0:
+            return "0:00.000"
+        minutes = int(seconds // 60)
+        secs = seconds % 60
+        return f"{minutes}:{int(secs):02d}.{int((secs % 1) * 1000):03d}"
+    
+    def _generate_lap_times(self, base_time_str: str, num_laps: int, variation: float = 0.005) -> List[str]:
+        """Generate realistic lap times around a base time"""
+        base_seconds = self._parse_time_to_seconds(base_time_str)
+        lap_times = []
         
-        return f"""[Race]
-Scene=GAMEDATA\\LOCATIONS\\{track["folder"]}\\{trk_filename}
-AIDB=GAMEDATA\\LOCATIONS\\{track["folder"]}\\{aiw_filename}
-DamageModel=1
-Flags=1
-StartLine=1
-NumLaps=3
+        for i in range(num_laps):
+            # Add small random variation
+            variation_sec = base_seconds * variation * (random.random() - 0.5) * 2
+            lap_seconds = base_seconds + variation_sec
+            
+            # Format as mm:ss.xxx
+            lap_times.append(self._format_time(lap_seconds))
+        
+        return lap_times
+    
+    def _calculate_race_time(self, lap_times: List[str]) -> str:
+        """Calculate total race time from lap times"""
+        total_seconds = sum(self._parse_time_to_seconds(t) for t in lap_times)
+        return self._format_time(total_seconds)
+    
+    def _get_race_results_content(self, track: Dict, scenario: Dict) -> str:
+        """Generate realistic race results file content matching game format"""
+        num_laps = scenario.get("num_laps", 8)
+        
+        # Generate lap times for each driver
+        user_lap_times = self._generate_lap_times(scenario["user_time"], num_laps)
+        ai_best_lap_times = self._generate_lap_times(scenario["ai_best"], num_laps)
+        ai_worst_lap_times = self._generate_lap_times(scenario["ai_worst"], num_laps)
+        
+        # Get best lap for each
+        user_best_lap = min(user_lap_times, key=lambda t: self._parse_time_to_seconds(t))
+        ai_best_best_lap = min(ai_best_lap_times, key=lambda t: self._parse_time_to_seconds(t))
+        ai_worst_best_lap = min(ai_worst_lap_times, key=lambda t: self._parse_time_to_seconds(t))
+        
+        # Calculate race times
+        user_race_time = self._calculate_race_time(user_lap_times)
+        ai_best_race_time = self._calculate_race_time(ai_best_lap_times)
+        ai_worst_race_time = self._calculate_race_time(ai_worst_lap_times)
+        
+        # Calculate lap distances (simulate track length)
+        track_length = 5782.64  # Approximate track length in meters
+        user_distance = track_length * num_laps
+        ai_best_distance = track_length * num_laps
+        ai_worst_distance = track_length * num_laps
+        
+        # Add some variation
+        user_distance += random.uniform(-50, 50)
+        ai_best_distance += random.uniform(-50, 50)
+        ai_worst_distance += random.uniform(-50, 50)
+        
+        # Current timestamp
+        timestamp = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+        
+        # Build the content
+        content = f"""//[[gMa1.000f (c)2004    ]] [[]]
+[Header]
+Game=GTR2
+Version=1.100
+TimeString={timestamp}
+Aids=0,0,0,0,0,1,1,0,0
 
-[Slot0]
-Driver={user_name}
-Vehicle=Test_Car
-Team=Test_Team
-QualTime={user_time}
-BestLap={user_time}
-Laps=3
-Position=1
-Class=1
+[Race]
+RaceMode=3
+Scene=GAMEDATA\\LOCATIONS\\{track["folder"]}\\{track["trk_file"]}
+AIDB=GAMEDATA\\LOCATIONS\\{track["folder"]}\\{track["aiw_file"]}
+Race Length={num_laps * 0.1:.3f}
+Track Length={track_length:.4f}
 
-[Slot1]
-Driver=AI_Driver_1
-Team=AI_Team_1
-QualTime={ai_best}
-BestLap={ai_best}
-Laps=3
-Position=2
-Class=1
+[Slot000]
+Driver={scenario["user_name"]}
+Vehicle={scenario["user_vehicle"]}
+VehicleNumber=6001
+Team={scenario["user_team"]}
+Penalty=0
+QualTime={scenario["user_time"]}
+Laps={num_laps}
+LapDistanceTravelled={user_distance:.6f}
+BestLap={user_best_lap}
+RaceTime={user_race_time}
 
-[Slot2]
-Driver=AI_Driver_2
-Team=AI_Team_2
-QualTime={ai_worst}
-BestLap={ai_worst}
-Laps=3
-Position=3
-Class=1
+[Slot001]
+Driver={scenario["ai_best_driver"]}
+Vehicle={scenario["user_vehicle"]}
+VehicleNumber=6002
+Team={scenario["ai_best_team"]}
+Penalty=0
+QualTime={scenario["ai_best"]}
+Laps={num_laps}
+LapDistanceTravelled={ai_best_distance:.6f}
+BestLap={ai_best_best_lap}
+RaceTime={ai_best_race_time}
 
-[END]
+[Slot002]
+Driver={scenario["ai_worst_driver"]}
+Vehicle={scenario["user_vehicle"]}
+VehicleNumber=6003
+Team={scenario["ai_worst_team"]}
+Penalty=0
+QualTime={scenario["ai_worst"]}
+Laps={num_laps}
+LapDistanceTravelled={ai_worst_distance:.6f}
+BestLap={ai_worst_best_lap}
+RaceTime={ai_worst_race_time}
 """
+        
+        # Add additional AI drivers for more realistic field
+        ai_names = ["AI_Driver_3", "AI_Driver_4", "AI_Driver_5"]
+        ai_times = [
+            self._parse_time_to_seconds(scenario["ai_best"]) + 0.5,
+            self._parse_time_to_seconds(scenario["ai_best"]) + 1.2,
+            self._parse_time_to_seconds(scenario["ai_worst"]) - 0.3
+        ]
+        
+        for i, (name, base_time) in enumerate(zip(ai_names, ai_times), start=3):
+            base_time_str = self._format_time(base_time)
+            lap_times = self._generate_lap_times(base_time_str, num_laps)
+            best_lap = min(lap_times, key=lambda t: self._parse_time_to_seconds(t))
+            race_time = self._calculate_race_time(lap_times)
+            distance = track_length * num_laps + random.uniform(-100, 100)
+            
+            content += f"""
+[Slot00{i}]
+Driver={name}
+Vehicle={scenario["user_vehicle"]}
+VehicleNumber={6004 + i}
+Team=AI Racing Team
+Penalty=0
+QualTime={base_time_str}
+Laps={num_laps}
+LapDistanceTravelled={distance:.6f}
+BestLap={best_lap}
+RaceTime={race_time}
+"""
+        
+        content += "\n[END]\n"
+        
+        return content
     
     def simulate_race(self, scenario: Dict, wait_before: float = 1.0) -> bool:
         """Simulate a race by modifying the results file"""
@@ -232,12 +399,7 @@ Class=1
         track = self.tracks[track_index]
         
         # Generate content
-        content = self._get_race_results_content(
-            track,
-            scenario["user_time"],
-            scenario["ai_best"],
-            scenario["ai_worst"]
-        )
+        content = self._get_race_results_content(track, scenario)
         
         # Wait if requested
         if wait_before > 0:
@@ -245,9 +407,12 @@ Class=1
         
         # Write to file (this will trigger the file monitor)
         logger.info(f"  Writing race results for {track['name']}...")
-        logger.info(f"  User time: {scenario['user_time']}, AI best: {scenario['ai_best']}, AI worst: {scenario['ai_worst']}")
+        logger.info(f"  User: {scenario['user_name']} - {scenario['user_time']}")
+        logger.info(f"  AI Best: {scenario['ai_best_driver']} - {scenario['ai_best']}")
+        logger.info(f"  AI Worst: {scenario['ai_worst_driver']} - {scenario['ai_worst']}")
+        
         try:
-            with open(self.results_file, 'w') as f:
+            with open(self.results_file, 'w', encoding='utf-8') as f:
                 f.write(content)
             
             # Update file modification time to ensure it's detected
@@ -489,32 +654,35 @@ Class=1
                 logger.error(f"  AIWManager test failed: {e}")
                 return False
             
-            # Test 4: Test results parser
+            # Test 4: Test results parser with realistic format
             logger.info("\n[Test 4] Testing Results Parser...")
             try:
                 from results_parser import parse_race_results
-                if self.results_file.exists():
+                
+                # Create a test results file with realistic format
+                if self.tracks:
+                    test_scenario = self.default_scenario.copy()
+                    test_content = self._get_race_results_content(self.tracks[0], test_scenario)
+                    
+                    with open(self.results_file, 'w', encoding='utf-8') as f:
+                        f.write(test_content)
+                    
                     results = parse_race_results(self.results_file, self.test_dir)
                     if results and results.track_name:
                         logger.info(f"  ✓ Parsed track: {results.track_name}")
-                        logger.info(f"  ✓ User time: {results.user_best_lap}")
+                        logger.info(f"  ✓ User: {results.user_name} - {results.user_best_lap}")
+                        logger.info(f"  ✓ AI Best: {results.best_ai_lap} ({results.best_ai_team})")
+                        logger.info(f"  ✓ AI Worst: {results.worst_ai_lap} ({results.worst_ai_team})")
+                        logger.info(f"  ✓ Qual AI Best: {results.qual_best_ai_lap} ({results.qual_best_ai_team})")
+                        logger.info(f"  ✓ Qual AI Worst: {results.qual_worst_ai_lap} ({results.qual_worst_ai_team})")
+                        logger.info(f"  ✓ User Vehicle: {results.user_team}")
                     else:
-                        logger.warning("  Results file exists but couldn't parse")
-                else:
-                    logger.warning("  Results file not found, creating initial file...")
-                    # Create initial results file
-                    if self.tracks:
-                        initial_content = self._get_race_results_content(
-                            self.tracks[0],
-                            "1:55.000",
-                            "1:57.000",
-                            "2:02.000"
-                        )
-                        with open(self.results_file, 'w') as f:
-                            f.write(initial_content)
-                        logger.info("  ✓ Created initial results file")
+                        logger.error("  Failed to parse results file")
+                        return False
             except Exception as e:
                 logger.error(f"  Results parser test failed: {e}")
+                import traceback
+                traceback.print_exc()
                 return False
             
             logger.info("\n" + "=" * 60)
