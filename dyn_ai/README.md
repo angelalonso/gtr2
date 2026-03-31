@@ -6,7 +6,9 @@ This tool watches your race results and helps you tweak the AI difficulty ratios
 
 ## Current State
 
-Buggy, very buggy, USE IT AT YOUR OWN RISK, probably on a SEPARATED DROP and please, ping me with as many bugs as you can.
+Buggy, but not unusable.
+
+Still: USE IT AT YOUR OWN RISK, probably on a SEPARATED DROP and please, ping me with as many bugs as you can.
 
 ---
 
