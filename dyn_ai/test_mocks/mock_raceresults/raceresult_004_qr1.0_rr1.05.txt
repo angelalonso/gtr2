@@ -21,6 +21,7 @@ Penalty=0
 QualTime=1:58.003
 Laps=8
 LapDistanceTravelled=5722.570801
+BestLap=1:55.364
 RaceTime=0:17:06.061
 
 [Slot001]

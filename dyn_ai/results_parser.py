@@ -313,41 +313,62 @@ def _parse_aiw_ratios(results: RaceResults, base_path: Path):
     except Exception as e:
         logger.error(f"Error parsing AIW file: {e}")
 
-
 def _find_aiw_file_case_insensitive(aiw_filename: str, track_folder: str, base_path: Path) -> Optional[Path]:
-    """Find AIW file with case-insensitive search"""
+    """Find AIW file with case-insensitive search - enhanced logging"""
     locations_path = base_path / 'GameData' / 'Locations'
     
+    logger.info(f"Finding AIW: {aiw_filename} in track: {track_folder}")
+    logger.info(f"  Locations path: {locations_path}")
+    
     if not locations_path.exists():
+        logger.error(f"  Locations path does not exist: {locations_path}")
         return None
     
+    # Normalize filename (strip path if present)
+    aiw_filename_normalized = Path(aiw_filename).name
+    logger.info(f"  Normalized filename: {aiw_filename_normalized}")
+    
+    # Try track folder first (case-insensitive)
     if track_folder:
         track_folder_lower = track_folder.lower()
         try:
             for folder in locations_path.iterdir():
                 if folder.is_dir() and folder.name.lower() == track_folder_lower:
+                    logger.info(f"  Found track folder: {folder}")
+                    
+                    # Look for exact match
                     for file in folder.iterdir():
-                        if file.is_file() and file.name.lower() == aiw_filename.lower():
+                        if file.is_file() and file.name.lower() == aiw_filename_normalized.lower():
+                            logger.info(f"    Found exact match: {file}")
                             return file
                     
+                    # Try folder name + .AIW
                     for ext in ['.AIW', '.aiw']:
                         candidate = folder / f"{folder.name}{ext}"
                         if candidate.exists():
+                            logger.info(f"    Found by folder name: {candidate}")
                             return candidate
                     
-                    for file in folder.glob('*.AIW'):
-                        return file
-                    for file in folder.glob('*.aiw'):
-                        return file
-        except OSError:
-            pass
+                    # Try any AIW file
+                    for ext_glob in ['*.AIW', '*.aiw']:
+                        candidates = list(folder.glob(ext_glob))
+                        if candidates:
+                            logger.info(f"    Found any AIW: {candidates[0]}")
+                            return candidates[0]
+        except OSError as e:
+            logger.error(f"  Error searching folder: {e}")
     
+    # Recursive search
     try:
+        logger.info(f"  Recursively searching {locations_path}")
         for root, dirs, files in os.walk(locations_path):
             for file in files:
-                if file.lower() == aiw_filename.lower():
-                    return Path(root) / file
-    except OSError:
-        pass
+                if file.lower() == aiw_filename_normalized.lower():
+                    found = Path(root) / file
+                    logger.info(f"  Found via recursive search: {found}")
+                    return found
+    except OSError as e:
+        logger.error(f"  Error in recursive search: {e}")
     
+    logger.error(f"  AIW file NOT found: {aiw_filename_normalized}")
     return None

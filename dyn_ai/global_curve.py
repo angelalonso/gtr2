@@ -443,87 +443,163 @@ class GlobalCurve:
 
     def get_readiness(self, track_name: str) -> Dict:
         """
-        Assess how ready this track is for autopilot operation.
-
+        Enhanced readiness assessment for autopilot with detailed feedback.
+        
         Returns a dict with keys:
-          can_autopilot  – bool: safe to run autopilot at all
+          can_autopilot  – bool: safe to run autopilot
           needs_warning  – bool: autopilot will work but data is thin
           n_points       – int: data points for this track
           fit_quality    – str: 'none'|'bootstrap_global'|'bootstrap_1pt'|
                                 'exact_2pt'|'least_squares'
           points_needed  – int: additional races for a *proper* fit (0 = good)
+          min_points_needed – int: minimum additional races for ANY fit
           message        – str: human-readable explanation
+          detailed_message – str: detailed explanation for user
         """
-        n = len(self.points_by_track.get(track_name, []))
+        # Get points for this track
+        points = self.points_by_track.get(track_name, [])
+        n = len(points)
         has_any_global = bool(self.track_params)
-
-        if n == 0:
-            if has_any_global:
-                return dict(
-                    can_autopilot=True,
-                    needs_warning=True,
-                    n_points=0,
-                    fit_quality='bootstrap_global',
-                    points_needed=2,
-                    message=(
-                        f"No data yet for '{track_name}'. "
-                        "Autopilot will estimate using global k from other tracks "
-                        "(least reliable — expect ±5–10 s error). "
-                        "Race at least twice at this track to build a proper curve."
-                    ),
-                )
-            else:
-                return dict(
-                    can_autopilot=False,
-                    needs_warning=False,
-                    n_points=0,
-                    fit_quality='none',
-                    points_needed=2,
-                    message=(
-                        "No curve data at all. "
-                        "Complete at least 2 races (ideally at different ratio settings) "
-                        "to build the model before enabling autopilot."
-                    ),
-                )
-
+        
+        # Track name detection
+        if not track_name or track_name == 'Unknown':
+            return dict(
+                can_autopilot=False,
+                needs_warning=False,
+                n_points=0,
+                fit_quality='none',
+                points_needed=2,
+                min_points_needed=2,
+                message="No track detected. Complete a race first.",
+                detailed_message="Autopilot needs to know which track you're racing on. "
+                               "Complete a race to detect the track name."
+            )
+        
+        # No data at all for any track
+        if n == 0 and not has_any_global:
+            return dict(
+                can_autopilot=False,
+                needs_warning=False,
+                n_points=0,
+                fit_quality='none',
+                points_needed=2,
+                min_points_needed=2,
+                message=f"No data for '{track_name}'. Need at least 2 data points.",
+                detailed_message=f"No data available for '{track_name}'. "
+                               f"To build a proper curve, you need at least 2 races "
+                               f"with different ratio settings.\n\n"
+                               f"• Race 1: Set any ratio, record lap times\n"
+                               f"• Race 2: Use a different ratio, record lap times\n\n"
+                               f"This will create an exact 2-point fit."
+            )
+        
+        # No data for this track, but global data exists
+        if n == 0 and has_any_global:
+            # Find tracks with best data
+            best_tracks = sorted(
+                [(t, len(self.points_by_track.get(t, []))) 
+                 for t in self.track_params.keys()],
+                key=lambda x: x[1], reverse=True
+            )[:3]
+            
+            track_examples = ", ".join([f"'{t}' ({n_pts} pts)" for t, n_pts in best_tracks if n_pts > 0])
+            
+            return dict(
+                can_autopilot=True,
+                needs_warning=True,
+                n_points=0,
+                fit_quality='bootstrap_global',
+                points_needed=2,
+                min_points_needed=2,
+                message=f"No data for '{track_name}'. Using global estimation from other tracks.",
+                detailed_message=f"No data for '{track_name}'. Autopilot will use global curve "
+                               f"estimated from other tracks: {track_examples}.\n\n"
+                               f"This gives rough estimates (±5-10s error). "
+                               f"Race at least 2 times at this track to build its own curve.\n\n"
+                               f"💡 Tip: Use different ratio settings for each race to get a "
+                               f"good spread of data points."
+            )
+        
+        # 1 point
         if n == 1:
+            ratio0, time0 = points[0]
             return dict(
                 can_autopilot=True,
                 needs_warning=True,
                 n_points=1,
                 fit_quality='bootstrap_1pt',
                 points_needed=1,
-                message=(
-                    f"Only 1 data point for '{track_name}'. "
-                    "Autopilot will use a 1-point bootstrap (expect ±2–5 s error). "
-                    "1 more race (at a different ratio) will give an exact 2-point fit."
-                ),
+                min_points_needed=1,
+                message=f"Only 1 data point for '{track_name}'. Need 1 more for exact fit.",
+                detailed_message=f"Only 1 data point for '{track_name}'. "
+                               f"Current ratio: {ratio0:.4f}, lap time: {time0:.2f}s\n\n"
+                               f"With 1 more race (using a DIFFERENT ratio), we can create an "
+                               f"exact 2-point fit with <1s error.\n\n"
+                               f"Current mode: 1-point bootstrap (±2-5s error)"
             )
-
+        
+        # 2 points
         if n == 2:
+            r1, t1 = points[0]
+            r2, t2 = points[1]
+            
             return dict(
                 can_autopilot=True,
                 needs_warning=False,
                 n_points=2,
                 fit_quality='exact_2pt',
                 points_needed=0,
-                message=(
-                    f"2 data points for '{track_name}' — exact 2-point fit. "
-                    "Add 1 more race for a more robust least-squares fit."
-                ),
+                min_points_needed=0,
+                message=f"2 data points for '{track_name}' — exact fit ready.",
+                detailed_message=f"2 data points for '{track_name}':\n"
+                               f"  • R={r1:.4f} → T={t1:.2f}s\n"
+                               f"  • R={r2:.4f} → T={t2:.2f}s\n\n"
+                               f"Exact 2-point curve created (<1s error). "
+                               f"Add 1 more point for least-squares fit (<0.3s error)."
             )
-
-        # n >= 3
+        
+        # 3+ points - n >= 3
+        if n >= 3:
+            # Calculate fit quality if parameters exist
+            quality_info = ""
+            if track_name in self.track_params:
+                a, b = self.track_params[track_name]['a'], self.track_params[track_name]['b']
+                
+                # Calculate errors using the points we already have
+                predictions = [a / r + b for r, _ in points]
+                actual_times = [t for _, t in points]
+                errors = [abs(p - a) for p, a in zip(predictions, actual_times)]
+                avg_error = sum(errors) / len(errors)
+                max_error = max(errors)
+                
+                quality_info = f"\n\nFit quality:\n  • Average error: {avg_error:.2f}s\n  • Max error: {max_error:.2f}s"
+                
+                # Check outliers
+                outliers = self.get_outliers(track_name)
+                if outliers:
+                    quality_info += f"\n  • ⚠ {len(outliers)} outlier(s) detected (see Curve Editor)"
+            
+            return dict(
+                can_autopilot=True,
+                needs_warning=False,
+                n_points=n,
+                fit_quality='least_squares',
+                points_needed=0,
+                min_points_needed=0,
+                message=f"{n} data points for '{track_name}' — robust least-squares fit.",
+                detailed_message=f"{n} data points for '{track_name}'. Least-squares fit with high accuracy.{quality_info}"
+            )
+        
+        # Fallback (should never reach here)
         return dict(
-            can_autopilot=True,
+            can_autopilot=False,
             needs_warning=False,
             n_points=n,
-            fit_quality='least_squares',
-            points_needed=0,
-            message=(
-                f"{n} data points for '{track_name}' — "
-                "least-squares fit. Autopilot is fully operational."
-            ),
+            fit_quality='none',
+            points_needed=2,
+            min_points_needed=2,
+            message=f"Insufficient data for '{track_name}'.",
+            detailed_message=f"Need at least 2 data points for '{track_name}'. Currently have {n}."
         )
 
     def fit_global_k(self):

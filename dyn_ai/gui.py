@@ -1,7 +1,6 @@
 """
 GUI for Live AI Tuner - Main window and dialogs
-UPDATED: UI layout improvements, compact design
-UPDATED: Autopilot reworked - correct data flow, outlier detection, readiness checks
+UPDATED: Enhanced autopilot with track change detection, better readiness assessment
 """
 
 import sys
@@ -14,7 +13,7 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 
-from cfg_manage import get_formulas_dir, get_autopilot_enabled
+from cfg_manage import get_formulas_dir, get_autopilot_enabled, update_autopilot_enabled
 from global_curve import GlobalCurveManager
 from aiw_manager import AIWManager
 
@@ -49,7 +48,7 @@ class AutopilotConfirmationDialog(QDialog):
     def setup_ui(self):
         self.setWindowTitle(f"Autopilot Confirmation - {self.track_name}")
         self.setModal(True)
-        self.setMinimumWidth(620)
+        self.setMinimumWidth(650)
 
         self.setStyleSheet("""
             QDialog { background-color: #2b2b2b; }
@@ -122,6 +121,14 @@ class AutopilotConfirmationDialog(QDialog):
             rmse_lbl = QLabel(f"{rmse:.3f} s")
             rmse_lbl.setStyleSheet(f"color: {rmse_color}; font-weight: bold;")
             quality_layout.addWidget(rmse_lbl, 2, 1)
+        
+        # Add points needed info if applicable
+        points_needed = self.fit_info.get('points_needed', 0)
+        if points_needed > 0:
+            quality_layout.addWidget(QLabel("Points needed:"), 3, 0)
+            need_lbl = QLabel(f"{points_needed} more race(s) for better fit")
+            need_lbl.setStyleSheet("color: #FFA500; font-style: italic;")
+            quality_layout.addWidget(need_lbl, 3, 1)
 
         layout.addWidget(quality_group)
         layout.addSpacing(6)
@@ -496,7 +503,7 @@ class ConfirmApplyDialog(QDialog):
 
 
 class MainWindow(QMainWindow):
-    """Main GUI window - UPDATED with compact layout"""
+    """Main GUI window - UPDATED with enhanced autopilot"""
 
     def __init__(self, base_path: Path, monitor_folder: Path, target_file: Path):
         super().__init__()
@@ -522,17 +529,98 @@ class MainWindow(QMainWindow):
         self.pending_changes = {}
         self.has_ai_data = False
         self.current_vehicles = {}
+        
+        # Track change tracking
+        self._current_autopilot_track = None
 
         self.setup_ui()
         self.update_status()
         self.update_backup_info()
 
         # Load autopilot setting from config
+        from cfg_manage import get_autopilot_enabled
         self.autopilot_enabled = get_autopilot_enabled()
+        self.log_message(f"Initial autopilot state from config: {self.autopilot_enabled}", "info")
         self.update_autopilot_button()
 
         # Initially disable save button
         self.save_to_csv_btn.setEnabled(False)
+
+    def check_track_change(self, new_track: str) -> bool:
+        """Check if track has changed and handle autopilot accordingly"""
+        if self._current_autopilot_track is None:
+            # First race, store track
+            self._current_autopilot_track = new_track
+            return True
+        
+        if self._current_autopilot_track.lower() != new_track.lower():
+            # Track changed while autopilot was active
+            self.log_message(
+                f"⚠️ Track changed from '{self._current_autopilot_track}' to '{new_track}'. "
+                f"Autopilot paused. Review data for new track before re-enabling.",
+                "warning"
+            )
+            
+            # Show dialog asking user what to do
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Track Change Detected")
+            msg.setIcon(QMessageBox.Question)
+            msg.setText(f"Track changed from '{self._current_autopilot_track}' to '{new_track}'")
+            msg.setInformativeText(
+                "Autopilot is currently paused. What would you like to do?\n\n"
+                "• Continue with autopilot on new track (if enough data exists)\n"
+                "• Keep autopilot disabled for now\n"
+                "• Disable autopilot permanently"
+            )
+            
+            continue_btn = msg.addButton("Continue on New Track", QMessageBox.AcceptRole)
+            pause_btn = msg.addButton("Keep Disabled", QMessageBox.RejectRole)
+            disable_btn = msg.addButton("Disable Autopilot", QMessageBox.DestructiveRole)
+            
+            msg.exec_()
+            
+            clicked = msg.clickedButton()
+            
+            if clicked == disable_btn:
+                # Disable autopilot and save to config
+                self.autopilot_enabled = False
+                update_autopilot_enabled(False)
+                self.update_autopilot_button()
+                self.log_message("Autopilot disabled due to track change", "info")
+                return False
+            elif clicked == continue_btn:
+                # Check if new track has enough data
+                readiness = self.curve_manager.get_readiness(new_track)
+                if readiness['can_autopilot']:
+                    self._current_autopilot_track = new_track
+                    self.log_message(f"Continuing autopilot on new track: {new_track}", "info")
+                    if readiness.get('needs_warning'):
+                        self.log_message(f"Note: {readiness['message']}", "warning")
+                    return True
+                else:
+                    self.log_message(
+                        f"Cannot continue autopilot: {readiness['message']}", 
+                        "warning"
+                    )
+                    # Show detailed message
+                    QMessageBox.warning(
+                        self,
+                        "Insufficient Data",
+                        readiness.get('detailed_message', readiness['message'])
+                    )
+                    self.autopilot_enabled = False
+                    update_autopilot_enabled(False)
+                    self.update_autopilot_button()
+                    return False
+            else:
+                # Pause autopilot
+                self.autopilot_enabled = False
+                update_autopilot_enabled(False)
+                self.update_autopilot_button()
+                self.log_message("Autopilot paused due to track change", "info")
+                return False
+        
+        return True
 
     def check_curve_exists(self) -> bool:
         """Check if there's enough curve data for reliable predictions"""
@@ -607,7 +695,7 @@ class MainWindow(QMainWindow):
 
     def setup_ui(self):
         """Setup the main UI with compact layout"""
-        self.setWindowTitle("dyn_ai")
+        self.setWindowTitle("Live AI Tuner")
         self.setGeometry(100, 100, 950, 750)
 
         self.setStyleSheet("""
@@ -918,71 +1006,379 @@ class MainWindow(QMainWindow):
             self.autopilot_btn.setText("Autopilot: OFF")
             self.autopilot_btn.setStyleSheet("background-color: #f44336;")
 
-    def toggle_autopilot(self):
-        """Toggle autopilot mode - UPDATED with per-track readiness check"""
-        if not self.autopilot_enabled:
-            # ── Determine readiness ────────────────────────────────────
-            track_name = self.last_results.get('track_name') if self.last_results else None
-
-            if track_name:
-                readiness = self.curve_manager.get_readiness(track_name)
-            else:
-                # No race yet this session — check global data
-                stats = self.curve_manager.get_stats()
-                if stats['total_points'] == 0 and not stats['track_params']:
-                    readiness = {
-                        'can_autopilot': False,
-                        'needs_warning': False,
-                        'message': (
-                            "No curve data at all. "
-                            "Complete at least 2 races to build a model, "
-                            "then enable autopilot."
-                        ),
-                        'points_needed': 2,
-                    }
-                else:
-                    readiness = {
-                        'can_autopilot': True,
-                        'needs_warning': False,
-                        'message': "Ready. Autopilot will use data from known tracks.",
-                        'points_needed': 0,
-                    }
-
-            # ── Hard refusal ───────────────────────────────────────────
-            if not readiness['can_autopilot']:
-                msg = QMessageBox(self)
-                msg.setWindowTitle("Cannot Enable Autopilot")
-                msg.setIcon(QMessageBox.Warning)
-                msg.setText("Not enough data to enable autopilot")
-                detail = readiness['message']
-                needed = readiness.get('points_needed', 0)
-                if needed:
-                    detail += f"\n\nYou need {needed} more data point(s) — one per race."
-                msg.setInformativeText(detail)
-                msg.setStandardButtons(QMessageBox.Ok)
-                msg.exec_()
-                self.log_message(f"Cannot enable autopilot: {readiness['message']}", "warning")
-                return
-
-            # ── Soft warning for thin data ─────────────────────────────
-            if readiness.get('needs_warning'):
-                reply = QMessageBox.question(
-                    self,
-                    "Limited Data — Enable Anyway?",
-                    f"Autopilot data quality is limited:\n\n{readiness['message']}\n\n"
-                    "Predictions may be less accurate than usual. Enable autopilot anyway?",
-                    QMessageBox.Yes | QMessageBox.No,
-                )
-                if reply == QMessageBox.No:
-                    return
-
-        self.autopilot_enabled = not self.autopilot_enabled
+    def _do_enable_autopilot(self, track_name: str):
+        """Actually enable autopilot after readiness check"""
+        self.autopilot_enabled = True
+        update_autopilot_enabled(True)
         self.update_autopilot_button()
-
-        if self.autopilot_enabled:
-            self.log_message("Autopilot enabled for this session", "success")
+        
+        # Store current track if available
+        if track_name:
+            self._current_autopilot_track = track_name
+            self.log_message(f"Autopilot enabled for track: {track_name}", "success")
         else:
-            self.log_message("Autopilot disabled for this session", "info")
+            self.log_message("Autopilot enabled (waiting for track detection)", "success")
+        
+        # Show a quick confirmation
+        QMessageBox.information(
+            self,
+            "Autopilot Enabled",
+            f"Autopilot is now active.\n\n"
+            f"It will automatically:\n"
+            f"• Save race data to CSV\n"
+            f"• Update the curve model\n"
+            f"• Calculate and apply new ratios\n\n"
+            f"Track: {track_name if track_name else 'Waiting for race...'}\n\n"
+            f"You can disable autopilot anytime by clicking the button again."
+        )
+
+    def toggle_autopilot(self):
+        """Toggle autopilot mode - Shows detailed readiness check before enabling"""
+        from cfg_manage import update_autopilot_enabled, get_autopilot_enabled
+        
+        self.log_message("=" * 60, "info")
+        self.log_message(f"Autopilot button clicked", "info")
+        self.log_message(f"  Current self.autopilot_enabled: {self.autopilot_enabled}", "info")
+        self.log_message(f"  Current config autopilot_enabled: {get_autopilot_enabled()}", "info")
+        
+        # If autopilot is currently ON, we're turning it OFF - simple toggle
+        if self.autopilot_enabled:
+            self.log_message("Turning autopilot OFF", "info")
+            self.autopilot_enabled = False
+            update_autopilot_enabled(False)
+            self.update_autopilot_button()
+            self._current_autopilot_track = None
+            self.log_message("Autopilot disabled", "info")
+            return
+        
+        # ── AUTOPILOT IS OFF, SHOW READINESS CHECK BEFORE ENABLING ─────────
+        self.log_message("Showing readiness check dialog...", "info")
+        
+        # Get current track (if any)
+        track_name = self.last_results.get('track_name') if self.last_results else None
+        self.log_message(f"Current track: {track_name}", "info")
+        
+        # Create detailed readiness dialog
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Autopilot Readiness Check")
+        dialog.setModal(True)
+        dialog.setMinimumWidth(550)
+        dialog.setStyleSheet("""
+            QDialog { background-color: #2b2b2b; }
+            QLabel { color: white; }
+            QGroupBox {
+                color: #4CAF50; border: 2px solid #555; border-radius: 5px;
+                margin-top: 8px; padding-top: 8px;
+            }
+            QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 5px 0 5px; }
+            QPushButton {
+                background-color: #4CAF50; color: white; border: none;
+                border-radius: 3px; padding: 8px; font-weight: bold;
+            }
+            QPushButton:hover { background-color: #45a049; }
+            QPushButton#cancel { background-color: #f44336; }
+            QPushButton#cancel:hover { background-color: #d32f2f; }
+            QPushButton:disabled { background-color: #555; color: #888; }
+        """)
+        
+        layout = QVBoxLayout(dialog)
+        
+        # Header
+        header = QLabel("🔍 Autopilot Readiness Check")
+        header.setStyleSheet("font-size: 16px; font-weight: bold; color: #FFA500; padding: 10px;")
+        header.setAlignment(Qt.AlignCenter)
+        layout.addWidget(header)
+        
+        layout.addSpacing(10)
+        
+        # ── Gather all readiness data ──────────────────────────────────────
+        stats = self.curve_manager.get_stats()
+        total_points = stats['total_points']
+        total_tracks = stats['total_tracks']
+        global_k = stats['global_k']
+        has_curve = total_points >= 2 or len(stats['track_params']) > 0
+        
+        # Track-specific readiness
+        track_readiness = None
+        if track_name:
+            track_readiness = self.curve_manager.get_readiness(track_name)
+        
+        # Check if track is known
+        track_has_points = track_name and track_name in self.curve_manager.curve.points_by_track
+        track_points_count = len(self.curve_manager.curve.points_by_track.get(track_name, [])) if track_has_points else 0
+        
+        # Check if we have any points at all
+        has_any_data = total_points > 0
+        
+        # ── Status Overview Group ──────────────────────────────────────────
+        status_group = QGroupBox("📊 Data Status Overview")
+        status_layout = QGridLayout(status_group)
+        
+        row = 0
+        status_layout.addWidget(QLabel("Current Track:"), row, 0)
+        track_display = QLabel(track_name if track_name else "No track detected yet")
+        track_display.setStyleSheet("color: #FFA500; font-weight: bold;" if track_name else "color: #888;")
+        status_layout.addWidget(track_display, row, 1)
+        
+        row += 1
+        status_layout.addWidget(QLabel("Total Data Points:"), row, 0)
+        points_label = QLabel(f"{total_points} point{'s' if total_points != 1 else ''}")
+        points_label.setStyleSheet("color: #4CAF50; font-weight: bold;" if total_points > 0 else "color: #f44336;")
+        status_layout.addWidget(points_label, row, 1)
+        
+        row += 1
+        status_layout.addWidget(QLabel("Total Tracks with Data:"), row, 0)
+        tracks_label = QLabel(f"{total_tracks} track{'s' if total_tracks != 1 else ''}")
+        tracks_label.setStyleSheet("color: #4CAF50; font-weight: bold;" if total_tracks > 0 else "color: #888;")
+        status_layout.addWidget(tracks_label, row, 1)
+        
+        if track_name:
+            row += 1
+            status_layout.addWidget(QLabel(f"Points for '{track_name}':"), row, 0)
+            track_points_label = QLabel(f"{track_points_count} point{'s' if track_points_count != 1 else ''}")
+            if track_points_count == 0:
+                track_points_label.setStyleSheet("color: #FFA500;")
+            elif track_points_count == 1:
+                track_points_label.setStyleSheet("color: #FFA500; font-weight: bold;")
+            else:
+                track_points_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
+            status_layout.addWidget(track_points_label, row, 1)
+        
+        if global_k and has_any_data:
+            row += 1
+            status_layout.addWidget(QLabel("Global k (prior):"), row, 0)
+            k_label = QLabel(f"{global_k:.4f}")
+            k_label.setStyleSheet("color: #9C27B0; font-family: monospace;")
+            status_layout.addWidget(k_label, row, 1)
+        
+        layout.addWidget(status_group)
+        layout.addSpacing(10)
+        
+        # ── Track-Specific Assessment (if track is known) ───────────────────
+        if track_name and track_readiness:
+            assessment_group = QGroupBox(f"🎯 Assessment for '{track_name}'")
+            assessment_layout = QVBoxLayout(assessment_group)
+            
+            # Fit quality
+            quality_map = {
+                'none': ("❌ No data", "#f44336"),
+                'bootstrap_global': ("⚠️ Global estimation (least reliable)", "#FFA500"),
+                'bootstrap_1pt': ("⚠️ 1-point bootstrap (moderate accuracy)", "#FFA500"),
+                'exact_2pt': ("✅ Exact 2-point fit (good accuracy)", "#4CAF50"),
+                'least_squares': ("✅✅ Least-squares fit (high accuracy)", "#4CAF50"),
+            }
+            quality_text, quality_color = quality_map.get(
+                track_readiness['fit_quality'], 
+                (track_readiness['fit_quality'], "#888")
+            )
+            
+            quality_label = QLabel(f"Fit Type: {quality_text}")
+            quality_label.setStyleSheet(f"color: {quality_color}; font-weight: bold;")
+            assessment_layout.addWidget(quality_label)
+            
+            # Message
+            msg_label = QLabel(track_readiness['message'])
+            msg_label.setWordWrap(True)
+            msg_label.setStyleSheet("color: #AAA; padding: 5px;")
+            assessment_layout.addWidget(msg_label)
+            
+            # Detailed message with points needed
+            if track_readiness.get('points_needed', 0) > 0:
+                need_label = QLabel(f"\n📈 {track_readiness['detailed_message']}")
+                need_label.setWordWrap(True)
+                need_label.setStyleSheet("color: #FFA500; padding: 5px; font-style: italic;")
+                assessment_layout.addWidget(need_label)
+            
+            layout.addWidget(assessment_group)
+            layout.addSpacing(10)
+        
+        # ── What Autopilot Will Do ─────────────────────────────────────────
+        info_group = QGroupBox("🤖 What Autopilot Will Do")
+        info_layout = QVBoxLayout(info_group)
+        
+        steps = [
+            "1. 📝 Save current race data to historic.csv",
+            "2. 📊 Add AI lap times as data points to the curve",
+            "3. 🔄 Auto-fit the curve (same as 'Auto-Fit Current Track')",
+            "4. 🎯 Calculate new QualRatio and/or RaceRatio from your lap time",
+            "5. ✅ Show confirmation dialog with all changes",
+            "6. ✍️ Apply new ratios to AIW file (if confirmed)",
+            "7. 🔁 Listen for new races and repeat"
+        ]
+        
+        for step in steps:
+            step_label = QLabel(step)
+            step_label.setStyleSheet("color: #AAA; font-size: 11px; padding: 2px;")
+            info_layout.addWidget(step_label)
+        
+        layout.addWidget(info_group)
+        layout.addSpacing(15)
+        
+        # ── Warning Section (if data is insufficient) ──────────────────────
+        can_autopilot = False
+        warning_text = ""
+        warning_color = "#FFA500"
+        
+        # Determine if autopilot can be enabled
+        if not track_name:
+            can_autopilot = False
+            warning_text = "⚠️ No track detected yet.\n\nComplete a race first so the program can identify which track you're racing on."
+            warning_color = "#f44336"
+        elif track_readiness:
+            can_autopilot = track_readiness['can_autopilot']
+            if not can_autopilot:
+                warning_text = f"⚠️ {track_readiness['message']}\n\n{track_readiness.get('detailed_message', '')}"
+                warning_color = "#f44336"
+            elif track_readiness.get('needs_warning'):
+                warning_text = f"⚠️ {track_readiness['message']}\n\n{track_readiness.get('detailed_message', '')}"
+                warning_color = "#FFA500"
+        elif not has_any_data:
+            can_autopilot = False
+            warning_text = "⚠️ No data available at all.\n\nYou need at least 2 races with different ratio settings to build a proper curve."
+            warning_color = "#f44336"
+        else:
+            can_autopilot = has_any_data
+        
+        if warning_text:
+            warning_group = QGroupBox("⚠️ Important Notice")
+            warning_group.setStyleSheet("QGroupBox { color: #FFA500; border: 2px solid #FFA500; }")
+            warning_layout = QVBoxLayout(warning_group)
+            
+            warning_label = QLabel(warning_text)
+            warning_label.setWordWrap(True)
+            warning_label.setStyleSheet(f"color: {warning_color}; padding: 5px;")
+            warning_layout.addWidget(warning_label)
+            
+            layout.addWidget(warning_group)
+            layout.addSpacing(10)
+        
+        # ── Buttons ────────────────────────────────────────────────────────
+        button_layout = QHBoxLayout()
+        
+        if can_autopilot:
+            enable_btn = QPushButton("✓ Enable Autopilot")
+            enable_btn.setFixedHeight(45)
+            enable_btn.setFixedWidth(150)
+            enable_btn.clicked.connect(lambda: self._do_enable_autopilot(track_name, dialog))
+            button_layout.addWidget(enable_btn)
+        else:
+            enable_btn = QPushButton("Enable Autopilot")
+            enable_btn.setEnabled(False)
+            enable_btn.setFixedHeight(45)
+            enable_btn.setFixedWidth(150)
+            enable_btn.setToolTip("Not enough data to enable autopilot")
+            button_layout.addWidget(enable_btn)
+        
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setObjectName("cancel")
+        cancel_btn.setFixedHeight(45)
+        cancel_btn.setFixedWidth(150)
+        cancel_btn.clicked.connect(dialog.reject)
+        button_layout.addWidget(cancel_btn)
+        
+        button_layout.addStretch()
+        layout.addLayout(button_layout)
+        
+        layout.addSpacing(10)
+        
+        # Show dialog
+        dialog.exec_()
+
+    def _do_enable_autopilot(self, track_name: str, dialog=None):
+        """Actually enable autopilot after readiness check"""
+        from cfg_manage import update_autopilot_enabled
+        
+        self.log_message("=" * 60, "info")
+        self.log_message("ENABLING AUTOPILOT", "success")
+        self.log_message(f"  Track: {track_name}", "info")
+        self.log_message(f"  Before - self.autopilot_enabled: {self.autopilot_enabled}", "info")
+        
+        # Set the flag
+        self.autopilot_enabled = True
+        
+        # Save to config
+        update_autopilot_enabled(True)
+        
+        # Update button appearance
+        self.update_autopilot_button()
+        
+        # Store current track if available
+        if track_name:
+            self._current_autopilot_track = track_name
+            self.log_message(f"  Stored track: {self._current_autopilot_track}", "info")
+        
+        # Verify it was set
+        from cfg_manage import get_autopilot_enabled
+        self.log_message(f"  After - self.autopilot_enabled: {self.autopilot_enabled}", "info")
+        self.log_message(f"  After - config autopilot_enabled: {get_autopilot_enabled()}", "info")
+        
+        # Close the dialog if provided
+        if dialog:
+            dialog.accept()
+        
+        self.log_message("✓ Autopilot enabled successfully", "success")
+        
+        # Show a quick confirmation
+        QMessageBox.information(
+            self,
+            "Autopilot Enabled",
+            f"Autopilot is now active.\n\n"
+            f"It will automatically:\n"
+            f"• Save race data to CSV\n"
+            f"• Update the curve model\n"
+            f"• Calculate and apply new ratios\n\n"
+            f"Track: {track_name if track_name else 'Waiting for race...'}\n\n"
+            f"You can disable autopilot anytime by clicking the button again.\n\n"
+            f"NOTE: The next race result will trigger autopilot."
+        )
+
+    def _do_enable_autopilot(self, track_name: str, dialog=None):
+        """Actually enable autopilot after readiness check"""
+        from cfg_manage import update_autopilot_enabled
+        
+        self.log_message("=" * 60, "info")
+        self.log_message("ENABLING AUTOPILOT", "success")
+        self.log_message(f"  Track: {track_name}", "info")
+        self.log_message(f"  Before - self.autopilot_enabled: {self.autopilot_enabled}", "info")
+        
+        # Set the flag
+        self.autopilot_enabled = True
+        
+        # Save to config
+        update_autopilot_enabled(True)
+        
+        # Update button appearance
+        self.update_autopilot_button()
+        
+        # Store current track if available
+        if track_name:
+            self._current_autopilot_track = track_name
+            self.log_message(f"  Stored track: {self._current_autopilot_track}", "info")
+        
+        # Verify it was set
+        from cfg_manage import get_autopilot_enabled
+        self.log_message(f"  After - self.autopilot_enabled: {self.autopilot_enabled}", "info")
+        self.log_message(f"  After - config autopilot_enabled: {get_autopilot_enabled()}", "info")
+        
+        # Close the dialog if provided
+        if dialog:
+            dialog.accept()
+        
+        self.log_message("✓ Autopilot enabled successfully", "success")
+        
+        # Show a quick confirmation
+        QMessageBox.information(
+            self,
+            "Autopilot Enabled",
+            f"Autopilot is now active.\n\n"
+            f"It will automatically:\n"
+            f"• Save race data to CSV\n"
+            f"• Update the curve model\n"
+            f"• Calculate and apply new ratios\n\n"
+            f"Track: {track_name if track_name else 'Waiting for race...'}\n\n"
+            f"You can disable autopilot anytime by clicking the button again.\n\n"
+            f"NOTE: The next race result will trigger autopilot."
+        )
 
     def update_status(self):
         """Update curve info display"""
@@ -1187,15 +1583,22 @@ User: Q {user_qual} | R {user_best}"""
 
         self.update_backup_info()
         self.log_message(f"Race results detected for {track}", "success")
-
+        
+        # DEBUG: Show autopilot state
+        self.log_message(f"=== AUTOPILOT DEBUG ===", "info")
+        self.log_message(f"self.autopilot_enabled = {self.autopilot_enabled}", "info")
+        self.log_message(f"type(self.autopilot_enabled) = {type(self.autopilot_enabled)}", "info")
+        
         # Autopilot check
         if self.autopilot_enabled:
+            self.log_message("Autopilot is enabled, checking curve data...", "info")
             if self.check_curve_exists():
+                self.log_message("Curve exists, starting autopilot process...", "info")
                 self.autopilot_process()
             else:
-                self.log_message("Autopilot: No curve data available, disabling autopilot", "error")
-                self.autopilot_enabled = False
-                self.update_autopilot_button()
+                self.log_message("Autopilot: No curve data available", "warning")
+        else:
+            self.log_message("Autopilot is disabled - not processing", "info")
 
     def format_time(self, seconds: float) -> str:
         """Format seconds as mm:ss.ms"""
@@ -1207,178 +1610,174 @@ User: Q {user_qual} | R {user_best}"""
         return f"{minutes}:{secs:02d}.{ms:03d}"
 
     # ------------------------------------------------------------------
-    # Autopilot - REWORKED
+    # Autopilot - ENHANCED
     # ------------------------------------------------------------------
 
     def autopilot_process(self):
         """
-        Full autopilot cycle after a race result is detected.
-
-        Correct data flow:
-          1.  Gather race data from last_results
-          2.  Auto-save to historic CSV (current ratios + AI times)
-          3.  Add NEW data point to curve: (current_ratio, AI_midpoint)
-              — this records what *actually happened* in this race
-          4.  Re-fit the curve for this track (= Auto-Fit Current Track)
-          5.  Save curve only if fit has proper parameters (≥ 2 points)
-          6.  If fit failed, fall back to previously saved curve
-          7.  Check for outliers and surface warnings
-          8.  Predict new ratios from the user's lap time
-          9.  Update GUI labels to show the new ratios
-          10. Show confirmation dialog (fit quality + outlier info)
-          11. If confirmed, write new ratios to the AIW file
+        Enhanced autopilot with clear workflow steps.
         """
+        self.log_message("=" * 60, "info")
+        self.log_message("AUTOPILOT PROCESS STARTED", "success")
+        self.log_message(f"Autopilot enabled: {self.autopilot_enabled}", "info")
+        
         if not self.last_results:
+            self.log_message("Autopilot: No race results available", "warning")
             return
 
         track_name = self.last_results.get('track_name', 'Unknown')
+        self.log_message(f"Processing track: {track_name}", "info")
 
-        # ── 1. Gather race data ────────────────────────────────────────
+        if not self.last_results:
+            self.log_message("Autopilot: No race results available", "warning")
+            return
+
+        track_name = self.last_results.get('track_name', 'Unknown')
+        
+        # STEP 1: Check for track change
+        if not self.check_track_change(track_name):
+            return
+        
+        # STEP 2: Gather race data
         qual_best_ai_sec  = self.last_results.get('qual_best_ai_lap_sec',  0.0)
         qual_worst_ai_sec = self.last_results.get('qual_worst_ai_lap_sec', 0.0)
         race_best_ai_sec  = self.last_results.get('best_ai_lap_sec',       0.0)
         race_worst_ai_sec = self.last_results.get('worst_ai_lap_sec',      0.0)
-
+        
         user_qual_str = self.last_results.get('user_qualifying', 'N/A')
         user_race_str = self.last_results.get('user_best_lap', 'N/A')
         user_qual_sec = self._parse_time(user_qual_str) if user_qual_str != 'N/A' else 0.0
         user_race_sec = self._parse_time(user_race_str) if user_race_str != 'N/A' else 0.0
-
-        # Defensive: treat None ratios as 1.0
+        
+        # Validate we have user lap time
+        if user_qual_sec <= 0 and user_race_sec <= 0:
+            self.log_message("Autopilot: No user lap time found", "warning")
+            QMessageBox.warning(self, "Autopilot Error", 
+                               "No user lap time detected.\n\n"
+                               "Autopilot needs your lap time to calculate new ratios.\n"
+                               "Please complete a lap in qualifying or race.")
+            return
+        
         current_qual_ratio = self.last_results.get('qual_ratio') or 1.0
         current_race_ratio = self.last_results.get('race_ratio') or 1.0
-
+        
+        # STEP 3: Save to CSV
         vehicles = self.current_vehicles if hasattr(self, 'current_vehicles') else {}
         car_class = vehicles.get('user', 'Unknown')
-
-        # ── 2. Auto-save to CSV ────────────────────────────────────────
+        
         self._append_to_historic_csv({
-            'car_class':          car_class,
-            'qual_ratio':         current_qual_ratio,
-            'qual_best':          qual_best_ai_sec,
-            'qual_worst':         qual_worst_ai_sec,
-            'qual_user':          user_qual_sec,
-            'race_ratio':         current_race_ratio,
-            'race_best':          race_best_ai_sec,
-            'race_worst':         race_worst_ai_sec,
-            'race_user':          user_race_sec,
-            'user_vehicle':       car_class,
-            'qual_best_vehicle':  vehicles.get('qual_best',  'Unknown'),
+            'car_class': car_class,
+            'qual_ratio': current_qual_ratio,
+            'qual_best': qual_best_ai_sec,
+            'qual_worst': qual_worst_ai_sec,
+            'qual_user': user_qual_sec,
+            'race_ratio': current_race_ratio,
+            'race_best': race_best_ai_sec,
+            'race_worst': race_worst_ai_sec,
+            'race_user': user_race_sec,
+            'user_vehicle': car_class,
+            'qual_best_vehicle': vehicles.get('qual_best', 'Unknown'),
             'qual_worst_vehicle': vehicles.get('qual_worst', 'Unknown'),
-            'race_best_vehicle':  vehicles.get('race_best',  'Unknown'),
+            'race_best_vehicle': vehicles.get('race_best', 'Unknown'),
             'race_worst_vehicle': vehicles.get('race_worst', 'Unknown'),
         }, track_name)
-
-        # ── 3. Add data points to curve (current ratio + AI midpoint) ─
-        #   These record what actually happened; they must be added BEFORE
-        #   the new ratio is calculated so the fit uses all available data.
+        
+        # STEP 4: Add data points to curve
         added_any = False
-
+        
         if current_qual_ratio > 0 and qual_best_ai_sec > 0 and qual_worst_ai_sec > 0:
-            mid = (qual_best_ai_sec + qual_worst_ai_sec) / 2
             self.curve_manager.curve.add_point(track_name, current_qual_ratio,
                                                qual_best_ai_sec, qual_worst_ai_sec)
-            self.log_message(
-                f"Autopilot: Added qual data point  R={current_qual_ratio:.4f}  T={mid:.2f}s",
-                "info"
-            )
+            self.log_message(f"Added qual point: R={current_qual_ratio:.4f}", "info")
             added_any = True
-
+        
         if current_race_ratio > 0 and race_best_ai_sec > 0 and race_worst_ai_sec > 0:
-            mid = (race_best_ai_sec + race_worst_ai_sec) / 2
             self.curve_manager.curve.add_point(track_name, current_race_ratio,
                                                race_best_ai_sec, race_worst_ai_sec)
-            self.log_message(
-                f"Autopilot: Added race data point  R={current_race_ratio:.4f}  T={mid:.2f}s",
-                "info"
-            )
+            self.log_message(f"Added race point: R={current_race_ratio:.4f}", "info")
             added_any = True
-
-        # ── 4. Re-fit the curve ────────────────────────────────────────
+        
+        if not added_any:
+            self.log_message("Autopilot: No valid AI lap times found", "warning")
+            return
+        
+        # STEP 5: Fit the curve
         fit_info = self.curve_manager.fit_track(track_name)
         self.curve_manager.curve.fit_global_k()
-
-        if fit_info['success']:
-            quality_str = fit_info['mode']
-            if fit_info.get('rmse') is not None:
-                quality_str += f"  RMSE={fit_info['rmse']:.3f}s"
-            self.log_message(
-                f"Autopilot: Curve re-fitted for {track_name}  "
-                f"({quality_str},  {fit_info['n_points']} pts)",
-                "success"
-            )
-        else:
-            self.log_message(
-                f"Autopilot: Curve fit failed for {track_name}  ({fit_info['n_points']} pts)",
-                "warning"
-            )
-
-        # ── 5. Save curve (only when we have a real fit, not just bootstrap) ──
-        has_proper_fit = fit_info['success'] and fit_info['n_points'] >= 2
-        if has_proper_fit:
-            self.curve_manager.save()
-            self.log_message("Autopilot: Curve saved", "info")
-        elif not fit_info['success']:
-            # ── 6. Fallback: reload the last saved curve ───────────────
-            if self.curve_manager.load():
-                self.log_message(
-                    "Autopilot: Fit failed — loaded previously saved curve as fallback",
-                    "warning"
-                )
-                fit_info = {
-                    'mode': 'loaded_fallback',
-                    'n_points': fit_info['n_points'],
-                    'success': True,
-                    'rmse': None,
-                    'outliers': [],
-                }
-            else:
-                self.log_message(
-                    "Autopilot: No curve available — cannot calculate ratios",
-                    "error"
-                )
-                return
-
-        # ── 7. Outlier detection ───────────────────────────────────────
-        outliers = self.curve_manager.get_outliers(track_name)
-        if outliers:
-            for o in outliers:
-                self.log_message(
-                    f"Autopilot: Outlier at  R={o['ratio']:.4f}  T={o['time']:.2f}s  "
-                    f"(residual={o['residual']:.2f}s  z={o['z_score']:.1f}σ)",
-                    "warning"
-                )
-            self.log_message(
-                f"Autopilot: {len(outliers)} outlier(s) detected — "
-                "check Curve Editor if these look like bad data",
-                "warning"
-            )
-
-        # ── 8. Predict new ratios from user's lap times ────────────────
-        new_ratios: Dict[str, float] = {}
-        current_ratios = {
-            'QualRatio': current_qual_ratio,
-            'RaceRatio':  current_race_ratio,
-        }
-
-        if user_qual_sec > 0:
-            r = self.curve_manager.predict_ratio(user_qual_sec, track_name)
-            if r:
-                new_ratios['QualRatio'] = r
-
-        if user_race_sec > 0:
-            r = self.curve_manager.predict_ratio(user_race_sec, track_name)
-            if r:
-                new_ratios['RaceRatio'] = r
-
-        if not new_ratios:
-            self.log_message(
-                "Autopilot: No valid user lap times — cannot calculate new ratios",
-                "warning"
+        
+        # Check if fit produced usable formula
+        has_formula = track_name in self.curve_manager.curve.track_params
+        n_points = len(self.curve_manager.curve.points_by_track.get(track_name, []))
+        
+        self.log_message(f"Fit result: {fit_info['mode']}, {n_points} points", "info")
+        
+        # STEP 6: Validate fit quality
+        if not has_formula:
+            # No formula available
+            QMessageBox.warning(
+                self,
+                "Cannot Calculate Ratios",
+                f"Cannot create formula for '{track_name}'.\n\n"
+                f"Data points: {n_points}\n"
+                f"Need at least 2 points with different ratios.\n\n"
+                f"Current points:\n" + 
+                "\n".join([f"  R={r:.4f} → T={t:.2f}s" for r, t in self.curve_manager.curve.points_by_track.get(track_name, [])])
             )
             return
-
-        # ── 9. Update GUI labels ───────────────────────────────────────
+        
+        # Check if we have valid a and b parameters
+        a = self.curve_manager.curve.track_params[track_name]['a']
+        b = self.curve_manager.curve.track_params[track_name]['b']
+        
+        if a <= 0 or b <= 0:
+            QMessageBox.warning(
+                self,
+                "Invalid Formula",
+                f"Calculated formula is invalid.\n\n"
+                f"a={a:.3f}, b={b:.3f}\n\n"
+                f"This usually means the data points are too close or invalid.\n"
+                f"Try using more varied ratio values."
+            )
+            return
+        
+        # Save curve if we have good data (≥2 points)
+        if n_points >= 2:
+            self.curve_manager.save()
+            self.log_message(f"Curve saved: T = {a:.3f}/R + {b:.3f}", "success")
+        
+        # STEP 7: Predict new ratios
+        new_ratios = {}
+        
+        if user_qual_sec > 0:
+            predicted_ratio = self.curve_manager.predict_ratio(user_qual_sec, track_name)
+            if predicted_ratio and predicted_ratio > 0:
+                new_ratios['QualRatio'] = predicted_ratio
+                self.log_message(f"Predicted QualRatio: {predicted_ratio:.6f}", "info")
+            else:
+                self.log_message(f"Failed to predict QualRatio from {user_qual_str}", "warning")
+        
+        if user_race_sec > 0:
+            predicted_ratio = self.curve_manager.predict_ratio(user_race_sec, track_name)
+            if predicted_ratio and predicted_ratio > 0:
+                new_ratios['RaceRatio'] = predicted_ratio
+                self.log_message(f"Predicted RaceRatio: {predicted_ratio:.6f}", "info")
+            else:
+                self.log_message(f"Failed to predict RaceRatio from {user_race_str}", "warning")
+        
+        if not new_ratios:
+            QMessageBox.warning(
+                self,
+                "Prediction Failed",
+                f"Could not predict ratios from your lap times.\n\n"
+                f"User Qual: {user_qual_str} ({user_qual_sec:.3f}s)\n"
+                f"User Race: {user_race_str} ({user_race_sec:.3f}s)\n\n"
+                f"Formula: T = {a:.3f}/R + {b:.3f}\n\n"
+                f"Your lap time may be outside the valid range of the curve.\n"
+                f"Valid range: R=0.3 to 3.0 → T={a/0.3+b:.1f}s to {a/3.0+b:.1f}s"
+            )
+            return
+        
+        # STEP 8: Update GUI with predictions
         if 'QualRatio' in new_ratios:
             self.qual_result_label.setText(f"{new_ratios['QualRatio']:.6f}")
             self.apply_qual_check.setChecked(True)
@@ -1386,14 +1785,21 @@ User: Q {user_qual} | R {user_best}"""
             self.race_result_label.setText(f"{new_ratios['RaceRatio']:.6f}")
             self.apply_race_check.setChecked(True)
         self.apply_all_btn.setEnabled(True)
-        self.update_status()
-
-        # ── 10. Confirmation dialog ────────────────────────────────────
+        
+        # STEP 9: Check for outliers
+        outliers = self.curve_manager.get_outliers(track_name)
+        
+        # STEP 10: Show confirmation dialog
+        current_ratios = {
+            'QualRatio': current_qual_ratio,
+            'RaceRatio': current_race_ratio,
+        }
+        
         user_time_str = user_race_str if user_race_sec > 0 else user_qual_str
         ai_time_str = (self.format_time(race_best_ai_sec) if race_best_ai_sec > 0
                        else self.format_time(qual_best_ai_sec))
         formula = self.curve_manager.get_formula_string(track_name)
-
+        
         confirm_dialog = AutopilotConfirmationDialog(
             track_name=track_name,
             car_class=car_class,
@@ -1406,72 +1812,142 @@ User: Q {user_qual} | R {user_best}"""
             outliers=outliers,
             parent=self,
         )
-
+        
         if not confirm_dialog.get_decision():
             self.log_message("Autopilot cancelled by user", "warning")
             return
-
-        # ── 11. Apply to AIW ───────────────────────────────────────────
+        
+        # STEP 11: Apply to AIW file
         self._apply_ratios_autopilot(new_ratios)
+        
+        self.log_message(f"Autopilot cycle complete for {track_name}", "success")
 
     def _apply_ratios_autopilot(self, new_ratios: Dict[str, float]):
         """
-        Write new ratios to the AIW file.
-        Deliberately does NOT call _update_race_results to avoid
-        re-triggering the autopilot loop.
+        Write new ratios to the AIW file with detailed debugging.
         """
         if not self.last_results:
             return
 
-        track_name   = self.last_results.get('track_name')
+        track_name = self.last_results.get('track_name')
         track_folder = self.last_results.get('track_folder', track_name)
         aiw_filename = self.last_results.get('aiw_file')
 
+        self.log_message("=" * 60, "info")
+        self.log_message("AUTOPILOT: Applying ratios", "info")
+        self.log_message(f"  Track: {track_name}", "info")
+        self.log_message(f"  Track folder: {track_folder}", "info")
+        self.log_message(f"  AIW filename from results: {aiw_filename}", "info")
+        self.log_message(f"  Base path: {self.base_path}", "info")
+
         if not aiw_filename:
-            self.log_message("Autopilot: Cannot find AIW file name in results", "error")
+            self.log_message("ERROR: No AIW filename in results", "error")
+            QMessageBox.critical(self, "Error", "No AIW filename found in race results.")
             return
 
+        # Find AIW file
         aiw_path = self.aiw_manager.find_aiw_file(aiw_filename, track_folder, self.base_path)
 
-        if not aiw_path or not aiw_path.exists():
-            self.log_message(f"Autopilot: AIW file not found: {aiw_filename}", "error")
+        if not aiw_path:
+            self.log_message("ERROR: AIW file NOT FOUND", "error")
+            QMessageBox.critical(self, "Error", f"AIW file not found: {aiw_filename}")
             return
 
+        self.log_message(f"✓ AIW found at: {aiw_path}", "success")
+        
+        # Get file modification time before
+        try:
+            mtime_before = aiw_path.stat().st_mtime
+            self.log_message(f"  File mtime before: {datetime.fromtimestamp(mtime_before)}", "info")
+        except Exception as e:
+            self.log_message(f"  Could not get mtime: {e}", "warning")
+            mtime_before = None
+        
+        # Read current ratios before change
+        current_qual, current_race = self.aiw_manager.read_ratios(aiw_path)
+        self.log_message(f"  Current ratios before:", "info")
+        self.log_message(f"    Qual: {current_qual}", "info")
+        self.log_message(f"    Race: {current_race}", "info")
+
+        # Apply each ratio
         success_count = 0
         for ratio_type, new_value in new_ratios.items():
-            current = self.last_results.get(
-                'qual_ratio' if ratio_type == 'QualRatio' else 'race_ratio', 1.0
-            )
-            if self.aiw_manager.update_ratio(aiw_path, ratio_type, new_value,
-                                              track_name, create_backup=True):
+            self.log_message(f"  Attempting to update {ratio_type} to {new_value:.6f}", "info")
+            
+            if self.aiw_manager.update_ratio(aiw_path, ratio_type, new_value, track_name, create_backup=True):
                 success_count += 1
-                self.log_message(
-                    f"Autopilot: Applied {ratio_type}  {current:.6f} → {new_value:.6f}",
-                    "success"
-                )
+                self.log_message(f"  ✓ Successfully updated {ratio_type}", "success")
+            else:
+                self.log_message(f"  ✗ Failed to update {ratio_type}", "error")
+
+        # Get file modification time after
+        try:
+            mtime_after = aiw_path.stat().st_mtime
+            self.log_message(f"  File mtime after: {datetime.fromtimestamp(mtime_after)}", "info")
+            if mtime_before and mtime_after != mtime_before:
+                self.log_message(f"  ✓ File was modified (mtime changed)", "success")
+            elif mtime_before:
+                self.log_message(f"  ✗ File was NOT modified (mtime unchanged)", "warning")
+        except Exception as e:
+            self.log_message(f"  Could not get mtime after: {e}", "warning")
 
         if success_count > 0:
-            self.log_message(
-                f"Autopilot: Successfully applied {success_count} change(s)", "success"
-            )
-
-            # Read the updated ratios directly and update last_results + labels
-            # without going through _update_race_results (would re-trigger autopilot)
-            qual, race = self.aiw_manager.read_ratios(aiw_path)
+            # Read back updated ratios
+            new_qual, new_race = self.aiw_manager.read_ratios(aiw_path)
+            self.log_message(f"  Ratios after update:", "info")
+            self.log_message(f"    Qual: {new_qual} (was {current_qual})", "info")
+            self.log_message(f"    Race: {new_race} (was {current_race})", "info")
+            
+            # Check if they actually changed
+            qual_changed = new_qual != current_qual
+            race_changed = new_race != current_race
+            
+            if qual_changed and 'QualRatio' in new_ratios:
+                self.log_message(f"  ✓ QualRatio changed from {current_qual} to {new_qual}", "success")
+            elif 'QualRatio' in new_ratios:
+                self.log_message(f"  ✗ QualRatio did NOT change (expected {new_ratios['QualRatio']})", "error")
+            
+            if race_changed and 'RaceRatio' in new_ratios:
+                self.log_message(f"  ✓ RaceRatio changed from {current_race} to {new_race}", "success")
+            elif 'RaceRatio' in new_ratios:
+                self.log_message(f"  ✗ RaceRatio did NOT change (expected {new_ratios['RaceRatio']})", "error")
+            
+            # Update display
+            if new_qual is not None:
+                self.current_qual_label.setText(f"{new_qual:.6f}")
+            if new_race is not None:
+                self.current_race_label.setText(f"{new_race:.6f}")
+            
+            # Update last_results
             if self.last_results:
-                self.last_results['qual_ratio'] = qual
-                self.last_results['race_ratio'] = race
-
-            if qual is not None:
-                self.current_qual_label.setText(f"{qual:.6f}")
-            if race is not None:
-                self.current_race_label.setText(f"{race:.6f}")
-
+                self.last_results['qual_ratio'] = new_qual
+                self.last_results['race_ratio'] = new_race
+            
             self.update_backup_info()
             self.update_status()
+            
+            QMessageBox.information(
+                self,
+                "Autopilot Applied",
+                f"Successfully applied changes:\n\n"
+                f"Qualifying: {new_qual:.6f}\n"
+                f"Race: {new_race:.6f}\n\n"
+                f"File: {aiw_path.name}\n"
+                f"Modified: {'Yes' if (qual_changed or race_changed) else 'No'}"
+            )
+        else:
+            QMessageBox.critical(
+                self,
+                "Failed to Apply",
+                f"Could not apply any ratio changes.\n\n"
+                f"AIW file: {aiw_path}\n"
+                f"Check file permissions and that the ratio patterns exist."
+            )
+        
+        self.log_message("=" * 60, "info")
 
     # ------------------------------------------------------------------
-    # Manual ratio calculation (unchanged)
+    # Manual ratio calculation
     # ------------------------------------------------------------------
 
     def calculate_ratio(self, ratio_type: str):
