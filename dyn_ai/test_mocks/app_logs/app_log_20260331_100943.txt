@@ -1,0 +1,375 @@
+=== Live AI Tuner Log - 2026-03-31T10:09:43.628270 ===
+Command: /home/aaf/.local/share/virtualenvs/dyn_ai-zw_yYVg2/bin/python3 -u /home/aaf/Software/Dev/gtr2/dyn_ai/dyn_ai.py --config /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/cfg_test.yml
+PID: 271537
+================================================================================
+
+[2026-03-31 10:09:43.690] [STDOUT] Base path: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks
+[2026-03-31 10:09:43.690] [STDOUT] Target file: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/UserData/Log/Results/raceresults.txt
+[2026-03-31 10:09:43.690] [STDERR] Warning: Ignoring XDG_SESSION_TYPE=wayland on Gnome. Use QT_QPA_PLATFORM=wayland to run on Wayland anyway.
+[2026-03-31 10:09:43.999] [STDERR] 2026-03-31 10:09:43,999 - INFO - Loaded global curve with 552 points
+[2026-03-31 10:09:44.000] [STDERR] 2026-03-31 10:09:44,000 - INFO - Loaded global curve with 552 points
+[2026-03-31 10:09:44.000] [STDERR] 2026-03-31 10:09:44,000 - INFO - Loaded existing curve: 552 points, 20 tracks
+[2026-03-31 10:09:44.002] [STDERR] 2026-03-31 10:09:44,002 - INFO - Fitted Monza [Formula Senior]: a=40.016, b=74.484
+[2026-03-31 10:09:44.002] [STDERR] 2026-03-31 10:09:44,002 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.004] [STDERR] 2026-03-31 10:09:44,004 - INFO - Saved global curve
+[2026-03-31 10:09:44.005] [STDERR] 2026-03-31 10:09:44,005 - INFO - Fitted Monza [Formula Senior]: a=39.891, b=74.661
+[2026-03-31 10:09:44.005] [STDERR] 2026-03-31 10:09:44,005 - INFO - Updated global k = 0.2654 ± 0.1349 from 20 tracks
+[2026-03-31 10:09:44.013] [STDERR] 2026-03-31 10:09:44,013 - INFO - Saved global curve
+[2026-03-31 10:09:44.015] [STDERR] 2026-03-31 10:09:44,015 - INFO - Fitted Monza [Formula Senior]: a=40.265, b=74.303
+[2026-03-31 10:09:44.015] [STDERR] 2026-03-31 10:09:44,015 - INFO - Updated global k = 0.2656 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.017] [STDERR] 2026-03-31 10:09:44,017 - INFO - Saved global curve
+[2026-03-31 10:09:44.018] [STDERR] 2026-03-31 10:09:44,018 - INFO - Fitted Monza [Formula Senior]: a=40.287, b=74.252
+[2026-03-31 10:09:44.018] [STDERR] 2026-03-31 10:09:44,018 - INFO - Updated global k = 0.2656 ± 0.1351 from 20 tracks
+[2026-03-31 10:09:44.020] [STDERR] 2026-03-31 10:09:44,020 - INFO - Saved global curve
+[2026-03-31 10:09:44.022] [STDERR] 2026-03-31 10:09:44,022 - INFO - Fitted Monza [Formula Senior]: a=40.301, b=74.225
+[2026-03-31 10:09:44.022] [STDERR] 2026-03-31 10:09:44,022 - INFO - Updated global k = 0.2656 ± 0.1351 from 20 tracks
+[2026-03-31 10:09:44.024] [STDERR] 2026-03-31 10:09:44,024 - INFO - Saved global curve
+[2026-03-31 10:09:44.027] [STDERR] 2026-03-31 10:09:44,027 - INFO - Fitted Monza [Formula Senior]: a=40.125, b=74.394
+[2026-03-31 10:09:44.027] [STDERR] 2026-03-31 10:09:44,027 - INFO - Updated global k = 0.2656 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.029] [STDERR] 2026-03-31 10:09:44,029 - INFO - Saved global curve
+[2026-03-31 10:09:44.030] [STDERR] 2026-03-31 10:09:44,030 - INFO - Fitted Monza [Formula Senior]: a=40.121, b=74.395
+[2026-03-31 10:09:44.030] [STDERR] 2026-03-31 10:09:44,030 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.032] [STDERR] 2026-03-31 10:09:44,032 - INFO - Saved global curve
+[2026-03-31 10:09:44.033] [STDERR] 2026-03-31 10:09:44,033 - INFO - Fitted Monza [Formula Senior]: a=40.127, b=74.396
+[2026-03-31 10:09:44.034] [STDERR] 2026-03-31 10:09:44,033 - INFO - Updated global k = 0.2656 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.035] [STDERR] 2026-03-31 10:09:44,035 - INFO - Saved global curve
+[2026-03-31 10:09:44.036] [STDERR] 2026-03-31 10:09:44,036 - INFO - Fitted Monza [Formula Senior]: a=40.132, b=74.358
+[2026-03-31 10:09:44.036] [STDERR] 2026-03-31 10:09:44,036 - INFO - Updated global k = 0.2656 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.038] [STDERR] 2026-03-31 10:09:44,038 - INFO - Saved global curve
+[2026-03-31 10:09:44.039] [STDERR] 2026-03-31 10:09:44,039 - INFO - Fitted Monza [Formula Senior]: a=40.150, b=74.318
+[2026-03-31 10:09:44.039] [STDERR] 2026-03-31 10:09:44,039 - INFO - Updated global k = 0.2656 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.041] [STDERR] 2026-03-31 10:09:44,041 - INFO - Saved global curve
+[2026-03-31 10:09:44.042] [STDERR] 2026-03-31 10:09:44,042 - INFO - Fitted Monza [Formula Senior]: a=40.159, b=74.303
+[2026-03-31 10:09:44.042] [STDERR] 2026-03-31 10:09:44,042 - INFO - Updated global k = 0.2656 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.044] [STDERR] 2026-03-31 10:09:44,044 - INFO - Saved global curve
+[2026-03-31 10:09:44.045] [STDERR] 2026-03-31 10:09:44,045 - INFO - Fitted Monza [Formula Senior]: a=40.146, b=74.324
+[2026-03-31 10:09:44.045] [STDERR] 2026-03-31 10:09:44,045 - INFO - Updated global k = 0.2656 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.047] [STDERR] 2026-03-31 10:09:44,047 - INFO - Saved global curve
+[2026-03-31 10:09:44.048] [STDERR] 2026-03-31 10:09:44,048 - INFO - Fitted Monza [Formula Senior]: a=40.125, b=74.356
+[2026-03-31 10:09:44.048] [STDERR] 2026-03-31 10:09:44,048 - INFO - Updated global k = 0.2656 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.050] [STDERR] 2026-03-31 10:09:44,050 - INFO - Saved global curve
+[2026-03-31 10:09:44.053] [STDERR] 2026-03-31 10:09:44,053 - INFO - Fitted Monza [Formula Senior]: a=40.007, b=74.524
+[2026-03-31 10:09:44.053] [STDERR] 2026-03-31 10:09:44,053 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.055] [STDERR] 2026-03-31 10:09:44,055 - INFO - Saved global curve
+[2026-03-31 10:09:44.056] [STDERR] 2026-03-31 10:09:44,056 - INFO - Fitted Monza [Formula Senior]: a=40.007, b=74.523
+[2026-03-31 10:09:44.056] [STDERR] 2026-03-31 10:09:44,056 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.058] [STDERR] 2026-03-31 10:09:44,058 - INFO - Saved global curve
+[2026-03-31 10:09:44.059] [STDERR] 2026-03-31 10:09:44,059 - INFO - Fitted Monza [Formula Senior]: a=40.004, b=74.519
+[2026-03-31 10:09:44.059] [STDERR] 2026-03-31 10:09:44,059 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.061] [STDERR] 2026-03-31 10:09:44,061 - INFO - Saved global curve
+[2026-03-31 10:09:44.062] [STDERR] 2026-03-31 10:09:44,062 - INFO - Fitted Monza [Formula Senior]: a=40.001, b=74.516
+[2026-03-31 10:09:44.062] [STDERR] 2026-03-31 10:09:44,062 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.064] [STDERR] 2026-03-31 10:09:44,064 - INFO - Saved global curve
+[2026-03-31 10:09:44.065] [STDERR] 2026-03-31 10:09:44,065 - INFO - Fitted B06Barcelona [Formula Senior]: a=32.011, b=66.813
+[2026-03-31 10:09:44.066] [STDERR] 2026-03-31 10:09:44,065 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.068] [STDERR] 2026-03-31 10:09:44,067 - INFO - Saved global curve
+[2026-03-31 10:09:44.070] [STDERR] 2026-03-31 10:09:44,070 - INFO - Fitted B06Barcelona [Formula Senior]: a=32.012, b=66.826
+[2026-03-31 10:09:44.070] [STDERR] 2026-03-31 10:09:44,070 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.072] [STDERR] 2026-03-31 10:09:44,071 - INFO - Saved global curve
+[2026-03-31 10:09:44.073] [STDERR] 2026-03-31 10:09:44,073 - INFO - Fitted B06Barcelona [Formula Senior]: a=32.011, b=66.816
+[2026-03-31 10:09:44.073] [STDERR] 2026-03-31 10:09:44,073 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.075] [STDERR] 2026-03-31 10:09:44,074 - INFO - Saved global curve
+[2026-03-31 10:09:44.076] [STDERR] 2026-03-31 10:09:44,076 - INFO - Fitted B06Barcelona [Formula Senior]: a=31.995, b=66.824
+[2026-03-31 10:09:44.076] [STDERR] 2026-03-31 10:09:44,076 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.078] [STDERR] 2026-03-31 10:09:44,078 - INFO - Saved global curve
+[2026-03-31 10:09:44.079] [STDERR] 2026-03-31 10:09:44,079 - INFO - Fitted B06Barcelona [Formula Senior]: a=32.087, b=66.732
+[2026-03-31 10:09:44.079] [STDERR] 2026-03-31 10:09:44,079 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.080] [STDERR] 2026-03-31 10:09:44,080 - INFO - Saved global curve
+[2026-03-31 10:09:44.082] [STDERR] 2026-03-31 10:09:44,082 - INFO - Fitted B06Barcelona [Formula Senior]: a=32.070, b=66.742
+[2026-03-31 10:09:44.082] [STDERR] 2026-03-31 10:09:44,082 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.084] [STDERR] 2026-03-31 10:09:44,084 - INFO - Saved global curve
+[2026-03-31 10:09:44.086] [STDERR] 2026-03-31 10:09:44,086 - INFO - Fitted B06Barcelona [Formula Senior]: a=32.083, b=66.717
+[2026-03-31 10:09:44.087] [STDERR] 2026-03-31 10:09:44,087 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.088] [STDERR] 2026-03-31 10:09:44,088 - INFO - Saved global curve
+[2026-03-31 10:09:44.090] [STDERR] 2026-03-31 10:09:44,090 - INFO - Fitted Jiading, FIA GT Championship Round 11 [Formula Senior]: a=46.740, b=80.291
+[2026-03-31 10:09:44.090] [STDERR] 2026-03-31 10:09:44,090 - INFO - Updated global k = 0.2654 ± 0.1349 from 20 tracks
+[2026-03-31 10:09:44.092] [STDERR] 2026-03-31 10:09:44,092 - INFO - Saved global curve
+[2026-03-31 10:09:44.093] [STDERR] 2026-03-31 10:09:44,093 - INFO - Fitted Jiading, FIA GT Championship Round 11 [Formula Senior]: a=46.764, b=80.263
+[2026-03-31 10:09:44.093] [STDERR] 2026-03-31 10:09:44,093 - INFO - Updated global k = 0.2654 ± 0.1349 from 20 tracks
+[2026-03-31 10:09:44.095] [STDERR] 2026-03-31 10:09:44,095 - INFO - Saved global curve
+[2026-03-31 10:09:44.096] [STDERR] 2026-03-31 10:09:44,096 - INFO - Fitted Jiading, FIA GT Championship Round 11 [Formula Senior]: a=47.139, b=79.821
+[2026-03-31 10:09:44.096] [STDERR] 2026-03-31 10:09:44,096 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.098] [STDERR] 2026-03-31 10:09:44,098 - INFO - Saved global curve
+[2026-03-31 10:09:44.101] [STDERR] 2026-03-31 10:09:44,100 - INFO - Fitted Jiading, FIA GT Championship Round 11 [Formula Senior]: a=47.139, b=79.821
+[2026-03-31 10:09:44.101] [STDERR] 2026-03-31 10:09:44,101 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.103] [STDERR] 2026-03-31 10:09:44,103 - INFO - Saved global curve
+[2026-03-31 10:09:44.105] [STDERR] 2026-03-31 10:09:44,105 - INFO - Fitted Total Spa 2013 GP v2.5 [Formula Senior]: a=253.098, b=131.445
+[2026-03-31 10:09:44.105] [STDERR] 2026-03-31 10:09:44,105 - INFO - Updated global k = 0.2652 ± 0.1339 from 20 tracks
+[2026-03-31 10:09:44.107] [STDERR] 2026-03-31 10:09:44,107 - INFO - Saved global curve
+[2026-03-31 10:09:44.108] [STDERR] 2026-03-31 10:09:44,108 - INFO - Fitted Total Spa 2013 GP v2.5 [Formula Senior]: a=271.943, b=136.651
+[2026-03-31 10:09:44.108] [STDERR] 2026-03-31 10:09:44,108 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.110] [STDERR] 2026-03-31 10:09:44,110 - INFO - Saved global curve
+[2026-03-31 10:09:44.111] [STDERR] 2026-03-31 10:09:44,111 - INFO - Fitted B06Barcelona [Formula Senior]: a=32.096, b=66.697
+[2026-03-31 10:09:44.112] [STDERR] 2026-03-31 10:09:44,112 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.113] [STDERR] 2026-03-31 10:09:44,113 - INFO - Saved global curve
+[2026-03-31 10:09:44.114] [STDERR] 2026-03-31 10:09:44,114 - INFO - Fitted B06Barcelona [Formula Senior]: a=32.095, b=66.713
+[2026-03-31 10:09:44.114] [STDERR] 2026-03-31 10:09:44,114 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.117] [STDERR] 2026-03-31 10:09:44,117 - INFO - Saved global curve
+[2026-03-31 10:09:44.120] [STDERR] 2026-03-31 10:09:44,119 - INFO - Fitted B06Barcelona [Formula Senior]: a=32.085, b=66.727
+[2026-03-31 10:09:44.120] [STDERR] 2026-03-31 10:09:44,120 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.122] [STDERR] 2026-03-31 10:09:44,121 - INFO - Saved global curve
+[2026-03-31 10:09:44.123] [STDERR] 2026-03-31 10:09:44,123 - INFO - Fitted B06Barcelona [Formula Senior]: a=32.085, b=66.730
+[2026-03-31 10:09:44.123] [STDERR] 2026-03-31 10:09:44,123 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.125] [STDERR] 2026-03-31 10:09:44,125 - INFO - Saved global curve
+[2026-03-31 10:09:44.126] [STDERR] 2026-03-31 10:09:44,126 - INFO - Fitted B06Barcelona [Formula Senior]: a=32.066, b=66.758
+[2026-03-31 10:09:44.126] [STDERR] 2026-03-31 10:09:44,126 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.128] [STDERR] 2026-03-31 10:09:44,128 - INFO - Saved global curve
+[2026-03-31 10:09:44.129] [STDERR] 2026-03-31 10:09:44,129 - INFO - Fitted B06Barcelona [Formula Senior]: a=32.012, b=66.828
+[2026-03-31 10:09:44.129] [STDERR] 2026-03-31 10:09:44,129 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.131] [STDERR] 2026-03-31 10:09:44,131 - INFO - Saved global curve
+[2026-03-31 10:09:44.134] [STDERR] 2026-03-31 10:09:44,134 - INFO - Fitted Donington Park GP, 2004 FIA GT Championship Round 6 [Formula Senior]: a=0.394, b=97.533
+[2026-03-31 10:09:44.135] [STDERR] 2026-03-31 10:09:44,134 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.137] [STDERR] 2026-03-31 10:09:44,137 - INFO - Saved global curve
+[2026-03-31 10:09:44.140] [STDERR] 2026-03-31 10:09:44,140 - INFO - Fitted Donington Park GP, 2004 FIA GT Championship Round 6 [Formula Senior]: a=0.436, b=97.486
+[2026-03-31 10:09:44.140] [STDERR] 2026-03-31 10:09:44,140 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.142] [STDERR] 2026-03-31 10:09:44,142 - INFO - Saved global curve
+[2026-03-31 10:09:44.145] [STDERR] 2026-03-31 10:09:44,145 - INFO - Fitted Donington Park GP, 2004 FIA GT Championship Round 6 [Formula Senior]: a=0.436, b=97.486
+[2026-03-31 10:09:44.145] [STDERR] 2026-03-31 10:09:44,145 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.146] [STDERR] 2026-03-31 10:09:44,146 - INFO - Saved global curve
+[2026-03-31 10:09:44.148] [STDERR] 2026-03-31 10:09:44,148 - INFO - Fitted B06Barcelona [f4]: a=5.427, b=98.381
+[2026-03-31 10:09:44.148] [STDERR] 2026-03-31 10:09:44,148 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.151] [STDERR] 2026-03-31 10:09:44,150 - INFO - Saved global curve
+[2026-03-31 10:09:44.154] [STDERR] 2026-03-31 10:09:44,153 - INFO - Fitted B06Barcelona [f4]: a=5.563, b=98.255
+[2026-03-31 10:09:44.154] [STDERR] 2026-03-31 10:09:44,154 - INFO - Updated global k = 0.2655 ± 0.1349 from 20 tracks
+[2026-03-31 10:09:44.155] [STDERR] 2026-03-31 10:09:44,155 - INFO - Saved global curve
+[2026-03-31 10:09:44.157] [STDERR] 2026-03-31 10:09:44,157 - INFO - Fitted B06Barcelona [f4]: a=5.457, b=98.351
+[2026-03-31 10:09:44.157] [STDERR] 2026-03-31 10:09:44,157 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.159] [STDERR] 2026-03-31 10:09:44,159 - INFO - Saved global curve
+[2026-03-31 10:09:44.161] [STDERR] 2026-03-31 10:09:44,161 - INFO - Fitted B06Barcelona [f4]: a=5.489, b=98.322
+[2026-03-31 10:09:44.161] [STDERR] 2026-03-31 10:09:44,161 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.163] [STDERR] 2026-03-31 10:09:44,162 - INFO - Saved global curve
+[2026-03-31 10:09:44.165] [STDERR] 2026-03-31 10:09:44,165 - INFO - Fitted B06Barcelona [f4]: a=5.422, b=98.381
+[2026-03-31 10:09:44.165] [STDERR] 2026-03-31 10:09:44,165 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.166] [STDERR] 2026-03-31 10:09:44,166 - INFO - Saved global curve
+[2026-03-31 10:09:44.168] [STDERR] 2026-03-31 10:09:44,168 - INFO - Fitted B06Barcelona [f4]: a=5.455, b=98.351
+[2026-03-31 10:09:44.168] [STDERR] 2026-03-31 10:09:44,168 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.170] [STDERR] 2026-03-31 10:09:44,170 - INFO - Saved global curve
+[2026-03-31 10:09:44.172] [STDERR] 2026-03-31 10:09:44,172 - INFO - Fitted B06Barcelona [f4]: a=5.404, b=98.394
+[2026-03-31 10:09:44.172] [STDERR] 2026-03-31 10:09:44,172 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.174] [STDERR] 2026-03-31 10:09:44,174 - INFO - Saved global curve
+[2026-03-31 10:09:44.176] [STDERR] 2026-03-31 10:09:44,176 - INFO - Fitted B06Barcelona [f4]: a=5.436, b=98.366
+[2026-03-31 10:09:44.176] [STDERR] 2026-03-31 10:09:44,176 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.179] [STDERR] 2026-03-31 10:09:44,178 - INFO - Saved global curve
+[2026-03-31 10:09:44.181] [STDERR] 2026-03-31 10:09:44,181 - INFO - Fitted B06Barcelona [f4]: a=5.399, b=98.396
+[2026-03-31 10:09:44.181] [STDERR] 2026-03-31 10:09:44,181 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.183] [STDERR] 2026-03-31 10:09:44,183 - INFO - Saved global curve
+[2026-03-31 10:09:44.185] [STDERR] 2026-03-31 10:09:44,184 - INFO - Fitted B06Barcelona [f4]: a=5.429, b=98.370
+[2026-03-31 10:09:44.185] [STDERR] 2026-03-31 10:09:44,185 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.186] [STDERR] 2026-03-31 10:09:44,186 - INFO - Saved global curve
+[2026-03-31 10:09:44.188] [STDERR] 2026-03-31 10:09:44,188 - INFO - Fitted B06Barcelona [f4]: a=5.403, b=98.389
+[2026-03-31 10:09:44.189] [STDERR] 2026-03-31 10:09:44,189 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.190] [STDERR] 2026-03-31 10:09:44,190 - INFO - Saved global curve
+[2026-03-31 10:09:44.192] [STDERR] 2026-03-31 10:09:44,192 - INFO - Fitted B06Barcelona [f4]: a=5.431, b=98.364
+[2026-03-31 10:09:44.192] [STDERR] 2026-03-31 10:09:44,192 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.194] [STDERR] 2026-03-31 10:09:44,193 - INFO - Saved global curve
+[2026-03-31 10:09:44.195] [STDERR] 2026-03-31 10:09:44,195 - INFO - Fitted B06Barcelona [f4]: a=5.415, b=98.374
+[2026-03-31 10:09:44.195] [STDERR] 2026-03-31 10:09:44,195 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.197] [STDERR] 2026-03-31 10:09:44,197 - INFO - Saved global curve
+[2026-03-31 10:09:44.199] [STDERR] 2026-03-31 10:09:44,199 - INFO - Fitted B06Barcelona [f4]: a=5.441, b=98.352
+[2026-03-31 10:09:44.199] [STDERR] 2026-03-31 10:09:44,199 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.201] [STDERR] 2026-03-31 10:09:44,201 - INFO - Saved global curve
+[2026-03-31 10:09:44.204] [STDERR] 2026-03-31 10:09:44,204 - INFO - Fitted B06Barcelona [f4]: a=5.435, b=98.353
+[2026-03-31 10:09:44.204] [STDERR] 2026-03-31 10:09:44,204 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.206] [STDERR] 2026-03-31 10:09:44,206 - INFO - Saved global curve
+[2026-03-31 10:09:44.208] [STDERR] 2026-03-31 10:09:44,208 - INFO - Fitted B06Barcelona [f4]: a=5.458, b=98.333
+[2026-03-31 10:09:44.208] [STDERR] 2026-03-31 10:09:44,208 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.210] [STDERR] 2026-03-31 10:09:44,210 - INFO - Saved global curve
+[2026-03-31 10:09:44.212] [STDERR] 2026-03-31 10:09:44,212 - INFO - Fitted B06Barcelona [f4]: a=5.460, b=98.327
+[2026-03-31 10:09:44.212] [STDERR] 2026-03-31 10:09:44,212 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.213] [STDERR] 2026-03-31 10:09:44,213 - INFO - Saved global curve
+[2026-03-31 10:09:44.216] [STDERR] 2026-03-31 10:09:44,215 - INFO - Fitted B06Barcelona [f4]: a=5.481, b=98.310
+[2026-03-31 10:09:44.216] [STDERR] 2026-03-31 10:09:44,216 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.218] [STDERR] 2026-03-31 10:09:44,218 - INFO - Saved global curve
+[2026-03-31 10:09:44.221] [STDERR] 2026-03-31 10:09:44,220 - INFO - Fitted B06Barcelona [f4]: a=5.490, b=98.296
+[2026-03-31 10:09:44.221] [STDERR] 2026-03-31 10:09:44,221 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.222] [STDERR] 2026-03-31 10:09:44,222 - INFO - Saved global curve
+[2026-03-31 10:09:44.225] [STDERR] 2026-03-31 10:09:44,225 - INFO - Fitted B06Barcelona [f4]: a=5.508, b=98.282
+[2026-03-31 10:09:44.225] [STDERR] 2026-03-31 10:09:44,225 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.226] [STDERR] 2026-03-31 10:09:44,226 - INFO - Saved global curve
+[2026-03-31 10:09:44.228] [STDERR] 2026-03-31 10:09:44,228 - INFO - Fitted B06Barcelona [f4]: a=5.524, b=98.262
+[2026-03-31 10:09:44.228] [STDERR] 2026-03-31 10:09:44,228 - INFO - Updated global k = 0.2655 ± 0.1349 from 20 tracks
+[2026-03-31 10:09:44.230] [STDERR] 2026-03-31 10:09:44,230 - INFO - Saved global curve
+[2026-03-31 10:09:44.232] [STDERR] 2026-03-31 10:09:44,232 - INFO - Fitted B06Barcelona [f4]: a=5.538, b=98.252
+[2026-03-31 10:09:44.233] [STDERR] 2026-03-31 10:09:44,232 - INFO - Updated global k = 0.2655 ± 0.1349 from 20 tracks
+[2026-03-31 10:09:44.235] [STDERR] 2026-03-31 10:09:44,235 - INFO - Saved global curve
+[2026-03-31 10:09:44.238] [STDERR] 2026-03-31 10:09:44,237 - INFO - Fitted B06Barcelona [f4]: a=5.560, b=98.226
+[2026-03-31 10:09:44.238] [STDERR] 2026-03-31 10:09:44,238 - INFO - Updated global k = 0.2655 ± 0.1349 from 20 tracks
+[2026-03-31 10:09:44.239] [STDERR] 2026-03-31 10:09:44,239 - INFO - Saved global curve
+[2026-03-31 10:09:44.241] [STDERR] 2026-03-31 10:09:44,241 - INFO - Fitted B06Barcelona [f4]: a=5.571, b=98.219
+[2026-03-31 10:09:44.241] [STDERR] 2026-03-31 10:09:44,241 - INFO - Updated global k = 0.2655 ± 0.1349 from 20 tracks
+[2026-03-31 10:09:44.243] [STDERR] 2026-03-31 10:09:44,243 - INFO - Saved global curve
+[2026-03-31 10:09:44.245] [STDERR] 2026-03-31 10:09:44,245 - INFO - Fitted B06Barcelona [f4]: a=5.598, b=98.189
+[2026-03-31 10:09:44.245] [STDERR] 2026-03-31 10:09:44,245 - INFO - Updated global k = 0.2656 ± 0.1349 from 20 tracks
+[2026-03-31 10:09:44.247] [STDERR] 2026-03-31 10:09:44,247 - INFO - Saved global curve
+[2026-03-31 10:09:44.249] [STDERR] 2026-03-31 10:09:44,249 - INFO - Fitted B06Barcelona [f4]: a=5.605, b=98.186
+[2026-03-31 10:09:44.249] [STDERR] 2026-03-31 10:09:44,249 - INFO - Updated global k = 0.2656 ± 0.1349 from 20 tracks
+[2026-03-31 10:09:44.252] [STDERR] 2026-03-31 10:09:44,252 - INFO - Saved global curve
+[2026-03-31 10:09:44.255] [STDERR] 2026-03-31 10:09:44,254 - INFO - Fitted B06Barcelona [f4]: a=5.636, b=98.152
+[2026-03-31 10:09:44.255] [STDERR] 2026-03-31 10:09:44,255 - INFO - Updated global k = 0.2656 ± 0.1349 from 20 tracks
+[2026-03-31 10:09:44.257] [STDERR] 2026-03-31 10:09:44,257 - INFO - Saved global curve
+[2026-03-31 10:09:44.259] [STDERR] 2026-03-31 10:09:44,258 - INFO - Fitted B06Barcelona [f4]: a=5.638, b=98.154
+[2026-03-31 10:09:44.259] [STDERR] 2026-03-31 10:09:44,259 - INFO - Updated global k = 0.2656 ± 0.1349 from 20 tracks
+[2026-03-31 10:09:44.260] [STDERR] 2026-03-31 10:09:44,260 - INFO - Saved global curve
+[2026-03-31 10:09:44.262] [STDERR] 2026-03-31 10:09:44,262 - INFO - Fitted B06Barcelona [f4]: a=5.672, b=98.117
+[2026-03-31 10:09:44.262] [STDERR] 2026-03-31 10:09:44,262 - INFO - Updated global k = 0.2656 ± 0.1348 from 20 tracks
+[2026-03-31 10:09:44.264] [STDERR] 2026-03-31 10:09:44,264 - INFO - Saved global curve
+[2026-03-31 10:09:44.267] [STDERR] 2026-03-31 10:09:44,266 - INFO - Fitted B06Barcelona [f4]: a=5.670, b=98.124
+[2026-03-31 10:09:44.267] [STDERR] 2026-03-31 10:09:44,267 - INFO - Updated global k = 0.2656 ± 0.1348 from 20 tracks
+[2026-03-31 10:09:44.269] [STDERR] 2026-03-31 10:09:44,269 - INFO - Saved global curve
+[2026-03-31 10:09:44.271] [STDERR] 2026-03-31 10:09:44,271 - INFO - Fitted B06Barcelona [f4]: a=5.706, b=98.085
+[2026-03-31 10:09:44.272] [STDERR] 2026-03-31 10:09:44,272 - INFO - Updated global k = 0.2656 ± 0.1348 from 20 tracks
+[2026-03-31 10:09:44.273] [STDERR] 2026-03-31 10:09:44,273 - INFO - Saved global curve
+[2026-03-31 10:09:44.275] [STDERR] 2026-03-31 10:09:44,275 - INFO - Fitted B06Barcelona [f4]: a=5.699, b=98.097
+[2026-03-31 10:09:44.275] [STDERR] 2026-03-31 10:09:44,275 - INFO - Updated global k = 0.2656 ± 0.1348 from 20 tracks
+[2026-03-31 10:09:44.277] [STDERR] 2026-03-31 10:09:44,277 - INFO - Saved global curve
+[2026-03-31 10:09:44.279] [STDERR] 2026-03-31 10:09:44,279 - INFO - Fitted B06Barcelona [f4]: a=5.736, b=98.058
+[2026-03-31 10:09:44.279] [STDERR] 2026-03-31 10:09:44,279 - INFO - Updated global k = 0.2656 ± 0.1348 from 20 tracks
+[2026-03-31 10:09:44.281] [STDERR] 2026-03-31 10:09:44,281 - INFO - Saved global curve
+[2026-03-31 10:09:44.283] [STDERR] 2026-03-31 10:09:44,283 - INFO - Fitted B06Barcelona [f4]: a=5.723, b=98.075
+[2026-03-31 10:09:44.283] [STDERR] 2026-03-31 10:09:44,283 - INFO - Updated global k = 0.2656 ± 0.1348 from 20 tracks
+[2026-03-31 10:09:44.286] [STDERR] 2026-03-31 10:09:44,286 - INFO - Saved global curve
+[2026-03-31 10:09:44.288] [STDERR] 2026-03-31 10:09:44,288 - INFO - Fitted B06Barcelona [f4]: a=5.760, b=98.037
+[2026-03-31 10:09:44.288] [STDERR] 2026-03-31 10:09:44,288 - INFO - Updated global k = 0.2656 ± 0.1348 from 20 tracks
+[2026-03-31 10:09:44.290] [STDERR] 2026-03-31 10:09:44,290 - INFO - Saved global curve
+[2026-03-31 10:09:44.292] [STDERR] 2026-03-31 10:09:44,291 - INFO - Fitted B06Barcelona [f4]: a=5.740, b=98.061
+[2026-03-31 10:09:44.292] [STDERR] 2026-03-31 10:09:44,292 - INFO - Updated global k = 0.2656 ± 0.1348 from 20 tracks
+[2026-03-31 10:09:44.293] [STDERR] 2026-03-31 10:09:44,293 - INFO - Saved global curve
+[2026-03-31 10:09:44.296] [STDERR] 2026-03-31 10:09:44,295 - INFO - Fitted B06Barcelona [f4]: a=5.775, b=98.024
+[2026-03-31 10:09:44.296] [STDERR] 2026-03-31 10:09:44,296 - INFO - Updated global k = 0.2656 ± 0.1348 from 20 tracks
+[2026-03-31 10:09:44.297] [STDERR] 2026-03-31 10:09:44,297 - INFO - Saved global curve
+[2026-03-31 10:09:44.300] [STDERR] 2026-03-31 10:09:44,300 - INFO - Fitted B06Barcelona [f4]: a=5.750, b=98.054
+[2026-03-31 10:09:44.300] [STDERR] 2026-03-31 10:09:44,300 - INFO - Updated global k = 0.2656 ± 0.1348 from 20 tracks
+[2026-03-31 10:09:44.303] [STDERR] 2026-03-31 10:09:44,302 - INFO - Saved global curve
+[2026-03-31 10:09:44.305] [STDERR] 2026-03-31 10:09:44,305 - INFO - Fitted B06Barcelona [f4]: a=5.781, b=98.022
+[2026-03-31 10:09:44.305] [STDERR] 2026-03-31 10:09:44,305 - INFO - Updated global k = 0.2656 ± 0.1348 from 20 tracks
+[2026-03-31 10:09:44.306] [STDERR] 2026-03-31 10:09:44,306 - INFO - Saved global curve
+[2026-03-31 10:09:44.308] [STDERR] 2026-03-31 10:09:44,308 - INFO - Fitted B06Barcelona [f4]: a=5.749, b=98.059
+[2026-03-31 10:09:44.308] [STDERR] 2026-03-31 10:09:44,308 - INFO - Updated global k = 0.2656 ± 0.1348 from 20 tracks
+[2026-03-31 10:09:44.310] [STDERR] 2026-03-31 10:09:44,310 - INFO - Saved global curve
+[2026-03-31 10:09:44.312] [STDERR] 2026-03-31 10:09:44,312 - INFO - Fitted B06Barcelona [f4]: a=5.635, b=98.173
+[2026-03-31 10:09:44.312] [STDERR] 2026-03-31 10:09:44,312 - INFO - Updated global k = 0.2656 ± 0.1349 from 20 tracks
+[2026-03-31 10:09:44.314] [STDERR] 2026-03-31 10:09:44,314 - INFO - Saved global curve
+[2026-03-31 10:09:44.316] [STDERR] 2026-03-31 10:09:44,316 - INFO - Fitted B06Barcelona [f4]: a=5.486, b=98.327
+[2026-03-31 10:09:44.316] [STDERR] 2026-03-31 10:09:44,316 - INFO - Updated global k = 0.2655 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.319] [STDERR] 2026-03-31 10:09:44,319 - INFO - Saved global curve
+[2026-03-31 10:09:44.321] [STDERR] 2026-03-31 10:09:44,321 - INFO - Fitted ALMS_RoadAmerica [gt]: a=30.733, b=98.752
+[2026-03-31 10:09:44.321] [STDERR] 2026-03-31 10:09:44,321 - INFO - Updated global k = 0.2657 ± 0.1349 from 20 tracks
+[2026-03-31 10:09:44.324] [STDERR] 2026-03-31 10:09:44,324 - INFO - Saved global curve
+[2026-03-31 10:09:44.326] [STDERR] 2026-03-31 10:09:44,325 - INFO - Fitted ALMS_RoadAmerica [gt]: a=30.747, b=98.737
+[2026-03-31 10:09:44.326] [STDERR] 2026-03-31 10:09:44,326 - INFO - Updated global k = 0.2657 ± 0.1349 from 20 tracks
+[2026-03-31 10:09:44.327] [STDERR] 2026-03-31 10:09:44,327 - INFO - Saved global curve
+[2026-03-31 10:09:44.329] [STDERR] 2026-03-31 10:09:44,329 - INFO - Fitted ALMS_RoadAmerica [gt]: a=31.336, b=98.179
+[2026-03-31 10:09:44.329] [STDERR] 2026-03-31 10:09:44,329 - INFO - Updated global k = 0.2659 ± 0.1349 from 20 tracks
+[2026-03-31 10:09:44.331] [STDERR] 2026-03-31 10:09:44,331 - INFO - Saved global curve
+[2026-03-31 10:09:44.333] [STDERR] 2026-03-31 10:09:44,333 - INFO - Fitted ALMS_RoadAmerica [gt]: a=30.833, b=98.744
+[2026-03-31 10:09:44.334] [STDERR] 2026-03-31 10:09:44,333 - INFO - Updated global k = 0.2657 ± 0.1349 from 20 tracks
+[2026-03-31 10:09:44.336] [STDERR] 2026-03-31 10:09:44,336 - INFO - Saved global curve
+[2026-03-31 10:09:44.338] [STDERR] 2026-03-31 10:09:44,338 - INFO - Fitted Monza [gt]: a=26.204, b=87.846
+[2026-03-31 10:09:44.338] [STDERR] 2026-03-31 10:09:44,338 - INFO - Updated global k = 0.2651 ± 0.1351 from 20 tracks
+[2026-03-31 10:09:44.340] [STDERR] 2026-03-31 10:09:44,340 - INFO - Saved global curve
+[2026-03-31 10:09:44.342] [STDERR] 2026-03-31 10:09:44,342 - INFO - Fitted Monza [gt]: a=23.321, b=90.585
+[2026-03-31 10:09:44.342] [STDERR] 2026-03-31 10:09:44,342 - INFO - Updated global k = 0.2638 ± 0.1355 from 20 tracks
+[2026-03-31 10:09:44.344] [STDERR] 2026-03-31 10:09:44,343 - INFO - Saved global curve
+[2026-03-31 10:09:44.345] [STDERR] 2026-03-31 10:09:44,345 - INFO - Fitted Monza [gt]: a=27.628, b=86.295
+[2026-03-31 10:09:44.345] [STDERR] 2026-03-31 10:09:44,345 - INFO - Updated global k = 0.2657 ± 0.1349 from 20 tracks
+[2026-03-31 10:09:44.347] [STDERR] 2026-03-31 10:09:44,347 - INFO - Saved global curve
+[2026-03-31 10:09:44.350] [STDERR] 2026-03-31 10:09:44,349 - INFO - Fitted Monza [gt]: a=27.638, b=86.483
+[2026-03-31 10:09:44.350] [STDERR] 2026-03-31 10:09:44,350 - INFO - Updated global k = 0.2657 ± 0.1349 from 20 tracks
+[2026-03-31 10:09:44.352] [STDERR] 2026-03-31 10:09:44,352 - INFO - Saved global curve
+[2026-03-31 10:09:44.354] [STDERR] 2026-03-31 10:09:44,354 - INFO - Fitted B06Barcelona [gt]: a=16.219, b=84.790
+[2026-03-31 10:09:44.354] [STDERR] 2026-03-31 10:09:44,354 - INFO - Updated global k = 0.2606 ± 0.1369 from 20 tracks
+[2026-03-31 10:09:44.356] [STDERR] 2026-03-31 10:09:44,356 - INFO - Saved global curve
+[2026-03-31 10:09:44.358] [STDERR] 2026-03-31 10:09:44,358 - INFO - Fitted B06Barcelona [gt]: a=16.003, b=84.873
+[2026-03-31 10:09:44.358] [STDERR] 2026-03-31 10:09:44,358 - INFO - Updated global k = 0.2605 ± 0.1369 from 20 tracks
+[2026-03-31 10:09:44.360] [STDERR] 2026-03-31 10:09:44,359 - INFO - Saved global curve
+[2026-03-31 10:09:44.361] [STDERR] 2026-03-31 10:09:44,361 - INFO - Fitted B06Barcelona [gt]: a=15.326, b=85.366
+[2026-03-31 10:09:44.361] [STDERR] 2026-03-31 10:09:44,361 - INFO - Updated global k = 0.2602 ± 0.1372 from 20 tracks
+[2026-03-31 10:09:44.363] [STDERR] 2026-03-31 10:09:44,363 - INFO - Saved global curve
+[2026-03-31 10:09:44.364] [STDERR] 2026-03-31 10:09:44,364 - ERROR - Error fitting track B06Barcelona [gt]: Invalid fit parameters, using bootstrap
+[2026-03-31 10:09:44.364] [STDERR] 2026-03-31 10:09:44,364 - INFO - Updated global k = 0.2656 ± 0.1349 from 20 tracks
+[2026-03-31 10:09:44.367] [STDERR] 2026-03-31 10:09:44,367 - INFO - Saved global curve
+[2026-03-31 10:09:44.370] [STDERR] 2026-03-31 10:09:44,370 - INFO - Fitted ALMS_RoadAmerica [gt]: a=30.021, b=99.508
+[2026-03-31 10:09:44.370] [STDERR] 2026-03-31 10:09:44,370 - INFO - Updated global k = 0.2653 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.372] [STDERR] 2026-03-31 10:09:44,372 - INFO - Saved global curve
+[2026-03-31 10:09:44.374] [STDERR] 2026-03-31 10:09:44,374 - INFO - Fitted ALMS_RoadAmerica [gt]: a=30.030, b=99.500
+[2026-03-31 10:09:44.374] [STDERR] 2026-03-31 10:09:44,374 - INFO - Updated global k = 0.2653 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.376] [STDERR] 2026-03-31 10:09:44,376 - INFO - Saved global curve
+[2026-03-31 10:09:44.379] [STDERR] 2026-03-31 10:09:44,379 - ERROR - Error fitting track monaco [f4]: Invalid fit parameters, using bootstrap
+[2026-03-31 10:09:44.379] [STDERR] 2026-03-31 10:09:44,379 - INFO - Updated global k = 0.2653 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.381] [STDERR] 2026-03-31 10:09:44,381 - INFO - Saved global curve
+[2026-03-31 10:09:44.384] [STDERR] 2026-03-31 10:09:44,384 - ERROR - Error fitting track monaco [f4]: Invalid fit parameters, using bootstrap
+[2026-03-31 10:09:44.384] [STDERR] 2026-03-31 10:09:44,384 - INFO - Updated global k = 0.2653 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.387] [STDERR] 2026-03-31 10:09:44,387 - INFO - Saved global curve
+[2026-03-31 10:09:44.389] [STDERR] 2026-03-31 10:09:44,389 - INFO - Fitted Zhuhai [f4]: a=13.566, b=106.100
+[2026-03-31 10:09:44.389] [STDERR] 2026-03-31 10:09:44,389 - INFO - Updated global k = 0.2653 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.391] [STDERR] 2026-03-31 10:09:44,391 - INFO - Saved global curve
+[2026-03-31 10:09:44.393] [STDERR] 2026-03-31 10:09:44,393 - INFO - Fitted Zhuhai [f4]: a=13.566, b=106.100
+[2026-03-31 10:09:44.393] [STDERR] 2026-03-31 10:09:44,393 - INFO - Updated global k = 0.2653 ± 0.1350 from 20 tracks
+[2026-03-31 10:09:44.395] [STDERR] 2026-03-31 10:09:44,395 - INFO - Saved global curve
+[2026-03-31 10:09:44.395] [STDERR] 2026-03-31 10:09:44,395 - INFO - Loaded 99 points from historic.csv
+[2026-03-31 10:09:44.417] [STDERR] 2026-03-31 10:09:44,417 - INFO - Saved global curve
+[2026-03-31 10:09:44.437] [STDERR] 2026-03-31 10:09:44,437 - INFO - Loaded global curve with 651 points
+[2026-03-31 10:09:44.444] [STDERR] 2026-03-31 10:09:44,444 - INFO - Started monitoring (polling every 5.0s): /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/UserData/Log/Results/raceresults.txt
+[2026-03-31 10:09:54.445] [STDERR] 2026-03-31 10:09:54,444 - INFO - File changed, analyzing: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/UserData/Log/Results/raceresults.txt
+[2026-03-31 10:09:54.445] [STDERR] 2026-03-31 10:09:54,445 - INFO - Track: Monza (folder: Monza)
+[2026-03-31 10:09:54.445] [STDERR] 2026-03-31 10:09:54,445 - INFO - AIW file from results: GAMEDATA\LOCATIONS\Monza\4Monza.AIW
+[2026-03-31 10:09:54.454] [STDERR] 2026-03-31 10:09:54,454 - INFO - Ratios - Qual: 1.02, Race: 1.05
+[2026-03-31 10:09:54.454] [STDERR] 2026-03-31 10:09:54,454 - INFO - Parsed 7 drivers
+[2026-03-31 10:09:54.454] [STDERR] 2026-03-31 10:09:54,454 - INFO - Race AI - Best: 1:51.523 (Team RaceSim Central), Worst: 1:53.393 (Roaring Pipes Maniacs)
+[2026-03-31 10:09:54.454] [STDERR] 2026-03-31 10:09:54,454 - INFO - Qual AI - Best: 1:52.340 (Team RaceSim Central), Worst: 1:53.393 (Roaring Pipes Maniacs)
+[2026-03-31 10:09:54.455] [STDERR] 2026-03-31 10:09:54,455 - INFO - AI lap times detected - Save button enabled
+[2026-03-31 10:09:54.456] [STDERR] 2026-03-31 10:09:54,456 - INFO - Track Monza now has 13 points - using exact fit
+[2026-03-31 10:09:54.458] [STDERR] 2026-03-31 10:09:54,457 - INFO - Race results detected for Monza
+[2026-03-31 10:10:04.457] [STDERR] 2026-03-31 10:10:04,456 - INFO - File changed, analyzing: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/UserData/Log/Results/raceresults.txt
+[2026-03-31 10:10:04.457] [STDERR] 2026-03-31 10:10:04,457 - INFO - Track: Monza (folder: Monza)
+[2026-03-31 10:10:04.457] [STDERR] 2026-03-31 10:10:04,457 - INFO - AIW file from results: GAMEDATA\LOCATIONS\Monza\4Monza.AIW
+[2026-03-31 10:10:04.464] [STDERR] 2026-03-31 10:10:04,464 - INFO - Ratios - Qual: 1.02, Race: 1.05
+[2026-03-31 10:10:04.464] [STDERR] 2026-03-31 10:10:04,464 - INFO - Parsed 7 drivers
+[2026-03-31 10:10:04.465] [STDERR] 2026-03-31 10:10:04,464 - INFO - Race AI - Best: 1:43.192 (Team RaceSim Central), Worst: 1:45.790 (Roaring Pipes Maniacs)
+[2026-03-31 10:10:04.465] [STDERR] 2026-03-31 10:10:04,464 - INFO - Qual AI - Best: 1:43.890 (Team RaceSim Central), Worst: 1:45.790 (Roaring Pipes Maniacs)
+[2026-03-31 10:10:04.465] [STDERR] 2026-03-31 10:10:04,465 - INFO - AI lap times detected - Save button enabled
+[2026-03-31 10:10:04.466] [STDERR] 2026-03-31 10:10:04,465 - INFO - Track Monza now has 13 points - using exact fit
+[2026-03-31 10:10:04.467] [STDERR] 2026-03-31 10:10:04,466 - INFO - Race results detected for Monza
+[2026-03-31 10:10:09.466] [STDERR] 2026-03-31 10:10:09,466 - INFO - File changed, analyzing: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/UserData/Log/Results/raceresults.txt
+[2026-03-31 10:10:09.466] [STDERR] 2026-03-31 10:10:09,466 - INFO - Track: Monza (folder: Monza)
+[2026-03-31 10:10:09.466] [STDERR] 2026-03-31 10:10:09,466 - INFO - AIW file from results: GAMEDATA\LOCATIONS\Monza\4Monza.AIW
+[2026-03-31 10:10:09.474] [STDERR] 2026-03-31 10:10:09,474 - INFO - Ratios - Qual: 1.02, Race: 1.05
+[2026-03-31 10:10:09.474] [STDERR] 2026-03-31 10:10:09,474 - INFO - Parsed 7 drivers
+[2026-03-31 10:10:09.474] [STDERR] 2026-03-31 10:10:09,474 - INFO - Race AI - Best: 2:27.017 (Team RaceSim Central), Worst: 2:52.683 (Roaring Pipes Maniacs)
+[2026-03-31 10:10:09.474] [STDERR] 2026-03-31 10:10:09,474 - INFO - Qual AI - Best: 2:30.120 (Team RaceSim Central), Worst: 2:52.683 (Roaring Pipes Maniacs)
+[2026-03-31 10:10:09.475] [STDERR] 2026-03-31 10:10:09,475 - INFO - AI lap times detected - Save button enabled
+[2026-03-31 10:10:09.475] [STDERR] 2026-03-31 10:10:09,475 - INFO - Track Monza now has 13 points - using exact fit
+[2026-03-31 10:10:09.476] [STDERR] 2026-03-31 10:10:09,476 - INFO - Race results detected for Monza
+[2026-03-31 10:10:19.476] [STDERR] 2026-03-31 10:10:19,476 - INFO - File changed, analyzing: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/UserData/Log/Results/raceresults.txt
+[2026-03-31 10:10:19.476] [STDERR] 2026-03-31 10:10:19,476 - INFO - Track: Monza (folder: Monza)
+[2026-03-31 10:10:19.476] [STDERR] 2026-03-31 10:10:19,476 - INFO - AIW file from results: GAMEDATA\LOCATIONS\Monza\4Monza.AIW
+[2026-03-31 10:10:19.486] [STDERR] 2026-03-31 10:10:19,486 - INFO - Ratios - Qual: 1.02, Race: 1.05
+[2026-03-31 10:10:19.486] [STDERR] 2026-03-31 10:10:19,486 - INFO - Parsed 7 drivers
+[2026-03-31 10:10:19.486] [STDERR] 2026-03-31 10:10:19,486 - INFO - Race AI - Best: 1:51.174 (Team RaceSim Central), Worst: 1:53.298 (Roaring Pipes Maniacs)
+[2026-03-31 10:10:19.486] [STDERR] 2026-03-31 10:10:19,486 - INFO - Qual AI - Best: 1:51.890 (Team RaceSim Central), Worst: 1:53.298 (Roaring Pipes Maniacs)
+[2026-03-31 10:10:19.487] [STDERR] 2026-03-31 10:10:19,487 - INFO - AI lap times detected - Save button enabled
+[2026-03-31 10:10:19.488] [STDERR] 2026-03-31 10:10:19,488 - INFO - Track Monza now has 13 points - using exact fit
+[2026-03-31 10:10:19.490] [STDERR] 2026-03-31 10:10:19,490 - INFO - Race results detected for Monza
+[2026-03-31 10:10:24.487] [STDERR] 2026-03-31 10:10:24,487 - INFO - File changed, analyzing: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/UserData/Log/Results/raceresults.txt
+[2026-03-31 10:10:24.487] [STDERR] 2026-03-31 10:10:24,487 - INFO - Track: Monza (folder: Monza)
+[2026-03-31 10:10:24.488] [STDERR] 2026-03-31 10:10:24,487 - INFO - AIW file from results: GAMEDATA\LOCATIONS\Monza\4Monza.AIW
+[2026-03-31 10:10:24.498] [STDERR] 2026-03-31 10:10:24,497 - INFO - Ratios - Qual: 1.02, Race: 1.05
+[2026-03-31 10:10:24.498] [STDERR] 2026-03-31 10:10:24,498 - INFO - Parsed 7 drivers
+[2026-03-31 10:10:24.498] [STDERR] 2026-03-31 10:10:24,498 - INFO - Race AI - Best: 1:48.817 (Team RaceSim Central), Worst: 1:54.356 (Roaring Pipes Maniacs)
+[2026-03-31 10:10:24.498] [STDERR] 2026-03-31 10:10:24,498 - INFO - Qual AI - Best: 1:51.670 (Roaring Pipes Maniacs), Worst: 1:53.298 (Roaring Pipes Maniacs)
+[2026-03-31 10:10:24.498] [STDERR] 2026-03-31 10:10:24,498 - INFO - AI lap times detected - Save button enabled
+[2026-03-31 10:10:24.499] [STDERR] 2026-03-31 10:10:24,499 - INFO - Track Monza now has 13 points - using exact fit
+[2026-03-31 10:10:24.501] [STDERR] 2026-03-31 10:10:24,500 - INFO - Race results detected for Monza
+[2026-03-31 10:10:34.499] [STDERR] 2026-03-31 10:10:34,499 - INFO - File changed, analyzing: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/UserData/Log/Results/raceresults.txt
+[2026-03-31 10:10:34.499] [STDERR] 2026-03-31 10:10:34,499 - INFO - Track: Monza (folder: Monza)
+[2026-03-31 10:10:34.499] [STDERR] 2026-03-31 10:10:34,499 - INFO - AIW file from results: GAMEDATA\LOCATIONS\Monza\4Monza.AIW
+[2026-03-31 10:10:34.508] [STDERR] 2026-03-31 10:10:34,507 - INFO - Ratios - Qual: 1.02, Race: 1.05
+[2026-03-31 10:10:34.508] [STDERR] 2026-03-31 10:10:34,507 - INFO - Parsed 7 drivers
+[2026-03-31 10:10:34.508] [STDERR] 2026-03-31 10:10:34,507 - INFO - Race AI - Best: 2:24.319 (Team RaceSim Central), Worst: 2:40.230 (Team Redline)
+[2026-03-31 10:10:34.508] [STDERR] 2026-03-31 10:10:34,508 - INFO - Qual AI - Best: 2:28.450 (Team RaceSim Central), Worst: 2:42.560 (Ajira Racing)
+[2026-03-31 10:10:34.508] [STDERR] 2026-03-31 10:10:34,508 - INFO - AI lap times detected - Save button enabled
+[2026-03-31 10:10:34.509] [STDERR] 2026-03-31 10:10:34,509 - INFO - Track Monza now has 13 points - using exact fit
+[2026-03-31 10:10:34.511] [STDERR] 2026-03-31 10:10:34,510 - INFO - Race results detected for Monza
+
+================================================================================
+=== Application stopped at 2026-03-31T10:10:45.038372 ===

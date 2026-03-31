@@ -3,4 +3,4 @@ autopilot_enabled: false
 backup_enabled: true
 base_path: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks
 formulas_dir: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/track_formulas
-logging_enabled: false
+logging_enabled: true
