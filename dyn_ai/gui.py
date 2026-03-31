@@ -234,9 +234,8 @@ class AutopilotConfirmationDialog(QDialog):
     def get_decision(self) -> bool:
         return self.exec_() == QDialog.Accepted
 
-
 class SaveToHistoricDialog(QDialog):
-    """Dialog for saving current data to historic.csv with car class"""
+    """Dialog for saving current data to historic.csv with car class and vehicle info"""
 
     def __init__(self, track_name: str, current_ratios: Dict[str, float],
                  ai_times: Dict[str, float], user_times: Dict[str, float],
@@ -246,7 +245,7 @@ class SaveToHistoricDialog(QDialog):
         self.current_ratios = current_ratios
         self.ai_times = ai_times
         self.user_times = user_times
-        self.vehicles = vehicles
+        self.vehicles = vehicles  # Now contains both vehicle and team info
         self.car_class = ""
         self.setup_ui()
 
@@ -298,7 +297,7 @@ class SaveToHistoricDialog(QDialog):
 
         layout.addSpacing(15)
 
-        # Vehicles information
+        # Vehicles information - FIXED: Show both vehicle and team
         vehicles_group = QGroupBox("Vehicle Information")
         vehicles_layout = QGridLayout(vehicles_group)
 
@@ -306,18 +305,31 @@ class SaveToHistoricDialog(QDialog):
         user_vehicle = QLabel(self.vehicles.get('user', 'Unknown'))
         user_vehicle.setStyleSheet("color: #4CAF50; font-weight: bold;")
         vehicles_layout.addWidget(user_vehicle, 0, 1)
+        
+        vehicles_layout.addWidget(QLabel("Your Team:"), 0, 2)
+        user_team = QLabel(self.vehicles.get('user_team', 'Unknown'))
+        user_team.setStyleSheet("color: #4CAF50;")
+        vehicles_layout.addWidget(user_team, 0, 3)
 
         vehicles_layout.addWidget(QLabel("Qualifying Best AI:"), 1, 0)
-        vehicles_layout.addWidget(QLabel(self.vehicles.get('qual_best', 'Unknown')), 1, 1)
+        vehicles_layout.addWidget(QLabel(f"{self.vehicles.get('qual_best', 'Unknown')}"), 1, 1)
+        vehicles_layout.addWidget(QLabel("Team:"), 1, 2)
+        vehicles_layout.addWidget(QLabel(f"{self.vehicles.get('qual_best_team', 'Unknown')}"), 1, 3)
 
         vehicles_layout.addWidget(QLabel("Qualifying Worst AI:"), 2, 0)
-        vehicles_layout.addWidget(QLabel(self.vehicles.get('qual_worst', 'Unknown')), 2, 1)
+        vehicles_layout.addWidget(QLabel(f"{self.vehicles.get('qual_worst', 'Unknown')}"), 2, 1)
+        vehicles_layout.addWidget(QLabel("Team:"), 2, 2)
+        vehicles_layout.addWidget(QLabel(f"{self.vehicles.get('qual_worst_team', 'Unknown')}"), 2, 3)
 
         vehicles_layout.addWidget(QLabel("Race Best AI:"), 3, 0)
-        vehicles_layout.addWidget(QLabel(self.vehicles.get('race_best', 'Unknown')), 3, 1)
+        vehicles_layout.addWidget(QLabel(f"{self.vehicles.get('race_best', 'Unknown')}"), 3, 1)
+        vehicles_layout.addWidget(QLabel("Team:"), 3, 2)
+        vehicles_layout.addWidget(QLabel(f"{self.vehicles.get('race_best_team', 'Unknown')}"), 3, 3)
 
         vehicles_layout.addWidget(QLabel("Race Worst AI:"), 4, 0)
-        vehicles_layout.addWidget(QLabel(self.vehicles.get('race_worst', 'Unknown')), 4, 1)
+        vehicles_layout.addWidget(QLabel(f"{self.vehicles.get('race_worst', 'Unknown')}"), 4, 1)
+        vehicles_layout.addWidget(QLabel("Team:"), 4, 2)
+        vehicles_layout.addWidget(QLabel(f"{self.vehicles.get('race_worst_team', 'Unknown')}"), 4, 3)
 
         layout.addWidget(vehicles_group)
 
@@ -379,21 +391,25 @@ class SaveToHistoricDialog(QDialog):
         layout.addLayout(btn_layout)
 
     def get_data(self) -> Dict:
-        """Get the data to save"""
+        """Get the data to save with correct vehicle mapping"""
         self.car_class = self.car_class_input.text().strip()
         return {
-            'car_class': self.car_class if self.car_class else self.vehicles.get('user', 'Unknown'),
+            # User vehicle info - use the car class from input or detected vehicle
+            'user_vehicle': self.car_class if self.car_class else self.vehicles.get('user', 'Unknown'),
+            
+            # Qualifying data
             'qual_ratio': self.current_ratios.get('QualRatio', 1.0),
             'qual_best': self.ai_times.get('qual_best_sec', 0.0),
             'qual_worst': self.ai_times.get('qual_worst_sec', 0.0),
             'qual_user': self.user_times.get('qual', 0.0),
+            'qual_best_vehicle': self.vehicles.get('qual_best', 'Unknown'),
+            'qual_worst_vehicle': self.vehicles.get('qual_worst', 'Unknown'),
+            
+            # Race data
             'race_ratio': self.current_ratios.get('RaceRatio', 1.0),
             'race_best': self.ai_times.get('race_best_sec', 0.0),
             'race_worst': self.ai_times.get('race_worst_sec', 0.0),
             'race_user': self.user_times.get('race', 0.0),
-            'user_vehicle': self.car_class if self.car_class else self.vehicles.get('user', 'Unknown'),
-            'qual_best_vehicle': self.vehicles.get('qual_best', 'Unknown'),
-            'qual_worst_vehicle': self.vehicles.get('qual_worst', 'Unknown'),
             'race_best_vehicle': self.vehicles.get('race_best', 'Unknown'),
             'race_worst_vehicle': self.vehicles.get('race_worst', 'Unknown')
         }
@@ -1480,47 +1496,74 @@ class MainWindow(QMainWindow):
         race_best_ai_sec = data.get('best_ai_lap_sec', 0.0)
         race_worst_ai_sec = data.get('worst_ai_lap_sec', 0.0)
 
-        # Get vehicle information
+        # Get driver information
         drivers = data.get('drivers', [])
 
-        # Extract vehicles
+        # Extract vehicles - FIXED: Use vehicle field, not team
         user_vehicle = "Unknown"
         qual_best_vehicle = "Unknown"
         qual_worst_vehicle = "Unknown"
         race_best_vehicle = "Unknown"
         race_worst_vehicle = "Unknown"
+        
+        # Also keep team for reference
+        user_team = "Unknown"
+        qual_best_team = "Unknown"
+        qual_worst_team = "Unknown"
+        race_best_team = "Unknown"
+        race_worst_team = "Unknown"
 
         # Find user vehicle (slot 0)
         user_name = data.get('user_name', 'Unknown')
         self.user_name_label.setText(user_name if user_name != 'Unknown' else '---')
 
+# In _update_race_results method, ensure vehicle data is correctly captured:
+
         # Parse vehicles from driver data
         for driver in drivers:
             driver_name = driver.get('name', '')
+            driver_vehicle = driver.get('vehicle', 'Unknown')
             driver_team = driver.get('team', 'Unknown')
             slot = driver.get('slot', -1)
 
             if slot == 0:
-                user_vehicle = driver_team if driver_team != 'Unknown' else 'Unknown'
+                user_vehicle = driver_vehicle if driver_vehicle != 'Unknown' else 'Unknown'
+                user_team = driver_team if driver_team != 'Unknown' else 'Unknown'
                 self.user_vehicle_label.setText(user_vehicle)
 
             # Match AI vehicles based on lap times
-            if driver.get('best_lap') and driver['best_lap'] == data.get('best_ai_lap'):
-                race_best_vehicle = driver_team if driver_team != 'Unknown' else 'Unknown'
-            if driver.get('best_lap') and driver['best_lap'] == data.get('worst_ai_lap'):
-                race_worst_vehicle = driver_team if driver_team != 'Unknown' else 'Unknown'
+            # For qualifying best
             if driver.get('qual_time') and driver['qual_time'] == data.get('qual_best_ai_lap'):
-                qual_best_vehicle = driver_team if driver_team != 'Unknown' else 'Unknown'
+                qual_best_vehicle = driver_vehicle if driver_vehicle != 'Unknown' else 'Unknown'
+                qual_best_team = driver_team if driver_team != 'Unknown' else 'Unknown'
+            
+            # For qualifying worst
             if driver.get('qual_time') and driver['qual_time'] == data.get('qual_worst_ai_lap'):
-                qual_worst_vehicle = driver_team if driver_team != 'Unknown' else 'Unknown'
+                qual_worst_vehicle = driver_vehicle if driver_vehicle != 'Unknown' else 'Unknown'
+                qual_worst_team = driver_team if driver_team != 'Unknown' else 'Unknown'
+            
+            # For race best
+            if driver.get('best_lap') and driver['best_lap'] == data.get('best_ai_lap'):
+                race_best_vehicle = driver_vehicle if driver_vehicle != 'Unknown' else 'Unknown'
+                race_best_team = driver_team if driver_team != 'Unknown' else 'Unknown'
+            
+            # For race worst
+            if driver.get('best_lap') and driver['best_lap'] == data.get('worst_ai_lap'):
+                race_worst_vehicle = driver_vehicle if driver_vehicle != 'Unknown' else 'Unknown'
+                race_worst_team = driver_team if driver_team != 'Unknown' else 'Unknown'
 
-        # Store vehicles for later use
+        # Store vehicles with correct mapping
         self.current_vehicles = {
             'user': user_vehicle,
+            'user_team': user_team,
             'qual_best': qual_best_vehicle,
+            'qual_best_team': qual_best_team,
             'qual_worst': qual_worst_vehicle,
+            'qual_worst_team': qual_worst_team,
             'race_best': race_best_vehicle,
-            'race_worst': race_worst_vehicle
+            'race_best_team': race_best_team,
+            'race_worst': race_worst_vehicle,
+            'race_worst_team': race_worst_team
         }
 
         # Format times for display
@@ -1785,21 +1828,24 @@ User: Q {user_qual} | R {user_best}"""
             self.race_result_label.setText(f"{new_ratios['RaceRatio']:.6f}")
             self.apply_race_check.setChecked(True)
         self.apply_all_btn.setEnabled(True)
-        
+
         # STEP 9: Check for outliers
         outliers = self.curve_manager.get_outliers(track_name)
-        
+
         # STEP 10: Show confirmation dialog
         current_ratios = {
             'QualRatio': current_qual_ratio,
             'RaceRatio': current_race_ratio,
         }
-        
+
         user_time_str = user_race_str if user_race_sec > 0 else user_qual_str
         ai_time_str = (self.format_time(race_best_ai_sec) if race_best_ai_sec > 0
                        else self.format_time(qual_best_ai_sec))
         formula = self.curve_manager.get_formula_string(track_name)
-        
+
+        # Get vehicle info from current_vehicles
+        car_class = self.current_vehicles.get('user', 'Unknown') if hasattr(self, 'current_vehicles') else 'Unknown'
+
         confirm_dialog = AutopilotConfirmationDialog(
             track_name=track_name,
             car_class=car_class,
@@ -2157,7 +2203,7 @@ User: Q {user_qual} | R {user_best}"""
             self._append_to_historic_csv(data, track_name)
 
     def _append_to_historic_csv(self, data: Dict, track_name: str):
-        """Append data to historic.csv with vehicle information"""
+        """Append data to historic.csv with correct column order"""
         csv_path = Path("./historic.csv")
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -2168,34 +2214,45 @@ User: Q {user_qual} | R {user_best}"""
                 writer = csv.writer(f, delimiter=';')
 
                 if not file_exists:
+                    # Write header with correct column order
                     writer.writerow([
-                        'Car', 'Timestamp', 'Track Name',
-                        'Current QualRatio', 'Qual AI Best (s)', 'Qual AI Worst (s)', 'Qual User (s)',
-                        'Current RaceRatio', 'Race AI Best (s)', 'Race AI Worst (s)', 'Race User (s)',
-                        'User Vehicle', 'Qual Best AI Vehicle', 'Qual Worst AI Vehicle',
-                        'Race Best AI Vehicle', 'Race Worst AI Vehicle'
+                        'User Vehicle',           # Column 1
+                        'Timestamp',              # Column 2
+                        'Track Name',             # Column 3
+                        'Current QualRatio',      # Column 4
+                        'Qual AI Best (s)',       # Column 5
+                        'Q AI Best Vehicle',      # Column 6
+                        'Qual AI Worst (s)',      # Column 7
+                        'Q AI Worst Vehicle',     # Column 8
+                        'Qual User (s)',          # Column 9
+                        'Current RaceRatio',      # Column 10
+                        'Race AI Best (s)',       # Column 11
+                        'R AI Best Vehicle',      # Column 12
+                        'Race AI Worst (s)',      # Column 13
+                        'R AI Worst Vehicle',     # Column 14
+                        'Race User (s)'           # Column 15
                     ])
 
+                # Write data in the exact same order as header
                 writer.writerow([
-                    data['car_class'],
-                    timestamp,
-                    track_name,
-                    f"{data['qual_ratio']:.6f}",
-                    f"{data['qual_best']:.3f}",
-                    f"{data['qual_worst']:.3f}",
-                    f"{data['qual_user']:.3f}",
-                    f"{data['race_ratio']:.6f}",
-                    f"{data['race_best']:.3f}",
-                    f"{data['race_worst']:.3f}",
-                    f"{data['race_user']:.3f}",
-                    data.get('user_vehicle', data['car_class']),
-                    data.get('qual_best_vehicle', 'Unknown'),
-                    data.get('qual_worst_vehicle', 'Unknown'),
-                    data.get('race_best_vehicle', 'Unknown'),
-                    data.get('race_worst_vehicle', 'Unknown')
+                    data.get('user_vehicle', 'Unknown'),           # User Vehicle
+                    timestamp,                                     # Timestamp
+                    track_name,                                    # Track Name
+                    f"{data.get('qual_ratio', 0.0):.6f}",         # Current QualRatio
+                    f"{data.get('qual_best', 0.0):.3f}",          # Qual AI Best (s)
+                    data.get('qual_best_vehicle', 'Unknown'),     # Q AI Best Vehicle
+                    f"{data.get('qual_worst', 0.0):.3f}",         # Qual AI Worst (s)
+                    data.get('qual_worst_vehicle', 'Unknown'),    # Q AI Worst Vehicle
+                    f"{data.get('qual_user', 0.0):.3f}",          # Qual User (s)
+                    f"{data.get('race_ratio', 0.0):.6f}",         # Current RaceRatio
+                    f"{data.get('race_best', 0.0):.3f}",          # Race AI Best (s)
+                    data.get('race_best_vehicle', 'Unknown'),     # R AI Best Vehicle
+                    f"{data.get('race_worst', 0.0):.3f}",         # Race AI Worst (s)
+                    data.get('race_worst_vehicle', 'Unknown'),    # R AI Worst Vehicle
+                    f"{data.get('race_user', 0.0):.3f}"           # Race User (s)
                 ])
 
-            self.log_message(f"Saved data to historic.csv (Car: {data['car_class']})", "success")
+            self.log_message(f"Saved data to historic.csv (Vehicle: {data.get('user_vehicle', 'Unknown')})", "success")
             self.load_historic_data_into_curve()
 
         except Exception as e:

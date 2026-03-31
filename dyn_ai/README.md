@@ -1,4 +1,4 @@
-# dyn_ai — Live AI Tuner for GTR2
+# dyn_ai — Live AI Tuner for GTR2 - v0.9.9
 
 This tool watches your race results and helps you tweak the AI difficulty ratios so they match your pace.
 
@@ -79,14 +79,18 @@ To help the calculations, make sure you enter the "Global Curve Editor" and unde
 ---
 
 ## Known issues
-- It is slow
+- It is still slow-ish
 - It needs some babysitting - Get data, check the graph editor, save... 
-- The Autopilot hangs for whatever reason
-- The autofit curve does not work but it can be done by hand.
-- We need a better way to manually add or edit the results before sending it to historic.csv
+- The Autopilot sort of works, but needs constant attention: it won't autoapply unless you confirm
+- The autofit curve does not always work and probably it should autocorrect the issues it finds (like a datapoint that makes no sense)
 - A proper historic.csv for all tracks would be very good to have, regardless of car.
-- The crosscompilation (linux to windows) seems to produce a good .exe BUT it fails to run on wine so...don't trust the exe unless you must.
+- The crosscompilation (linux to windows) seems to produce a good .exe BUT it does not always run on wine. I am using it instead of using pytohn though.
+- A lot of logs are produced. It needs a way to lower the verbosity.
+- Those logs show that the curves are being fitted for all tracks even when that is not needed. We could save some performance here.
 
 ## Wishlist
+- Now that autopilot works, it really needs to be invisible. Change stuff without disturbing the user.
 - We need a way to not always set the middle point in terms of laptime. E.g.: "I want a ratio that makes my laptime top-ten" or "I want to be 0.5 secs faster than the fastest AI". The idea is to adapt the challenge
 - We should also keep the formulas or the historic, there is some duplicated data there.
+- On those formulas: we should probably make better use of them. Have a working curve for Monza on a car? reuse it for a different car consciously, adapt only if it doesn'T work.
+

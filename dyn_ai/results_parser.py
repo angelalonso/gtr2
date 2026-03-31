@@ -1,6 +1,6 @@
 """
 Race Results Parser - Extracts lap times and AI information from raceresults.txt
-UPDATED: Added vehicle/team extraction
+FIXED: Correctly extracts Vehicle (car) information, not just Team
 """
 
 import re
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class RaceResults:
-    """Container for parsed race results - UPDATED with team info"""
+    """Container for parsed race results - FIXED with vehicle info"""
     track_name: Optional[str] = None
     track_folder: Optional[str] = None
     aiw_file: Optional[str] = None
@@ -30,8 +30,8 @@ class RaceResults:
     qual_worst_ai_lap: Optional[str] = None
     qual_best_ai_driver: Optional[str] = None
     qual_worst_ai_driver: Optional[str] = None
-    qual_best_ai_team: Optional[str] = None
-    qual_worst_ai_team: Optional[str] = None
+    qual_best_ai_vehicle: Optional[str] = None  # FIXED: vehicle, not team
+    qual_worst_ai_vehicle: Optional[str] = None  # FIXED: vehicle, not team
     
     # AI lap times - Race
     best_ai_lap_sec: float = 0.0
@@ -40,13 +40,14 @@ class RaceResults:
     worst_ai_lap: Optional[str] = None
     best_ai_driver: Optional[str] = None
     worst_ai_driver: Optional[str] = None
-    best_ai_team: Optional[str] = None
-    worst_ai_team: Optional[str] = None
+    best_ai_vehicle: Optional[str] = None  # FIXED: vehicle, not team
+    worst_ai_vehicle: Optional[str] = None  # FIXED: vehicle, not team
     
     user_best_lap: Optional[str] = None
     user_qualifying: Optional[str] = None
     user_name: Optional[str] = None
-    user_team: Optional[str] = None
+    user_vehicle: Optional[str] = None  # FIXED: vehicle, not team
+    user_team: Optional[str] = None  # Keep team for completeness
     drivers: List[Dict] = field(default_factory=list)
     
     def has_data(self) -> bool:
@@ -73,6 +74,7 @@ class RaceResults:
             'user_best_lap': self.user_best_lap,
             'user_qualifying': self.user_qualifying,
             'user_name': self.user_name,
+            'user_vehicle': self.user_vehicle,
             'user_team': self.user_team,
             'drivers': self.drivers
         }
@@ -83,15 +85,16 @@ _SCENE_PATTERN = re.compile(r'Scene=(.*?)(?:\n|$)', re.IGNORECASE)
 _AIDB_PATTERN = re.compile(r'AIDB=(.*?)(?:\n|$)', re.IGNORECASE)
 _SLOT_PATTERN = re.compile(r'\[Slot(\d+)\](.*?)(?=\[Slot|\[END\]|$)', re.DOTALL)
 _DRIVER_PATTERN = re.compile(r'Driver=(.*?)(?:\n|$)', re.IGNORECASE)
+_VEHICLE_PATTERN = re.compile(r'Vehicle=(.*?)(?:\n|$)', re.IGNORECASE)  # FIXED: Added vehicle pattern
+_TEAM_PATTERN = re.compile(r'Team=(.*?)(?:\n|$)', re.IGNORECASE)
 _QUAL_TIME_PATTERN = re.compile(r'QualTime=(.*?)(?:\n|$)', re.IGNORECASE)
 _BEST_LAP_PATTERN = re.compile(r'BestLap=(.*?)(?:\n|$)', re.IGNORECASE)
 _LAPS_PATTERN = re.compile(r'Laps=(.*?)(?:\n|$)', re.IGNORECASE)
-_TEAM_PATTERN = re.compile(r'Team=(.*?)(?:\n|$)', re.IGNORECASE)
 
 
 def parse_race_results(file_path: Path, base_path: Optional[Path] = None) -> Optional[RaceResults]:
     """
-    Parse race results from raceresults.txt - UPDATED with team extraction
+    Parse race results from raceresults.txt - FIXED with vehicle extraction
     """
     try:
         if not file_path.exists():
@@ -130,13 +133,15 @@ def parse_race_results(file_path: Path, base_path: Optional[Path] = None) -> Opt
         # Parse driver slots
         slots = _SLOT_PATTERN.findall(content)
         
-        # Track AI times with team info
+        # Track AI times with vehicle info
         race_best_sec = float('inf')
         race_worst_sec = -float('inf')
         race_best_str = None
         race_worst_str = None
         race_best_driver = None
         race_worst_driver = None
+        race_best_vehicle = None
+        race_worst_vehicle = None
         race_best_team = None
         race_worst_team = None
         
@@ -146,36 +151,50 @@ def parse_race_results(file_path: Path, base_path: Optional[Path] = None) -> Opt
         qual_worst_str = None
         qual_best_driver = None
         qual_worst_driver = None
+        qual_best_vehicle = None
+        qual_worst_vehicle = None
         qual_best_team = None
         qual_worst_team = None
         
         for slot_num, slot_content in slots:
             driver = {'slot': int(slot_num)}
             
+            # Extract driver name
             name_match = _DRIVER_PATTERN.search(slot_content)
             if name_match:
                 driver['name'] = name_match.group(1).strip()
                 if int(slot_num) == 0:
                     results.user_name = driver['name']
             
+            # Extract vehicle (car) - FIXED: This is the important part
+            vehicle_match = _VEHICLE_PATTERN.search(slot_content)
+            if vehicle_match:
+                driver['vehicle'] = vehicle_match.group(1).strip()
+                if int(slot_num) == 0:
+                    results.user_vehicle = driver['vehicle']
+            
+            # Extract team (optional, keep for reference)
             team_match = _TEAM_PATTERN.search(slot_content)
             if team_match:
                 driver['team'] = team_match.group(1).strip()
                 if int(slot_num) == 0:
                     results.user_team = driver['team']
             
+            # Extract qualifying time
             qual_match = _QUAL_TIME_PATTERN.search(slot_content)
             if qual_match:
                 driver['qual_time'] = qual_match.group(1).strip()
                 if int(slot_num) == 0:
                     results.user_qualifying = driver['qual_time']
             
+            # Extract best lap
             best_match = _BEST_LAP_PATTERN.search(slot_content)
             if best_match:
                 driver['best_lap'] = best_match.group(1).strip()
                 if int(slot_num) == 0:
                     results.user_best_lap = driver['best_lap']
             
+            # Extract laps
             laps_match = _LAPS_PATTERN.search(slot_content)
             if laps_match:
                 driver['laps'] = laps_match.group(1).strip()
@@ -184,7 +203,7 @@ def parse_race_results(file_path: Path, base_path: Optional[Path] = None) -> Opt
             
             # Process AI times - only for non-user drivers
             if int(slot_num) != 0:
-                # Race times
+                # Race times (BestLap)
                 if driver.get('best_lap'):
                     lap_sec = _time_to_seconds(driver['best_lap'])
                     if lap_sec:
@@ -192,14 +211,16 @@ def parse_race_results(file_path: Path, base_path: Optional[Path] = None) -> Opt
                             race_best_sec = lap_sec
                             race_best_str = driver['best_lap']
                             race_best_driver = driver.get('name', 'Unknown')
+                            race_best_vehicle = driver.get('vehicle', 'Unknown')
                             race_best_team = driver.get('team', 'Unknown')
                         if lap_sec > race_worst_sec:
                             race_worst_sec = lap_sec
                             race_worst_str = driver['best_lap']
                             race_worst_driver = driver.get('name', 'Unknown')
+                            race_worst_vehicle = driver.get('vehicle', 'Unknown')
                             race_worst_team = driver.get('team', 'Unknown')
                 
-                # Qualifying times
+                # Qualifying times (QualTime)
                 if driver.get('qual_time'):
                     qual_sec = _time_to_seconds(driver['qual_time'])
                     if qual_sec:
@@ -207,35 +228,41 @@ def parse_race_results(file_path: Path, base_path: Optional[Path] = None) -> Opt
                             qual_best_sec = qual_sec
                             qual_best_str = driver['qual_time']
                             qual_best_driver = driver.get('name', 'Unknown')
+                            qual_best_vehicle = driver.get('vehicle', 'Unknown')
                             qual_best_team = driver.get('team', 'Unknown')
                         if qual_sec > qual_worst_sec:
                             qual_worst_sec = qual_sec
                             qual_worst_str = driver['qual_time']
                             qual_worst_driver = driver.get('name', 'Unknown')
+                            qual_worst_vehicle = driver.get('vehicle', 'Unknown')
                             qual_worst_team = driver.get('team', 'Unknown')
         
-        # Set race AI times with teams
+        # Set race AI times with vehicles
         if race_best_str:
             results.best_ai_lap = race_best_str
             results.best_ai_lap_sec = race_best_sec if race_best_sec != float('inf') else 0.0
             results.best_ai_driver = race_best_driver
+            results.best_ai_vehicle = race_best_vehicle
             results.best_ai_team = race_best_team
         if race_worst_str:
             results.worst_ai_lap = race_worst_str
             results.worst_ai_lap_sec = race_worst_sec if race_worst_sec != -float('inf') else 0.0
             results.worst_ai_driver = race_worst_driver
+            results.worst_ai_vehicle = race_worst_vehicle
             results.worst_ai_team = race_worst_team
         
-        # Set qualifying AI times with teams
+        # Set qualifying AI times with vehicles
         if qual_best_str:
             results.qual_best_ai_lap = qual_best_str
             results.qual_best_ai_lap_sec = qual_best_sec if qual_best_sec != float('inf') else 0.0
             results.qual_best_ai_driver = qual_best_driver
+            results.qual_best_ai_vehicle = qual_best_vehicle
             results.qual_best_ai_team = qual_best_team
         if qual_worst_str:
             results.qual_worst_ai_lap = qual_worst_str
             results.qual_worst_ai_lap_sec = qual_worst_sec if qual_worst_sec != -float('inf') else 0.0
             results.qual_worst_ai_driver = qual_worst_driver
+            results.qual_worst_ai_vehicle = qual_worst_vehicle
             results.qual_worst_ai_team = qual_worst_team
         
         # Parse AIW ratios if needed
@@ -243,8 +270,9 @@ def parse_race_results(file_path: Path, base_path: Optional[Path] = None) -> Opt
             _parse_aiw_ratios(results, base_path)
         
         logger.info(f"Parsed {len(results.drivers)} drivers")
-        logger.info(f"Race AI - Best: {results.best_ai_lap} ({results.best_ai_team}), Worst: {results.worst_ai_lap} ({results.worst_ai_team})")
-        logger.info(f"Qual AI - Best: {results.qual_best_ai_lap} ({results.qual_best_ai_team}), Worst: {results.qual_worst_ai_lap} ({results.qual_worst_ai_team})")
+        logger.info(f"User: {results.user_name} - Vehicle: {results.user_vehicle}")
+        logger.info(f"Race AI - Best: {results.best_ai_lap} ({results.best_ai_vehicle}), Worst: {results.worst_ai_lap} ({results.worst_ai_vehicle})")
+        logger.info(f"Qual AI - Best: {results.qual_best_ai_lap} ({results.qual_best_ai_vehicle}), Worst: {results.qual_worst_ai_lap} ({results.qual_worst_ai_vehicle})")
         return results
         
     except Exception as e:

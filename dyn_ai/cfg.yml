@@ -1,5 +1,5 @@
 auto_apply: false
-autopilot_enabled: false
+autopilot_enabled: true
 backup_enabled: true
 base_path: ''
 formulas_dir: ./track_formulas
