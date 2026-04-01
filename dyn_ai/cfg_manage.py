@@ -127,7 +127,8 @@ DEFAULT_CONFIG = {
     'auto_apply': False,  # Auto-apply calculated ratios without confirmation
     'backup_enabled': True,  # Create backups before modifying
     'logging_enabled': False,  # Enable/disable log file creation
-    'autopilot_enabled': False  # Auto-save and auto-apply new results (stored in config)
+    'autopilot_enabled': False,  # Auto-save and auto-apply new results (stored in config)
+    'autopilot_silent': False   # Skip confirmation dialog when autopilot applies changes
 }
 
 
@@ -273,4 +274,17 @@ def update_autopilot_enabled(value, config_file="cfg.yml"):
     """Update autopilot setting in config file"""
     config = get_config_with_defaults(config_file)
     config['autopilot_enabled'] = value
+    return save_config(config, config_file)
+
+
+def get_autopilot_silent(config_file="cfg.yml"):
+    """Get whether autopilot should apply changes without a confirmation dialog."""
+    config = get_config_with_defaults(config_file)
+    return config.get('autopilot_silent', False)
+
+
+def update_autopilot_silent(value, config_file="cfg.yml"):
+    """Enable or disable the autopilot silent (no-confirmation) mode."""
+    config = get_config_with_defaults(config_file)
+    config['autopilot_silent'] = value
     return save_config(config, config_file)

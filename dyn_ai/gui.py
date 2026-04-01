@@ -1,6 +1,7 @@
 """
 GUI for Live AI Tuner - Main window and dialogs
 UPDATED: Enhanced autopilot with track change detection, better readiness assessment
+FIXED: Silent mode suppresses success popups, all dialogs have dark theme
 """
 
 import sys
@@ -589,6 +590,28 @@ class MainWindow(QMainWindow):
                 "• Disable autopilot permanently"
             )
             
+            # Apply dark theme styling
+            msg.setStyleSheet("""
+                QMessageBox {
+                    background-color: #2b2b2b;
+                }
+                QMessageBox QLabel {
+                    color: white;
+                    background-color: #2b2b2b;
+                }
+                QMessageBox QPushButton {
+                    background-color: #4CAF50;
+                    color: white;
+                    border: none;
+                    border-radius: 3px;
+                    padding: 5px 15px;
+                    min-width: 80px;
+                }
+                QMessageBox QPushButton:hover {
+                    background-color: #45a049;
+                }
+            """)
+            
             continue_btn = msg.addButton("Continue on New Track", QMessageBox.AcceptRole)
             pause_btn = msg.addButton("Keep Disabled", QMessageBox.RejectRole)
             disable_btn = msg.addButton("Disable Autopilot", QMessageBox.DestructiveRole)
@@ -619,11 +642,28 @@ class MainWindow(QMainWindow):
                         "warning"
                     )
                     # Show detailed message
-                    QMessageBox.warning(
-                        self,
-                        "Insufficient Data",
-                        readiness.get('detailed_message', readiness['message'])
-                    )
+                    msg2 = QMessageBox(self)
+                    msg2.setWindowTitle("Insufficient Data")
+                    msg2.setIcon(QMessageBox.Warning)
+                    msg2.setText(readiness.get('detailed_message', readiness['message']))
+                    msg2.setStyleSheet("""
+                        QMessageBox {
+                            background-color: #2b2b2b;
+                        }
+                        QMessageBox QLabel {
+                            color: white;
+                            background-color: #2b2b2b;
+                        }
+                        QMessageBox QPushButton {
+                            background-color: #4CAF50;
+                            color: white;
+                            border: none;
+                            border-radius: 3px;
+                            padding: 5px 15px;
+                            min-width: 80px;
+                        }
+                    """)
+                    msg2.exec_()
                     self.autopilot_enabled = False
                     update_autopilot_enabled(False)
                     self.update_autopilot_button()
@@ -660,7 +700,14 @@ class MainWindow(QMainWindow):
             return 0.0
 
     def load_historic_data_into_curve(self):
-        """Load all historic data into the curve manager"""
+        """Load all historic data into the curve manager.
+
+        Calls the low-level GlobalCurve.add_point (no fit, no save) for every
+        row, then fits global_k and saves exactly once at the end.  The previous
+        approach called GlobalCurveManager.add_point, which triggered a
+        scipy curve-fit + a full JSON save on *every* row – O(N) unnecessary
+        disk writes and CPU-intensive fits during startup.
+        """
         csv_path = Path("./historic.csv")
         if not csv_path.exists():
             return
@@ -671,40 +718,46 @@ class MainWindow(QMainWindow):
                 reader = csv.DictReader(f, delimiter=';')
                 for row in reader:
                     track_name = row.get('Track Name', '')
-                    car_class = row.get('Car', '')
+                    car_class = row.get('Car', '')  # column may be empty; that's fine
 
                     if not track_name:
                         continue
 
-                    # Add qualifying data point
+                    full_track_name = (
+                        f"{track_name} [{car_class}]"
+                        if car_class and car_class != "Unknown"
+                        else track_name
+                    )
+
+                    # Add qualifying data point (no fit/save yet)
                     try:
                         qual_ratio = float(row.get('Current QualRatio', '0'))
-                        qual_best = float(row.get('Qual AI Best (s)', '0'))
-                        qual_worst = float(row.get('Qual AI Worst (s)', '0'))
+                        qual_best  = float(row.get('Qual AI Best (s)',   '0'))
+                        qual_worst = float(row.get('Qual AI Worst (s)',  '0'))
                         if qual_ratio > 0 and qual_best > 0 and qual_worst > 0:
                             midpoint = (qual_best + qual_worst) / 2
-                            full_track_name = f"{track_name} [{car_class}]" if car_class and car_class != "Unknown" else track_name
-                            self.curve_manager.add_point(full_track_name, qual_ratio, midpoint)
+                            self.curve_manager.curve.add_point(full_track_name, qual_ratio, midpoint)
                             loaded_points += 1
                     except (ValueError, KeyError):
                         pass
 
-                    # Add race data point
+                    # Add race data point (no fit/save yet)
                     try:
                         race_ratio = float(row.get('Current RaceRatio', '0'))
-                        race_best = float(row.get('Race AI Best (s)', '0'))
-                        race_worst = float(row.get('Race AI Worst (s)', '0'))
+                        race_best  = float(row.get('Race AI Best (s)',   '0'))
+                        race_worst = float(row.get('Race AI Worst (s)',  '0'))
                         if race_ratio > 0 and race_best > 0 and race_worst > 0:
                             midpoint = (race_best + race_worst) / 2
-                            full_track_name = f"{track_name} [{car_class}]" if car_class and car_class != "Unknown" else track_name
-                            self.curve_manager.add_point(full_track_name, race_ratio, midpoint)
+                            self.curve_manager.curve.add_point(full_track_name, race_ratio, midpoint)
                             loaded_points += 1
                     except (ValueError, KeyError):
                         pass
 
             if loaded_points > 0:
-                logger.info(f"Loaded {loaded_points} points from historic.csv")
+                # Single fit + single save after the entire CSV is processed
+                self.curve_manager.curve.fit_global_k()
                 self.curve_manager.save()
+                logger.info(f"Loaded {loaded_points} points from historic.csv")
 
         except Exception as e:
             logger.error(f"Error loading historic.csv: {e}")
@@ -746,15 +799,43 @@ class MainWindow(QMainWindow):
         main_layout.setSpacing(10)
         main_layout.setContentsMargins(15, 15, 15, 15)
 
-        # Header with track display
-        self.track_display = QLabel("No Track Selected")
-        self.track_display.setAlignment(Qt.AlignCenter)
-        self.track_display.setStyleSheet("""
-            font-size: 22px; font-weight: bold; color: #FFA500;
-            background-color: #2b2b2b; border-radius: 6px;
-            padding: 10px; margin: 2px;
+        # ── Split header: track name (left) | formula + edit button (right) ──
+        header_frame = QFrame()
+        header_frame.setStyleSheet("""
+            QFrame {
+                background-color: #2b2b2b; border-radius: 6px;
+                padding: 2px; margin: 2px;
+            }
         """)
-        main_layout.addWidget(self.track_display)
+        header_layout = QHBoxLayout(header_frame)
+        header_layout.setContentsMargins(12, 6, 12, 6)
+        header_layout.setSpacing(12)
+
+        self.track_name_label = QLabel("No Track Selected")
+        self.track_name_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self.track_name_label.setStyleSheet(
+            "font-size: 22px; font-weight: bold; color: #FFA500;"
+        )
+        header_layout.addWidget(self.track_name_label, stretch=1)
+
+        # Right side: formula text + edit button
+        self.formula_label = QLabel("—")
+        self.formula_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.formula_label.setStyleSheet(
+            "color: #9C27B0; font-family: monospace; font-size: 12px;"
+        )
+        header_layout.addWidget(self.formula_label)
+
+        self.edit_formula_btn = QPushButton("Edit Formula")
+        self.edit_formula_btn.setFixedHeight(28)
+        self.edit_formula_btn.setFixedWidth(105)
+        self.edit_formula_btn.setStyleSheet(
+            "background-color: #2196F3; font-size: 10px; padding: 4px;"
+        )
+        self.edit_formula_btn.clicked.connect(self.open_track_curve_editor)
+        header_layout.addWidget(self.edit_formula_btn)
+
+        main_layout.addWidget(header_frame)
 
         # Status bar (compact)
         status_layout = QHBoxLayout()
@@ -943,11 +1024,21 @@ class MainWindow(QMainWindow):
         self.save_to_csv_btn.clicked.connect(self.save_to_historic_csv)
         button_row.addWidget(self.save_to_csv_btn)
 
-        self.autopilot_btn = QPushButton("Autopilot: OFF")
+        self.autopilot_btn = QPushButton("Autopilot is OFF")
         self.autopilot_btn.setFixedHeight(40)
         self.autopilot_btn.setStyleSheet("background-color: #f44336;")
         self.autopilot_btn.clicked.connect(self.toggle_autopilot)
         button_row.addWidget(self.autopilot_btn)
+
+        self.silent_mode_check = QCheckBox("Silent (no confirmation)")
+        self.silent_mode_check.setToolTip(
+            "When checked, autopilot applies ratio changes immediately\n"
+            "without showing a confirmation dialog."
+        )
+        from cfg_manage import get_autopilot_silent
+        self.silent_mode_check.setChecked(get_autopilot_silent())
+        self.silent_mode_check.toggled.connect(self._on_silent_mode_toggled)
+        button_row.addWidget(self.silent_mode_check)
 
         apply_layout.addLayout(button_row)
 
@@ -1016,37 +1107,86 @@ class MainWindow(QMainWindow):
     def update_autopilot_button(self):
         """Update autopilot button appearance"""
         if self.autopilot_enabled:
-            self.autopilot_btn.setText("Autopilot: ON")
+            self.autopilot_btn.setText("Autopilot is ON")
             self.autopilot_btn.setStyleSheet("background-color: #4CAF50;")
         else:
-            self.autopilot_btn.setText("Autopilot: OFF")
+            self.autopilot_btn.setText("Autopilot is OFF")
             self.autopilot_btn.setStyleSheet("background-color: #f44336;")
 
-    def _do_enable_autopilot(self, track_name: str):
+    def _on_silent_mode_toggled(self, checked: bool):
+        """Save silent-mode preference to config when the checkbox changes."""
+        from cfg_manage import update_autopilot_silent
+        update_autopilot_silent(checked)
+        state = "enabled" if checked else "disabled"
+        self.log_message(f"Autopilot silent mode {state} (no confirmation dialog)", "info")
+
+    def _do_enable_autopilot(self, track_name: str, dialog=None):
         """Actually enable autopilot after readiness check"""
+        from cfg_manage import update_autopilot_enabled
+        
+        self.log_message("=" * 60, "info")
+        self.log_message("ENABLING AUTOPILOT", "success")
+        self.log_message(f"  Track: {track_name}", "info")
+        self.log_message(f"  Before - self.autopilot_enabled: {self.autopilot_enabled}", "info")
+        
+        # Set the flag
         self.autopilot_enabled = True
+        
+        # Save to config
         update_autopilot_enabled(True)
+        
+        # Update button appearance
         self.update_autopilot_button()
         
         # Store current track if available
         if track_name:
             self._current_autopilot_track = track_name
-            self.log_message(f"Autopilot enabled for track: {track_name}", "success")
-        else:
-            self.log_message("Autopilot enabled (waiting for track detection)", "success")
+            self.log_message(f"  Stored track: {self._current_autopilot_track}", "info")
         
-        # Show a quick confirmation
-        QMessageBox.information(
-            self,
-            "Autopilot Enabled",
-            f"Autopilot is now active.\n\n"
-            f"It will automatically:\n"
-            f"• Save race data to CSV\n"
-            f"• Update the curve model\n"
-            f"• Calculate and apply new ratios\n\n"
-            f"Track: {track_name if track_name else 'Waiting for race...'}\n\n"
-            f"You can disable autopilot anytime by clicking the button again."
-        )
+        # Verify it was set
+        from cfg_manage import get_autopilot_enabled
+        self.log_message(f"  After - self.autopilot_enabled: {self.autopilot_enabled}", "info")
+        self.log_message(f"  After - config autopilot_enabled: {get_autopilot_enabled()}", "info")
+        
+        # Close the dialog if provided
+        if dialog:
+            dialog.accept()
+        
+        self.log_message("✓ Autopilot enabled successfully", "success")
+        
+        # Show a quick confirmation with dark styling
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Autopilot Enabled")
+        msg.setIcon(QMessageBox.Information)
+        msg.setText(f"Autopilot is now active.\n\n"
+                   f"It will automatically:\n"
+                   f"• Save race data to CSV\n"
+                   f"• Update the curve model\n"
+                   f"• Calculate and apply new ratios\n\n"
+                   f"Track: {track_name if track_name else 'Waiting for race...'}\n\n"
+                   f"You can disable autopilot anytime by clicking the button again.\n\n"
+                   f"NOTE: The next race result will trigger autopilot.")
+        msg.setStyleSheet("""
+            QMessageBox {
+                background-color: #2b2b2b;
+            }
+            QMessageBox QLabel {
+                color: white;
+                background-color: #2b2b2b;
+            }
+            QMessageBox QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                padding: 5px 15px;
+                min-width: 80px;
+            }
+            QMessageBox QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
+        msg.exec_()
 
     def toggle_autopilot(self):
         """Toggle autopilot mode - Shows detailed readiness check before enabling"""
@@ -1300,102 +1440,6 @@ class MainWindow(QMainWindow):
         # Show dialog
         dialog.exec_()
 
-    def _do_enable_autopilot(self, track_name: str, dialog=None):
-        """Actually enable autopilot after readiness check"""
-        from cfg_manage import update_autopilot_enabled
-        
-        self.log_message("=" * 60, "info")
-        self.log_message("ENABLING AUTOPILOT", "success")
-        self.log_message(f"  Track: {track_name}", "info")
-        self.log_message(f"  Before - self.autopilot_enabled: {self.autopilot_enabled}", "info")
-        
-        # Set the flag
-        self.autopilot_enabled = True
-        
-        # Save to config
-        update_autopilot_enabled(True)
-        
-        # Update button appearance
-        self.update_autopilot_button()
-        
-        # Store current track if available
-        if track_name:
-            self._current_autopilot_track = track_name
-            self.log_message(f"  Stored track: {self._current_autopilot_track}", "info")
-        
-        # Verify it was set
-        from cfg_manage import get_autopilot_enabled
-        self.log_message(f"  After - self.autopilot_enabled: {self.autopilot_enabled}", "info")
-        self.log_message(f"  After - config autopilot_enabled: {get_autopilot_enabled()}", "info")
-        
-        # Close the dialog if provided
-        if dialog:
-            dialog.accept()
-        
-        self.log_message("✓ Autopilot enabled successfully", "success")
-        
-        # Show a quick confirmation
-        QMessageBox.information(
-            self,
-            "Autopilot Enabled",
-            f"Autopilot is now active.\n\n"
-            f"It will automatically:\n"
-            f"• Save race data to CSV\n"
-            f"• Update the curve model\n"
-            f"• Calculate and apply new ratios\n\n"
-            f"Track: {track_name if track_name else 'Waiting for race...'}\n\n"
-            f"You can disable autopilot anytime by clicking the button again.\n\n"
-            f"NOTE: The next race result will trigger autopilot."
-        )
-
-    def _do_enable_autopilot(self, track_name: str, dialog=None):
-        """Actually enable autopilot after readiness check"""
-        from cfg_manage import update_autopilot_enabled
-        
-        self.log_message("=" * 60, "info")
-        self.log_message("ENABLING AUTOPILOT", "success")
-        self.log_message(f"  Track: {track_name}", "info")
-        self.log_message(f"  Before - self.autopilot_enabled: {self.autopilot_enabled}", "info")
-        
-        # Set the flag
-        self.autopilot_enabled = True
-        
-        # Save to config
-        update_autopilot_enabled(True)
-        
-        # Update button appearance
-        self.update_autopilot_button()
-        
-        # Store current track if available
-        if track_name:
-            self._current_autopilot_track = track_name
-            self.log_message(f"  Stored track: {self._current_autopilot_track}", "info")
-        
-        # Verify it was set
-        from cfg_manage import get_autopilot_enabled
-        self.log_message(f"  After - self.autopilot_enabled: {self.autopilot_enabled}", "info")
-        self.log_message(f"  After - config autopilot_enabled: {get_autopilot_enabled()}", "info")
-        
-        # Close the dialog if provided
-        if dialog:
-            dialog.accept()
-        
-        self.log_message("✓ Autopilot enabled successfully", "success")
-        
-        # Show a quick confirmation
-        QMessageBox.information(
-            self,
-            "Autopilot Enabled",
-            f"Autopilot is now active.\n\n"
-            f"It will automatically:\n"
-            f"• Save race data to CSV\n"
-            f"• Update the curve model\n"
-            f"• Calculate and apply new ratios\n\n"
-            f"Track: {track_name if track_name else 'Waiting for race...'}\n\n"
-            f"You can disable autopilot anytime by clicking the button again.\n\n"
-            f"NOTE: The next race result will trigger autopilot."
-        )
-
     def update_status(self):
         """Update curve info display"""
         stats = self.curve_manager.get_stats()
@@ -1485,8 +1529,12 @@ class MainWindow(QMainWindow):
         track_folder = data.get('track_folder', track)
         aiw = data.get('aiw_file', 'Unknown')
 
-        # Update big track display
-        self.track_display.setText(f"🏁 {track} 🏁")
+        # Update split header: track name on the left
+        self.track_name_label.setText(f"🏁 {track} 🏁")
+
+        # Update formula label on the right
+        formula_str = self.curve_manager.get_formula_string(track)
+        self.formula_label.setText(formula_str)
 
         # Get qualifying AI times
         qual_best_ai_sec = data.get('qual_best_ai_lap_sec', 0.0)
@@ -1516,8 +1564,6 @@ class MainWindow(QMainWindow):
         # Find user vehicle (slot 0)
         user_name = data.get('user_name', 'Unknown')
         self.user_name_label.setText(user_name if user_name != 'Unknown' else '---')
-
-# In _update_race_results method, ensure vehicle data is correctly captured:
 
         # Parse vehicles from driver data
         for driver in drivers:
@@ -1695,10 +1741,30 @@ User: Q {user_qual} | R {user_best}"""
         # Validate we have user lap time
         if user_qual_sec <= 0 and user_race_sec <= 0:
             self.log_message("Autopilot: No user lap time found", "warning")
-            QMessageBox.warning(self, "Autopilot Error", 
-                               "No user lap time detected.\n\n"
-                               "Autopilot needs your lap time to calculate new ratios.\n"
-                               "Please complete a lap in qualifying or race.")
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Autopilot Error")
+            msg.setIcon(QMessageBox.Warning)
+            msg.setText("No user lap time detected.\n\n"
+                       "Autopilot needs your lap time to calculate new ratios.\n"
+                       "Please complete a lap in qualifying or race.")
+            msg.setStyleSheet("""
+                QMessageBox {
+                    background-color: #2b2b2b;
+                }
+                QMessageBox QLabel {
+                    color: white;
+                    background-color: #2b2b2b;
+                }
+                QMessageBox QPushButton {
+                    background-color: #4CAF50;
+                    color: white;
+                    border: none;
+                    border-radius: 3px;
+                    padding: 5px 15px;
+                    min-width: 80px;
+                }
+            """)
+            msg.exec_()
             return
         
         current_qual_ratio = self.last_results.get('qual_ratio') or 1.0
@@ -1757,15 +1823,32 @@ User: Q {user_qual} | R {user_best}"""
         # STEP 6: Validate fit quality
         if not has_formula:
             # No formula available
-            QMessageBox.warning(
-                self,
-                "Cannot Calculate Ratios",
-                f"Cannot create formula for '{track_name}'.\n\n"
-                f"Data points: {n_points}\n"
-                f"Need at least 2 points with different ratios.\n\n"
-                f"Current points:\n" + 
-                "\n".join([f"  R={r:.4f} → T={t:.2f}s" for r, t in self.curve_manager.curve.points_by_track.get(track_name, [])])
-            )
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Cannot Calculate Ratios")
+            msg.setIcon(QMessageBox.Warning)
+            msg.setText(f"Cannot create formula for '{track_name}'.\n\n"
+                       f"Data points: {n_points}\n"
+                       f"Need at least 2 points with different ratios.\n\n"
+                       f"Current points:\n" + 
+                       "\n".join([f"  R={r:.4f} → T={t:.2f}s" for r, t in self.curve_manager.curve.points_by_track.get(track_name, [])]))
+            msg.setStyleSheet("""
+                QMessageBox {
+                    background-color: #2b2b2b;
+                }
+                QMessageBox QLabel {
+                    color: white;
+                    background-color: #2b2b2b;
+                }
+                QMessageBox QPushButton {
+                    background-color: #4CAF50;
+                    color: white;
+                    border: none;
+                    border-radius: 3px;
+                    padding: 5px 15px;
+                    min-width: 80px;
+                }
+            """)
+            msg.exec_()
             return
         
         # Check if we have valid a and b parameters
@@ -1773,14 +1856,31 @@ User: Q {user_qual} | R {user_best}"""
         b = self.curve_manager.curve.track_params[track_name]['b']
         
         if a <= 0 or b <= 0:
-            QMessageBox.warning(
-                self,
-                "Invalid Formula",
-                f"Calculated formula is invalid.\n\n"
-                f"a={a:.3f}, b={b:.3f}\n\n"
-                f"This usually means the data points are too close or invalid.\n"
-                f"Try using more varied ratio values."
-            )
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Invalid Formula")
+            msg.setIcon(QMessageBox.Warning)
+            msg.setText(f"Calculated formula is invalid.\n\n"
+                       f"a={a:.3f}, b={b:.3f}\n\n"
+                       f"This usually means the data points are too close or invalid.\n"
+                       f"Try using more varied ratio values.")
+            msg.setStyleSheet("""
+                QMessageBox {
+                    background-color: #2b2b2b;
+                }
+                QMessageBox QLabel {
+                    color: white;
+                    background-color: #2b2b2b;
+                }
+                QMessageBox QPushButton {
+                    background-color: #4CAF50;
+                    color: white;
+                    border: none;
+                    border-radius: 3px;
+                    padding: 5px 15px;
+                    min-width: 80px;
+                }
+            """)
+            msg.exec_()
             return
         
         # Save curve if we have good data (≥2 points)
@@ -1808,16 +1908,33 @@ User: Q {user_qual} | R {user_best}"""
                 self.log_message(f"Failed to predict RaceRatio from {user_race_str}", "warning")
         
         if not new_ratios:
-            QMessageBox.warning(
-                self,
-                "Prediction Failed",
-                f"Could not predict ratios from your lap times.\n\n"
-                f"User Qual: {user_qual_str} ({user_qual_sec:.3f}s)\n"
-                f"User Race: {user_race_str} ({user_race_sec:.3f}s)\n\n"
-                f"Formula: T = {a:.3f}/R + {b:.3f}\n\n"
-                f"Your lap time may be outside the valid range of the curve.\n"
-                f"Valid range: R=0.3 to 3.0 → T={a/0.3+b:.1f}s to {a/3.0+b:.1f}s"
-            )
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Prediction Failed")
+            msg.setIcon(QMessageBox.Warning)
+            msg.setText(f"Could not predict ratios from your lap times.\n\n"
+                       f"User Qual: {user_qual_str} ({user_qual_sec:.3f}s)\n"
+                       f"User Race: {user_race_str} ({user_race_sec:.3f}s)\n\n"
+                       f"Formula: T = {a:.3f}/R + {b:.3f}\n\n"
+                       f"Your lap time may be outside the valid range of the curve.\n"
+                       f"Valid range: R=0.3 to 3.0 → T={a/0.3+b:.1f}s to {a/3.0+b:.1f}s")
+            msg.setStyleSheet("""
+                QMessageBox {
+                    background-color: #2b2b2b;
+                }
+                QMessageBox QLabel {
+                    color: white;
+                    background-color: #2b2b2b;
+                }
+                QMessageBox QPushButton {
+                    background-color: #4CAF50;
+                    color: white;
+                    border: none;
+                    border-radius: 3px;
+                    padding: 5px 15px;
+                    min-width: 80px;
+                }
+            """)
+            msg.exec_()
             return
         
         # STEP 8: Update GUI with predictions
@@ -1832,36 +1949,35 @@ User: Q {user_qual} | R {user_best}"""
         # STEP 9: Check for outliers
         outliers = self.curve_manager.get_outliers(track_name)
 
-        # STEP 10: Show confirmation dialog
-        current_ratios = {
-            'QualRatio': current_qual_ratio,
-            'RaceRatio': current_race_ratio,
-        }
+        # Prepare confirmation-dialog variables (used in non-silent mode below)
+        current_ratios = {'QualRatio': current_qual_ratio, 'RaceRatio': current_race_ratio}
+        user_time_str  = user_race_str if user_race_sec > 0 else user_qual_str
+        ai_time_str    = (self.format_time(race_best_ai_sec) if race_best_ai_sec > 0
+                          else self.format_time(qual_best_ai_sec))
+        formula        = self.curve_manager.get_formula_string(track_name)
+        car_class      = (self.current_vehicles.get('user', 'Unknown')
+                          if hasattr(self, 'current_vehicles') else 'Unknown')
 
-        user_time_str = user_race_str if user_race_sec > 0 else user_qual_str
-        ai_time_str = (self.format_time(race_best_ai_sec) if race_best_ai_sec > 0
-                       else self.format_time(qual_best_ai_sec))
-        formula = self.curve_manager.get_formula_string(track_name)
-
-        # Get vehicle info from current_vehicles
-        car_class = self.current_vehicles.get('user', 'Unknown') if hasattr(self, 'current_vehicles') else 'Unknown'
-
-        confirm_dialog = AutopilotConfirmationDialog(
-            track_name=track_name,
-            car_class=car_class,
-            formula=formula,
-            current_ratios=current_ratios,
-            new_ratios=new_ratios,
-            user_time=user_time_str,
-            ai_time=ai_time_str,
-            fit_info=fit_info,
-            outliers=outliers,
-            parent=self,
-        )
-        
-        if not confirm_dialog.get_decision():
-            self.log_message("Autopilot cancelled by user", "warning")
-            return
+        # STEP 10: Apply — show confirmation dialog unless silent mode is on
+        from cfg_manage import get_autopilot_silent
+        if get_autopilot_silent():
+            self.log_message("Silent mode: applying ratios without confirmation", "info")
+        else:
+            confirm_dialog = AutopilotConfirmationDialog(
+                track_name=track_name,
+                car_class=car_class,
+                formula=formula,
+                current_ratios=current_ratios,
+                new_ratios=new_ratios,
+                user_time=user_time_str,
+                ai_time=ai_time_str,
+                fit_info=fit_info,
+                outliers=outliers,
+                parent=self,
+            )
+            if not confirm_dialog.get_decision():
+                self.log_message("Autopilot cancelled by user", "warning")
+                return
         
         # STEP 11: Apply to AIW file
         self._apply_ratios_autopilot(new_ratios)
@@ -1888,7 +2004,31 @@ User: Q {user_qual} | R {user_best}"""
 
         if not aiw_filename:
             self.log_message("ERROR: No AIW filename in results", "error")
-            QMessageBox.critical(self, "Error", "No AIW filename found in race results.")
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Error")
+            msg.setIcon(QMessageBox.Critical)
+            msg.setText("No AIW filename found in race results.")
+            msg.setStyleSheet("""
+                QMessageBox {
+                    background-color: #2b2b2b;
+                }
+                QMessageBox QLabel {
+                    color: white;
+                    background-color: #2b2b2b;
+                }
+                QMessageBox QPushButton {
+                    background-color: #f44336;
+                    color: white;
+                    border: none;
+                    border-radius: 3px;
+                    padding: 5px 15px;
+                    min-width: 80px;
+                }
+                QMessageBox QPushButton:hover {
+                    background-color: #d32f2f;
+                }
+            """)
+            msg.exec_()
             return
 
         # Find AIW file
@@ -1896,7 +2036,31 @@ User: Q {user_qual} | R {user_best}"""
 
         if not aiw_path:
             self.log_message("ERROR: AIW file NOT FOUND", "error")
-            QMessageBox.critical(self, "Error", f"AIW file not found: {aiw_filename}")
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Error")
+            msg.setIcon(QMessageBox.Critical)
+            msg.setText(f"AIW file not found: {aiw_filename}")
+            msg.setStyleSheet("""
+                QMessageBox {
+                    background-color: #2b2b2b;
+                }
+                QMessageBox QLabel {
+                    color: white;
+                    background-color: #2b2b2b;
+                }
+                QMessageBox QPushButton {
+                    background-color: #f44336;
+                    color: white;
+                    border: none;
+                    border-radius: 3px;
+                    padding: 5px 15px;
+                    min-width: 80px;
+                }
+                QMessageBox QPushButton:hover {
+                    background-color: #d32f2f;
+                }
+            """)
+            msg.exec_()
             return
 
         self.log_message(f"✓ AIW found at: {aiw_path}", "success")
@@ -1972,23 +2136,73 @@ User: Q {user_qual} | R {user_best}"""
             self.update_backup_info()
             self.update_status()
             
-            QMessageBox.information(
-                self,
-                "Autopilot Applied",
-                f"Successfully applied changes:\n\n"
-                f"Qualifying: {new_qual:.6f}\n"
-                f"Race: {new_race:.6f}\n\n"
-                f"File: {aiw_path.name}\n"
-                f"Modified: {'Yes' if (qual_changed or race_changed) else 'No'}"
-            )
+            # Only show popup if NOT in silent mode
+            from cfg_manage import get_autopilot_silent
+            if not get_autopilot_silent():
+                # Create a properly styled message box
+                msg = QMessageBox(self)
+                msg.setWindowTitle("Autopilot Applied")
+                msg.setIcon(QMessageBox.Information)
+                msg.setText(f"Successfully applied changes:\n\n"
+                           f"Qualifying: {new_qual:.6f}\n"
+                           f"Race: {new_race:.6f}\n\n"
+                           f"File: {aiw_path.name}\n"
+                           f"Modified: {'Yes' if (qual_changed or race_changed) else 'No'}")
+                
+                # Apply dark theme styling
+                msg.setStyleSheet("""
+                    QMessageBox {
+                        background-color: #2b2b2b;
+                    }
+                    QMessageBox QLabel {
+                        color: white;
+                        background-color: #2b2b2b;
+                    }
+                    QMessageBox QPushButton {
+                        background-color: #4CAF50;
+                        color: white;
+                        border: none;
+                        border-radius: 3px;
+                        padding: 5px 15px;
+                        min-width: 80px;
+                    }
+                    QMessageBox QPushButton:hover {
+                        background-color: #45a049;
+                    }
+                """)
+                msg.exec_()
+            else:
+                # Silent mode: just log to console/activity log
+                self.log_message(f"✓ Autopilot applied changes silently: Qual={new_qual:.6f}, Race={new_race:.6f}", "success")
         else:
-            QMessageBox.critical(
-                self,
-                "Failed to Apply",
-                f"Could not apply any ratio changes.\n\n"
-                f"AIW file: {aiw_path}\n"
-                f"Check file permissions and that the ratio patterns exist."
-            )
+            # Error message box - always show, but style it properly
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Failed to Apply")
+            msg.setIcon(QMessageBox.Critical)
+            msg.setText(f"Could not apply any ratio changes.\n\n"
+                       f"AIW file: {aiw_path}\n"
+                       f"Check file permissions and that the ratio patterns exist.")
+            msg.setStyleSheet("""
+                QMessageBox {
+                    background-color: #2b2b2b;
+                }
+                QMessageBox QLabel {
+                    color: white;
+                    background-color: #2b2b2b;
+                }
+                QMessageBox QPushButton {
+                    background-color: #f44336;
+                    color: white;
+                    border: none;
+                    border-radius: 3px;
+                    padding: 5px 15px;
+                    min-width: 80px;
+                }
+                QMessageBox QPushButton:hover {
+                    background-color: #d32f2f;
+                }
+            """)
+            msg.exec_()
         
         self.log_message("=" * 60, "info")
 
@@ -2253,7 +2467,30 @@ User: Q {user_qual} | R {user_best}"""
                 ])
 
             self.log_message(f"Saved data to historic.csv (Vehicle: {data.get('user_vehicle', 'Unknown')})", "success")
-            self.load_historic_data_into_curve()
+
+            # Add only the newly saved point to the curve - do NOT reload the entire
+            # historic CSV (the old load_historic_data_into_curve call was O(N²): every
+            # save re-processed all previous rows, triggering a fit+save per row).
+            added_any = False
+            qual_ratio = data.get('qual_ratio', 0.0)
+            qual_best  = data.get('qual_best',  0.0)
+            qual_worst = data.get('qual_worst', 0.0)
+            if qual_ratio > 0 and qual_best > 0 and qual_worst > 0:
+                midpoint = (qual_best + qual_worst) / 2
+                self.curve_manager.curve.add_point(track_name, qual_ratio, midpoint)
+                added_any = True
+
+            race_ratio = data.get('race_ratio', 0.0)
+            race_best  = data.get('race_best',  0.0)
+            race_worst = data.get('race_worst', 0.0)
+            if race_ratio > 0 and race_best > 0 and race_worst > 0:
+                midpoint = (race_best + race_worst) / 2
+                self.curve_manager.curve.add_point(track_name, race_ratio, midpoint)
+                added_any = True
+
+            if added_any:
+                self.curve_manager.curve.fit_global_k()
+                self.curve_manager.save()
 
         except Exception as e:
             self.log_message(f"Error saving to historic.csv: {e}", "error")
@@ -2324,15 +2561,48 @@ User: Q {user_qual} | R {user_best}"""
         else:
             self.log_message("Failed to restore original backup", "error")
 
-    def open_curve_editor(self):
-        """Open the global curve builder dialog"""
+    def open_track_curve_editor(self):
+        """Open the curve editor pre-focused on the track shown in the title bar."""
+        track_name = self.last_results.get('track_name') if self.last_results else None
+        self.open_curve_editor(track_name=track_name)
+
+    def open_curve_editor(self, track_name: str = None):
+        """Open the global curve builder dialog.
+
+        When *track_name* is provided the editor opens with that track
+        pre-selected.  When autopilot is active the editor is blocked to
+        avoid expensive background refits interfering with live operation.
+        """
+        # ── Guard: block editing while autopilot is running ───────────────
+        if self.autopilot_enabled:
+            reply = QMessageBox.question(
+                self,
+                "Autopilot is Active",
+                "The Curve Editor cannot be opened while Autopilot is ON.\n\n"
+                "Editing the curve during an active autopilot session could\n"
+                "cause unexpected ratio calculations.\n\n"
+                "Would you like to temporarily disable Autopilot and open the editor?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if reply == QMessageBox.Yes:
+                self.autopilot_enabled = False
+                update_autopilot_enabled(False)
+                self._current_autopilot_track = None
+                self.update_autopilot_button()
+                self.log_message("Autopilot disabled to allow curve editing", "warning")
+                # Fall through to open the editor
+            else:
+                return
+
         try:
             from global_curve_builder import GlobalCurveBuilderDialog
 
             dialog = GlobalCurveBuilderDialog(
                 parent=self,
                 formulas_dir=get_formulas_dir(),
-                curve_manager=self.curve_manager
+                curve_manager=self.curve_manager,
+                default_track=track_name,
             )
 
             result = dialog.exec_()

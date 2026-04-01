@@ -368,16 +368,18 @@ class CurveGraphWidget(QWidget):
 class GlobalCurveBuilderDialog(QDialog):
     """Main dialog for building and editing the global curve"""
     
-    def __init__(self, parent=None, formulas_dir: str = None, curve_manager=None):
+    def __init__(self, parent=None, formulas_dir: str = None, curve_manager=None,
+                 default_track: str = None):
         super().__init__(parent)
         self.formulas_dir = Path(formulas_dir) if formulas_dir else Path("./track_formulas")
         self.curve_manager = curve_manager
-        
+        self.default_track = default_track  # pre-select on open; None = start blank
+
         # Data storage
-        self.track_points = {}  # track_name -> list of (ratio, time)
-        self.track_params = {}  # track_name -> {'a': float, 'b': float}
+        self.track_points = {}
+        self.track_params = {}
         self.global_k = 0.297
-        
+
         self.setup_ui()
         self.load_data()
         
@@ -571,40 +573,45 @@ class GlobalCurveBuilderDialog(QDialog):
         return toolbar
     
     def load_data(self):
-        """Load data from curve manager and historic CSV"""
+        """Load data from curve manager and historic CSV, then apply default_track."""
         # Load from curve manager if available
         if self.curve_manager:
-            # Load points
             self.track_points = self.curve_manager.curve.points_by_track.copy()
             self.track_params = self.curve_manager.curve.track_params.copy()
-            self.global_k = self.curve_manager.curve.global_k
-        
-        # Try to load from historic.csv
+            self.global_k    = self.curve_manager.curve.global_k
+
+        # Merge any extra points from historic.csv
         historic_csv = Path("./historic.csv")
         if historic_csv.exists():
             self.load_historic_csv(historic_csv)
-        
-        # Update track list in parameter editor
-        tracks = list(set(self.track_points.keys()))
-        self.param_editor.set_tracks(tracks)
-        
-        # Update points table with all points
+
+        # Populate track combo — always starts on "-- Select Track --"
+        tracks = sorted(set(self.track_points.keys()))
+        self.param_editor.set_tracks(tracks)          # combo index 0 = "-- Select Track --"
+
+        # Update points table (no track selected yet → shows nothing)
         self.points_table.update_all_points(self.track_points)
-        
-        # Set default parameters
-        if tracks and any(t in self.track_params for t in tracks):
-            # Find a track with fitted parameters
-            for track in tracks:
-                if track in self.track_params:
-                    params = self.track_params[track]
-                    self.param_editor.set_params(params['a'], params['b'], self.global_k)
-                    break
-            else:
-                self.param_editor.set_params(30.0, 70.0, self.global_k)
-        else:
-            self.param_editor.set_params(30.0, 70.0, self.global_k)
-        
-        # Update graph
+
+        # Set default spinbox values regardless of selection
+        self.param_editor.set_params(30.0, 70.0, self.global_k)
+
+        # Pre-select a specific track if one was requested
+        if self.default_track and self.default_track in self.track_points:
+            self.param_editor.track_combo.setCurrentText(self.default_track)
+            # set_params to the track's fitted values if available
+            params = self.track_params.get(self.default_track)
+            if params:
+                self.param_editor.set_params(params['a'], params['b'], self.global_k)
+            # show its points in the table
+            self.points_table.set_track_points(
+                self.default_track, self.track_points[self.default_track]
+            )
+        elif self.default_track:
+            # Track name provided but no data yet — still select it so the user
+            # can see it's the active track even though the graph is empty.
+            self.param_editor.track_combo.setCurrentText(self.default_track)
+
+        # Draw graph (blank if no track selected, or pre-filled if default_track set)
         self.update_graph()
         self.update_stats()
     
@@ -818,22 +825,29 @@ class GlobalCurveBuilderDialog(QDialog):
         self.update_graph()
     
     def update_graph(self):
-        """Update the graph display"""
+        """Update the graph display.
+
+        When no track is selected the graph is intentionally left blank —
+        no data points and no curve line.  A curve is only drawn once the
+        user picks a track from the combo.
+        """
         selected_track = self.param_editor.get_selected_track()
-        
-        # Get current curve parameters
-        if selected_track and selected_track in self.track_params:
-            params = self.track_params[selected_track]
-            curve_params = (params['a'], params['b'])
+
+        if selected_track:
+            # Use fitted params for this track if available, else editor values
+            if selected_track in self.track_params:
+                params = self.track_params[selected_track]
+                curve_params = (params['a'], params['b'])
+            else:
+                a, b = self.param_editor.get_params()
+                curve_params = (a, b)
         else:
-            # Use current editor values
-            a, b = self.param_editor.get_params()
-            curve_params = (a, b)
-        
-        # Pass only the selected track's points
+            # No track selected → blank graph (no curve, no points)
+            curve_params = None
+
         self.graph.update_data(self.track_points, selected_track, curve_params)
-        
-        # Update the points table to show only selected track's points
+
+        # Sync points table with selection
         if selected_track and selected_track in self.track_points:
             self.points_table.set_track_points(selected_track, self.track_points[selected_track])
         else:

@@ -56,24 +56,24 @@ class GlobalCurve:
                 logger.debug(f"Cache hit for {track_name} at time {time:.3f}")
                 return cached
 
-        logger.info(f"Predicting ratio for {track_name}: time={time:.3f}s")
+        logger.debug(f"Predicting ratio for {track_name}: time={time:.3f}s")
 
         result = None
 
         # Try fitted parameters first
         params = self.track_params.get(track_name)
         if params:
-            logger.info(f"Using fitted parameters for {track_name}: a={params['a']:.3f}, b={params['b']:.3f}")
+            logger.debug(f"Using fitted parameters for {track_name}: a={params['a']:.3f}, b={params['b']:.3f}")
             result = self.ratio_from_time(time, params['a'], params['b'])
             if result:
-                logger.info(f"Predicted ratio from fit: {result:.6f}")
+                logger.debug(f"Predicted ratio from fit: {result:.6f}")
             else:
-                logger.warning(f"Time {time:.3f}s is below floor b={params['b']:.3f}s")
+                logger.debug(f"Time {time:.3f}s is below floor b={params['b']:.3f}s")
 
         # Bootstrap from available points if no fit or fit failed
         if result is None:
             points = self.points_by_track.get(track_name, [])
-            logger.info(f"Bootstrap mode for {track_name}: {len(points)} points available")
+            logger.debug(f"Bootstrap mode for {track_name}: {len(points)} points available")
 
             if len(points) == 1:
                 result = self._bootstrap_one_point(time, track_name, points[0])
@@ -83,7 +83,7 @@ class GlobalCurve:
                 result = self._bootstrap_no_data(time, track_name)
 
             if result:
-                logger.info(f"Predicted ratio from bootstrap: {result:.6f}")
+                logger.debug(f"Predicted ratio from bootstrap: {result:.6f}")
 
         # Store in cache if valid
         if result is not None:
