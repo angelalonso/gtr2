@@ -116,7 +116,6 @@ class PathSelectionDialog(QDialog):
             self.error_label.setText("The selected path does not exist")
             return
         
-        # Don't require UserData to exist - it will be created
         self.selected_path = path
         self.accept()
 
@@ -124,11 +123,13 @@ class PathSelectionDialog(QDialog):
 DEFAULT_CONFIG = {
     'base_path': '',
     'formulas_dir': './track_formulas',
-    'auto_apply': False,  # Auto-apply calculated ratios without confirmation
-    'backup_enabled': True,  # Create backups before modifying
-    'logging_enabled': False,  # Enable/disable log file creation
-    'autopilot_enabled': False,  # Auto-save and auto-apply new results (stored in config)
-    'autopilot_silent': False   # Skip confirmation dialog when autopilot applies changes
+    'db_path': 'live_ai_tuner.db',
+    'track_formula_db_path': 'track_formulas.db',  # ← New
+    'auto_apply': False,
+    'backup_enabled': True,
+    'logging_enabled': False,
+    'autopilot_enabled': False,
+    'autopilot_silent': False,
 }
 
 
@@ -231,6 +232,34 @@ def update_formulas_dir(path, config_file="cfg.yml"):
     return save_config(config, config_file)
 
 
+# ── New: database path ────────────────────────────────────────────────────────
+
+def get_db_path(config_file="cfg.yml") -> str:
+    """Return the path to the SQLite database file."""
+    config = get_config_with_defaults(config_file)
+    return config.get('db_path', DEFAULT_CONFIG['db_path'])
+
+
+def update_db_path(path, config_file="cfg.yml") -> bool:
+    """Update the SQLite database path in the config file."""
+    config = get_config_with_defaults(config_file)
+    config['db_path'] = str(path)
+    return save_config(config, config_file)
+
+def get_track_formula_db_path(config_file="cfg.yml") -> str:
+    """Return the path to the track formula SQLite database file."""
+    config = get_config_with_defaults(config_file)
+    return config.get('track_formula_db_path', 'track_formulas.db')
+
+
+def update_track_formula_db_path(path, config_file="cfg.yml") -> bool:
+    """Update the track formula database path in the config file."""
+    config = get_config_with_defaults(config_file)
+    config['track_formula_db_path'] = str(path)
+    return save_config(config, config_file)
+
+# ── Existing helpers (unchanged) ──────────────────────────────────────────────
+
 def get_auto_apply(config_file="cfg.yml"):
     config = get_config_with_defaults(config_file)
     return config.get('auto_apply', False)
@@ -265,26 +294,22 @@ def update_logging_enabled(value, config_file="cfg.yml"):
 
 
 def get_autopilot_enabled(config_file="cfg.yml"):
-    """Get autopilot setting from config file (not runtime state)"""
     config = get_config_with_defaults(config_file)
     return config.get('autopilot_enabled', False)
 
 
 def update_autopilot_enabled(value, config_file="cfg.yml"):
-    """Update autopilot setting in config file"""
     config = get_config_with_defaults(config_file)
     config['autopilot_enabled'] = value
     return save_config(config, config_file)
 
 
 def get_autopilot_silent(config_file="cfg.yml"):
-    """Get whether autopilot should apply changes without a confirmation dialog."""
     config = get_config_with_defaults(config_file)
     return config.get('autopilot_silent', False)
 
 
 def update_autopilot_silent(value, config_file="cfg.yml"):
-    """Enable or disable the autopilot silent (no-confirmation) mode."""
     config = get_config_with_defaults(config_file)
     config['autopilot_silent'] = value
     return save_config(config, config_file)

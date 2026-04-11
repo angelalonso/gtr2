@@ -2,6 +2,7 @@
 AIW File Manager - Reading, writing, and backing up AIW files
 OPTIMIZED: Reduced file operations, caching, and lazy loading
 UPDATED: Case-insensitive search with full path logging
+UPDATED: SQLite-backed path cache and ratio change history via db_manager
 """
 
 import os
@@ -18,26 +19,65 @@ logger = logging.getLogger(__name__)
 class AIWManager:
     """Manages AIW file operations with proper backup preservation - OPTIMIZED"""
     
-    def __init__(self, backup_dir: Path = None):
+    def __init__(self, backup_dir: Path = None, db=None):
+        """
+        Parameters
+        ----------
+        db : db_manager.Database | None
+            When provided the manager uses SQLite for AIW path caching and
+            logs every ratio write (successful or not) to ``ratio_updates``.
+        """
         self.backup_dir = Path(backup_dir) if backup_dir else Path("./backups")
         self.backup_dir.mkdir(parents=True, exist_ok=True)
         self.backup_created_for_track = set()
+        self.db = db  # ← SQLite handle (may be None)
         
-        # Cache for AIW file paths
+        # In-memory cache still used as a fast L1 layer in front of SQLite
         self._aiw_path_cache: Dict[str, Path] = {}
         self._aiw_ratio_cache: Dict[str, Tuple[Optional[float], Optional[float]]] = {}
+
+    # ── Internal cache helpers ────────────────────────────────────────────────
+
+    def _cache_get_path(self, cache_key: str) -> Optional[Path]:
+        """Check L1 (memory) then L2 (SQLite) for a cached AIW path."""
+        if cache_key in self._aiw_path_cache:
+            p = self._aiw_path_cache[cache_key]
+            if p.exists():
+                return p
+            # Stale — evict both layers
+            del self._aiw_path_cache[cache_key]
+            if self.db:
+                self.db.invalidate_aiw_cache(cache_key)
+            return None
+
+        if self.db:
+            stored = self.db.get_cached_aiw_path(cache_key)
+            if stored:
+                p = Path(stored)
+                if p.exists():
+                    self._aiw_path_cache[cache_key] = p  # promote to L1
+                    return p
+                # Stale DB entry
+                self.db.invalidate_aiw_cache(cache_key)
+
+        return None
+
+    def _cache_set_path(self, cache_key: str, path: Path) -> None:
+        """Write to both L1 and L2 caches."""
+        self._aiw_path_cache[cache_key] = path
+        if self.db:
+            self.db.set_cached_aiw_path(cache_key, str(path))
+
+    # ── Public API ────────────────────────────────────────────────────────────
         
     def find_aiw_file(self, aiw_filename: str, track_name: str, base_path: Path) -> Optional[Path]:
         """Find AIW file with caching and case-insensitive search"""
         cache_key = f"{track_name}_{aiw_filename}".lower()
         
-        if cache_key in self._aiw_path_cache:
-            cached_path = self._aiw_path_cache[cache_key]
-            if cached_path.exists():
-                logger.info(f"Found AIW (cached): {cached_path}")
-                return cached_path
-            else:
-                del self._aiw_path_cache[cache_key]
+        cached = self._cache_get_path(cache_key)
+        if cached is not None:
+            logger.info(f"Found AIW (cached): {cached}")
+            return cached
         
         locations_path = base_path / 'GameData' / 'Locations'
         logger.info(f"Searching for AIW: {aiw_filename}")
@@ -48,8 +88,7 @@ class AIWManager:
             logger.error(f"Locations path does not exist: {locations_path}")
             return None
         
-        # Normalize the AIW filename (handle backslashes, case)
-        aiw_filename_normalized = Path(aiw_filename).name  # Get just the filename
+        aiw_filename_normalized = Path(aiw_filename).name
         logger.info(f"  Looking for filename: {aiw_filename_normalized}")
         
         found_path = None
@@ -64,7 +103,6 @@ class AIWManager:
                     if track_folder.is_dir() and track_folder.name.lower() == track_lower:
                         logger.info(f"    Found matching folder: {track_folder}")
                         
-                        # Look for AIW files in this folder
                         for file in track_folder.glob('*'):
                             if file.is_file() and file.name.lower() == aiw_filename_normalized.lower():
                                 found_path = file
@@ -72,7 +110,6 @@ class AIWManager:
                                 break
                         
                         if not found_path:
-                            # Try with .AIW extension using folder name
                             for ext in ['.AIW', '.aiw']:
                                 candidate = track_folder / f"{track_folder.name}{ext}"
                                 if candidate.exists():
@@ -81,7 +118,6 @@ class AIWManager:
                                     break
                         
                         if not found_path:
-                            # Try any AIW file in the folder
                             for ext_glob in ['*.AIW', '*.aiw']:
                                 candidates = list(track_folder.glob(ext_glob))
                                 if candidates:
@@ -114,18 +150,15 @@ class AIWManager:
         if not found_path and ('\\' in aiw_filename or '/' in aiw_filename):
             logger.info(f"  Attempting to parse full path: {aiw_filename}")
             try:
-                # Normalize path separators
                 normalized_path = aiw_filename.replace('\\', '/')
                 parts = normalized_path.split('/')
                 
-                # Find Locations in the path
                 if 'Locations' in parts:
                     loc_index = parts.index('Locations')
                     if loc_index + 1 < len(parts):
                         track_folder_name = parts[loc_index + 1]
                         logger.info(f"  Extracted track folder: {track_folder_name}")
                         
-                        # Search in that specific folder
                         track_folder_path = locations_path / track_folder_name
                         if track_folder_path.exists():
                             logger.info(f"  Checking folder: {track_folder_path}")
@@ -139,10 +172,9 @@ class AIWManager:
         
         if found_path:
             logger.info(f"✓ AIW file found: {found_path} (exists: {found_path.exists()})")
-            self._aiw_path_cache[cache_key] = found_path
+            self._cache_set_path(cache_key, found_path)  # ← persist to SQLite
         else:
             logger.error(f"✗ AIW file NOT found: {aiw_filename_normalized}")
-            logger.error(f"  Search locations:")
             if locations_path.exists():
                 for folder in locations_path.iterdir():
                     if folder.is_dir():
@@ -164,89 +196,68 @@ class AIWManager:
             if not aiw_path.exists():
                 return None, None
             
-            # Read file
             with open(aiw_path, 'rb') as f:
                 raw_content = f.read()
             
-            # Fast decode
             content = raw_content.replace(b'\x00', b'').decode('utf-8', errors='ignore')
             
             qual_ratio = None
             race_ratio = None
             
-            # Use compiled regex for better performance
             waypoint_match = re.search(r'\[Waypoint\](.*?)(?=\[|$)', content, re.DOTALL | re.IGNORECASE)
             if waypoint_match:
-                waypoint_section = waypoint_match.group(1)
+                section = waypoint_match.group(1)
                 
-                quali_match = re.search(r'QualRatio\s*=\s*\(?([\d.]+)\)?', waypoint_section, re.IGNORECASE)
-                if quali_match:
-                    qual_ratio = float(quali_match.group(1))
+                q_match = re.search(r'QualRatio\s*=\s*\(?([\d.eE+-]+)\)?', section, re.IGNORECASE)
+                if q_match:
+                    qual_ratio = float(q_match.group(1))
                 
-                race_match = re.search(r'RaceRatio\s*=\s*\(?([\d.]+)\)?', waypoint_section, re.IGNORECASE)
-                if race_match:
-                    race_ratio = float(race_match.group(1))
+                r_match = re.search(r'RaceRatio\s*=\s*\(?([\d.eE+-]+)\)?', section, re.IGNORECASE)
+                if r_match:
+                    race_ratio = float(r_match.group(1))
             
             result = (qual_ratio, race_ratio)
             self._aiw_ratio_cache[cache_key] = result
             return result
             
         except Exception as e:
-            logger.error(f"Error reading AIW file {aiw_path}: {e}")
+            logger.error(f"Error reading ratios from {aiw_path}: {e}")
             return None, None
-    
-    def create_original_backup(self, aiw_path: Path, track_name: str) -> Optional[Path]:
-        """Create a backup of the original AIW file (only once per track)"""
-        try:
-            if not aiw_path.exists():
-                return None
-            
-            if track_name in self.backup_created_for_track:
-                return self.get_original_backup(aiw_path)
-            
-            original_backup_name = f"{track_name}_ORIGINAL{aiw_path.suffix}"
-            original_backup_path = self.backup_dir / original_backup_name
-            
-            if not original_backup_path.exists():
-                shutil.copy2(aiw_path, original_backup_path)
-                logger.info(f"Created original backup: {original_backup_path}")
-            
-            self.backup_created_for_track.add(track_name)
-            return original_backup_path
-                
-        except Exception as e:
-            logger.error(f"Error creating original backup: {e}")
-            return None
-    
-    def create_backup_before_modification(self, aiw_path: Path, track_name: str) -> Optional[Path]:
-        """Create original backup only if not already created"""
-        return self.create_original_backup(aiw_path, track_name)
 
-    def update_ratio(self, aiw_path: Path, ratio_type: str, new_value: float, 
-                     track_name: str, create_backup: bool = True) -> bool:
-        """Update a single ratio in the AIW file with detailed debugging"""
+    def update_ratio(
+        self,
+        aiw_path: Path,
+        ratio_type: str,
+        new_value: float,
+        track_name: str = "",
+        create_backup: bool = True,
+    ) -> bool:
+        """
+        Update a ratio value in an AIW file.
+        Logs the change (old value → new value, success flag) to SQLite.
+        """
+        logger.info("=" * 60)
+        logger.info(f"UPDATE_RATIO: {ratio_type} = {new_value:.6f}")
+        logger.info(f"  File: {aiw_path}")
+        logger.info(f"  Track: {track_name}")
+
+        # Read old value for history log
+        old_qual, old_race = self.read_ratios(aiw_path)
+        old_value = old_qual if ratio_type.lower() == 'qualratio' else old_race
+
+        success = False
         try:
-            logger.info("=" * 60)
-            logger.info(f"UPDATE_RATIO: Starting update")
-            logger.info(f"  File: {aiw_path}")
-            logger.info(f"  Ratio type: {ratio_type}")
-            logger.info(f"  New value: {new_value:.6f}")
-            logger.info(f"  Track: {track_name}")
-            
-            # Check if file exists and is readable
             if not aiw_path.exists():
                 logger.error(f"  File does not exist: {aiw_path}")
                 return False
-            
-            # Get file size and permissions
+
             try:
                 file_stat = aiw_path.stat()
                 logger.info(f"  File size: {file_stat.st_size} bytes")
                 logger.info(f"  File permissions: {oct(file_stat.st_mode)}")
             except Exception as e:
                 logger.error(f"  Cannot stat file: {e}")
-            
-            # Create backup if requested
+
             if create_backup:
                 logger.info(f"  Creating backup...")
                 original_backup = self.create_backup_before_modification(aiw_path, track_name)
@@ -254,92 +265,70 @@ class AIWManager:
                     logger.info(f"  Backup created: {original_backup}")
                 else:
                     logger.warning(f"  Backup creation failed or skipped")
-            
-            # Read the file
+
             logger.info(f"  Reading file...")
             with open(aiw_path, 'rb') as f:
                 raw_content = f.read()
-            
+
             logger.info(f"  Read {len(raw_content)} bytes")
-            
-            # Decode content (remove null bytes)
             content = raw_content.replace(b'\x00', b'').decode('utf-8', errors='ignore')
             logger.info(f"  Decoded content length: {len(content)} chars")
-            
-            # Show first 500 chars for debugging
-            logger.debug(f"  Content preview: {content[:500]}...")
-            
-            # Search for the pattern
+
             pattern = rf'({ratio_type}\s*=\s*\(?)\s*[0-9.eE+-]+\s*(\)?)'
             logger.info(f"  Searching for pattern: {pattern}")
-            
-            # Check if pattern exists before replacement
+
             match_found = re.search(pattern, content, flags=re.IGNORECASE)
             if match_found:
-                old_value_str = match_found.group(0)
-                logger.info(f"  Found match: {old_value_str}")
+                logger.info(f"  Found match: {match_found.group(0)}")
             else:
                 logger.warning(f"  Pattern NOT found for {ratio_type}")
-                logger.info(f"  Searching for any {ratio_type} occurrences...")
-                # Show all lines containing the ratio type
                 lines = content.split('\n')
                 for i, line in enumerate(lines):
                     if ratio_type.lower() in line.lower():
                         logger.info(f"    Line {i}: {line.strip()}")
                 return False
-            
-            # Perform replacement
+
             def replacer(m):
                 new_text = f"{m.group(1)}{new_value:.6f}{m.group(2)}"
                 logger.debug(f"  Replacing: '{m.group(0)}' -> '{new_text}'")
                 return new_text
-            
+
             new_content = re.sub(pattern, replacer, content, flags=re.IGNORECASE)
-            
-            # Check if content actually changed
+
             if new_content != content:
-                logger.info(f"  Content changed (diff length: {len(new_content)} vs {len(content)})")
-                
-                # Show the specific change
+                logger.info(f"  Content changed")
+
                 import difflib
                 diff = list(difflib.unified_diff(
                     content.splitlines(keepends=True),
                     new_content.splitlines(keepends=True),
                     fromfile='original',
                     tofile='modified',
-                    n=3
+                    n=3,
                 ))
-                for line in diff[:20]:  # Show first 20 lines of diff
+                for line in diff[:20]:
                     logger.debug(f"    {line.rstrip()}")
-                
-                # Write back to file
+
                 logger.info(f"  Writing to file...")
                 try:
-                    # Write as bytes
                     output_bytes = new_content.encode('utf-8', errors='ignore')
                     logger.info(f"  Writing {len(output_bytes)} bytes")
-                    
+
                     with open(aiw_path, 'wb') as f:
                         f.write(output_bytes)
-                        f.flush()  # Force flush to disk
-                        os.fsync(f.fileno())  # Force OS to write
-                    
+                        f.flush()
+                        os.fsync(f.fileno())
+
                     logger.info(f"  File written successfully")
-                    
-                    # Verify the write
-                    logger.info(f"  Verifying write...")
+
+                    # Verify
                     with open(aiw_path, 'rb') as f:
                         verify_raw = f.read()
                     verify_content = verify_raw.replace(b'\x00', b'').decode('utf-8', errors='ignore')
-                    
-                    # Check if our change is still there
+
                     verify_match = re.search(pattern, verify_content, flags=re.IGNORECASE)
                     if verify_match:
-                        verify_value = verify_match.group(0)
-                        logger.info(f"  Verification: Found {verify_value}")
-                        
-                        # Extract the actual numeric value
-                        num_match = re.search(r'[\d.]+', verify_value)
+                        num_match = re.search(r'[\d.]+', verify_match.group(0))
                         if num_match:
                             actual_value = float(num_match.group())
                             if abs(actual_value - new_value) < 0.0001:
@@ -348,28 +337,62 @@ class AIWManager:
                                 logger.error(f"  ✗ Value mismatch: expected {new_value:.6f}, got {actual_value:.6f}")
                     else:
                         logger.error(f"  ✗ Pattern not found after write!")
-                    
-                    # Clear cache for this file
+
+                    # Clear ratio cache for this file
                     cache_key = str(aiw_path)
                     if cache_key in self._aiw_ratio_cache:
                         del self._aiw_ratio_cache[cache_key]
-                        logger.info(f"  Cleared cache for {cache_key}")
-                    
+                        logger.info(f"  Cleared ratio cache for {cache_key}")
+
                     logger.info(f"  ✓ UPDATE_RATIO: SUCCESS for {ratio_type}")
                     logger.info("=" * 60)
+                    success = True
                     return True
-                    
+
                 except Exception as e:
                     logger.error(f"  Error writing file: {e}", exc_info=True)
                     return False
             else:
                 logger.warning(f"  Content did not change after replacement attempt")
-                logger.warning(f"  Pattern may not match correctly")
                 return False
-                    
+
         except Exception as e:
             logger.error(f"Error updating ratio in {aiw_path}: {e}", exc_info=True)
             return False
+
+        finally:
+            # ── Log to SQLite regardless of outcome ───────────────────────
+            if self.db is not None:
+                try:
+                    self.db.log_ratio_update(
+                        track_name=track_name,
+                        aiw_path=str(aiw_path),
+                        ratio_type=ratio_type,
+                        old_value=old_value,
+                        new_value=new_value,
+                        success=success,
+                    )
+                except Exception as db_err:
+                    logger.error(f"DB ratio log failed (non-fatal): {db_err}")
+
+    def create_backup_before_modification(self, aiw_path: Path, track_name: str) -> Optional[Path]:
+        """Create a backup of the AIW file before modifying it"""
+        try:
+            original_backup = self.backup_dir / f"{track_name}_ORIGINAL{aiw_path.suffix}"
+            
+            if original_backup.exists():
+                logger.info(f"Original backup already exists: {original_backup}")
+                self.backup_created_for_track.add(track_name)
+                return original_backup
+            
+            shutil.copy2(aiw_path, original_backup)
+            self.backup_created_for_track.add(track_name)
+            logger.info(f"Created original backup: {original_backup}")
+            return original_backup
+            
+        except Exception as e:
+            logger.error(f"Error creating backup: {e}")
+            return None
 
     def restore_original(self, aiw_path: Path, track_name: str) -> bool:
         """Restore the original AIW file"""
@@ -381,7 +404,6 @@ class AIWManager:
             
             shutil.copy2(original_backup, aiw_path)
             
-            # Clear cache for this file
             cache_key = str(aiw_path)
             if cache_key in self._aiw_ratio_cache:
                 del self._aiw_ratio_cache[cache_key]
@@ -394,24 +416,17 @@ class AIWManager:
             return False
     
     def get_original_backup(self, aiw_path: Path) -> Optional[Path]:
-        """Get the path to the original backup file"""
         track_name = aiw_path.stem
         original_backup = self.backup_dir / f"{track_name}_ORIGINAL{aiw_path.suffix}"
-        
-        if original_backup.exists():
-            return original_backup
-        return None
+        return original_backup if original_backup.exists() else None
     
     def get_backup_info(self, aiw_path: Path, track_name: str) -> dict:
-        """Get information about backups"""
         original = self.get_original_backup(aiw_path)
-        
         return {
             'original_exists': original is not None,
             'original_path': str(original) if original else None,
-            'backup_created': track_name in self.backup_created_for_track
+            'backup_created': track_name in self.backup_created_for_track,
         }
     
     def has_original_backup(self, aiw_path: Path, track_name: str) -> bool:
-        """Check if original backup exists"""
         return track_name in self.backup_created_for_track or self.get_original_backup(aiw_path) is not None
