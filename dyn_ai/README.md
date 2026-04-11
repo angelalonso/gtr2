@@ -94,3 +94,9 @@ To help the calculations, make sure you enter the "Global Curve Editor" and unde
 - We should also keep the formulas or the historic, there is some duplicated data there.
 - On those formulas: we should probably make better use of them. Have a working curve for Monza on a car? reuse it for a different car consciously, adapt only if it doesn'T work.
 
+## TODO NEXT
+- Simplify code A LOT
+- Focus program on an approximation: what ratios do we need for a given Laptime?
+  - Store formula
+      - make curve "go through" a known point (ratio and laptime)
+      - then calculate ratio for the desired laptime
