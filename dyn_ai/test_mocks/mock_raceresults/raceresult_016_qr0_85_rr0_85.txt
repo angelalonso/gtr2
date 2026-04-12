@@ -2,7 +2,7 @@
 [Header]
 Game=GTR2
 Version=1.100
-TimeString=2026/03/13 16:19:56
+TimeString=2026/03/13 17:06:09
 Aids=0,0,0,0,0,1,1,0,0
 
 [Race]
@@ -20,7 +20,7 @@ Team=Ajira Racing
 Penalty=0
 Laps=8
 LapDistanceTravelled=5722.570801
-BestLap=1:55.364
+BestLap=1:58.159
 RaceTime=0:17:06.061
 
 [Slot001]
@@ -29,10 +29,10 @@ Vehicle=Gallardo
 VehicleNumber=6002
 Team=Team RaceSim Central
 Penalty=0
-QualTime=1:41.733
+QualTime=1:52.300
 Laps=8
 LapDistanceTravelled=5714.660645
-BestLap=1:46.181
+BestLap=1:52.700
 RaceTime=0:15:54.100
 
 [Slot002]
@@ -41,10 +41,10 @@ Vehicle=Ferrari 458
 VehicleNumber=6001
 Team=Team RaceSim Central
 Penalty=0
-QualTime=1:43.533
+QualTime=1:54.500
 Laps=8
 LapDistanceTravelled=5703.221680
-BestLap=1:47.881
+BestLap=1:54.900
 RaceTime=0:15:40.165
 
 [Slot003]
@@ -53,10 +53,10 @@ Vehicle=BMW M3
 VehicleNumber=6009
 Team=Roaring Pipes Maniacs
 Penalty=0
-QualTime=1:45.333
+QualTime=1:56.500
 Laps=8
 LapDistanceTravelled=5695.196289
-BestLap=1:49.681
+BestLap=1:56.900
 RaceTime=0:16:15.417
 
 [Slot004]
@@ -65,10 +65,10 @@ Vehicle=Mercedes GT
 VehicleNumber=6007
 Team=Team Redline
 Penalty=0
-QualTime=1:46.833
+QualTime=1:58.200
 Laps=8
 LapDistanceTravelled=5687.183594
-BestLap=1:51.281
+BestLap=1:58.600
 RaceTime=0:16:10.146
 
 [Slot005]
@@ -77,10 +77,10 @@ Vehicle=Mclaren
 VehicleNumber=6006
 Team=Ajira Racing
 Penalty=0
-QualTime=1:48.233
+QualTime=1:59.800
 Laps=8
 LapDistanceTravelled=5682.786133
-BestLap=1:52.781
+BestLap=2:00.200
 RaceTime=0:15:33.000
 
 [Slot006]
@@ -89,10 +89,10 @@ Vehicle=Aston Martin
 VehicleNumber=6010
 Team=Roaring Pipes Maniacs
 Penalty=0
-QualTime=1:49.733
+QualTime=2:01.400
 Laps=8
 LapDistanceTravelled=5674.729004
-BestLap=1:54.481
+BestLap=2:01.800
 RaceTime=0:17:21.661
 
 [END]

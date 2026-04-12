@@ -10,10 +10,9 @@ import threading
 from pathlib import Path
 from typing import List, Tuple, Optional
 
-import numpy as np
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QHBoxLayout, QSplitter,
-    QMessageBox, QLabel, QTextEdit, QPushButton, QVBoxLayout
+    QLabel, QTextEdit, QPushButton, QVBoxLayout
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QObject, QTimer
 
@@ -23,7 +22,7 @@ from formula_funcs import (
     calculate_derived_values, get_formula_string
 )
 from gui_funcs import (
-    create_control_panel, create_plot_widget, 
+    create_control_panel, create_plot_widget, update_plot, reset_plot_view,
     setup_dark_theme, show_error_dialog, show_info_dialog, show_warning_dialog
 )
 from cfg_funcs import (
@@ -318,15 +317,13 @@ class SimpleCurveViewer(QMainWindow):
         controls['select_all_vehicles'].clicked.connect(lambda: self.vehicle_list.selectAll())
         controls['clear_vehicles'].clicked.connect(lambda: self.vehicle_list.clearSelection())
         
-        # Create plot widget
-        plot = create_plot_widget(self)
-        self.plot_ax = plot['ax']
-        self.plot_canvas = plot['canvas']
+        # Create plot widget using pyqtgraph
+        self.plot_data = create_plot_widget(self)
         
         # Splitter
         splitter = QSplitter(Qt.Horizontal)
         splitter.addWidget(controls['panel'])
-        splitter.addWidget(plot['widget'])
+        splitter.addWidget(self.plot_data['widget'])
         splitter.setSizes([340, 860])
         main_layout.addWidget(splitter)
         
@@ -466,18 +463,30 @@ class SimpleCurveViewer(QMainWindow):
         print(f"  Tracks: {stats['total_tracks']}")
         print(f"  Vehicles: {stats['total_vehicles']}")
     
-    def get_selected_data(self) -> List[Tuple[float, float, str]]:
+    def get_selected_data(self) -> dict:
         """Get all data points from selected tracks and vehicles, filtered by type"""
         selected_tracks = [item.text() for item in self.track_list.selectedItems()]
         selected_vehicles = [item.text() for item in self.vehicle_list.selectedItems()]
         
-        return self.db.get_data_points(
+        points = self.db.get_data_points(
             selected_tracks, 
             selected_vehicles,
             self.show_qualifying,
             self.show_race,
             self.show_unknown
         )
+        
+        # Organize by type
+        result = {'quali': [], 'race': [], 'unknown': []}
+        for ratio, lap_time, session_type in points:
+            if session_type == 'qual':
+                result['quali'].append((ratio, lap_time))
+            elif session_type == 'race':
+                result['race'].append((ratio, lap_time))
+            else:
+                result['unknown'].append((ratio, lap_time))
+        
+        return result
     
     def on_selection_changed(self):
         """Handle selection changes"""
@@ -505,16 +514,17 @@ class SimpleCurveViewer(QMainWindow):
     
     def auto_fit(self):
         """Fit hyperbolic curve to selected data points"""
-        points = self.get_selected_data()
+        points_data = self.get_selected_data()
+        all_points = points_data['quali'] + points_data['race'] + points_data['unknown']
         
-        if len(points) < 2:
+        if len(all_points) < 2:
             show_warning_dialog(self, "Insufficient Data", 
-                               f"Need at least 2 data points to fit.\nCurrently have {len(points)} selected.\n\n"
+                               f"Need at least 2 data points to fit.\nCurrently have {len(all_points)} selected.\n\n"
                                f"Select more tracks/vehicles or add more data points.")
             return
         
-        ratios = [p[0] for p in points]
-        times = [p[1] for p in points]
+        ratios = [p[0] for p in all_points]
+        times = [p[1] for p in all_points]
         
         a, b, avg_error, max_error = fit_curve(ratios, times)
         
@@ -524,7 +534,7 @@ class SimpleCurveViewer(QMainWindow):
             
             show_info_dialog(self, "Fit Complete",
                            f"Fitted curve: {get_formula_string(a, b)}\n"
-                           f"Data points used: {len(points)}\n"
+                           f"Data points used: {len(all_points)}\n"
                            f"Average error: {avg_error:.3f} seconds\n"
                            f"Max error: {max_error:.3f} seconds")
         else:
@@ -532,85 +542,20 @@ class SimpleCurveViewer(QMainWindow):
     
     def update_display(self):
         """Update the plot"""
-        ax = self.plot_ax
-        ax.clear()
-        
-        # Restyle
-        ax.set_facecolor('#2b2b2b')
-        for spine in ax.spines.values():
-            spine.set_color('#4CAF50')
-        ax.tick_params(colors='white')
-        ax.xaxis.label.set_color('white')
-        ax.yaxis.label.set_color('white')
-        ax.title.set_color('#FFA500')
-        ax.set_xlabel('Ratio (R)', fontsize=11)
-        ax.set_ylabel('Lap Time (seconds)', fontsize=11)
-        ax.set_title('Hyperbolic Curve: T = a / R + b', fontsize=12)
-        ax.grid(True, alpha=0.3)
-        ax.set_xlim(0.4, 2.0)
-        ax.set_ylim(50, 200)
-        
-        # Plot curve
-        ratios, times = get_curve_points(self.current_a, self.current_b, r_min=0.4)
-        ax.plot(ratios, times, '#00FFFF', linewidth=2.5, 
-                label=get_formula_string(self.current_a, self.current_b))
-        
-        # Get selected data
-        points = self.get_selected_data()
-        
-        if points:
-            quali_points = [(r, t) for r, t, st in points if st == 'qual']
-            race_points = [(r, t) for r, t, st in points if st == 'race']
-            unknown_points = [(r, t) for r, t, st in points if st == 'unknown']
-            
-            point_size = 9  # 3 pixels diameter
-            
-            # Plot quali points (circles) - Bright Yellow
-            if quali_points:
-                r = [p[0] for p in quali_points]
-                t = [p[1] for p in quali_points]
-                ax.scatter(r, t, c='#FFFF00', s=point_size, alpha=0.9,
-                          edgecolors='none', zorder=3,
-                          marker='o', label=f'Qualifying ({len(quali_points)})')
-            
-            # Plot race points (squares) - Bright Orange
-            if race_points:
-                r = [p[0] for p in race_points]
-                t = [p[1] for p in race_points]
-                ax.scatter(r, t, c='#FF6600', s=point_size, alpha=0.9,
-                          edgecolors='none', zorder=3,
-                          marker='s', label=f'Race ({len(race_points)})')
-            
-            # Plot unknown points (triangles) - Magenta
-            if unknown_points:
-                r = [p[0] for p in unknown_points]
-                t = [p[1] for p in unknown_points]
-                ax.scatter(r, t, c='#FF00FF', s=point_size, alpha=0.9,
-                          edgecolors='none', zorder=3,
-                          marker='^', label=f'Unknown ({len(unknown_points)})')
-            
-            ax.legend(loc='upper right', framealpha=0.8,
-                     facecolor='#2b2b2b', edgecolor='#4CAF50',
-                     labelcolor='white', fontsize=9, markerscale=2)
-        else:
-            ax.legend(loc='upper right', framealpha=0.8,
-                     facecolor='#2b2b2b', edgecolor='#4CAF50',
-                     labelcolor='white', fontsize=9)
-        
-        self.plot_canvas.draw()
+        points_data = self.get_selected_data()
+        update_plot(self.plot_data, self.current_a, self.current_b, points_data)
         
         # Update status bar
         selected_tracks = len(self.track_list.selectedItems())
         selected_vehicles = len(self.vehicle_list.selectedItems())
+        total_points = len(points_data['quali']) + len(points_data['race']) + len(points_data['unknown'])
         self.statusBar().showMessage(
-            f"Tracks: {selected_tracks} | Vehicles: {selected_vehicles} | Data points: {len(points)}"
+            f"Tracks: {selected_tracks} | Vehicles: {selected_vehicles} | Data points: {total_points}"
         )
     
     def reset_view(self):
         """Reset the plot to default view"""
-        self.plot_ax.set_xlim(0.4, 2.0)
-        self.plot_ax.set_ylim(50, 200)
-        self.plot_canvas.draw()
+        reset_plot_view(self.plot_data)
     
     def closeEvent(self, event):
         """Handle close event - stop daemon"""

@@ -121,14 +121,80 @@ class LiveAITunerTestHarness:
     # ------------------------------------------------------------------
 
     def _parse_filename_for_ratios(self, filename: str) -> Optional[Dict]:
-        """Parse qualratio and raceratio from filename like raceresult_1_qr0.98_rr0.97.txt"""
-        pattern = r'raceresult_\d+_qr([\d.]+)_rr([\d.]+)\.txt'
+        """
+        Parse qualratio and raceratio from filename like raceresult_1_qr0_98_rr0_97.txt
+        Handles both underscore and dot as decimal separators.
+        """
+        # Debug: print the filename being parsed
+        logger.debug(f"Parsing filename: {filename}")
+        
+        # Method 1: Simple string splitting approach
+        # Find the qr and rr parts
+        if 'qr' in filename and 'rr' in filename:
+            try:
+                # Get everything after 'qr' and before '_rr'
+                qr_part = filename.split('qr')[1].split('_rr')[0]
+                # Get everything after 'rr' and before '.txt'
+                rr_part = filename.split('rr')[1].split('.txt')[0]
+                
+                # Remove any trailing underscores or dots
+                qr_part = qr_part.rstrip('_.')
+                rr_part = rr_part.rstrip('_.')
+                
+                # Replace underscore with dot for decimal
+                qr_part = qr_part.replace('_', '.')
+                rr_part = rr_part.replace('_', '.')
+                
+                qual_ratio = float(qr_part)
+                race_ratio = float(rr_part)
+                
+                logger.info(f"  ✓ Parsed ratios: QR={qual_ratio}, RR={race_ratio}")
+                return {
+                    "qual_ratio": qual_ratio,
+                    "race_ratio": race_ratio
+                }
+            except (IndexError, ValueError) as e:
+                logger.debug(f"  String splitting failed: {e}")
+        
+        # Method 2: More robust regex approach
+        # This pattern handles both underscore and dot decimal separators
+        pattern = r'qr([\d_]+?)_rr([\d_]+?)\.txt'
         match = re.search(pattern, filename)
         if match:
-            return {
-                "qual_ratio": float(match.group(1)),
-                "race_ratio": float(match.group(2))
-            }
+            try:
+                qual_str = match.group(1).replace('_', '.')
+                race_str = match.group(2).replace('_', '.')
+                
+                # Remove any trailing dots
+                qual_str = qual_str.rstrip('.')
+                race_str = race_str.rstrip('.')
+                
+                qual_ratio = float(qual_str)
+                race_ratio = float(race_str)
+                logger.info(f"  ✓ Parsed ratios (regex): QR={qual_ratio}, RR={race_ratio}")
+                return {
+                    "qual_ratio": qual_ratio,
+                    "race_ratio": race_ratio
+                }
+            except ValueError as e:
+                logger.debug(f"  Regex parsing failed: {e}")
+        
+        # Method 3: Alternative pattern for dots
+        pattern_dot = r'qr([\d.]+?)_rr([\d.]+?)\.txt'
+        match = re.search(pattern_dot, filename)
+        if match:
+            try:
+                qual_ratio = float(match.group(1))
+                race_ratio = float(match.group(2))
+                logger.info(f"  ✓ Parsed ratios (dot pattern): QR={qual_ratio}, RR={race_ratio}")
+                return {
+                    "qual_ratio": qual_ratio,
+                    "race_ratio": race_ratio
+                }
+            except ValueError as e:
+                logger.debug(f"  Dot pattern parsing failed: {e}")
+        
+        logger.warning(f"  ✗ Could not parse ratios from filename: {filename}")
         return None
 
     def _parse_track_from_result_file(self, filepath: Path) -> Dict:
@@ -862,8 +928,8 @@ class LiveAITunerTestHarness:
             return False
 
         try:
-            logger.info("\nWaiting 10 seconds for application to fully initialize...")
-            time.sleep(10)
+            logger.info("\nWaiting 2 seconds for application to fully initialize...")
+            time.sleep(2)
 
             logger.info("\nMaking ONE change to raceresults.txt (with AIW patched)...")
             self.simulate_race_with_file(test_file, wait_before=0)

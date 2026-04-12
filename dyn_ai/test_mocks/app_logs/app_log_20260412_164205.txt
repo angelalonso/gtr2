@@ -1,0 +1,527 @@
+=== Live AI Tuner Log - 2026-04-12T16:42:05.587334 ===
+Command: /home/aaf/.local/share/virtualenvs/dyn_ai-zw_yYVg2/bin/python3 -u /home/aaf/Software/Dev/gtr2/dyn_ai/dyn_ai.py --config /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/cfg_test.yml
+PID: 9538
+================================================================================
+
+[2026-04-12 16:42:06.229] [STDOUT] Loaded 172 points, 10 races from database
+[2026-04-12 16:42:06.229] [STDOUT]   Tracks: 11
+[2026-04-12 16:42:06.229] [STDOUT]   Vehicles: 5
+[2026-04-12 16:42:06.232] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:42:06.252] [STDOUT] Started monitoring: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/UserData/Log/Results/raceresults.txt
+[2026-04-12 16:42:06.253] [STDOUT] Poll interval: 5.0 seconds
+[2026-04-12 16:42:06.253] [STDOUT] Daemon started silently - monitoring: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/UserData/Log/Results/raceresults.txt
+[2026-04-12 16:42:21.306] [STDOUT] 
+[2026-04-12 16:42:21.306] [STDOUT] ============================================================
+[2026-04-12 16:42:21.307] [STDOUT] [2026-04-12 16:42:21] SAVING RACE DATA TO DATABASE
+[2026-04-12 16:42:21.307] [STDOUT] ============================================================
+[2026-04-12 16:42:21.307] [STDOUT]   Debug: Saving race session with data:
+[2026-04-12 16:42:21.307] [STDOUT]     race_id: 20260412_164221_255298
+[2026-04-12 16:42:21.307] [STDOUT]     timestamp: 2026-04-12T16:42:21.255271
+[2026-04-12 16:42:21.307] [STDOUT]     track_name: Testtrack
+[2026-04-12 16:42:21.307] [STDOUT]     ai_results count: 6
+[2026-04-12 16:42:21.308] [STDOUT]     ✓ Race session inserted
+[2026-04-12 16:42:21.309] [STDOUT]     ✓ Inserted 6 AI results
+[2026-04-12 16:42:21.329] [STDOUT]   ✓ Race session committed to database
+[2026-04-12 16:42:21.329] [STDOUT] ✓ Race session saved with ID: 20260412_164221_255298
+[2026-04-12 16:42:21.343] [STDOUT]   ✓ Added qual point: Testtrack R=1.0200 T=111.883s
+[2026-04-12 16:42:21.356] [STDOUT]   ✓ Added race point: Testtrack R=1.0500 T=110.231s
+[2026-04-12 16:42:21.367] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:42:21.372] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:42:21.379] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:42:21.390] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:42:21.397] [STDOUT] Loaded 174 points, 11 races from database
+[2026-04-12 16:42:21.397] [STDOUT]   Tracks: 12
+[2026-04-12 16:42:21.398] [STDOUT]   Vehicles: 5
+[2026-04-12 16:42:21.401] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:42:21.410] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:42:21.418] [STDOUT] ✓ Auto-selected track: Testtrack
+[2026-04-12 16:42:21.421] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:42:21.861] [STDOUT] 
+[2026-04-12 16:42:21.861] [STDOUT] ✓ Graph updated with new data points
+[2026-04-12 16:42:36.353] [STDOUT] 
+[2026-04-12 16:42:36.353] [STDOUT] ============================================================
+[2026-04-12 16:42:36.353] [STDOUT] [2026-04-12 16:42:36] SAVING RACE DATA TO DATABASE
+[2026-04-12 16:42:36.353] [STDOUT] ============================================================
+[2026-04-12 16:42:36.353] [STDOUT]   Debug: Saving race session with data:
+[2026-04-12 16:42:36.353] [STDOUT]     race_id: 20260412_164236_308754
+[2026-04-12 16:42:36.354] [STDOUT]     timestamp: 2026-04-12T16:42:36.308728
+[2026-04-12 16:42:36.354] [STDOUT]     track_name: Testtrack
+[2026-04-12 16:42:36.354] [STDOUT]     ai_results count: 6
+[2026-04-12 16:42:36.354] [STDOUT]     ✓ Race session inserted
+[2026-04-12 16:42:36.355] [STDOUT]     ✓ Inserted 6 AI results
+[2026-04-12 16:42:36.375] [STDOUT]   ✓ Race session committed to database
+[2026-04-12 16:42:36.376] [STDOUT] ✓ Race session saved with ID: 20260412_164236_308754
+[2026-04-12 16:42:36.389] [STDOUT]   ✓ Added qual point: Testtrack R=1.5000 T=101.217s
+[2026-04-12 16:42:36.402] [STDOUT]   ✓ Added race point: Testtrack R=1.0500 T=111.431s
+[2026-04-12 16:42:36.408] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:42:36.412] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:42:36.416] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:42:36.426] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:42:36.433] [STDOUT] Loaded 176 points, 12 races from database
+[2026-04-12 16:42:36.433] [STDOUT]   Tracks: 12
+[2026-04-12 16:42:36.433] [STDOUT]   Vehicles: 5
+[2026-04-12 16:42:36.437] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:42:36.446] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:42:36.454] [STDOUT] ✓ Auto-selected track: Testtrack
+[2026-04-12 16:42:36.457] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:42:36.470] [STDOUT] 
+[2026-04-12 16:42:36.470] [STDOUT] ✓ Graph updated with new data points
+[2026-04-12 16:42:51.398] [STDOUT] 
+[2026-04-12 16:42:51.398] [STDOUT] ============================================================
+[2026-04-12 16:42:51.398] [STDOUT] [2026-04-12 16:42:51] SAVING RACE DATA TO DATABASE
+[2026-04-12 16:42:51.399] [STDOUT] ============================================================
+[2026-04-12 16:42:51.399] [STDOUT]   Debug: Saving race session with data:
+[2026-04-12 16:42:51.399] [STDOUT]     race_id: 20260412_164251_355580
+[2026-04-12 16:42:51.399] [STDOUT]     timestamp: 2026-04-12T16:42:51.355555
+[2026-04-12 16:42:51.399] [STDOUT]     track_name: Testtrack
+[2026-04-12 16:42:51.399] [STDOUT]     ai_results count: 6
+[2026-04-12 16:42:51.400] [STDOUT]     ✓ Race session inserted
+[2026-04-12 16:42:51.400] [STDOUT]     ✓ Inserted 6 AI results
+[2026-04-12 16:42:51.421] [STDOUT]   ✓ Race session committed to database
+[2026-04-12 16:42:51.421] [STDOUT] ✓ Race session saved with ID: 20260412_164251_355580
+[2026-04-12 16:42:51.435] [STDOUT]   ✓ Added qual point: Testtrack R=0.5000 T=145.800s
+[2026-04-12 16:42:51.448] [STDOUT]   ✓ Added race point: Testtrack R=1.0500 T=111.281s
+[2026-04-12 16:42:51.460] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:42:51.466] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:42:51.473] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:42:51.487] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:42:51.496] [STDOUT] Loaded 178 points, 13 races from database
+[2026-04-12 16:42:51.496] [STDOUT]   Tracks: 12
+[2026-04-12 16:42:51.496] [STDOUT]   Vehicles: 5
+[2026-04-12 16:42:51.503] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:42:51.515] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:42:51.523] [STDOUT] ✓ Auto-selected track: Testtrack
+[2026-04-12 16:42:51.526] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:42:51.542] [STDOUT] 
+[2026-04-12 16:42:51.542] [STDOUT] ✓ Graph updated with new data points
+[2026-04-12 16:43:06.449] [STDOUT] 
+[2026-04-12 16:43:06.449] [STDOUT] ============================================================
+[2026-04-12 16:43:06.449] [STDOUT] [2026-04-12 16:43:06] SAVING RACE DATA TO DATABASE
+[2026-04-12 16:43:06.449] [STDOUT] ============================================================
+[2026-04-12 16:43:06.449] [STDOUT]   Debug: Saving race session with data:
+[2026-04-12 16:43:06.449] [STDOUT]     race_id: 20260412_164306_400613
+[2026-04-12 16:43:06.449] [STDOUT]     timestamp: 2026-04-12T16:43:06.400587
+[2026-04-12 16:43:06.449] [STDOUT]     track_name: Testtrack
+[2026-04-12 16:43:06.449] [STDOUT]     ai_results count: 6
+[2026-04-12 16:43:06.450] [STDOUT]     ✓ Race session inserted
+[2026-04-12 16:43:06.451] [STDOUT]     ✓ Inserted 6 AI results
+[2026-04-12 16:43:06.471] [STDOUT]   ✓ Race session committed to database
+[2026-04-12 16:43:06.471] [STDOUT] ✓ Race session saved with ID: 20260412_164306_400613
+[2026-04-12 16:43:06.485] [STDOUT]   ✓ Added qual point: Testtrack R=1.0000 T=112.850s
+[2026-04-12 16:43:06.498] [STDOUT]   ✓ Added race point: Testtrack R=1.0500 T=111.481s
+[2026-04-12 16:43:06.506] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:06.511] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:06.516] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:06.526] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:06.535] [STDOUT] Loaded 180 points, 14 races from database
+[2026-04-12 16:43:06.535] [STDOUT]   Tracks: 12
+[2026-04-12 16:43:06.535] [STDOUT]   Vehicles: 5
+[2026-04-12 16:43:06.541] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:06.550] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:06.560] [STDOUT] ✓ Auto-selected track: Testtrack
+[2026-04-12 16:43:06.563] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:06.594] [STDOUT] 
+[2026-04-12 16:43:06.594] [STDOUT] ✓ Graph updated with new data points
+[2026-04-12 16:43:21.496] [STDOUT] 
+[2026-04-12 16:43:21.496] [STDOUT] ============================================================
+[2026-04-12 16:43:21.496] [STDOUT] [2026-04-12 16:43:21] SAVING RACE DATA TO DATABASE
+[2026-04-12 16:43:21.497] [STDOUT] ============================================================
+[2026-04-12 16:43:21.497] [STDOUT]   Debug: Saving race session with data:
+[2026-04-12 16:43:21.497] [STDOUT]     race_id: 20260412_164321_451178
+[2026-04-12 16:43:21.497] [STDOUT]     timestamp: 2026-04-12T16:43:21.451153
+[2026-04-12 16:43:21.497] [STDOUT]     track_name: Testtrack
+[2026-04-12 16:43:21.497] [STDOUT]     ai_results count: 6
+[2026-04-12 16:43:21.498] [STDOUT]     ✓ Race session inserted
+[2026-04-12 16:43:21.498] [STDOUT]     ✓ Inserted 6 AI results
+[2026-04-12 16:43:21.519] [STDOUT]   ✓ Race session committed to database
+[2026-04-12 16:43:21.519] [STDOUT] ✓ Race session saved with ID: 20260412_164321_451178
+[2026-04-12 16:43:21.532] [STDOUT]   ✓ Added qual point: Testtrack R=1.0000 T=111.650s
+[2026-04-12 16:43:21.546] [STDOUT]   ✓ Added race point: Testtrack R=1.0500 T=110.931s
+[2026-04-12 16:43:21.554] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:21.559] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:21.563] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:21.574] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:21.583] [STDOUT] Loaded 182 points, 15 races from database
+[2026-04-12 16:43:21.584] [STDOUT]   Tracks: 12
+[2026-04-12 16:43:21.584] [STDOUT]   Vehicles: 5
+[2026-04-12 16:43:21.589] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:21.598] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:21.608] [STDOUT] ✓ Auto-selected track: Testtrack
+[2026-04-12 16:43:21.611] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:21.626] [STDOUT] 
+[2026-04-12 16:43:21.626] [STDOUT] ✓ Graph updated with new data points
+[2026-04-12 16:43:25.123] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:27.759] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:27.761] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:31.549] [STDOUT] 
+[2026-04-12 16:43:31.549] [STDOUT] ============================================================
+[2026-04-12 16:43:31.549] [STDOUT] [2026-04-12 16:43:31] SAVING RACE DATA TO DATABASE
+[2026-04-12 16:43:31.549] [STDOUT] ============================================================
+[2026-04-12 16:43:31.549] [STDOUT]   Debug: Saving race session with data:
+[2026-04-12 16:43:31.549] [STDOUT]     race_id: 20260412_164331_498277
+[2026-04-12 16:43:31.549] [STDOUT]     timestamp: 2026-04-12T16:43:31.498251
+[2026-04-12 16:43:31.549] [STDOUT]     track_name: Testtrack
+[2026-04-12 16:43:31.549] [STDOUT]     ai_results count: 6
+[2026-04-12 16:43:31.550] [STDOUT]     ✓ Race session inserted
+[2026-04-12 16:43:31.551] [STDOUT]     ✓ Inserted 6 AI results
+[2026-04-12 16:43:31.571] [STDOUT]   ✓ Race session committed to database
+[2026-04-12 16:43:31.572] [STDOUT] ✓ Race session saved with ID: 20260412_164331_498277
+[2026-04-12 16:43:31.585] [STDOUT]   ✓ Added qual point: Testtrack R=0.5000 T=146.200s
+[2026-04-12 16:43:31.599] [STDOUT]   ✓ Added race point: Testtrack R=1.0500 T=111.881s
+[2026-04-12 16:43:31.606] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:31.610] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:31.616] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:31.631] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:31.639] [STDOUT] Loaded 184 points, 16 races from database
+[2026-04-12 16:43:31.639] [STDOUT]   Tracks: 12
+[2026-04-12 16:43:31.639] [STDOUT]   Vehicles: 5
+[2026-04-12 16:43:31.643] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:31.652] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:31.663] [STDOUT] ✓ Auto-selected track: Testtrack
+[2026-04-12 16:43:31.665] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:31.679] [STDOUT] 
+[2026-04-12 16:43:31.679] [STDOUT] ✓ Graph updated with new data points
+[2026-04-12 16:43:46.592] [STDOUT] 
+[2026-04-12 16:43:46.592] [STDOUT] ============================================================
+[2026-04-12 16:43:46.592] [STDOUT] [2026-04-12 16:43:46] SAVING RACE DATA TO DATABASE
+[2026-04-12 16:43:46.592] [STDOUT] ============================================================
+[2026-04-12 16:43:46.592] [STDOUT]   Debug: Saving race session with data:
+[2026-04-12 16:43:46.592] [STDOUT]     race_id: 20260412_164346_550893
+[2026-04-12 16:43:46.592] [STDOUT]     timestamp: 2026-04-12T16:43:46.550869
+[2026-04-12 16:43:46.592] [STDOUT]     track_name: Testtrack
+[2026-04-12 16:43:46.593] [STDOUT]     ai_results count: 6
+[2026-04-12 16:43:46.593] [STDOUT]     ✓ Race session inserted
+[2026-04-12 16:43:46.594] [STDOUT]     ✓ Inserted 6 AI results
+[2026-04-12 16:43:46.614] [STDOUT]   ✓ Race session committed to database
+[2026-04-12 16:43:46.614] [STDOUT] ✓ Race session saved with ID: 20260412_164346_550893
+[2026-04-12 16:43:46.628] [STDOUT]   ✓ Added qual point: Testtrack R=0.7500 T=122.633s
+[2026-04-12 16:43:46.641] [STDOUT]   ✓ Added race point: Testtrack R=1.0500 T=110.031s
+[2026-04-12 16:43:46.647] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:46.651] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:46.656] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:46.664] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:46.671] [STDOUT] Loaded 186 points, 17 races from database
+[2026-04-12 16:43:46.671] [STDOUT]   Tracks: 12
+[2026-04-12 16:43:46.672] [STDOUT]   Vehicles: 5
+[2026-04-12 16:43:46.675] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:46.683] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:46.691] [STDOUT] ✓ Auto-selected track: Testtrack
+[2026-04-12 16:43:46.693] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:43:46.716] [STDOUT] 
+[2026-04-12 16:43:46.716] [STDOUT] ✓ Graph updated with new data points
+[2026-04-12 16:43:50.428] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:01.637] [STDOUT] 
+[2026-04-12 16:44:01.637] [STDOUT] ============================================================
+[2026-04-12 16:44:01.637] [STDOUT] [2026-04-12 16:44:01] SAVING RACE DATA TO DATABASE
+[2026-04-12 16:44:01.637] [STDOUT] ============================================================
+[2026-04-12 16:44:01.637] [STDOUT]   Debug: Saving race session with data:
+[2026-04-12 16:44:01.637] [STDOUT]     race_id: 20260412_164401_594354
+[2026-04-12 16:44:01.637] [STDOUT]     timestamp: 2026-04-12T16:44:01.594329
+[2026-04-12 16:44:01.637] [STDOUT]     track_name: Testtrack
+[2026-04-12 16:44:01.637] [STDOUT]     ai_results count: 6
+[2026-04-12 16:44:01.638] [STDOUT]     ✓ Race session inserted
+[2026-04-12 16:44:01.639] [STDOUT]     ✓ Inserted 6 AI results
+[2026-04-12 16:44:01.659] [STDOUT]   ✓ Race session committed to database
+[2026-04-12 16:44:01.659] [STDOUT] ✓ Race session saved with ID: 20260412_164401_594354
+[2026-04-12 16:44:01.673] [STDOUT]   ✓ Added qual point: Testtrack R=0.8000 T=120.750s
+[2026-04-12 16:44:01.686] [STDOUT]   ✓ Added race point: Testtrack R=1.0500 T=111.031s
+[2026-04-12 16:44:01.696] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:01.701] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:01.707] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:01.718] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:01.731] [STDOUT] Loaded 188 points, 18 races from database
+[2026-04-12 16:44:01.731] [STDOUT]   Tracks: 12
+[2026-04-12 16:44:01.731] [STDOUT]   Vehicles: 5
+[2026-04-12 16:44:01.739] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:01.749] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:01.762] [STDOUT] ✓ Auto-selected track: Testtrack
+[2026-04-12 16:44:01.765] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:01.783] [STDOUT] 
+[2026-04-12 16:44:01.783] [STDOUT] ✓ Graph updated with new data points
+[2026-04-12 16:44:16.680] [STDOUT] 
+[2026-04-12 16:44:16.681] [STDOUT] ============================================================
+[2026-04-12 16:44:16.681] [STDOUT] [2026-04-12 16:44:16] SAVING RACE DATA TO DATABASE
+[2026-04-12 16:44:16.681] [STDOUT] ============================================================
+[2026-04-12 16:44:16.681] [STDOUT]   Debug: Saving race session with data:
+[2026-04-12 16:44:16.681] [STDOUT]     race_id: 20260412_164416_638992
+[2026-04-12 16:44:16.681] [STDOUT]     timestamp: 2026-04-12T16:44:16.638967
+[2026-04-12 16:44:16.681] [STDOUT]     track_name: Testtrack
+[2026-04-12 16:44:16.681] [STDOUT]     ai_results count: 6
+[2026-04-12 16:44:16.682] [STDOUT]     ✓ Race session inserted
+[2026-04-12 16:44:16.682] [STDOUT]     ✓ Inserted 6 AI results
+[2026-04-12 16:44:16.702] [STDOUT]   ✓ Race session committed to database
+[2026-04-12 16:44:16.702] [STDOUT] ✓ Race session saved with ID: 20260412_164416_638992
+[2026-04-12 16:44:16.715] [STDOUT]   ✓ Added qual point: Testtrack R=0.9000 T=114.978s
+[2026-04-12 16:44:16.728] [STDOUT]   ✓ Added race point: Testtrack R=1.0500 T=110.081s
+[2026-04-12 16:44:16.738] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:16.743] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:16.748] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:16.759] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:16.773] [STDOUT] Loaded 190 points, 19 races from database
+[2026-04-12 16:44:16.773] [STDOUT]   Tracks: 12
+[2026-04-12 16:44:16.774] [STDOUT]   Vehicles: 5
+[2026-04-12 16:44:16.781] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:16.792] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:16.806] [STDOUT] ✓ Auto-selected track: Testtrack
+[2026-04-12 16:44:16.809] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:16.828] [STDOUT] 
+[2026-04-12 16:44:16.829] [STDOUT] ✓ Graph updated with new data points
+[2026-04-12 16:44:31.724] [STDOUT] 
+[2026-04-12 16:44:31.724] [STDOUT] ============================================================
+[2026-04-12 16:44:31.724] [STDOUT] [2026-04-12 16:44:31] SAVING RACE DATA TO DATABASE
+[2026-04-12 16:44:31.724] [STDOUT] ============================================================
+[2026-04-12 16:44:31.724] [STDOUT]   Debug: Saving race session with data:
+[2026-04-12 16:44:31.724] [STDOUT]     race_id: 20260412_164431_682715
+[2026-04-12 16:44:31.724] [STDOUT]     timestamp: 2026-04-12T16:44:31.682690
+[2026-04-12 16:44:31.724] [STDOUT]     track_name: Testtrack
+[2026-04-12 16:44:31.724] [STDOUT]     ai_results count: 6
+[2026-04-12 16:44:31.725] [STDOUT]     ✓ Race session inserted
+[2026-04-12 16:44:31.725] [STDOUT]     ✓ Inserted 6 AI results
+[2026-04-12 16:44:31.745] [STDOUT]   ✓ Race session committed to database
+[2026-04-12 16:44:31.745] [STDOUT] ✓ Race session saved with ID: 20260412_164431_682715
+[2026-04-12 16:44:31.758] [STDOUT]   ✓ Added qual point: Testtrack R=1.0000 T=112.650s
+[2026-04-12 16:44:31.771] [STDOUT]   ✓ Added race point: Testtrack R=1.0500 T=111.681s
+[2026-04-12 16:44:31.782] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:31.787] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:31.795] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:31.814] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:31.830] [STDOUT] Loaded 192 points, 20 races from database
+[2026-04-12 16:44:31.830] [STDOUT]   Tracks: 12
+[2026-04-12 16:44:31.831] [STDOUT]   Vehicles: 5
+[2026-04-12 16:44:31.844] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:31.859] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:31.873] [STDOUT] ✓ Auto-selected track: Testtrack
+[2026-04-12 16:44:31.876] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:31.896] [STDOUT] 
+[2026-04-12 16:44:31.897] [STDOUT] ✓ Graph updated with new data points
+[2026-04-12 16:44:41.766] [STDOUT] 
+[2026-04-12 16:44:41.766] [STDOUT] ============================================================
+[2026-04-12 16:44:41.767] [STDOUT] [2026-04-12 16:44:41] SAVING RACE DATA TO DATABASE
+[2026-04-12 16:44:41.767] [STDOUT] ============================================================
+[2026-04-12 16:44:41.767] [STDOUT]   Debug: Saving race session with data:
+[2026-04-12 16:44:41.767] [STDOUT]     race_id: 20260412_164441_725011
+[2026-04-12 16:44:41.767] [STDOUT]     timestamp: 2026-04-12T16:44:41.724987
+[2026-04-12 16:44:41.767] [STDOUT]     track_name: Testtrack
+[2026-04-12 16:44:41.767] [STDOUT]     ai_results count: 6
+[2026-04-12 16:44:41.768] [STDOUT]     ✓ Race session inserted
+[2026-04-12 16:44:41.768] [STDOUT]     ✓ Inserted 6 AI results
+[2026-04-12 16:44:41.789] [STDOUT]   ✓ Race session committed to database
+[2026-04-12 16:44:41.789] [STDOUT] ✓ Race session saved with ID: 20260412_164441_725011
+[2026-04-12 16:44:41.802] [STDOUT]   ✓ Added qual point: Testtrack R=1.1000 T=109.159s
+[2026-04-12 16:44:41.815] [STDOUT]   ✓ Added race point: Testtrack R=1.0500 T=111.631s
+[2026-04-12 16:44:41.828] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:41.834] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:41.840] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:41.853] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:41.867] [STDOUT] Loaded 194 points, 21 races from database
+[2026-04-12 16:44:41.867] [STDOUT]   Tracks: 12
+[2026-04-12 16:44:41.868] [STDOUT]   Vehicles: 5
+[2026-04-12 16:44:41.876] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:41.887] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:41.902] [STDOUT] ✓ Auto-selected track: Testtrack
+[2026-04-12 16:44:41.905] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:41.925] [STDOUT] 
+[2026-04-12 16:44:41.925] [STDOUT] ✓ Graph updated with new data points
+[2026-04-12 16:44:56.812] [STDOUT] 
+[2026-04-12 16:44:56.812] [STDOUT] ============================================================
+[2026-04-12 16:44:56.812] [STDOUT] [2026-04-12 16:44:56] SAVING RACE DATA TO DATABASE
+[2026-04-12 16:44:56.812] [STDOUT] ============================================================
+[2026-04-12 16:44:56.812] [STDOUT]   Debug: Saving race session with data:
+[2026-04-12 16:44:56.812] [STDOUT]     race_id: 20260412_164456_769241
+[2026-04-12 16:44:56.812] [STDOUT]     timestamp: 2026-04-12T16:44:56.769217
+[2026-04-12 16:44:56.812] [STDOUT]     track_name: Testtrack
+[2026-04-12 16:44:56.812] [STDOUT]     ai_results count: 6
+[2026-04-12 16:44:56.813] [STDOUT]     ✓ Race session inserted
+[2026-04-12 16:44:56.813] [STDOUT]     ✓ Inserted 6 AI results
+[2026-04-12 16:44:56.833] [STDOUT]   ✓ Race session committed to database
+[2026-04-12 16:44:56.834] [STDOUT] ✓ Race session saved with ID: 20260412_164456_769241
+[2026-04-12 16:44:56.847] [STDOUT]   ✓ Added qual point: Testtrack R=1.2000 T=105.733s
+[2026-04-12 16:44:56.861] [STDOUT]   ✓ Added race point: Testtrack R=1.0500 T=110.331s
+[2026-04-12 16:44:56.874] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:56.880] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:56.887] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:56.899] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:56.915] [STDOUT] Loaded 196 points, 22 races from database
+[2026-04-12 16:44:56.915] [STDOUT]   Tracks: 12
+[2026-04-12 16:44:56.915] [STDOUT]   Vehicles: 5
+[2026-04-12 16:44:56.924] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:56.936] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:56.952] [STDOUT] ✓ Auto-selected track: Testtrack
+[2026-04-12 16:44:56.955] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:44:56.977] [STDOUT] 
+[2026-04-12 16:44:56.977] [STDOUT] ✓ Graph updated with new data points
+[2026-04-12 16:45:11.854] [STDOUT] 
+[2026-04-12 16:45:11.854] [STDOUT] ============================================================
+[2026-04-12 16:45:11.854] [STDOUT] [2026-04-12 16:45:11] SAVING RACE DATA TO DATABASE
+[2026-04-12 16:45:11.854] [STDOUT] ============================================================
+[2026-04-12 16:45:11.854] [STDOUT]   Debug: Saving race session with data:
+[2026-04-12 16:45:11.855] [STDOUT]     race_id: 20260412_164511_814437
+[2026-04-12 16:45:11.855] [STDOUT]     timestamp: 2026-04-12T16:45:11.814414
+[2026-04-12 16:45:11.855] [STDOUT]     track_name: Testtrack
+[2026-04-12 16:45:11.855] [STDOUT]     ai_results count: 6
+[2026-04-12 16:45:11.855] [STDOUT]     ✓ Race session inserted
+[2026-04-12 16:45:11.856] [STDOUT]     ✓ Inserted 6 AI results
+[2026-04-12 16:45:11.876] [STDOUT]   ✓ Race session committed to database
+[2026-04-12 16:45:11.876] [STDOUT] ✓ Race session saved with ID: 20260412_164511_814437
+[2026-04-12 16:45:11.890] [STDOUT]   ✓ Added qual point: Testtrack R=1.2500 T=106.600s
+[2026-04-12 16:45:11.904] [STDOUT]   ✓ Added race point: Testtrack R=1.0500 T=112.231s
+[2026-04-12 16:45:11.923] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:45:11.932] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:45:11.943] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:45:11.959] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:45:11.981] [STDOUT] Loaded 198 points, 23 races from database
+[2026-04-12 16:45:11.982] [STDOUT]   Tracks: 12
+[2026-04-12 16:45:11.982] [STDOUT]   Vehicles: 5
+[2026-04-12 16:45:11.991] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:45:12.002] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:45:12.018] [STDOUT] ✓ Auto-selected track: Testtrack
+[2026-04-12 16:45:12.022] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:45:12.042] [STDOUT] 
+[2026-04-12 16:45:12.043] [STDOUT] ✓ Graph updated with new data points
+[2026-04-12 16:45:26.897] [STDOUT] 
+[2026-04-12 16:45:26.897] [STDOUT] ============================================================
+[2026-04-12 16:45:26.897] [STDOUT] [2026-04-12 16:45:26] SAVING RACE DATA TO DATABASE
+[2026-04-12 16:45:26.898] [STDOUT] ============================================================
+[2026-04-12 16:45:26.898] [STDOUT]   Debug: Saving race session with data:
+[2026-04-12 16:45:26.898] [STDOUT]     race_id: 20260412_164526_856584
+[2026-04-12 16:45:26.898] [STDOUT]     timestamp: 2026-04-12T16:45:26.856560
+[2026-04-12 16:45:26.898] [STDOUT]     track_name: Testtrack
+[2026-04-12 16:45:26.898] [STDOUT]     ai_results count: 6
+[2026-04-12 16:45:26.898] [STDOUT]     ✓ Race session inserted
+[2026-04-12 16:45:26.899] [STDOUT]     ✓ Inserted 6 AI results
+[2026-04-12 16:45:26.919] [STDOUT]   ✓ Race session committed to database
+[2026-04-12 16:45:26.919] [STDOUT] ✓ Race session saved with ID: 20260412_164526_856584
+[2026-04-12 16:45:26.933] [STDOUT]   ✓ Added qual point: Testtrack R=1.5000 T=100.867s
+[2026-04-12 16:45:26.946] [STDOUT]   ✓ Added race point: Testtrack R=1.0500 T=110.981s
+[2026-04-12 16:45:26.966] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:45:26.976] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:45:26.983] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:45:26.996] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:45:27.012] [STDOUT] Loaded 200 points, 24 races from database
+[2026-04-12 16:45:27.013] [STDOUT]   Tracks: 12
+[2026-04-12 16:45:27.013] [STDOUT]   Vehicles: 5
+[2026-04-12 16:45:27.022] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:45:27.035] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:45:27.052] [STDOUT] ✓ Auto-selected track: Testtrack
+[2026-04-12 16:45:27.055] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:45:27.077] [STDOUT] 
+[2026-04-12 16:45:27.077] [STDOUT] ✓ Graph updated with new data points
+[2026-04-12 16:45:41.937] [STDOUT] 
+[2026-04-12 16:45:41.938] [STDOUT] ============================================================
+[2026-04-12 16:45:41.938] [STDOUT] [2026-04-12 16:45:41] SAVING RACE DATA TO DATABASE
+[2026-04-12 16:45:41.938] [STDOUT] ============================================================
+[2026-04-12 16:45:41.938] [STDOUT]   Debug: Saving race session with data:
+[2026-04-12 16:45:41.938] [STDOUT]     race_id: 20260412_164541_899652
+[2026-04-12 16:45:41.938] [STDOUT]     timestamp: 2026-04-12T16:45:41.899630
+[2026-04-12 16:45:41.938] [STDOUT]     track_name: Testtrack
+[2026-04-12 16:45:41.938] [STDOUT]     ai_results count: 6
+[2026-04-12 16:45:41.939] [STDOUT]     ✓ Race session inserted
+[2026-04-12 16:45:41.939] [STDOUT]     ✓ Inserted 6 AI results
+[2026-04-12 16:45:41.959] [STDOUT]   ✓ Race session committed to database
+[2026-04-12 16:45:41.959] [STDOUT] ✓ Race session saved with ID: 20260412_164541_899652
+[2026-04-12 16:45:41.973] [STDOUT]   ✓ Added qual point: Testtrack R=0.8500 T=117.600s
+[2026-04-12 16:45:41.986] [STDOUT]   ✓ Added race point: Testtrack R=0.8500 T=118.000s
+[2026-04-12 16:45:42.000] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:45:42.006] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:45:42.012] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:45:42.024] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:45:42.041] [STDOUT] Loaded 202 points, 25 races from database
+[2026-04-12 16:45:42.041] [STDOUT]   Tracks: 12
+[2026-04-12 16:45:42.041] [STDOUT]   Vehicles: 5
+[2026-04-12 16:45:42.051] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:45:42.064] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:45:42.094] [STDOUT] ✓ Auto-selected track: Testtrack
+[2026-04-12 16:45:42.098] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:45:42.126] [STDOUT] 
+[2026-04-12 16:45:42.126] [STDOUT] ✓ Graph updated with new data points
+[2026-04-12 16:45:51.982] [STDOUT] 
+[2026-04-12 16:45:51.982] [STDOUT] ============================================================
+[2026-04-12 16:45:51.982] [STDOUT] [2026-04-12 16:45:51] SAVING RACE DATA TO DATABASE
+[2026-04-12 16:45:51.982] [STDOUT] ============================================================
+[2026-04-12 16:45:51.982] [STDOUT]   Debug: Saving race session with data:
+[2026-04-12 16:45:51.982] [STDOUT]     race_id: 20260412_164551_939270
+[2026-04-12 16:45:51.982] [STDOUT]     timestamp: 2026-04-12T16:45:51.939246
+[2026-04-12 16:45:51.982] [STDOUT]     track_name: Testtrack
+[2026-04-12 16:45:51.982] [STDOUT]     ai_results count: 6
+[2026-04-12 16:45:51.983] [STDOUT]     ✓ Race session inserted
+[2026-04-12 16:45:51.983] [STDOUT]     ✓ Inserted 6 AI results
+[2026-04-12 16:45:52.004] [STDOUT]   ✓ Race session committed to database
+[2026-04-12 16:45:52.004] [STDOUT] ✓ Race session saved with ID: 20260412_164551_939270
+[2026-04-12 16:45:52.018] [STDOUT]   ✓ Added qual point: Testtrack R=0.8500 T=116.850s
+[2026-04-12 16:45:52.031] [STDOUT]   ✓ Added race point: Testtrack R=0.8500 T=117.250s
+[2026-04-12 16:45:52.053] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:45:52.064] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:45:52.076] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:45:52.090] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:45:52.106] [STDOUT] Loaded 204 points, 26 races from database
+[2026-04-12 16:45:52.106] [STDOUT]   Tracks: 12
+[2026-04-12 16:45:52.106] [STDOUT]   Vehicles: 5
+[2026-04-12 16:45:52.116] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:45:52.128] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:45:52.145] [STDOUT] ✓ Auto-selected track: Testtrack
+[2026-04-12 16:45:52.148] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:45:52.170] [STDOUT] 
+[2026-04-12 16:45:52.170] [STDOUT] ✓ Graph updated with new data points
+[2026-04-12 16:46:07.032] [STDOUT] 
+[2026-04-12 16:46:07.032] [STDOUT] ============================================================
+[2026-04-12 16:46:07.032] [STDOUT] [2026-04-12 16:46:07] SAVING RACE DATA TO DATABASE
+[2026-04-12 16:46:07.032] [STDOUT] ============================================================
+[2026-04-12 16:46:07.032] [STDOUT]   Debug: Saving race session with data:
+[2026-04-12 16:46:07.032] [STDOUT]     race_id: 20260412_164606_984001
+[2026-04-12 16:46:07.032] [STDOUT]     timestamp: 2026-04-12T16:46:06.983977
+[2026-04-12 16:46:07.032] [STDOUT]     track_name: Testtrack
+[2026-04-12 16:46:07.032] [STDOUT]     ai_results count: 6
+[2026-04-12 16:46:07.033] [STDOUT]     ✓ Race session inserted
+[2026-04-12 16:46:07.033] [STDOUT]     ✓ Inserted 6 AI results
+[2026-04-12 16:46:07.054] [STDOUT]   ✓ Race session committed to database
+[2026-04-12 16:46:07.054] [STDOUT] ✓ Race session saved with ID: 20260412_164606_984001
+[2026-04-12 16:46:07.068] [STDOUT]   ✓ Added qual point: Testtrack R=0.8500 T=120.100s
+[2026-04-12 16:46:07.081] [STDOUT]   ✓ Added race point: Testtrack R=0.8500 T=120.600s
+[2026-04-12 16:46:07.104] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:46:07.112] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:46:07.119] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:46:07.132] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:46:07.151] [STDOUT] Loaded 206 points, 27 races from database
+[2026-04-12 16:46:07.151] [STDOUT]   Tracks: 12
+[2026-04-12 16:46:07.151] [STDOUT]   Vehicles: 5
+[2026-04-12 16:46:07.162] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:46:07.175] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:46:07.194] [STDOUT] ✓ Auto-selected track: Testtrack
+[2026-04-12 16:46:07.198] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:46:07.223] [STDOUT] 
+[2026-04-12 16:46:07.223] [STDOUT] ✓ Graph updated with new data points
+[2026-04-12 16:46:13.941] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:46:15.814] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:46:15.831] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:46:22.078] [STDOUT] 
+[2026-04-12 16:46:22.079] [STDOUT] ============================================================
+[2026-04-12 16:46:22.079] [STDOUT] [2026-04-12 16:46:22] SAVING RACE DATA TO DATABASE
+[2026-04-12 16:46:22.079] [STDOUT] ============================================================
+[2026-04-12 16:46:22.079] [STDOUT]   Debug: Saving race session with data:
+[2026-04-12 16:46:22.079] [STDOUT]     race_id: 20260412_164622_034014
+[2026-04-12 16:46:22.079] [STDOUT]     timestamp: 2026-04-12T16:46:22.033990
+[2026-04-12 16:46:22.079] [STDOUT]     track_name: Testtrack
+[2026-04-12 16:46:22.079] [STDOUT]     ai_results count: 6
+[2026-04-12 16:46:22.080] [STDOUT]     ✓ Race session inserted
+[2026-04-12 16:46:22.080] [STDOUT]     ✓ Inserted 6 AI results
+[2026-04-12 16:46:22.101] [STDOUT]   ✓ Race session committed to database
+[2026-04-12 16:46:22.101] [STDOUT] ✓ Race session saved with ID: 20260412_164622_034014
+[2026-04-12 16:46:22.115] [STDOUT]   ✓ Added qual point: Testtrack R=1.0000 T=112.050s
+[2026-04-12 16:46:22.128] [STDOUT]   ✓ Added race point: Testtrack R=1.0000 T=112.450s
+[2026-04-12 16:46:22.137] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:46:22.144] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:46:22.159] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:46:22.178] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:46:22.201] [STDOUT] Loaded 208 points, 28 races from database
+[2026-04-12 16:46:22.202] [STDOUT]   Tracks: 12
+[2026-04-12 16:46:22.202] [STDOUT]   Vehicles: 5
+[2026-04-12 16:46:22.208] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:46:22.219] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:46:22.232] [STDOUT] ✓ Auto-selected track: Testtrack
+[2026-04-12 16:46:22.235] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+[2026-04-12 16:46:22.254] [STDOUT] 
+[2026-04-12 16:46:22.254] [STDOUT] ✓ Graph updated with new data points
+[2026-04-12 16:46:26.246] [STDERR] QGraphicsScene::removeItem: item 0x6cc81b0's scene (0x0) is different from this scene (0x6e28310)
+
+================================================================================
+=== Application stopped at 2026-04-12T16:46:39.010766 ===

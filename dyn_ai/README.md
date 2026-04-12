@@ -98,7 +98,8 @@ To help the calculations, make sure you enter the "Global Curve Editor" and unde
 - Simplify code A LOT
 - one Gui that is simple and works.
   - simplify what is seen even more, give stuff proper name
-- move formulas to its own file
+  - Improve list of tracks, show current
+- store and show all entries and not just best and worst
 - establish a way to automagically find the best formula with just one or two data points
 - Formula params are called height, rightslope and radius ?? 
 - Focus program on an approximation: what ratios do we need for a given Laptime?

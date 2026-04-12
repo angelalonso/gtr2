@@ -1,21 +1,17 @@
 #!/usr/bin/env python3
 """
 GUI module for curve viewer
-Provides reusable GUI components and dialogs
+Provides reusable GUI components and dialogs using pyqtgraph for lightweight plotting
 """
 
+import numpy as np
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QListWidget, 
     QDoubleSpinBox, QPushButton, QGroupBox, QSplitter, 
     QMessageBox, QAbstractItemView
 )
 from PyQt5.QtCore import Qt
-
-import matplotlib
-matplotlib.use('Qt5Agg')
-from matplotlib.figure import Figure
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+import pyqtgraph as pg
 
 
 def create_control_panel(parent=None):
@@ -213,42 +209,138 @@ def create_control_panel(parent=None):
 
 
 def create_plot_widget(parent=None):
-    """Create the plot widget with matplotlib figure"""
+    """Create the plot widget using pyqtgraph for lightweight rendering"""
     widget = QWidget(parent)
     layout = QVBoxLayout(widget)
     layout.setContentsMargins(0, 0, 0, 0)
     
-    figure = Figure(figsize=(8, 6), facecolor='#1e1e1e')
-    canvas = FigureCanvas(figure)
-    toolbar = NavigationToolbar(canvas, widget)
+    # Create GraphicsLayoutWidget for plotting
+    plot_widget = pg.GraphicsLayoutWidget()
+    plot_widget.setBackground('#2b2b2b')
     
-    ax = figure.add_subplot(111)
-    ax.set_facecolor('#2b2b2b')
+    # Create plot item
+    plot = plot_widget.addPlot()
+    plot.setLabel('bottom', 'Ratio (R)', color='white', size='11pt')
+    plot.setLabel('left', 'Lap Time (seconds)', color='white', size='11pt')
+    plot.setTitle('Hyperbolic Curve: T = a / R + b', color='#FFA500', size='12pt')
+    plot.showGrid(x=True, y=True, alpha=0.3)
+    plot.setXRange(0.4, 2.0)
+    plot.setYRange(50, 200)
     
-    # Styling
-    for spine in ax.spines.values():
-        spine.set_color('#4CAF50')
-    ax.tick_params(colors='white')
-    ax.xaxis.label.set_color('white')
-    ax.yaxis.label.set_color('white')
-    ax.title.set_color('#FFA500')
+    # Style the axes
+    plot.getAxis('bottom').setPen('white')
+    plot.getAxis('bottom').setTextPen('white')
+    plot.getAxis('left').setPen('white')
+    plot.getAxis('left').setTextPen('white')
     
-    ax.set_xlabel('Ratio (R)', fontsize=11)
-    ax.set_ylabel('Lap Time (seconds)', fontsize=11)
-    ax.set_title('Hyperbolic Curve: T = a / R + b', fontsize=12)
-    ax.grid(True, alpha=0.3)
-    ax.set_xlim(0.4, 2.0)  # Changed to 0.4
-    ax.set_ylim(50, 200)
-    
-    layout.addWidget(toolbar)
-    layout.addWidget(canvas)
-    
-    return {
-        'widget': widget,
-        'figure': figure,
-        'canvas': canvas,
-        'ax': ax
+    # Store plot reference and curve/point items for updating
+    plot_data = {
+        'widget': plot_widget,
+        'plot': plot,
+        'curve_line': None,
+        'quali_scatter': None,
+        'race_scatter': None,
+        'unknown_scatter': None,
+        'legend': None,
+        'parent_widget': widget
     }
+    
+    layout.addWidget(plot_widget)
+    
+    return plot_data
+
+
+def update_plot(plot_data, a: float, b: float, points_data: dict):
+    """Update the plot with new curve and points"""
+    plot = plot_data['plot']
+    
+    # Generate curve points
+    ratios = np.linspace(0.4, 2.0, 200)
+    times = a / ratios + b
+    
+    # Update or create curve line
+    if plot_data['curve_line'] is None:
+        plot_data['curve_line'] = plot.plot(ratios, times, pen=pg.mkPen(color='#00FFFF', width=2.5))
+    else:
+        plot_data['curve_line'].setData(ratios, times)
+    
+    # Get point data
+    quali_points = points_data.get('quali', [])
+    race_points = points_data.get('race', [])
+    unknown_points = points_data.get('unknown', [])
+    
+    # Update quali points (yellow circles)
+    if quali_points:
+        r = [p[0] for p in quali_points]
+        t = [p[1] for p in quali_points]
+        if plot_data['quali_scatter'] is None:
+            plot_data['quali_scatter'] = pg.ScatterPlotItem(
+                r, t, brush=pg.mkBrush('#FFFF00'), size=6,
+                symbol='o', pen=None
+            )
+            plot.addItem(plot_data['quali_scatter'])
+        else:
+            plot_data['quali_scatter'].setData(r, t)
+    elif plot_data['quali_scatter'] is not None:
+        plot.removeItem(plot_data['quali_scatter'])
+        plot_data['quali_scatter'] = None
+    
+    # Update race points (orange squares)
+    if race_points:
+        r = [p[0] for p in race_points]
+        t = [p[1] for p in race_points]
+        if plot_data['race_scatter'] is None:
+            plot_data['race_scatter'] = pg.ScatterPlotItem(
+                r, t, brush=pg.mkBrush('#FF6600'), size=6,
+                symbol='s', pen=None
+            )
+            plot.addItem(plot_data['race_scatter'])
+        else:
+            plot_data['race_scatter'].setData(r, t)
+    elif plot_data['race_scatter'] is not None:
+        plot.removeItem(plot_data['race_scatter'])
+        plot_data['race_scatter'] = None
+    
+    # Update unknown points (magenta triangles)
+    if unknown_points:
+        r = [p[0] for p in unknown_points]
+        t = [p[1] for p in unknown_points]
+        if plot_data['unknown_scatter'] is None:
+            plot_data['unknown_scatter'] = pg.ScatterPlotItem(
+                r, t, brush=pg.mkBrush('#FF00FF'), size=6,
+                symbol='t', pen=None
+            )
+            plot.addItem(plot_data['unknown_scatter'])
+        else:
+            plot_data['unknown_scatter'].setData(r, t)
+    elif plot_data['unknown_scatter'] is not None:
+        plot.removeItem(plot_data['unknown_scatter'])
+        plot_data['unknown_scatter'] = None
+    
+    # Update legend - remove old and create new
+    if plot_data['legend'] is not None:
+        plot.scene().removeItem(plot_data['legend'])
+        plot_data['legend'] = None
+    
+    # Create new legend
+    plot_data['legend'] = plot.addLegend()
+    
+    # Add items to legend
+    if plot_data['curve_line']:
+        plot_data['legend'].addItem(plot_data['curve_line'], f'T = {a:.3f}/R + {b:.3f}')
+    if quali_points:
+        plot_data['legend'].addItem(plot_data['quali_scatter'], f'Qualifying ({len(quali_points)})')
+    if race_points:
+        plot_data['legend'].addItem(plot_data['race_scatter'], f'Race ({len(race_points)})')
+    if unknown_points:
+        plot_data['legend'].addItem(plot_data['unknown_scatter'], f'Unknown ({len(unknown_points)})')
+
+
+def reset_plot_view(plot_data):
+    """Reset the plot to default view"""
+    plot = plot_data['plot']
+    plot.setXRange(0.4, 2.0)
+    plot.setYRange(50, 200)
 
 
 def setup_dark_theme(app):
