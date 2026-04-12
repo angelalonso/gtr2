@@ -1,0 +1,10 @@
+=== Live AI Tuner Log - 2026-03-30T20:51:22.646866 ===
+Command: /home/aaf/.local/share/virtualenvs/dyn_ai-zw_yYVg2/bin/python3 -u /home/aaf/Software/Dev/gtr2/dyn_ai/dyn_ai.py --config /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/cfg_test.yml
+PID: 27152
+================================================================================
+
+[2026-03-30 20:51:22.933] [STDOUT] Base path: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks
+[2026-03-30 20:51:22.933] [STDOUT] Target file: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/UserData/Log/Results/raceresults.txt
+
+================================================================================
+=== Application stopped at 2026-03-30T20:52:05.280516 ===

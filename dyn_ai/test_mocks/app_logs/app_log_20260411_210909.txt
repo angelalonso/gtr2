@@ -1,0 +1,18 @@
+=== Live AI Tuner Log - 2026-04-11T21:09:09.046680 ===
+Command: /home/aaf/.local/share/virtualenvs/dyn_ai-zw_yYVg2/bin/python3 -u /home/aaf/Software/Dev/gtr2/dyn_ai/dyn_ai.py --config /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/cfg_test.yml
+PID: 8984
+================================================================================
+
+[2026-04-11 21:09:09.337] [STDERR] 2026-04-11 21:09:09,337 - INFO - Database ready: live_ai_tuner.db
+[2026-04-11 21:09:09.337] [STDOUT] Main database: live_ai_tuner.db
+[2026-04-11 21:09:09.337] [STDERR] Traceback (most recent call last):
+[2026-04-11 21:09:09.337] [STDERR]   File "/home/aaf/Software/Dev/gtr2/dyn_ai/dyn_ai.py", line 214, in <module>
+[2026-04-11 21:09:09.338] [STDERR]     sys.exit(main())
+[2026-04-11 21:09:09.338] [STDERR]              ^^^^^^
+[2026-04-11 21:09:09.338] [STDERR]   File "/home/aaf/Software/Dev/gtr2/dyn_ai/dyn_ai.py", line 208, in main
+[2026-04-11 21:09:09.338] [STDERR]     tuner = LiveAITuner(base_path, no_gui=args.no_gui, config_file=args.config)
+[2026-04-11 21:09:09.338] [STDERR]             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[2026-04-11 21:09:09.338] [STDERR]   File "/home/aaf/Software/Dev/gtr2/dyn_ai/dyn_ai.py", line 59, in __init__
+[2026-04-11 21:09:09.338] [STDERR]     track_formula_db_path = get_track_formula_db_path(config_file)
+[2026-04-11 21:09:09.338] [STDERR]                             ^^^^^^^^^^^^^^^^^^^^^^^^^
+[2026-04-11 21:09:09.338] [STDERR] NameError: name 'get_track_formula_db_path' is not defined. Did you mean: 'track_formula_db_path'?

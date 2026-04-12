@@ -97,8 +97,9 @@ To help the calculations, make sure you enter the "Global Curve Editor" and unde
 ## TODO NEXT
 - Simplify code A LOT
 - one Gui that is simple and works.
-- one Sqlite that stores data
-- move data to its own file, formulas to its own file
+  - simplify what is seen even more, give stuff proper name
+- move formulas to its own file
+- establish a way to automagically find the best formula with just one or two data points
 - Formula params are called height, rightslope and radius ?? 
 - Focus program on an approximation: what ratios do we need for a given Laptime?
   - Store formula

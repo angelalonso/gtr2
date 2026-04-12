@@ -1,0 +1,19 @@
+=== Live AI Tuner Log - 2026-04-12T13:05:07.777110 ===
+Command: /home/aaf/.local/share/virtualenvs/dyn_ai-zw_yYVg2/bin/python3 -u /home/aaf/Software/Dev/gtr2/dyn_ai/dyn_ai.py --config /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/cfg_test.yml
+PID: 11480
+================================================================================
+
+[2026-04-12 13:05:08.968] [STDOUT] Loaded 164 points, 0 races from database
+[2026-04-12 13:05:08.969] [STDOUT]   Tracks: 11
+[2026-04-12 13:05:08.969] [STDOUT]   Vehicles: 4
+[2026-04-12 13:05:09.030] [STDOUT] Started monitoring: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/UserData/Log/Results/raceresults.txt
+[2026-04-12 13:05:09.030] [STDOUT] Poll interval: 5.0 seconds
+[2026-04-12 13:05:09.030] [STDOUT] Daemon started silently - monitoring: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/UserData/Log/Results/raceresults.txt
+[2026-04-12 13:05:24.078] [STDOUT] 
+[2026-04-12 13:05:24.079] [STDOUT] ============================================================
+[2026-04-12 13:05:24.079] [STDOUT] [2026-04-12 13:05:24] SAVING RACE DATA TO DATABASE
+[2026-04-12 13:05:24.079] [STDOUT] ============================================================
+[2026-04-12 13:05:24.080] [STDOUT] Error saving race session: NOT NULL constraint failed: race_sessions.timestamp
+[2026-04-12 13:05:24.080] [STDOUT] ✗ Failed to save race session
+[2026-04-12 13:05:34.739] [STDOUT] Stopped monitoring
+[2026-04-12 13:05:34.739] [STDOUT] Daemon stopped

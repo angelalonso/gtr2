@@ -29,10 +29,10 @@ Vehicle=Gallardo
 VehicleNumber=6002
 Team=Team RaceSim Central
 Penalty=0
-QualTime=2:03.450
+QualTime=2:28.500
 Laps=8
 LapDistanceTravelled=5714.660645
-BestLap=2:02.102
+BestLap=1:44.011
 RaceTime=0:15:54.100
 
 [Slot002]
@@ -41,10 +41,10 @@ Vehicle=Ferrari 458
 VehicleNumber=6001
 Team=Team RaceSim Central
 Penalty=0
-QualTime=2:04.890
+QualTime=2:31.070
 Laps=8
 LapDistanceTravelled=5703.221680
-BestLap=2:03.670
+BestLap=1:44.639
 RaceTime=0:15:40.165
 
 [Slot003]
@@ -53,10 +53,10 @@ Vehicle=BMW M3
 VehicleNumber=6009
 Team=Roaring Pipes Maniacs
 Penalty=0
-QualTime=2:05.560
+QualTime=2:33.640
 Laps=8
 LapDistanceTravelled=5695.196289
-BestLap=2:04.890
+BestLap=1:45.267
 RaceTime=0:16:15.417
 
 [Slot004]
@@ -65,10 +65,10 @@ Vehicle=Mercedes GT
 VehicleNumber=6007
 Team=Team Redline
 Penalty=0
-QualTime=2:06.230
+QualTime=2:36.210
 Laps=8
 LapDistanceTravelled=5687.183594
-BestLap=2:05.780
+BestLap=1:45.895
 RaceTime=0:16:10.146
 
 [Slot005]
@@ -77,10 +77,10 @@ Vehicle=Mclaren
 VehicleNumber=6006
 Team=Ajira Racing
 Penalty=0
-QualTime=2:07.120
+QualTime=2:38.780
 Laps=8
 LapDistanceTravelled=5682.786133
-BestLap=2:06.450
+BestLap=1:46.523
 RaceTime=0:15:33.000
 
 [Slot006]
@@ -89,10 +89,10 @@ Vehicle=Aston Martin
 VehicleNumber=6010
 Team=Roaring Pipes Maniacs
 Penalty=0
-QualTime=2:08.427
+QualTime=2:41.350
 Laps=8
 LapDistanceTravelled=5674.729004
-BestLap=2:08.427
+BestLap=1:47.151
 RaceTime=0:17:21.661
 
 [END]

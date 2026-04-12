@@ -1,0 +1,37 @@
+=== Live AI Tuner Log - 2026-04-12T12:38:06.540533 ===
+Command: /home/aaf/.local/share/virtualenvs/dyn_ai-zw_yYVg2/bin/python3 -u /home/aaf/Software/Dev/gtr2/dyn_ai/dyn_ai.py --config /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/cfg_test.yml
+PID: 9640
+================================================================================
+
+[2026-04-12 12:38:07.697] [STDOUT] Loaded 164 points from database
+[2026-04-12 12:38:07.697] [STDOUT]   Tracks: 11
+[2026-04-12 12:38:07.697] [STDOUT]   Vehicles: 4
+[2026-04-12 12:38:07.697] [STDOUT]   Selected all 4 vehicles by default
+[2026-04-12 12:38:07.757] [STDOUT] Started monitoring: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/UserData/Log/Results/raceresults.txt
+[2026-04-12 12:38:07.757] [STDOUT] Poll interval: 5.0 seconds
+[2026-04-12 12:38:07.757] [STDOUT] Daemon started - monitoring: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/UserData/Log/Results/raceresults.txt
+[2026-04-12 12:38:23.218] [STDOUT] ==================================================
+[2026-04-12 12:38:23.218] [STDOUT] 🏁 Monza 🏁
+[2026-04-12 12:38:23.218] [STDOUT] ==================================================
+[2026-04-12 12:38:23.218] [STDOUT] 
+[2026-04-12 12:38:23.218] [STDOUT] 📄 AIW File: 4Monza.AIW
+[2026-04-12 12:38:23.218] [STDOUT] 
+[2026-04-12 12:38:23.218] [STDOUT] 📊 Current Ratios:
+[2026-04-12 12:38:23.218] [STDOUT]    Qualifying: 1.020000
+[2026-04-12 12:38:23.218] [STDOUT]    Race: 1.050000
+[2026-04-12 12:38:23.218] [STDOUT] 
+[2026-04-12 12:38:23.218] [STDOUT] 👤 Driver: TestPlayer
+[2026-04-12 12:38:23.218] [STDOUT]    Vehicle: Porsche 911
+[2026-04-12 12:38:23.218] [STDOUT]    Best Lap: 1:55.364
+[2026-04-12 12:38:23.218] [STDOUT] 
+[2026-04-12 12:38:23.218] [STDOUT] 🤖 AI Times (6 drivers):
+[2026-04-12 12:38:23.218] [STDOUT]    Qual Best: 1:52.340
+[2026-04-12 12:38:23.218] [STDOUT]    Qual Worst: 1:53.393
+[2026-04-12 12:38:23.218] [STDOUT]    Race Best: 1:51.523
+[2026-04-12 12:38:23.218] [STDOUT]    Race Worst: 1:53.393
+[2026-04-12 12:38:23.218] [STDOUT] 
+[2026-04-12 12:38:23.218] [STDOUT] 📁 AIW Path: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/GameData/Locations/Monza/4Monza.AIW
+[2026-04-12 12:38:23.218] [STDOUT] 
+[2026-04-12 12:38:23.218] [STDOUT] ==================================================
+[2026-04-12 12:38:35.415] [STDOUT] Stopped monitoring
+[2026-04-12 12:38:35.415] [STDOUT] Daemon stopped

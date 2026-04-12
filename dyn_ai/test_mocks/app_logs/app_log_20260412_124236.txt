@@ -1,0 +1,22 @@
+=== Live AI Tuner Log - 2026-04-12T12:42:36.493764 ===
+Command: /home/aaf/.local/share/virtualenvs/dyn_ai-zw_yYVg2/bin/python3 -u /home/aaf/Software/Dev/gtr2/dyn_ai/dyn_ai.py --config /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/cfg_test.yml
+PID: 10170
+================================================================================
+
+[2026-04-12 12:42:37.281] [STDERR] Traceback (most recent call last):
+[2026-04-12 12:42:37.281] [STDERR]   File "/home/aaf/Software/Dev/gtr2/dyn_ai/dyn_ai.py", line 617, in <module>
+[2026-04-12 12:42:37.281] [STDERR]     main()
+[2026-04-12 12:42:37.281] [STDERR]   File "/home/aaf/Software/Dev/gtr2/dyn_ai/dyn_ai.py", line 610, in main
+[2026-04-12 12:42:37.282] [STDERR]     window = SimpleCurveViewer(db_path)
+[2026-04-12 12:42:37.282] [STDERR]              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+[2026-04-12 12:42:37.282] [STDERR]   File "/home/aaf/Software/Dev/gtr2/dyn_ai/dyn_ai.py", line 276, in __init__
+[2026-04-12 12:42:37.282] [STDERR]     self.setup_ui()
+[2026-04-12 12:42:37.282] [STDERR]   File "/home/aaf/Software/Dev/gtr2/dyn_ai/dyn_ai.py", line 337, in setup_ui
+[2026-04-12 12:42:37.282] [STDERR]     self.popup = FileChangePopup(self)
+[2026-04-12 12:42:37.282] [STDERR]                  ^^^^^^^^^^^^^^^^^^^^^
+[2026-04-12 12:42:37.282] [STDERR]   File "/home/aaf/Software/Dev/gtr2/dyn_ai/dyn_ai.py", line 145, in __init__
+[2026-04-12 12:42:37.282] [STDERR]     self.setup_ui()
+[2026-04-12 12:42:37.282] [STDERR]   File "/home/aaf/Software/Dev/gtr2/dyn_ai/dyn_ai.py", line 185, in setup_ui
+[2026-04-12 12:42:37.282] [STDERR]     icon_label = QLabel("🏁")
+[2026-04-12 12:42:37.282] [STDERR]                  ^^^^^^
+[2026-04-12 12:42:37.282] [STDERR] NameError: name 'QLabel' is not defined

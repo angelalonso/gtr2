@@ -1,0 +1,29 @@
+=== Live AI Tuner Log - 2026-04-11T20:46:18.795702 ===
+Command: /home/aaf/.local/share/virtualenvs/dyn_ai-zw_yYVg2/bin/python3 -u /home/aaf/Software/Dev/gtr2/dyn_ai/dyn_ai.py --config /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/cfg_test.yml
+PID: 7844
+================================================================================
+
+[2026-04-11 20:46:19.345] [STDERR] 2026-04-11 20:46:19,345 - INFO - Database ready: live_ai_tuner.db
+[2026-04-11 20:46:19.345] [STDOUT] Database: live_ai_tuner.db
+[2026-04-11 20:46:19.346] [STDOUT] Base path: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks
+[2026-04-11 20:46:19.346] [STDOUT] Target file: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/UserData/Log/Results/raceresults.txt
+[2026-04-11 20:46:21.308] [STDERR] 2026-04-11 20:46:21,307 - INFO - Loaded global curve from JSON (5576 points)
+[2026-04-11 20:46:21.325] [STDERR] 2026-04-11 20:46:21,325 - INFO - Loaded global curve from JSON (5576 points)
+[2026-04-11 20:46:21.329] [STDERR] 2026-04-11 20:46:21,329 - INFO - Loaded existing curve: 5576 points, 21 tracks
+[2026-04-11 20:46:21.496] [STDERR] 2026-04-11 20:46:21,495 - INFO - Updated global k = -0.9731 ± 4.8512
+[2026-04-11 20:46:21.554] [STDERR] 2026-04-11 20:46:21,554 - INFO - Saved global curve to JSON
+[2026-04-11 20:46:21.554] [STDERR] 2026-04-11 20:46:21,554 - INFO - Loaded 97 points from historic.csv
+[2026-04-11 20:46:21.759] [STDERR] 2026-04-11 20:46:21,759 - INFO - Initial autopilot state from config: False
+[2026-04-11 20:46:21.763] [STDERR] 2026-04-11 20:46:21,763 - INFO - Migrating global_curve.json → SQLite …
+[2026-04-11 20:46:21.779] [STDERR] 2026-04-11 20:46:21,778 - INFO - Loaded global curve from JSON (5673 points)
+[2026-04-11 20:46:49.583] [STDERR] 2026-04-11 20:46:49,583 - ERROR - Error saving curve point: NOT NULL constraint failed: curve_points.ratio
+[2026-04-11 20:46:49.586] [STDERR] 2026-04-11 20:46:49,586 - ERROR - Error saving curve point: NOT NULL constraint failed: curve_points.ratio
+[2026-04-11 20:46:49.588] [STDERR] 2026-04-11 20:46:49,588 - ERROR - Error saving curve point: NOT NULL constraint failed: curve_points.ratio
+[2026-04-11 20:46:49.591] [STDERR] 2026-04-11 20:46:49,591 - ERROR - Error saving curve point: NOT NULL constraint failed: curve_points.ratio
+[2026-04-11 20:46:49.594] [STDERR] 2026-04-11 20:46:49,593 - ERROR - Error saving curve point: NOT NULL constraint failed: curve_points.ratio
+[2026-04-11 20:46:49.596] [STDERR] 2026-04-11 20:46:49,595 - ERROR - Error saving curve point: NOT NULL constraint failed: curve_points.ratio
+[2026-04-11 20:46:49.599] [STDERR] 2026-04-11 20:46:49,598 - ERROR - Error saving curve point: NOT NULL constraint failed: curve_points.ratio
+[2026-04-11 20:46:49.601] [STDERR] 2026-04-11 20:46:49,601 - ERROR - Error saving curve point: NOT NULL constraint failed: curve_points.ratio
+
+================================================================================
+=== Application stopped at 2026-04-11T20:46:54.523464 ===

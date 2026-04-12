@@ -1,0 +1,38 @@
+=== Live AI Tuner Log - 2026-04-11T21:36:49.839442 ===
+Command: /home/aaf/.local/share/virtualenvs/dyn_ai-zw_yYVg2/bin/python3 -u /home/aaf/Software/Dev/gtr2/dyn_ai/dyn_ai.py --config /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/cfg_test.yml
+PID: 10035
+================================================================================
+
+[2026-04-11 21:36:50.126] [STDERR] 2026-04-11 21:36:50,125 - INFO - Database ready: live_ai_tuner.db
+[2026-04-11 21:36:50.126] [STDOUT] Main database: live_ai_tuner.db
+[2026-04-11 21:36:50.127] [STDERR] 2026-04-11 21:36:50,127 - INFO - Track formula database ready: track_formulas.db
+[2026-04-11 21:36:50.127] [STDOUT] Track formula database: track_formulas.db
+[2026-04-11 21:36:50.127] [STDOUT] Base path: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks
+[2026-04-11 21:36:50.127] [STDOUT] Target file: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/UserData/Log/Results/raceresults.txt
+[2026-04-11 21:36:50.753] [STDERR] 2026-04-11 21:36:50,753 - INFO - Loaded global curve from JSON (5964 points)
+[2026-04-11 21:36:50.757] [STDERR] 2026-04-11 21:36:50,757 - INFO - Loaded global curve from JSON (5964 points)
+[2026-04-11 21:36:50.759] [STDERR] 2026-04-11 21:36:50,759 - INFO - Loaded existing curve: 5964 points, 21 tracks
+[2026-04-11 21:36:50.808] [STDERR] 2026-04-11 21:36:50,808 - INFO - Updated global k = -1.4050 ± 6.7649
+[2026-04-11 21:36:50.827] [STDERR] 2026-04-11 21:36:50,827 - INFO - Saved global curve to JSON
+[2026-04-11 21:36:50.827] [STDERR] 2026-04-11 21:36:50,827 - INFO - Loaded 97 points from historic.csv
+[2026-04-11 21:36:50.878] [STDERR] 2026-04-11 21:36:50,878 - INFO - Initial autopilot state from config: False
+[2026-04-11 21:36:50.899] [STDERR] 2026-04-11 21:36:50,899 - INFO - Loaded global curve from SQLite (1647 points)
+[2026-04-11 21:36:50.906] [STDERR] 2026-04-11 21:36:50,906 - INFO - Started monitoring (polling every 5.0s): /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/UserData/Log/Results/raceresults.txt
+[2026-04-11 21:37:05.908] [STDERR] 2026-04-11 21:37:05,908 - INFO - File changed, analyzing: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/UserData/Log/Results/raceresults.txt
+[2026-04-11 21:37:05.910] [STDERR] 2026-04-11 21:37:05,910 - INFO - Track: Monza  (folder: Monza)
+[2026-04-11 21:37:05.910] [STDERR] 2026-04-11 21:37:05,910 - INFO - AIW: 4Monza.AIW
+[2026-04-11 21:37:05.911] [STDERR] 2026-04-11 21:37:05,910 - INFO - User: TestPlayer  vehicle=Porsche 911  qual=None  best=1:55.364  race=0:17:06.061  laps=8
+[2026-04-11 21:37:05.911] [STDERR] 2026-04-11 21:37:05,911 - INFO - Parsed 6 AI drivers  (user: TestPlayer, best: 1:55.364)
+[2026-04-11 21:37:05.962] [STDERR] 2026-04-11 21:37:05,961 - INFO - Ratios — Qual: 1.02  Race: 1.05
+[2026-04-11 21:37:05.992] [STDERR] 2026-04-11 21:37:05,991 - INFO - Saved session #1 — Monza (6 AI drivers)
+[2026-04-11 21:37:05.992] [STDERR] 2026-04-11 21:37:05,992 - INFO - Race session saved to DB (id=1)
+[2026-04-11 21:37:05.996] [STDERR] 2026-04-11 21:37:05,996 - INFO - First data point for Monza - will use bootstrap estimation
+[2026-04-11 21:37:05.999] [STDERR] 2026-04-11 21:37:05,999 - INFO - Found AIW (cached): /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/GameData/Locations/Monza/4Monza.AIW
+[2026-04-11 21:37:06.000] [STDERR] 2026-04-11 21:37:06,000 - INFO - Race results detected for Monza
+[2026-04-11 21:37:06.001] [STDERR] 2026-04-11 21:37:06,001 - INFO - === AUTOPILOT DEBUG ===
+[2026-04-11 21:37:06.002] [STDERR] 2026-04-11 21:37:06,001 - INFO - self.autopilot_enabled = False
+[2026-04-11 21:37:06.002] [STDERR] 2026-04-11 21:37:06,002 - INFO - type(self.autopilot_enabled) = <class 'bool'>
+[2026-04-11 21:37:06.003] [STDERR] 2026-04-11 21:37:06,002 - INFO - Autopilot is disabled - not processing
+
+================================================================================
+=== Application stopped at 2026-04-11T21:37:28.642904 ===

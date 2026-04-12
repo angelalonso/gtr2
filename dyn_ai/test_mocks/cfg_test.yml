@@ -1,7 +1,6 @@
 auto_apply: false
 autopilot_enabled: false
-autopilot_silent: false
 backup_enabled: true
-base_path: /home/user/Software/Dev/gtr2/dyn_ai/test_mocks
-formulas_dir: /home/user/Software/Dev/gtr2/dyn_ai/test_mocks/track_formulas
+base_path: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks
+formulas_dir: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/track_formulas
 logging_enabled: true

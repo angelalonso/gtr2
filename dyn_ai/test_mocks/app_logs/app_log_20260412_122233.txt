@@ -1,0 +1,52 @@
+=== Live AI Tuner Log - 2026-04-12T12:22:33.241474 ===
+Command: /home/aaf/.local/share/virtualenvs/dyn_ai-zw_yYVg2/bin/python3 -u /home/aaf/Software/Dev/gtr2/dyn_ai/dyn_ai.py --config /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/cfg_test.yml
+PID: 8894
+================================================================================
+
+[2026-04-12 12:22:34.741] [STDOUT] Loaded 164 points from database
+[2026-04-12 12:22:34.741] [STDOUT]   Tracks: 11
+[2026-04-12 12:22:34.741] [STDOUT]   Vehicles: 4
+[2026-04-12 12:22:34.741] [STDOUT]   Selected all 4 vehicles by default
+[2026-04-12 12:22:34.811] [STDOUT] Started monitoring: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/UserData/Log/Results/raceresults.txt
+[2026-04-12 12:22:34.811] [STDOUT] Poll interval: 5.0 seconds
+[2026-04-12 12:22:34.812] [STDOUT] Daemon started - monitoring: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/UserData/Log/Results/raceresults.txt
+[2026-04-12 12:22:50.348] [STDOUT] 
+[2026-04-12 12:22:50.348] [STDOUT] ============================================================
+[2026-04-12 12:22:50.348] [STDOUT] 📁 RACE RESULTS DETECTED!
+[2026-04-12 12:22:50.348] [STDOUT]   File: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/UserData/Log/Results/raceresults.txt
+[2026-04-12 12:22:50.348] [STDOUT]   Time: 2026-04-12 12:22:49
+[2026-04-12 12:22:50.348] [STDOUT]   Total changes: 1
+[2026-04-12 12:22:50.348] [STDOUT] ============================================================
+[2026-04-12 12:22:50.348] [STDOUT] 
+[2026-04-12 12:23:05.352] [STDOUT] 
+[2026-04-12 12:23:05.352] [STDOUT] ============================================================
+[2026-04-12 12:23:05.352] [STDOUT] 📁 RACE RESULTS DETECTED!
+[2026-04-12 12:23:05.353] [STDOUT]   File: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/UserData/Log/Results/raceresults.txt
+[2026-04-12 12:23:05.353] [STDOUT]   Time: 2026-04-12 12:23:05
+[2026-04-12 12:23:05.353] [STDOUT]   Total changes: 2
+[2026-04-12 12:23:05.353] [STDOUT] ============================================================
+[2026-04-12 12:23:05.353] [STDOUT] 
+[2026-04-12 12:23:20.360] [STDOUT] 
+[2026-04-12 12:23:20.360] [STDOUT] ============================================================
+[2026-04-12 12:23:20.361] [STDOUT] 📁 RACE RESULTS DETECTED!
+[2026-04-12 12:23:20.361] [STDOUT]   File: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/UserData/Log/Results/raceresults.txt
+[2026-04-12 12:23:20.361] [STDOUT]   Time: 2026-04-12 12:23:20
+[2026-04-12 12:23:20.361] [STDOUT]   Total changes: 3
+[2026-04-12 12:23:20.361] [STDOUT] ============================================================
+[2026-04-12 12:23:20.362] [STDOUT] 
+[2026-04-12 12:23:35.368] [STDOUT] 
+[2026-04-12 12:23:35.368] [STDOUT] ============================================================
+[2026-04-12 12:23:35.368] [STDOUT] 📁 RACE RESULTS DETECTED!
+[2026-04-12 12:23:35.368] [STDOUT]   File: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/UserData/Log/Results/raceresults.txt
+[2026-04-12 12:23:35.369] [STDOUT]   Time: 2026-04-12 12:23:35
+[2026-04-12 12:23:35.369] [STDOUT]   Total changes: 4
+[2026-04-12 12:23:35.369] [STDOUT] ============================================================
+[2026-04-12 12:23:35.369] [STDOUT] 
+[2026-04-12 12:23:45.369] [STDOUT] 
+[2026-04-12 12:23:45.369] [STDOUT] ============================================================
+[2026-04-12 12:23:45.369] [STDOUT] 📁 RACE RESULTS DETECTED!
+[2026-04-12 12:23:45.369] [STDOUT]   File: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/UserData/Log/Results/raceresults.txt
+[2026-04-12 12:23:45.369] [STDOUT]   Time: 2026-04-12 12:23:45
+[2026-04-12 12:23:45.369] [STDOUT]   Total changes: 5
+[2026-04-12 12:23:45.370] [STDOUT] ============================================================
+[2026-04-12 12:23:45.370] [STDOUT] 
