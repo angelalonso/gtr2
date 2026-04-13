@@ -6,6 +6,7 @@ Extracts track info, AIW ratios, and lap times from raceresults.txt
 
 import re
 import os
+import traceback
 from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 from dataclasses import dataclass, field
@@ -38,7 +39,7 @@ class RaceData:
     qual_worst_ai_lap: Optional[str] = None
     qual_worst_ai_lap_sec: float = 0.0
     ai_count: int = 0
-    ai_results: List[Dict] = field(default_factory=list)
+    ai_results: List[Dict] = field(default_factory=list)  # Now stores ALL AI drivers
     raw_content: str = ""
     
     def __post_init__(self):
@@ -68,24 +69,65 @@ class RaceData:
             'user_best_lap_sec': self.user_best_lap_sec,
             'user_qualifying': self.user_qualifying,
             'user_qualifying_sec': self.user_qualifying_sec,
-            'ai_results': self.ai_results,
+            'ai_results': self.ai_results,  # Now contains ALL AI drivers
         }
     
     def to_data_points(self) -> List[Tuple[str, float, float, str]]:
-        """Convert to data points for curve database"""
+        """
+        Convert to data points for curve database.
+        Now creates points from ALL AI drivers, not just best/worst!
+        """
         points = []
         
-        # Add qualifying data point if available
-        if self.qual_ratio and self.qual_best_ai_lap_sec > 0 and self.qual_worst_ai_lap_sec > 0:
-            midpoint = (self.qual_best_ai_lap_sec + self.qual_worst_ai_lap_sec) / 2
-            points.append((self.track_name, self.qual_ratio, midpoint, 'qual'))
+        # Add data points from ALL qualifying AI drivers
+        if self.qual_ratio:
+            for ai in self.ai_results:
+                if ai.get('qual_time_sec') and ai['qual_time_sec'] > 0:
+                    points.append((self.track_name, self.qual_ratio, ai['qual_time_sec'], 'qual'))
         
-        # Add race data point if available
+        # Add data points from ALL race AI drivers  
+        if self.race_ratio:
+            for ai in self.ai_results:
+                if ai.get('best_lap_sec') and ai['best_lap_sec'] > 0:
+                    points.append((self.track_name, self.race_ratio, ai['best_lap_sec'], 'race'))
+        
+        # Also keep the best/worst for quick reference (but they're now derived from all)
+        if self.qual_ratio and self.qual_best_ai_lap_sec > 0 and self.qual_worst_ai_lap_sec > 0:
+            # Still add the midpoint as a data point for the curve fitting
+            midpoint = (self.qual_best_ai_lap_sec + self.qual_worst_ai_lap_sec) / 2
+            points.append((self.track_name, self.qual_ratio, midpoint, 'qual_midpoint'))
+        
         if self.race_ratio and self.best_ai_lap_sec > 0 and self.worst_ai_lap_sec > 0:
             midpoint = (self.best_ai_lap_sec + self.worst_ai_lap_sec) / 2
-            points.append((self.track_name, self.race_ratio, midpoint, 'race'))
+            points.append((self.track_name, self.race_ratio, midpoint, 'race_midpoint'))
         
         return points
+    
+    def get_all_ai_times(self, session_type: str = "race") -> List[float]:
+        """Get all AI lap times for a specific session type"""
+        times = []
+        for ai in self.ai_results:
+            if session_type == "qual" and ai.get('qual_time_sec'):
+                times.append(ai['qual_time_sec'])
+            elif session_type == "race" and ai.get('best_lap_sec'):
+                times.append(ai['best_lap_sec'])
+        return sorted(times)
+    
+    def get_ai_statistics(self, session_type: str = "race") -> Dict:
+        """Get statistics for AI lap times"""
+        times = self.get_all_ai_times(session_type)
+        if not times:
+            return {"count": 0, "min": 0, "max": 0, "mean": 0, "median": 0, "std": 0}
+        
+        import statistics
+        return {
+            "count": len(times),
+            "min": min(times),
+            "max": max(times),
+            "mean": statistics.mean(times),
+            "median": statistics.median(times),
+            "std": statistics.stdev(times) if len(times) > 1 else 0
+        }
 
 
 class DataExtractor:
@@ -128,8 +170,14 @@ class DataExtractor:
             # Parse header info
             self._parse_header(content, data)
             
-            # Parse driver slots
+            # Parse driver slots (this now captures ALL AI drivers)
             self._parse_drivers(content, data)
+            
+            print(f"\n[DataExtractor] Parsed race data for {data.track_name or 'Unknown'}:")
+            print(f"  User: {data.user_name or 'Unknown'} ({data.user_vehicle or 'Unknown'})")
+            print(f"  AI Drivers: {data.ai_count}")
+            print(f"  Qualifying times: {len([a for a in data.ai_results if a.get('qual_time_sec')])} AI times recorded")
+            print(f"  Race times: {len([a for a in data.ai_results if a.get('best_lap_sec')])} AI times recorded")
             
             # Parse AIW ratios if we have AIW file and base path
             if data.aiw_file and self.base_path:
@@ -168,9 +216,9 @@ class DataExtractor:
                 data.aiw_file = data.aiw_path.name
     
     def _parse_drivers(self, content: str, data: RaceData):
-        """Parse driver information from slots"""
-        ai_times_qual = []
-        ai_times_race = []
+        """Parse driver information from slots - captures ALL AI drivers"""
+        ai_times_qual = []  # (time, driver_name, vehicle)
+        ai_times_race = []  # (time, driver_name, vehicle)
         slot_counter = 0
         
         for slot_str, slot_content in self.SLOT_PATTERN.findall(content):
@@ -199,7 +247,7 @@ class DataExtractor:
                 data.user_qualifying = qual
                 data.user_qualifying_sec = qual_sec or 0.0
             else:
-                # AI driver
+                # AI driver - store ALL of them
                 data.ai_count += 1
                 ai_result = {
                     'slot': slot,
@@ -216,21 +264,24 @@ class DataExtractor:
                 }
                 data.ai_results.append(ai_result)
                 
+                # Collect times for statistics
                 if qual_sec and qual_sec > 0:
-                    ai_times_qual.append((qual_sec, qual))
+                    ai_times_qual.append((qual_sec, name, vehicle))
                 if best_sec and best_sec > 0:
-                    ai_times_race.append((best_sec, best))
+                    ai_times_race.append((best_sec, name, vehicle))
         
-        # Calculate best/worst AI times
+        # Calculate best/worst AI times from ALL AI drivers
         if ai_times_qual:
             ai_times_qual.sort(key=lambda x: x[0])
-            data.qual_best_ai_lap_sec, data.qual_best_ai_lap = ai_times_qual[0]
-            data.qual_worst_ai_lap_sec, data.qual_worst_ai_lap = ai_times_qual[-1]
+            data.qual_best_ai_lap_sec, data.qual_best_ai_lap, _ = ai_times_qual[0]
+            data.qual_worst_ai_lap_sec, data.qual_worst_ai_lap, _ = ai_times_qual[-1]
+            print(f"  Qualifying: {len(ai_times_qual)} AI times, best={data.qual_best_ai_lap_sec:.3f}s, worst={data.qual_worst_ai_lap_sec:.3f}s")
         
         if ai_times_race:
             ai_times_race.sort(key=lambda x: x[0])
-            data.best_ai_lap_sec, data.best_ai_lap = ai_times_race[0]
-            data.worst_ai_lap_sec, data.worst_ai_lap = ai_times_race[-1]
+            data.best_ai_lap_sec, data.best_ai_lap, _ = ai_times_race[0]
+            data.worst_ai_lap_sec, data.worst_ai_lap, _ = ai_times_race[-1]
+            print(f"  Race: {len(ai_times_race)} AI times, best={data.best_ai_lap_sec:.3f}s, worst={data.worst_ai_lap_sec:.3f}s")
     
     def _parse_aiw_ratios(self, data: RaceData):
         """Parse QualRatio and RaceRatio from AIW file"""
@@ -262,11 +313,13 @@ class DataExtractor:
                 q_match = self.QUAL_RATIO_PATTERN.search(section)
                 if q_match:
                     data.qual_ratio = float(q_match.group(1))
+                    print(f"  QualRatio from AIW: {data.qual_ratio:.6f}")
                 
                 # Extract RaceRatio
                 r_match = self.RACE_RATIO_PATTERN.search(section)
                 if r_match:
                     data.race_ratio = float(r_match.group(1))
+                    print(f"  RaceRatio from AIW: {data.race_ratio:.6f}")
                     
         except Exception as e:
             print(f"Error parsing AIW ratios: {e}")
@@ -384,20 +437,23 @@ def get_display_text(data: RaceData) -> str:
     if data.user_best_lap:
         lines.append(f"   Best Lap: {data.user_best_lap}")
     
-    # AI times
-    ai_lines = []
-    if data.qual_best_ai_lap:
-        ai_lines.append(f"   Qual Best: {data.qual_best_ai_lap}")
-    if data.qual_worst_ai_lap:
-        ai_lines.append(f"   Qual Worst: {data.qual_worst_ai_lap}")
-    if data.best_ai_lap:
-        ai_lines.append(f"   Race Best: {data.best_ai_lap}")
-    if data.worst_ai_lap:
-        ai_lines.append(f"   Race Worst: {data.worst_ai_lap}")
+    # AI statistics
+    qual_stats = data.get_ai_statistics("qual")
+    race_stats = data.get_ai_statistics("race")
     
-    if ai_lines:
-        lines.append(f"\n🤖 AI Times ({data.ai_count} drivers):")
-        lines.extend(ai_lines)
+    if qual_stats["count"] > 0:
+        lines.append(f"\n🤖 Qualifying AI ({qual_stats['count']} drivers):")
+        lines.append(f"   Best: {format_time(qual_stats['min'])}")
+        lines.append(f"   Worst: {format_time(qual_stats['max'])}")
+        lines.append(f"   Average: {format_time(qual_stats['mean'])}")
+        lines.append(f"   Median: {format_time(qual_stats['median'])}")
+    
+    if race_stats["count"] > 0:
+        lines.append(f"\n🏁 Race AI ({race_stats['count']} drivers):")
+        lines.append(f"   Best: {format_time(race_stats['min'])}")
+        lines.append(f"   Worst: {format_time(race_stats['max'])}")
+        lines.append(f"   Average: {format_time(race_stats['mean'])}")
+        lines.append(f"   Median: {format_time(race_stats['median'])}")
     
     # AIW path
     if data.aiw_path:
@@ -430,6 +486,9 @@ if __name__ == "__main__":
                 print(f"  {point[0]}: R={point[1]:.4f}, T={point[2]:.3f}s ({point[3]})")
             print(f"\nRace ID: {data.race_id}")
             print(f"Timestamp: {data.timestamp}")
+            print(f"\nAll AI drivers: {data.ai_count}")
+            for i, ai in enumerate(data.ai_results[:5]):  # Show first 5
+                print(f"  AI {i+1}: {ai.get('driver_name')} - Qual: {ai.get('qual_time')}, Race: {ai.get('best_lap')}")
         else:
             print("No data extracted")
     else:

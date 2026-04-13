@@ -36,7 +36,7 @@ class CurveDatabase:
             )
         """)
         
-        # Race sessions table (new)
+        # Race sessions table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS race_sessions (
                 race_id TEXT PRIMARY KEY,
@@ -56,7 +56,7 @@ class CurveDatabase:
             )
         """)
         
-        # AI results table (new)
+        # AI results table - now stores ALL AI drivers, not just best/worst
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS ai_results (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -83,6 +83,7 @@ class CurveDatabase:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_race_track ON race_sessions(track_name)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_race_timestamp ON race_sessions(timestamp)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_race ON ai_results(race_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_times ON ai_results(qual_time_sec, best_lap_sec)")
         
         conn.commit()
         conn.close()
@@ -182,6 +183,9 @@ class CurveDatabase:
         cursor.execute("SELECT COUNT(*) FROM race_sessions")
         total_races = cursor.fetchone()[0]
         
+        cursor.execute("SELECT COUNT(*) FROM ai_results")
+        total_ai_results = cursor.fetchone()[0]
+        
         conn.close()
         
         return {
@@ -189,11 +193,12 @@ class CurveDatabase:
             'by_type': by_type,
             'total_tracks': total_tracks,
             'total_vehicles': total_vehicles,
-            'total_races': total_races
+            'total_races': total_races,
+            'total_ai_results': total_ai_results
         }
     
     def save_race_session(self, race_data: dict) -> Optional[str]:
-        """Save a complete race session with AI results"""
+        """Save a complete race session with ALL AI results"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -242,7 +247,7 @@ class CurveDatabase:
             
             print(f"    ✓ Race session inserted")
             
-            # Insert AI results
+            # Insert ALL AI results
             ai_count = 0
             for ai in race_data.get('ai_results', []):
                 cursor.execute("""
@@ -311,6 +316,29 @@ class CurveDatabase:
             print(f"Error adding data point: {e}")
             return False
     
+    def add_data_points_batch(self, points: List[Tuple[str, str, float, float, str]]) -> int:
+        """Add multiple data points in batch"""
+        if not points:
+            return 0
+        
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        added = 0
+        for track, vehicle, ratio, lap_time, session_type in points:
+            try:
+                cursor.execute("""
+                    INSERT INTO data_points (track, vehicle, ratio, lap_time, session_type)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (track, vehicle, ratio, lap_time, session_type))
+                added += 1
+            except Exception as e:
+                print(f"Error adding point: {e}")
+        
+        conn.commit()
+        conn.close()
+        return added
+    
     def get_race_sessions(self, track_name: str = None, limit: int = 50) -> List[Dict]:
         """Get race sessions, optionally filtered by track"""
         conn = sqlite3.connect(self.db_path)
@@ -331,13 +359,43 @@ class CurveDatabase:
         return sessions
     
     def get_ai_results_for_race(self, race_id: str) -> List[Dict]:
-        """Get AI results for a specific race"""
+        """Get ALL AI results for a specific race"""
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         
         cursor.execute("SELECT * FROM ai_results WHERE race_id = ? ORDER BY slot", (race_id,))
         results = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        return results
+    
+    def get_all_ai_times_for_track(self, track_name: str, session_type: str = "race") -> List[Tuple[float, float]]:
+        """
+        Get all AI times for a specific track
+        Returns list of (ratio, lap_time) pairs from all AI drivers across all sessions
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        if session_type == "qual":
+            query = """
+                SELECT rs.qual_ratio, ar.qual_time_sec
+                FROM race_sessions rs
+                JOIN ai_results ar ON rs.race_id = ar.race_id
+                WHERE rs.track_name = ? AND ar.qual_time_sec IS NOT NULL AND ar.qual_time_sec > 0
+                ORDER BY rs.timestamp
+            """
+        else:  # race
+            query = """
+                SELECT rs.race_ratio, ar.best_lap_sec
+                FROM race_sessions rs
+                JOIN ai_results ar ON rs.race_id = ar.race_id
+                WHERE rs.track_name = ? AND ar.best_lap_sec IS NOT NULL AND ar.best_lap_sec > 0
+                ORDER BY rs.timestamp
+            """
+        
+        cursor.execute(query, (track_name,))
+        results = [(row[0], row[1]) for row in cursor.fetchall() if row[0] is not None and row[1] > 0]
         conn.close()
         return results
 
@@ -514,6 +572,7 @@ def run_importer(db_path: str = "ai_data.db"):
         print(f"Unique tracks: {stats['total_tracks']}")
         print(f"Unique vehicles: {stats['total_vehicles']}")
         print(f"Total races: {stats['total_races']}")
+        print(f"Total AI results: {stats['total_ai_results']}")
         print("\nBy session type:")
         for session_type, count in stats['by_type'].items():
             print(f"  {session_type}: {count}")

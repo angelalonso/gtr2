@@ -120,7 +120,7 @@ def create_control_panel(parent=None):
     layout.addWidget(type_group)
     
     # Formula parameters
-    param_group = QGroupBox("Curve Parameters: T = a / R + b")
+    param_group = QGroupBox("Manual Curve Parameters: T = a / R + b")
     param_layout = QVBoxLayout(param_group)
     
     # a parameter
@@ -163,6 +163,54 @@ def create_control_panel(parent=None):
     param_layout.addLayout(info_layout)
     layout.addWidget(param_group)
     
+    # Autopilot group
+    autopilot_group = QGroupBox("🤖 Autopilot")
+    autopilot_layout = QVBoxLayout(autopilot_group)
+    
+    # Autopilot enable/disable
+    autopilot_enable_layout = QHBoxLayout()
+    autopilot_enable_btn = QPushButton("Enable Autopilot")
+    autopilot_enable_btn.setCheckable(True)
+    autopilot_enable_btn.setStyleSheet("""
+        QPushButton {
+            background-color: #555;
+            color: white;
+        }
+        QPushButton:checked {
+            background-color: #FF9800;
+            color: white;
+            font-weight: bold;
+        }
+    """)
+    autopilot_enable_layout.addWidget(autopilot_enable_btn)
+    
+    autopilot_silent_btn = QPushButton("Silent Mode")
+    autopilot_silent_btn.setCheckable(True)
+    autopilot_silent_btn.setStyleSheet("""
+        QPushButton {
+            background-color: #555;
+            color: white;
+        }
+        QPushButton:checked {
+            background-color: #2196F3;
+            color: white;
+        }
+    """)
+    autopilot_enable_layout.addWidget(autopilot_silent_btn)
+    autopilot_layout.addLayout(autopilot_enable_layout)
+    
+    # Autopilot info label
+    autopilot_info = QLabel("When enabled, automatically adjusts AIW ratios\nbased on detected race data and stored formulas.\nThe graph will show the formula being used.")
+    autopilot_info.setStyleSheet("color: #888; font-size: 9px;")
+    autopilot_info.setWordWrap(True)
+    autopilot_layout.addWidget(autopilot_info)
+    
+    autopilot_status = QLabel("Status: Disabled")
+    autopilot_status.setStyleSheet("color: #FF9800; font-size: 10px;")
+    autopilot_layout.addWidget(autopilot_status)
+    
+    layout.addWidget(autopilot_group)
+    
     # Buttons
     btn_layout = QVBoxLayout()
     
@@ -204,7 +252,10 @@ def create_control_panel(parent=None):
         'select_all_tracks': select_all_tracks,
         'clear_tracks': clear_tracks,
         'select_all_vehicles': select_all_vehicles,
-        'clear_vehicles': clear_vehicles
+        'clear_vehicles': clear_vehicles,
+        'autopilot_enable_btn': autopilot_enable_btn,
+        'autopilot_silent_btn': autopilot_silent_btn,
+        'autopilot_status': autopilot_status
     }
 
 
@@ -251,7 +302,10 @@ def create_plot_widget(parent=None):
 
 
 def update_plot(plot_data, a: float, b: float, points_data: dict):
-    """Update the plot with new curve and points"""
+    """
+    Update the plot with new curve and points
+    This is kept for compatibility with existing code
+    """
     plot = plot_data['plot']
     
     # Generate curve points

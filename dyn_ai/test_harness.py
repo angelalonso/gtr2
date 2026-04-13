@@ -27,6 +27,7 @@ import threading
 import queue
 import re
 import hashlib
+import sqlite3
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, List, Tuple
@@ -45,8 +46,9 @@ logger = logging.getLogger(__name__)
 class LiveAITunerTestHarness:
     """Test harness for Live AI Tuner using real race results files"""
 
-    def __init__(self, test_dir: str = "./test_mocks"):
+    def __init__(self, test_dir: str = "./test_mocks", db_path: str = "ai_data.db"):
         self.test_dir = Path(test_dir).absolute()
+        self.db_path = Path(db_path)
         self.app_process = None
         self.log_queue = queue.Queue()
         self.app_log_file = None
@@ -80,6 +82,110 @@ class LiveAITunerTestHarness:
 
         # Track processed files to avoid duplicates
         self.processed_hashes = set()
+
+    # ------------------------------------------------------------------
+    # Database cleanup methods
+    # ------------------------------------------------------------------
+
+    def _cleanup_database_entries(self, track_name_pattern: str = "TestTrack") -> int:
+        """
+        Delete all database entries (data_points, race_sessions, formulas) 
+        that reference tracks matching the pattern (case-insensitive).
+        
+        Returns number of rows deleted.
+        """
+        if not self.db_path.exists():
+            logger.info(f"Database {self.db_path} does not exist, skipping cleanup")
+            return 0
+        
+        total_deleted = 0
+        
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # First, find all track names that match the pattern (case-insensitive)
+            cursor.execute("""
+                SELECT DISTINCT track FROM data_points 
+                WHERE LOWER(track) LIKE LOWER(?)
+            """, (f'%{track_name_pattern}%',))
+            matching_tracks = [row[0] for row in cursor.fetchall()]
+            
+            if not matching_tracks:
+                logger.info(f"No tracks matching '{track_name_pattern}' found in database")
+                conn.close()
+                return 0
+            
+            logger.info(f"Found {len(matching_tracks)} track(s) matching '{track_name_pattern}': {matching_tracks}")
+            
+            # Build placeholders for IN clause
+            placeholders = ','.join('?' * len(matching_tracks))
+            
+            # Delete from data_points
+            cursor.execute(f"""
+                DELETE FROM data_points 
+                WHERE track IN ({placeholders})
+            """, matching_tracks)
+            data_points_deleted = cursor.rowcount
+            total_deleted += data_points_deleted
+            logger.info(f"  Deleted {data_points_deleted} entries from data_points")
+            
+            # Delete from race_sessions
+            cursor.execute(f"""
+                DELETE FROM race_sessions 
+                WHERE track_name IN ({placeholders})
+            """, matching_tracks)
+            race_sessions_deleted = cursor.rowcount
+            total_deleted += race_sessions_deleted
+            logger.info(f"  Deleted {race_sessions_deleted} entries from race_sessions")
+            
+            # Delete from formulas
+            cursor.execute(f"""
+                DELETE FROM formulas 
+                WHERE track IN ({placeholders})
+            """, matching_tracks)
+            formulas_deleted = cursor.rowcount
+            total_deleted += formulas_deleted
+            logger.info(f"  Deleted {formulas_deleted} entries from formulas")
+            
+            conn.commit()
+            conn.close()
+            
+            logger.info(f"✓ Database cleanup complete: {total_deleted} total entries deleted")
+            return total_deleted
+            
+        except sqlite3.Error as e:
+            logger.error(f"Database error during cleanup: {e}")
+            if conn:
+                conn.close()
+            return 0
+        except Exception as e:
+            logger.error(f"Unexpected error during cleanup: {e}")
+            if conn:
+                conn.close()
+            return 0
+
+    def _cleanup_test_data(self):
+        """Clean up test data from database before and after test runs"""
+        logger.info("\n" + "=" * 60)
+        logger.info("DATABASE CLEANUP")
+        logger.info("=" * 60)
+        
+        # Delete entries for TestTrack (case-insensitive)
+        deleted = self._cleanup_database_entries("TestTrack")
+        
+        # Also delete any entries with "Test" in the track name (for safety)
+        # This catches variations like "TestTrack", "TestTrack2", etc.
+        additional_deleted = self._cleanup_database_entries("Test")
+        if additional_deleted > deleted:
+            deleted = additional_deleted
+        
+        if deleted == 0:
+            logger.info("No test data found in database")
+        else:
+            logger.info(f"✓ Removed {deleted} test entries from database")
+        
+        logger.info("=" * 60 + "\n")
 
     # ------------------------------------------------------------------
     # Track / AIW discovery
@@ -815,16 +921,21 @@ class LiveAITunerTestHarness:
     # ------------------------------------------------------------------
 
     def _cleanup(self):
-        """Restore all modified files. Called from every finally block."""
-        logger.info("\n--- Cleanup: restoring files ---")
+        """Restore all modified files and clean database. Called from every finally block."""
+        logger.info("\n--- Cleanup: restoring files and cleaning database ---")
         self._restore_all_aiw_backups()
         self.restore_original_results()
+        # Clean up test data from database after test
+        self._cleanup_test_data()
 
     def run_full_test_with_files(self):
         """Run full test reading all result files in order"""
         logger.info("\n" + "=" * 60)
         logger.info("Full Test Mode - Reading Race Result Files in Order")
         logger.info("=" * 60)
+
+        # Clean up test data from database before starting
+        self._cleanup_test_data()
 
         result_files = self._get_sorted_result_files()
 
@@ -855,8 +966,8 @@ class LiveAITunerTestHarness:
             return False
 
         try:
-            logger.info("\nWaiting 10 seconds for application to fully initialize...")
-            time.sleep(10)
+            logger.info("\nWaiting 2 seconds for application to fully initialize...")
+            time.sleep(2)
 
             for i, result_file in enumerate(result_files, 1):
                 if i > 1:
@@ -900,10 +1011,13 @@ class LiveAITunerTestHarness:
         logger.info("=" * 60)
         logger.info("This will:")
         logger.info("  1. Launch the application")
-        logger.info("  2. Wait 10 seconds")
+        logger.info("  2. Wait 2 seconds")
         logger.info("  3. Make ONE change to raceresults.txt (with AIW patched)")
         logger.info("  4. Keep application running for you to observe")
         logger.info("=" * 60)
+
+        # Clean up test data from database before starting
+        self._cleanup_test_data()
 
         result_files = self._get_sorted_result_files()
         if not result_files:

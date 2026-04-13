@@ -3,38 +3,42 @@
 Simple Curve Viewer - Uses minimal SQLite database
 Displays hyperbolic curve T = a/R + b with data points from database
 Includes file monitoring daemon for raceresults.txt (runs silently in background)
+Includes Autopilot mode for automatic AIW ratio adjustment
+Shows both Qualifying and Race curves on the same graph
 """
 
 import sys
 import threading
 from pathlib import Path
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict, Any
 
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QHBoxLayout, QSplitter,
-    QLabel, QTextEdit, QPushButton, QVBoxLayout
+    QLabel, QPushButton
 )
-from PyQt5.QtCore import Qt, pyqtSignal, QObject, QTimer
+from PyQt5.QtCore import Qt, pyqtSignal, QObject
+import pyqtgraph as pg
+import numpy as np
 
 from db_funcs import CurveDatabase
-from formula_funcs import (
-    get_curve_points, fit_curve, 
-    calculate_derived_values, get_formula_string
-)
+from formula_funcs import fit_curve, calculate_derived_values, get_formula_string
 from gui_funcs import (
-    create_control_panel, create_plot_widget, update_plot, reset_plot_view,
-    setup_dark_theme, show_error_dialog, show_info_dialog, show_warning_dialog
+    create_control_panel, setup_dark_theme, show_error_dialog, 
+    show_info_dialog, show_warning_dialog
 )
 from cfg_funcs import (
     get_config_with_defaults, get_results_file_path, get_poll_interval,
-    get_db_path, create_default_config_if_missing, get_base_path
+    get_db_path, create_default_config_if_missing, get_base_path,
+    get_autopilot_enabled, get_autopilot_silent,
+    update_autopilot_enabled, update_autopilot_silent
 )
-from data_extraction import DataExtractor, RaceData, get_display_text
+from data_extraction import DataExtractor, RaceData
+from autopilot import AutopilotManager, Formula
 
 
 class FileChangeSignal(QObject):
     """Signal for thread-safe GUI updates"""
-    file_changed = pyqtSignal(object)  # RaceData object
+    file_changed = pyqtSignal(object)
 
 
 class FileMonitorDaemon(QObject):
@@ -113,13 +117,10 @@ class FileMonitorDaemon(QObject):
             )
             
             if changed:
-                # Extract data from the file
                 race_data = self.extractor.parse_race_results(self.file_path)
-                
                 if race_data and race_data.has_data():
                     self.signal.file_changed.emit(race_data)
                 else:
-                    # Still emit but with empty data to show file changed
                     self.signal.file_changed.emit(None)
                 
                 self.last_mtime = current_mtime
@@ -131,117 +132,12 @@ class FileMonitorDaemon(QObject):
             self._schedule_check()
 
 
-class FileChangePopup(QWidget):
-    """Popup window for file change notifications with race data"""
-    
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Race Results Detected")
-        self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.Dialog)
-        self.setMinimumWidth(500)
-        self.setMinimumHeight(400)
-        self.current_data = None
-        self.setup_ui()
-        
-    def setup_ui(self):
-        """Setup the popup UI"""
-        self.setStyleSheet("""
-            QWidget {
-                background-color: #2b2b2b;
-                border-radius: 8px;
-            }
-            QLabel {
-                color: white;
-                font-size: 12px;
-            }
-            QTextEdit {
-                background-color: #1e1e1e;
-                color: #4CAF50;
-                border: 1px solid #4CAF50;
-                border-radius: 4px;
-                font-family: monospace;
-                font-size: 11px;
-            }
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 8px 16px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-        """)
-        
-        layout = QVBoxLayout(self)
-        
-        # Icon and title
-        title_layout = QHBoxLayout()
-        icon_label = QLabel("🏁")
-        icon_label.setStyleSheet("font-size: 28px;")
-        title_layout.addWidget(icon_label)
-        
-        title_text = QLabel("RACE RESULTS DETECTED!")
-        title_text.setStyleSheet("font-size: 16px; font-weight: bold; color: #FFA500;")
-        title_layout.addWidget(title_text)
-        title_layout.addStretch()
-        layout.addLayout(title_layout)
-        
-        layout.addSpacing(10)
-        
-        # Data display area
-        self.data_text = QTextEdit()
-        self.data_text.setReadOnly(True)
-        self.data_text.setMaximumHeight(300)
-        layout.addWidget(self.data_text)
-        
-        layout.addSpacing(10)
-        
-        # Buttons
-        button_layout = QHBoxLayout()
-        
-        ok_btn = QPushButton("OK")
-        ok_btn.clicked.connect(self.close)
-        button_layout.addStretch()
-        button_layout.addWidget(ok_btn)
-        button_layout.addStretch()
-        
-        layout.addLayout(button_layout)
-        
-        # Auto-close timer (10 seconds)
-        self.close_timer = QTimer()
-        self.close_timer.setSingleShot(True)
-        self.close_timer.timeout.connect(self.close)
-        
-    def show_change(self, race_data: RaceData):
-        """Show the change notification with race data"""
-        self.current_data = race_data
-        
-        if race_data:
-            display_text = get_display_text(race_data)
-            self.data_text.setText(display_text)
-            self.setWindowTitle(f"Race Results - {race_data.track_name or 'Unknown Track'}")
-        else:
-            self.data_text.setText("File changed but no race data could be extracted.")
-            self.setWindowTitle("File Change Detected")
-        
-        # Show window
-        self.show()
-        self.raise_()
-        self.activateWindow()
-        
-        # Start auto-close timer
-        self.close_timer.start(10000)
-
-
 class SimpleCurveViewer(QMainWindow):
-    """Lightweight GUI for viewing hyperbolic curves with simple SQLite storage"""
+    """Lightweight GUI for viewing hyperbolic curves"""
     
     def __init__(self, db_path: str = "ai_data.db", config_file: str = "cfg.yml"):
         super().__init__()
-        self.setWindowTitle("Curve Viewer - T = a/R + b")
+        self.setWindowTitle("Curve Viewer - Qualifying & Race Curves")
         self.setGeometry(100, 100, 1200, 700)
         
         # Config
@@ -251,14 +147,19 @@ class SimpleCurveViewer(QMainWindow):
         # Database handler
         self.db = CurveDatabase(db_path)
         
-        # Daemon
-        self.daemon = None
-        self.popup = None
-        self.last_race_data = None
+        # Autopilot
+        self.autopilot_manager = AutopilotManager(self.db)
+        self.autopilot_enabled = get_autopilot_enabled(config_file)
+        self.autopilot_silent = get_autopilot_silent(config_file)
+        self.autopilot_manager.set_enabled(self.autopilot_enabled)
+        self.autopilot_manager.set_silent(self.autopilot_silent)
         
-        # Current state
-        self.current_a: float = 30.0
-        self.current_b: float = 70.0
+        # Current formulas (updated by autopilot or manual fit)
+        self.qual_a: float = 30.0
+        self.qual_b: float = 70.0
+        self.race_a: float = 30.0
+        self.race_b: float = 70.0
+        self.formula_source: str = "Default"
         
         # Filter state
         self.show_qualifying: bool = True
@@ -268,6 +169,9 @@ class SimpleCurveViewer(QMainWindow):
         # Cache for tracks and vehicles
         self.all_tracks: List[str] = []
         self.all_vehicles: List[str] = []
+        
+        # Daemon
+        self.daemon = None
         
         self.setup_ui()
         self.load_data()
@@ -295,11 +199,12 @@ class SimpleCurveViewer(QMainWindow):
         self.qual_btn = controls['qual_btn']
         self.race_btn = controls['race_btn']
         self.unkn_btn = controls['unkn_btn']
-        self.a_spin = controls['a_spin']
-        self.b_spin = controls['b_spin']
-        self.k_label = controls['k_label']
-        self.m_label = controls['m_label']
         self.stats_label = controls['stats_label']
+        
+        # Autopilot controls
+        self.autopilot_enable_btn = controls.get('autopilot_enable_btn')
+        self.autopilot_silent_btn = controls.get('autopilot_silent_btn')
+        self.autopilot_status_label = controls.get('autopilot_status')
         
         # Connect signals
         self.track_list.itemSelectionChanged.connect(self.on_selection_changed)
@@ -307,8 +212,6 @@ class SimpleCurveViewer(QMainWindow):
         self.qual_btn.clicked.connect(self.on_filter_buttons)
         self.race_btn.clicked.connect(self.on_filter_buttons)
         self.unkn_btn.clicked.connect(self.on_filter_buttons)
-        self.a_spin.valueChanged.connect(self.on_param_changed)
-        self.b_spin.valueChanged.connect(self.on_param_changed)
         controls['fit_btn'].clicked.connect(self.auto_fit)
         controls['reset_btn'].clicked.connect(self.reset_view)
         controls['exit_btn'].clicked.connect(self.close)
@@ -317,103 +220,238 @@ class SimpleCurveViewer(QMainWindow):
         controls['select_all_vehicles'].clicked.connect(lambda: self.vehicle_list.selectAll())
         controls['clear_vehicles'].clicked.connect(lambda: self.vehicle_list.clearSelection())
         
-        # Create plot widget using pyqtgraph
-        self.plot_data = create_plot_widget(self)
+        # Connect autopilot signals
+        if self.autopilot_enable_btn:
+            self.autopilot_enable_btn.setChecked(self.autopilot_enabled)
+            self.autopilot_enable_btn.clicked.connect(self.toggle_autopilot)
+        
+        if self.autopilot_silent_btn:
+            self.autopilot_silent_btn.setChecked(self.autopilot_silent)
+            self.autopilot_silent_btn.clicked.connect(self.toggle_autopilot_silent)
+        
+        self._update_autopilot_status()
+        
+        # Create plot widget
+        self.plot_widget = pg.GraphicsLayoutWidget()
+        self.plot_widget.setBackground('#2b2b2b')
+        self.plot = self.plot_widget.addPlot()
+        self.plot.setLabel('bottom', 'Ratio (R)', color='white', size='11pt')
+        self.plot.setLabel('left', 'Lap Time (seconds)', color='white', size='11pt')
+        self.plot.setTitle('Hyperbolic Curves: T = a / R + b', color='#FFA500', size='12pt')
+        self.plot.showGrid(x=True, y=True, alpha=0.3)
+        self.plot.setXRange(0.4, 2.0)
+        self.plot.setYRange(50, 200)
+        
+        # Style axes
+        self.plot.getAxis('bottom').setPen('white')
+        self.plot.getAxis('bottom').setTextPen('white')
+        self.plot.getAxis('left').setPen('white')
+        self.plot.getAxis('left').setTextPen('white')
+        
+        # Store plot items
+        self.qual_curve = None
+        self.race_curve = None
+        self.qual_scatter = None
+        self.race_scatter = None
+        self.unknown_scatter = None
+        self.legend = None
         
         # Splitter
         splitter = QSplitter(Qt.Horizontal)
         splitter.addWidget(controls['panel'])
-        splitter.addWidget(self.plot_data['widget'])
+        splitter.addWidget(self.plot_widget)
         splitter.setSizes([340, 860])
         main_layout.addWidget(splitter)
+    
+    def _update_autopilot_status(self):
+        """Update autopilot status label"""
+        if self.autopilot_status_label:
+            if self.autopilot_enabled:
+                count = self.autopilot_manager.formula_manager.get_formula_count()
+                self.autopilot_status_label.setText(f"Status: Active ({count} formulas)")
+                self.autopilot_status_label.setStyleSheet("color: #4CAF50; font-size: 10px;")
+            else:
+                self.autopilot_status_label.setText("Status: Disabled")
+                self.autopilot_status_label.setStyleSheet("color: #888; font-size: 10px;")
+    
+    def toggle_autopilot(self):
+        """Toggle autopilot mode"""
+        self.autopilot_enabled = not self.autopilot_enabled
+        self.autopilot_manager.set_enabled(self.autopilot_enabled)
+        update_autopilot_enabled(self.autopilot_enabled, self.config_file)
         
-        # Create popup
-        self.popup = FileChangePopup(self)
+        self._update_autopilot_status()
+        status = "ENABLED" if self.autopilot_enabled else "DISABLED"
+        self.statusBar().showMessage(f"🤖 Autopilot {status}", 3000)
         
-        # Update labels
-        self._update_labels()
+        if self.autopilot_enabled:
+            self.autopilot_manager.reload_formulas()
+            self._update_formulas_from_autopilot()
+            count = self.autopilot_manager.formula_manager.get_formula_count()
+            show_info_dialog(self, "Autopilot Enabled", 
+                           f"Autopilot will automatically fit curves using the same\n"
+                           f"method as the 'Auto-fit' button.\n\n"
+                           f"Loaded {count} formulas.\n\n"
+                           f"Qualifying: 🟡 Yellow line\n"
+                           f"Race: 🟠 Orange line")
+            self.update_display()
+    
+    def toggle_autopilot_silent(self):
+        """Toggle autopilot silent mode"""
+        self.autopilot_silent = not self.autopilot_silent
+        self.autopilot_manager.set_silent(self.autopilot_silent)
+        update_autopilot_silent(self.autopilot_silent, self.config_file)
+        
+        mode = "SILENT" if self.autopilot_silent else "VERBOSE"
+        self.statusBar().showMessage(f"Autopilot {mode} mode", 2000)
     
     def start_daemon(self):
-        """Start the file monitoring daemon silently"""
-        # Get file path from config
+        """Start the file monitoring daemon"""
         file_path = get_results_file_path(self.config_file)
         if not file_path:
-            print("No base path configured in cfg.yml - daemon not started")
+            print("No base path configured - daemon not started")
             return
         
-        # Get base path
         base_path = get_base_path(self.config_file)
         if not base_path:
             print("Base path not configured - daemon not started")
             return
         
-        # Get poll interval
         poll_interval = get_poll_interval(self.config_file)
         
-        # Create and start daemon
         self.daemon = FileMonitorDaemon(file_path, base_path, poll_interval)
         self.daemon.signal.file_changed.connect(self.on_file_changed)
         self.daemon.start()
-        
-        print(f"Daemon started silently - monitoring: {file_path}")
+        print(f"Daemon started - monitoring: {file_path}")
     
     def stop_daemon(self):
         """Stop the file monitoring daemon"""
         if self.daemon:
             self.daemon.stop()
             self.daemon = None
-        print("Daemon stopped")
+    
+    def _update_formulas_from_autopilot(self):
+        """Update current formulas from autopilot for selected track/vehicle"""
+        selected_tracks = [item.text() for item in self.track_list.selectedItems()]
+        selected_vehicles = [item.text() for item in self.vehicle_list.selectedItems()]
+        
+        if not selected_tracks or not selected_vehicles:
+            print("  No track/vehicle selected")
+            return
+        
+        track = selected_tracks[0]
+        vehicle = selected_vehicles[0]
+        
+        print(f"\n[GUI] Updating formulas from autopilot for {track}/{vehicle}")
+        
+        # Get qualifying formula - try exact match first
+        qual_formula = self.autopilot_manager.formula_manager.get_formula(track, vehicle, "qual")
+        
+        # If no exact match, try to get ANY qualifying formula for this track
+        if not qual_formula:
+            track_formulas = self.autopilot_manager.formula_manager.get_all_formulas_for_track(track)
+            # Find any qualifying formula
+            for f in track_formulas:
+                if f.session_type == "qual" and f.is_valid():
+                    qual_formula = f
+                    print(f"  🟡 Using fallback qualifying formula from vehicle '{f.vehicle}'")
+                    break
+        
+        if qual_formula and qual_formula.is_valid():
+            self.qual_a = qual_formula.a
+            self.qual_b = qual_formula.b
+            self.formula_source = f"Autopilot ({qual_formula.vehicle}, {qual_formula.data_points_used} pts, err: {qual_formula.avg_error:.2f}s)"
+            print(f"  🟡 QUALIFYING formula loaded: {qual_formula.get_formula_string()}")
+        else:
+            print(f"  🟡 No qualifying formula found for track {track}")
+        
+        # Get race formula - try exact match first
+        race_formula = self.autopilot_manager.formula_manager.get_formula(track, vehicle, "race")
+        
+        # If no exact match, try to get ANY race formula for this track
+        if not race_formula:
+            track_formulas = self.autopilot_manager.formula_manager.get_all_formulas_for_track(track)
+            # Find any race formula
+            for f in track_formulas:
+                if f.session_type == "race" and f.is_valid():
+                    race_formula = f
+                    print(f"  🟠 Using fallback race formula from vehicle '{f.vehicle}'")
+                    break
+        
+        if race_formula and race_formula.is_valid():
+            self.race_a = race_formula.a
+            self.race_b = race_formula.b
+            print(f"  🟠 RACE formula loaded: {race_formula.get_formula_string()}")
+        else:
+            print(f"  🟠 No race formula found for track {track}")
     
     def on_file_changed(self, race_data: RaceData):
-        """Handle file change event from daemon - save to DB and update graph"""
+        """Handle file change event - run autopilot and update display"""
         from datetime import datetime
         
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         if race_data:
-            # Save to database
             print(f"\n{'='*60}")
-            print(f"[{timestamp}] SAVING RACE DATA TO DATABASE")
+            print(f"[{timestamp}] New race data detected")
             print(f"{'='*60}")
             
-            # Save the race session
+            # Save race session
             race_dict = race_data.to_dict()
             race_id = self.db.save_race_session(race_dict)
             
             if race_id:
-                print(f"✓ Race session saved with ID: {race_id}")
-                
-                # Add data points to curve database
+                # Add data points from ALL AI drivers
                 points_added = 0
                 for track, ratio, lap_time, session_type in race_data.to_data_points():
-                    # Use the user's vehicle or "Unknown" as the vehicle for the data point
-                    vehicle = race_data.user_vehicle if race_data.user_vehicle else "Unknown"
+                    vehicle = race_data.user_vehicle or "Unknown"
                     if self.db.add_data_point(track, vehicle, ratio, lap_time, session_type):
                         points_added += 1
-                        print(f"  ✓ Added {session_type} point: {track} R={ratio:.4f} T={lap_time:.3f}s")
                 
-                # Reload data to update the graph
+                print(f"✓ Added {points_added} new data points")
+                
+                # Reload data (refresh track list)
                 self.load_data()
                 
                 # Auto-select the track that was just detected
                 if race_data.track_name and race_data.track_name in self.all_tracks:
-                    # Find and select the track in the list
                     items = self.track_list.findItems(race_data.track_name, Qt.MatchExactly)
                     if items:
                         self.track_list.clearSelection()
                         items[0].setSelected(True)
-                        # Also select all vehicles to show all data for this track
                         self.vehicle_list.selectAll()
                         print(f"✓ Auto-selected track: {race_data.track_name}")
                 
-                # Update the graph
+                # Run autopilot if enabled
+                if self.autopilot_enabled and race_data.aiw_path:
+                    print(f"\n🤖 Running autopilot...")
+                    
+                    # Reload formulas to include new data
+                    self.autopilot_manager.reload_formulas()
+                    
+                    # Process the data (this will use fit_curve on ALL data points)
+                    result = self.autopilot_manager.process_new_data(race_data, race_data.aiw_path)
+                    
+                    if result["success"]:
+                        print(f"\n✓ Autopilot completed successfully:")
+                        if result.get("qual_updated"):
+                            print(f"  🟡 Qualifying: {result['qual_old_ratio']:.6f} → {result['qual_new_ratio']:.6f}")
+                        if result.get("race_updated"):
+                            print(f"  🟠 Race: {result['race_old_ratio']:.6f} → {result['race_new_ratio']:.6f}")
+                    else:
+                        print(f"\n⚠ Autopilot: {result.get('message', 'No updates')}")
+                    
+                    # CRITICAL: Reload formulas again to get the updated ones
+                    self.autopilot_manager.reload_formulas()
+                
+                # CRITICAL: Update the GUI with the latest formulas
+                self._update_formulas_from_autopilot()
+                
+                # CRITICAL: Refresh the graph
                 self.update_display()
+                self._update_autopilot_status()
                 
-                # Show popup with data
-                if self.popup:
-                    self.popup.show_change(race_data)
-                
-                print(f"\n✓ Graph updated with new data points")
+                print(f"\n✓ Graph updated with new formulas")
             else:
                 print(f"✗ Failed to save race session")
         else:
@@ -423,27 +461,33 @@ class SimpleCurveViewer(QMainWindow):
         """Load tracks and vehicles from database"""
         if not self.db.database_exists():
             print(f"Database not found: {self.db.db_path}")
-            print("Run db_funcs.py first to import your data")
             return
         
-        self.all_tracks = self.db.get_all_tracks()
-        self.all_vehicles = self.db.get_all_vehicles()
-        stats = self.db.get_stats()
-        
-        # Populate lists (preserve selection if possible)
+        # Store current selection to restore later
         current_track = None
         if self.track_list.selectedItems():
             current_track = self.track_list.selectedItems()[0].text()
         
+        current_vehicle = None
+        if self.vehicle_list.selectedItems():
+            current_vehicle = self.vehicle_list.selectedItems()[0].text()
+        
+        # Reload lists
+        self.all_tracks = self.db.get_all_tracks()
+        self.all_vehicles = self.db.get_all_vehicles()
+        stats = self.db.get_stats()
+        
+        # Populate track list
         self.track_list.clear()
         for track in self.all_tracks:
             self.track_list.addItem(track)
         
+        # Populate vehicle list
         self.vehicle_list.clear()
         for vehicle in self.all_vehicles:
             self.vehicle_list.addItem(vehicle)
         
-        # Restore selection or select first track
+        # Restore selection
         if current_track and current_track in self.all_tracks:
             items = self.track_list.findItems(current_track, Qt.MatchExactly)
             if items:
@@ -451,37 +495,39 @@ class SimpleCurveViewer(QMainWindow):
         elif self.all_tracks:
             self.track_list.setCurrentRow(0)
         
-        # Select all vehicles by default if nothing selected
-        if not self.vehicle_list.selectedItems() and self.all_vehicles:
+        if current_vehicle and current_vehicle in self.all_vehicles:
+            items = self.vehicle_list.findItems(current_vehicle, Qt.MatchExactly)
+            if items:
+                items[0].setSelected(True)
+        elif not self.vehicle_list.selectedItems() and self.all_vehicles:
             self.vehicle_list.selectAll()
         
         # Update stats label
         type_str = ", ".join([f"{t}: {c}" for t, c in stats['by_type'].items()])
         self.stats_label.setText(f"Points: {stats['total_points']} | Races: {stats['total_races']}\n{type_str}")
         
-        print(f"Loaded {stats['total_points']} points, {stats['total_races']} races from database")
-        print(f"  Tracks: {stats['total_tracks']}")
-        print(f"  Vehicles: {stats['total_vehicles']}")
+        print(f"Loaded {stats['total_points']} points, {stats['total_races']} races")
+        print(f"  Tracks: {self.all_tracks}")
+        print(f"  Vehicles: {self.all_vehicles}")
     
     def get_selected_data(self) -> dict:
-        """Get all data points from selected tracks and vehicles, filtered by type"""
+        """Get all data points from selected tracks and vehicles"""
         selected_tracks = [item.text() for item in self.track_list.selectedItems()]
         selected_vehicles = [item.text() for item in self.vehicle_list.selectedItems()]
         
+        if not selected_tracks or not selected_vehicles:
+            return {'quali': [], 'race': [], 'unknown': []}
+        
         points = self.db.get_data_points(
-            selected_tracks, 
-            selected_vehicles,
-            self.show_qualifying,
-            self.show_race,
-            self.show_unknown
+            selected_tracks, selected_vehicles,
+            self.show_qualifying, self.show_race, self.show_unknown
         )
         
-        # Organize by type
         result = {'quali': [], 'race': [], 'unknown': []}
         for ratio, lap_time, session_type in points:
-            if session_type == 'qual':
+            if session_type == 'qual' or session_type == 'qual_midpoint':
                 result['quali'].append((ratio, lap_time))
-            elif session_type == 'race':
+            elif session_type == 'race' or session_type == 'race_midpoint':
                 result['race'].append((ratio, lap_time))
             else:
                 result['unknown'].append((ratio, lap_time))
@@ -490,6 +536,8 @@ class SimpleCurveViewer(QMainWindow):
     
     def on_selection_changed(self):
         """Handle selection changes"""
+        if self.autopilot_enabled:
+            self._update_formulas_from_autopilot()
         self.update_display()
     
     def on_filter_buttons(self):
@@ -499,94 +547,184 @@ class SimpleCurveViewer(QMainWindow):
         self.show_unknown = self.unkn_btn.isChecked()
         self.update_display()
     
-    def on_param_changed(self):
-        """Handle parameter changes"""
-        self.current_a = self.a_spin.value()
-        self.current_b = self.b_spin.value()
-        self._update_labels()
-        self.update_display()
-    
-    def _update_labels(self):
-        """Update derived value labels"""
-        M, k = calculate_derived_values(self.current_a, self.current_b)
-        self.k_label.setText(f"Steepness k = a/(a+b) = {k:.4f}")
-        self.m_label.setText(f"Time at R=1.0 = {M:.3f} s")
-    
     def auto_fit(self):
-        """Fit hyperbolic curve to selected data points"""
+        """Manually fit curves using the same fit_curve function"""
         points_data = self.get_selected_data()
-        all_points = points_data['quali'] + points_data['race'] + points_data['unknown']
         
-        if len(all_points) < 2:
-            show_warning_dialog(self, "Insufficient Data", 
-                               f"Need at least 2 data points to fit.\nCurrently have {len(all_points)} selected.\n\n"
-                               f"Select more tracks/vehicles or add more data points.")
-            return
+        print(f"\n{'='*50}")
+        print(f"Manual Auto-Fit using fit_curve()")
+        print(f"{'='*50}")
         
-        ratios = [p[0] for p in all_points]
-        times = [p[1] for p in all_points]
-        
-        a, b, avg_error, max_error = fit_curve(ratios, times)
-        
-        if a is not None:
-            self.a_spin.setValue(a)
-            self.b_spin.setValue(b)
-            
-            show_info_dialog(self, "Fit Complete",
-                           f"Fitted curve: {get_formula_string(a, b)}\n"
-                           f"Data points used: {len(all_points)}\n"
-                           f"Average error: {avg_error:.3f} seconds\n"
-                           f"Max error: {max_error:.3f} seconds")
+        # Fit qualifying
+        if points_data['quali'] and len(points_data['quali']) >= 2:
+            ratios = [p[0] for p in points_data['quali']]
+            times = [p[1] for p in points_data['quali']]
+            print(f"\n🟡 Qualifying: fitting {len(ratios)} points...")
+            a, b, avg_err, max_err = fit_curve(ratios, times, verbose=True)
+            if a is not None and b is not None and a > 0 and b > 0:
+                self.qual_a = a
+                self.qual_b = b
+                print(f"   Result: {get_formula_string(a, b)}")
+                print(f"   Avg error: {avg_err:.3f}s, Max error: {max_err:.3f}s")
+            else:
+                print(f"   ✗ Fit failed")
         else:
-            show_error_dialog(self, "Fit Failed", "Could not fit curve to selected data points.")
+            print(f"\n🟡 Qualifying: Need at least 2 points (have {len(points_data['quali'])})")
+        
+        # Fit race
+        if points_data['race'] and len(points_data['race']) >= 2:
+            ratios = [p[0] for p in points_data['race']]
+            times = [p[1] for p in points_data['race']]
+            print(f"\n🟠 Race: fitting {len(ratios)} points...")
+            a, b, avg_err, max_err = fit_curve(ratios, times, verbose=True)
+            if a is not None and b is not None and a > 0 and b > 0:
+                self.race_a = a
+                self.race_b = b
+                print(f"   Result: {get_formula_string(a, b)}")
+                print(f"   Avg error: {avg_err:.3f}s, Max error: {max_err:.3f}s")
+            else:
+                print(f"   ✗ Fit failed")
+        else:
+            print(f"\n🟠 Race: Need at least 2 points (have {len(points_data['race'])})")
+        
+        self.formula_source = "Manual Fit"
+        self.update_display()
+        print(f"\n{'='*50}")
     
     def update_display(self):
-        """Update the plot"""
+        """Update the plot with both curves and data points"""
+        ratios = np.linspace(0.4, 2.0, 200)
         points_data = self.get_selected_data()
-        update_plot(self.plot_data, self.current_a, self.current_b, points_data)
+        
+        # Calculate curve values
+        qual_times = self.qual_a / ratios + self.qual_b
+        race_times = self.race_a / ratios + self.race_b
+        
+        print(f"\n[GUI] Displaying curves:")
+        print(f"  🟡 Qualifying: T = {self.qual_a:.4f}/R + {self.qual_b:.4f}")
+        print(f"  🟠 Race: T = {self.race_a:.4f}/R + {self.race_b:.4f}")
+        
+        # Update qualifying curve (yellow)
+        if self.qual_curve is None:
+            self.qual_curve = self.plot.plot(ratios, qual_times, 
+                                             pen=pg.mkPen(color='#FFFF00', width=2.5),
+                                             name='Qualifying')
+        else:
+            self.qual_curve.setData(ratios, qual_times)
+        
+        # Update race curve (orange)
+        if self.race_curve is None:
+            self.race_curve = self.plot.plot(ratios, race_times,
+                                             pen=pg.mkPen(color='#FF6600', width=2.5),
+                                             name='Race')
+        else:
+            self.race_curve.setData(ratios, race_times)
+        
+        # Update qualifying scatter points
+        quali_points = points_data.get('quali', [])
+        if quali_points:
+            r = [p[0] for p in quali_points]
+            t = [p[1] for p in quali_points]
+            if self.qual_scatter is None:
+                self.qual_scatter = pg.ScatterPlotItem(
+                    r, t, brush=pg.mkBrush('#FFFF00'), size=8,
+                    symbol='o', pen=pg.mkPen('white', width=1)
+                )
+                self.plot.addItem(self.qual_scatter)
+            else:
+                self.qual_scatter.setData(r, t)
+        elif self.qual_scatter is not None:
+            self.plot.removeItem(self.qual_scatter)
+            self.qual_scatter = None
+        
+        # Update race scatter points
+        race_points = points_data.get('race', [])
+        if race_points:
+            r = [p[0] for p in race_points]
+            t = [p[1] for p in race_points]
+            if self.race_scatter is None:
+                self.race_scatter = pg.ScatterPlotItem(
+                    r, t, brush=pg.mkBrush('#FF6600'), size=8,
+                    symbol='s', pen=pg.mkPen('white', width=1)
+                )
+                self.plot.addItem(self.race_scatter)
+            else:
+                self.race_scatter.setData(r, t)
+        elif self.race_scatter is not None:
+            self.plot.removeItem(self.race_scatter)
+            self.race_scatter = None
+        
+        # Update unknown scatter points
+        unknown_points = points_data.get('unknown', [])
+        if unknown_points:
+            r = [p[0] for p in unknown_points]
+            t = [p[1] for p in unknown_points]
+            if self.unknown_scatter is None:
+                self.unknown_scatter = pg.ScatterPlotItem(
+                    r, t, brush=pg.mkBrush('#FF00FF'), size=6,
+                    symbol='t', pen=pg.mkPen('white', width=1)
+                )
+                self.plot.addItem(self.unknown_scatter)
+            else:
+                self.unknown_scatter.setData(r, t)
+        elif self.unknown_scatter is not None:
+            self.plot.removeItem(self.unknown_scatter)
+            self.unknown_scatter = None
+        
+        # Update legend
+        if self.legend is not None:
+            self.plot.scene().removeItem(self.legend)
+        
+        self.legend = self.plot.addLegend()
+        self.legend.addItem(self.qual_curve, f'Qualifying: T = {self.qual_a:.3f}/R + {self.qual_b:.3f}')
+        self.legend.addItem(self.race_curve, f'Race: T = {self.race_a:.3f}/R + {self.race_b:.3f}')
+        
+        if quali_points:
+            self.legend.addItem(self.qual_scatter, f'Qual Data ({len(quali_points)})')
+        if race_points:
+            self.legend.addItem(self.race_scatter, f'Race Data ({len(race_points)})')
+        if unknown_points:
+            self.legend.addItem(self.unknown_scatter, f'Unknown ({len(unknown_points)})')
+        
+        # Update title with source info
+        if self.autopilot_enabled and "Autopilot" in self.formula_source:
+            self.plot.setTitle(f'🤖 Autopilot - {self.formula_source}', color='#4CAF50', size='12pt')
+        else:
+            self.plot.setTitle(f'Manual - {self.formula_source}', color='#FFA500', size='12pt')
         
         # Update status bar
         selected_tracks = len(self.track_list.selectedItems())
         selected_vehicles = len(self.vehicle_list.selectedItems())
-        total_points = len(points_data['quali']) + len(points_data['race']) + len(points_data['unknown'])
+        total_points = len(quali_points) + len(race_points) + len(unknown_points)
+        
+        mode = "🤖 Autopilot" if self.autopilot_enabled else "Manual"
         self.statusBar().showMessage(
-            f"Tracks: {selected_tracks} | Vehicles: {selected_vehicles} | Data points: {total_points}"
+            f"{mode} | Tracks: {selected_tracks} | Vehicles: {selected_vehicles} | Points: {total_points}"
         )
     
     def reset_view(self):
         """Reset the plot to default view"""
-        reset_plot_view(self.plot_data)
+        self.plot.setXRange(0.4, 2.0)
+        self.plot.setYRange(50, 200)
     
     def closeEvent(self, event):
-        """Handle close event - stop daemon"""
+        """Handle close event"""
         self.stop_daemon()
         event.accept()
 
 
 def main():
-    # Create default config if missing
     create_default_config_if_missing()
-    
-    # Get database path from config
     db_path = get_db_path()
     
-    # Check if database exists
     if not Path(db_path).exists():
-        print(f"\n{'='*60}")
-        print("DATABASE NOT FOUND")
-        print(f"{'='*60}")
         print(f"\nDatabase '{db_path}' does not exist.")
-        print("\nPlease run the importer first to migrate your existing data:")
-        print("  python db_funcs.py")
-        print(f"\n{'='*60}\n")
-        
-        response = input("Create an empty database and continue? (y/n): ").lower().strip()
+        response = input("Create empty database? (y/n): ").lower().strip()
         if response == 'y':
-            from db_funcs import CurveDatabase
             CurveDatabase(db_path)
-            print(f"\nCreated empty database: {db_path}\n")
+            print(f"Created empty database: {db_path}\n")
         else:
-            print("\nExiting. Run db_funcs.py first.\n")
+            print("\nExiting.\n")
             return
     
     app = QApplication(sys.argv)
