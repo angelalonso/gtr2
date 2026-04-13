@@ -137,7 +137,7 @@ class SimpleCurveViewer(QMainWindow):
     
     def __init__(self, db_path: str = "ai_data.db", config_file: str = "cfg.yml"):
         super().__init__()
-        self.setWindowTitle("Curve Viewer - Qualifying & Race Curves")
+        self.setWindowTitle("Curve Viewer - Qualifying and Race Curves")
         self.setGeometry(100, 100, 1200, 700)
         
         # Config

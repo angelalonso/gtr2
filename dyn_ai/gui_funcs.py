@@ -164,7 +164,7 @@ def create_control_panel(parent=None):
     layout.addWidget(param_group)
     
     # Autopilot group
-    autopilot_group = QGroupBox("🤖 Autopilot")
+    autopilot_group = QGroupBox("[AUTO] Autopilot")
     autopilot_layout = QVBoxLayout(autopilot_group)
     
     # Autopilot enable/disable
