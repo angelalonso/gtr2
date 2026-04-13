@@ -3,18 +3,19 @@
 Autopilot module for Live AI Tuner
 Automatically adjusts AIW ratios based on detected race data and existing formulas
 
-Core principle: Use the same fit_curve function as the manual "Auto-fit" button
-- Fits hyperbolic curve T = a/R + b to ALL available data points
-- When multiple lap times exist for the same ratio, use the average (midpoint)
-- The more data points we have, the more accurate the curve becomes
+Core principle: 
+- Use existing formulas as templates (keep the slope 'a' from similar data)
+- Only adjust the height 'b' to fit the new data point
+- This preserves the track characteristics learned from other sessions/cars
 """
 
 import logging
 import re
 import sqlite3
+import json
 from pathlib import Path
-from typing import Optional, Dict, List, Tuple, Any
-from dataclasses import dataclass
+from typing import Optional, Dict, List, Tuple, Any, Set
+from dataclasses import dataclass, field
 from datetime import datetime
 from collections import defaultdict
 
@@ -24,12 +25,70 @@ from data_extraction import RaceData
 
 logger = logging.getLogger(__name__)
 
+# Path to vehicle classes configuration file
+VEHICLE_CLASSES_FILE = Path(__file__).parent / "vehicle_classes.json"
+
+
+def load_vehicle_classes() -> Dict[str, Dict]:
+    """Load vehicle class mappings from JSON file"""
+    default_classes = {
+        "Formula Cars": {
+            "vehicles": ["Formula Senior", "Formula Junior", "Formula 3", "Formula Renault", "Formula Ford", "f4", "F4", "F3", "F2", "F1"]
+        },
+        "GT Cars": {
+            "vehicles": ["Porsche 911", "Porsche 996", "Ferrari 550", "Ferrari 360", "Lamborghini Murcielago", "Saleen S7", "Corvette C5R", "Dodge Viper", "Aston Martin DBR9", "Maserati MC12", "gt", "GT", "GTE", "GT3"]
+        },
+        "Prototype Cars": {
+            "vehicles": ["LMP1", "LMP2", "Audi R8", "Bentley Speed 8", "Cadillac LMP"]
+        },
+        "Production Cars": {
+            "vehicles": ["BMW M3", "Audi R8 LMS", "Mercedes SLS"]
+        }
+    }
+    
+    if not VEHICLE_CLASSES_FILE.exists():
+        print(f"\n[ClassMap] Creating default vehicle_classes.json file")
+        with open(VEHICLE_CLASSES_FILE, 'w') as f:
+            json.dump(default_classes, f, indent=2)
+        return default_classes
+    
+    try:
+        with open(VEHICLE_CLASSES_FILE, 'r') as f:
+            classes = json.load(f)
+        print(f"\n[ClassMap] Loaded {len(classes)} vehicle classes from {VEHICLE_CLASSES_FILE}")
+        return classes
+    except Exception as e:
+        print(f"\n[ClassMap] Error loading {VEHICLE_CLASSES_FILE}: {e}, using defaults")
+        return default_classes
+
+
+def get_vehicle_class(vehicle_name: str, class_mapping: Dict[str, Dict]) -> str:
+    """Get the class for a vehicle based on the loaded mapping."""
+    vehicle_lower = vehicle_name.lower().strip()
+    
+    for class_name, class_data in class_mapping.items():
+        vehicles = class_data.get("vehicles", [])
+        for v in vehicles:
+            if v.lower() == vehicle_lower:
+                print(f"  [ClassMap] Mapped '{vehicle_name}' → '{class_name}'")
+                return class_name
+    
+    for class_name, class_data in class_mapping.items():
+        vehicles = class_data.get("vehicles", [])
+        for v in vehicles:
+            if v.lower() in vehicle_lower or vehicle_lower in v.lower():
+                print(f"  [ClassMap] Mapped '{vehicle_name}' → '{class_name}' (partial)")
+                return class_name
+    
+    print(f"  [ClassMap] No class for '{vehicle_name}', using as own class")
+    return vehicle_name
+
 
 @dataclass
 class Formula:
-    """Represents a stored formula for a track and vehicle"""
+    """Represents a stored formula for a track and vehicle class"""
     track: str
-    vehicle: str
+    vehicle_class: str
     a: float
     b: float
     session_type: str = "both"
@@ -39,6 +98,7 @@ class Formula:
     data_points_used: int = 0
     avg_error: float = 0.0
     max_error: float = 0.0
+    vehicles_in_class: Set[str] = field(default_factory=set)
     
     def get_time_at_ratio(self, ratio: float) -> float:
         return hyperbolic(ratio, self.a, self.b)
@@ -52,30 +112,74 @@ class Formula:
         return self.a / denominator
     
     def is_valid(self) -> bool:
-        """Check if formula is valid (a > 0, b > 0, b < typical lap time)"""
         return self.a > 0 and self.b > 0 and self.b < 300
     
     def get_formula_string(self) -> str:
         return f"T = {self.a:.4f} / R + {self.b:.4f}"
+    
+    def adjust_height_to_point(self, ratio: float, lap_time: float) -> 'Formula':
+        """
+        Adjust the formula's height (b) to pass through the given point.
+        Keeps the same slope (a), only changes b.
+        b_new = T - a/R
+        """
+        old_b = self.b
+        new_b = lap_time - (self.a / ratio)
+        # Ensure b is reasonable
+        new_b = max(10.0, min(200.0, new_b))
+        
+        print(f"    Adjusting height: a={self.a:.4f} (unchanged), b={old_b:.4f} → {new_b:.4f}")
+        
+        return Formula(
+            track=self.track,
+            vehicle_class=self.vehicle_class,
+            a=self.a,
+            b=new_b,
+            session_type=self.session_type,
+            confidence=self.confidence,
+            data_points_used=self.data_points_used + 1,
+            avg_error=self.avg_error,
+            max_error=self.max_error,
+            vehicles_in_class=self.vehicles_in_class.union({self.vehicle_class})
+        )
 
 
 class FormulaManager:
-    """Manages formulas for tracks and vehicles"""
+    """Manages formulas for tracks and vehicle classes"""
     
     def __init__(self, db: CurveDatabase):
         self.db = db
         self._formulas: Dict[str, Dict[str, Formula]] = {}
+        self._class_mapping = load_vehicle_classes()
+        self._init_database()
         self._load_formulas()
     
-    def _migrate_formulas_table(self, cursor):
-        """Add missing columns to formulas table if needed"""
-        cursor.execute("PRAGMA table_info(formulas)")
-        existing_columns = [row[1] for row in cursor.fetchall()]
+    def _init_database(self):
+        """Initialize or migrate the database schema"""
+        conn = sqlite3.connect(self.db.db_path)
+        cursor = conn.cursor()
         
-        for col in ['data_points_used', 'confidence', 'avg_error', 'max_error']:
-            if col not in existing_columns:
-                print(f"  [FormulaManager] Adding {col} column")
-                cursor.execute(f"ALTER TABLE formulas ADD COLUMN {col} DEFAULT 0")
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS formulas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                track TEXT NOT NULL,
+                vehicle_class TEXT NOT NULL,
+                a REAL NOT NULL,
+                b REAL NOT NULL,
+                session_type TEXT NOT NULL,
+                confidence REAL DEFAULT 1.0,
+                data_points_used INTEGER DEFAULT 0,
+                avg_error REAL DEFAULT 0.0,
+                max_error REAL DEFAULT 0.0,
+                vehicles_in_class TEXT DEFAULT '',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                last_used TEXT DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(track, vehicle_class, session_type)
+            )
+        """)
+        
+        conn.commit()
+        conn.close()
     
     def _load_formulas(self):
         """Load all formulas from database"""
@@ -84,84 +188,48 @@ class FormulaManager:
         conn = sqlite3.connect(self.db.db_path)
         cursor = conn.cursor()
         
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS formulas (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                track TEXT NOT NULL,
-                vehicle TEXT NOT NULL,
-                a REAL NOT NULL,
-                b REAL NOT NULL,
-                session_type TEXT NOT NULL,
-                confidence REAL DEFAULT 1.0,
-                data_points_used INTEGER DEFAULT 0,
-                avg_error REAL DEFAULT 0.0,
-                max_error REAL DEFAULT 0.0,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                last_used TEXT DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(track, vehicle, session_type)
-            )
-        """)
-        
-        self._migrate_formulas_table(cursor)
-        conn.commit()
-        
-        cursor.execute("SELECT track, vehicle, a, b, session_type, confidence, data_points_used, avg_error, max_error FROM formulas")
+        cursor.execute("SELECT track, vehicle_class, a, b, session_type, confidence, data_points_used, avg_error, max_error, vehicles_in_class FROM formulas")
         rows = cursor.fetchall()
         conn.close()
         
-        print(f"\n[FormulaManager] Loading formulas from database...")
-        print(f"  Found {len(rows)} formula records")
+        print(f"\n[FormulaManager] Loading formulas...")
         
-        if len(rows) == 0:
-            print(f"  No formulas found in database")
-        else:
-            for row in rows:
-                formula = Formula(
-                    track=row[0], vehicle=row[1], a=row[2], b=row[3],
-                    session_type=row[4], confidence=row[5], data_points_used=row[6],
-                    avg_error=row[7], max_error=row[8]
-                )
-                if formula.is_valid():
-                    key = f"{formula.vehicle}_{formula.session_type}"
-                    if formula.track not in self._formulas:
-                        self._formulas[formula.track] = {}
-                    self._formulas[formula.track][key] = formula
-                    print(f"  ✓ Loaded: [{formula.track}] [{formula.vehicle}] ({formula.session_type}): {formula.get_formula_string()} (points={formula.data_points_used}, error={formula.avg_error:.3f}s)")
-                else:
-                    print(f"  ✗ Skipped invalid: [{formula.track}] [{formula.vehicle}] ({formula.session_type}): a={formula.a:.2f}, b={formula.b:.2f}")
+        for row in rows:
+            vehicles_str = row[9] if len(row) > 9 else ""
+            vehicles_set = set(vehicles_str.split(',')) if vehicles_str else set()
+            
+            formula = Formula(
+                track=row[0], vehicle_class=row[1], a=row[2], b=row[3],
+                session_type=row[4], confidence=row[5], data_points_used=row[6],
+                avg_error=row[7], max_error=row[8], vehicles_in_class=vehicles_set
+            )
+            if formula.is_valid():
+                if formula.track not in self._formulas:
+                    self._formulas[formula.track] = {}
+                self._formulas[formula.track][formula.vehicle_class] = formula
+                print(f"  Loaded: [{formula.track}] [{formula.vehicle_class}] ({formula.session_type})")
         
-        # Print summary by track
-        print(f"\n[FormulaManager] Summary by track:")
-        for track in self._formulas:
-            print(f"  Track: {track}")
-            for key, formula in self._formulas[track].items():
-                print(f"    - {formula.vehicle} ({formula.session_type}): {formula.get_formula_string()}")
-        
-        print(f"\n[FormulaManager] Total valid formulas loaded: {self.get_formula_count()}")
+        print(f"\n[FormulaManager] Total formulas: {self.get_formula_count()}")
     
-    def get_formula(self, track: str, vehicle: str, session_type: str) -> Optional[Formula]:
-        """Get formula - tries exact match first, then case-insensitive"""
-        key = f"{vehicle}_{session_type}"
+    def get_formula(self, track: str, vehicle_name: str, session_type: str) -> Optional[Formula]:
+        vehicle_class = get_vehicle_class(vehicle_name, self._class_mapping)
         track_dict = self._formulas.get(track, {})
-        
-        # Try exact match
-        formula = track_dict.get(key)
-        if formula:
-            print(f"  [FormulaManager] Found exact match: {track}/{vehicle} ({session_type})")
-            return formula
-        
-        # Try case-insensitive match
-        for existing_key, existing_formula in track_dict.items():
-            if existing_key.lower() == key.lower():
-                print(f"  [FormulaManager] Found case-insensitive match: {track}/{existing_formula.vehicle} ({session_type}) -> using for {vehicle}")
-                return existing_formula
-        
-        print(f"  [FormulaManager] No formula found for {track}/{vehicle} ({session_type})")
-        print(f"  Available formulas for this track: {list(track_dict.keys())}")
-        return None
+        return track_dict.get(vehicle_class)
+    
+    def get_formula_by_class(self, track: str, vehicle_class: str, session_type: str) -> Optional[Formula]:
+        track_dict = self._formulas.get(track, {})
+        return track_dict.get(vehicle_class)
     
     def get_all_formulas_for_track(self, track: str) -> List[Formula]:
         return list(self._formulas.get(track, {}).values())
+    
+    def get_all_formulas_for_session(self, session_type: str) -> List[Formula]:
+        formulas = []
+        for track_dict in self._formulas.values():
+            for formula in track_dict.values():
+                if formula.session_type == session_type:
+                    formulas.append(formula)
+        return formulas
     
     def get_all_formulas(self) -> List[Formula]:
         formulas = []
@@ -172,112 +240,180 @@ class FormulaManager:
     def get_formula_count(self) -> int:
         return sum(len(track_dict) for track_dict in self._formulas.values())
     
-    def get_tracks_with_formulas(self) -> List[str]:
-        return [track for track, formulas in self._formulas.items() if formulas]
-    
     def save_formula(self, formula: Formula) -> bool:
         if not formula.is_valid():
-            print(f"  [FormulaManager] WARNING: Not saving invalid formula: a={formula.a:.2f}, b={formula.b:.2f}")
+            print(f"  [FormulaManager] Not saving invalid formula")
             return False
-        
-        print(f"  [FormulaManager] Saving formula for [{formula.track}] [{formula.vehicle}] ({formula.session_type})")
-        print(f"    a={formula.a:.6f}, b={formula.b:.6f}")
-        print(f"    points={formula.data_points_used}, avg_error={formula.avg_error:.3f}s")
         
         conn = sqlite3.connect(self.db.db_path)
         cursor = conn.cursor()
         
+        vehicles_str = ','.join(formula.vehicles_in_class)
+        
         cursor.execute("""
             INSERT OR REPLACE INTO formulas 
-            (track, vehicle, a, b, session_type, confidence, data_points_used, avg_error, max_error, last_used)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        """, (formula.track, formula.vehicle, formula.a, formula.b, 
+            (track, vehicle_class, a, b, session_type, confidence, data_points_used, avg_error, max_error, vehicles_in_class, last_used)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """, (formula.track, formula.vehicle_class, formula.a, formula.b, 
               formula.session_type, formula.confidence, formula.data_points_used,
-              formula.avg_error, formula.max_error))
+              formula.avg_error, formula.max_error, vehicles_str))
         conn.commit()
         conn.close()
         
         # Update cache
-        key = f"{formula.vehicle}_{formula.session_type}"
         if formula.track not in self._formulas:
             self._formulas[formula.track] = {}
-        self._formulas[formula.track][key] = formula
+        self._formulas[formula.track][formula.vehicle_class] = formula
         
-        print(f"  [FormulaManager] Formula saved successfully")
+        print(f"  [FormulaManager] Saved: {formula.get_formula_string()}")
         return True
 
 
 class AutopilotEngine:
-    """Autopilot engine that aggregates points by ratio before fitting"""
+    """Autopilot engine that adapts existing formulas to new data points"""
     
     def __init__(self, db: CurveDatabase, formula_manager: FormulaManager):
         self.db = db
         self.formula_manager = formula_manager
         self.silent_mode = False
+        self._class_mapping = load_vehicle_classes()
     
-    def _aggregate_points_by_ratio(self, points: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
-        """
-        Aggregate points by ratio, using average lap time for each unique ratio.
-        This prevents fitting issues when multiple lap times exist for the same ratio.
-        """
+    def _get_data_points(self, track: str, vehicle_class: str, session_type: str) -> List[Tuple[float, float]]:
+        """Get all data points for a track/class from database"""
+        conn = sqlite3.connect(self.db.db_path)
+        cursor = conn.cursor()
+        
+        session_filter = "qual" if session_type == "qual" else "race"
+        print(f"    SQL Query: track='{track}', session_type='{session_filter}', class='{vehicle_class}'")
+        
+        cursor.execute("""
+            SELECT ratio, lap_time, vehicle 
+            FROM data_points 
+            WHERE track = ? AND session_type = ?
+        """, (track, session_filter))
+        
+        rows = cursor.fetchall()
+        print(f"    Raw rows from DB: {len(rows)}")
+        
+        points = []
+        for ratio, lap_time, vehicle in rows:
+            vehicle_class_of_point = get_vehicle_class(vehicle, self._class_mapping)
+            print(f"      Point: R={ratio:.6f}, T={lap_time:.3f}, Vehicle='{vehicle}', Class='{vehicle_class_of_point}'")
+            if vehicle_class_of_point == vehicle_class:
+                points.append((ratio, lap_time))
+                print(f"        ✓ MATCHES class '{vehicle_class}'")
+            else:
+                print(f"        ✗ Does NOT match (needs '{vehicle_class}')")
+        
+        conn.close()
+        print(f"    Total points for class '{vehicle_class}': {len(points)}")
+        return points
+    
+    def _calculate_midpoint(self, points: List[Tuple[float, float]]) -> Tuple[float, float]:
+        """Calculate the midpoint (average) of all points"""
         if not points:
-            return []
+            return None, None
         
-        # Group by ratio (rounded to 6 decimal places for consistency)
-        ratio_groups = defaultdict(list)
-        for ratio, lap_time in points:
-            ratio_groups[ratio].append(lap_time)
+        avg_ratio = sum(p[0] for p in points) / len(points)
+        avg_time = sum(p[1] for p in points) / len(points)
         
-        # Calculate average for each ratio
-        aggregated = []
-        for ratio, lap_times in ratio_groups.items():
-            avg_lap_time = sum(lap_times) / len(lap_times)
-            aggregated.append((ratio, avg_lap_time))
-            if len(lap_times) > 1:
-                print(f"    Aggregated {len(lap_times)} points at R={ratio:.6f}: avg T={avg_lap_time:.3f}s (range: {min(lap_times):.3f}-{max(lap_times):.3f}s)")
+        if len(points) == 1:
+            print(f"    Single point: R={avg_ratio:.6f}, T={avg_time:.3f}s")
+        else:
+            print(f"    Midpoint of {len(points)} points: R={avg_ratio:.6f}, T={avg_time:.3f}s")
         
-        # Sort by ratio
-        aggregated.sort(key=lambda x: x[0])
-        return aggregated
+        return avg_ratio, avg_time
     
-    def _get_all_data_points(self, track: str, vehicle: str, session_type: str) -> List[Tuple[float, float]]:
-        """Get all data points for a track/vehicle/session from the database"""
-        print(f"    Querying database for existing points (track='{track}', vehicle='{vehicle}', session='{session_type}')...")
-        points = self.db.get_data_points(
-            [track], [vehicle],
-            session_type == "qual",
-            session_type == "race",
-            False
+    def _get_template_formula(self, track: str, vehicle_class: str, session_type: str) -> Optional[Formula]:
+        """
+        Get a template formula to adapt:
+        1. Same track, same class, opposite session (qual ↔ race)
+        2. Same track, any class, same session (average of all)
+        3. Any track, same class, same session (global by class)
+        4. Any track, any class, same session (global average)
+        5. Default formula
+        """
+        opposite_session = "race" if session_type == "qual" else "qual"
+        
+        print(f"    Looking for template for {track}/{vehicle_class} ({session_type})")
+        
+        # Method 1: Same track, same class, opposite session
+        formula = self.formula_manager.get_formula_by_class(track, vehicle_class, opposite_session)
+        if formula:
+            print(f"  📍 Template: same track/class from {opposite_session} session")
+            print(f"     {formula.get_formula_string()}")
+            return formula
+        
+        # Method 2: Same track, any class, same session
+        track_formulas = self.formula_manager.get_all_formulas_for_track(track)
+        same_session_formulas = [f for f in track_formulas if f.session_type == session_type and f.is_valid()]
+        
+        if same_session_formulas:
+            avg_a = sum(f.a for f in same_session_formulas) / len(same_session_formulas)
+            avg_b = sum(f.b for f in same_session_formulas) / len(same_session_formulas)
+            print(f"  📍 Template: track average from {len(same_session_formulas)} formula(s)")
+            print(f"     Avg a={avg_a:.4f}, Avg b={avg_b:.4f}")
+            return Formula(
+                track=track,
+                vehicle_class=vehicle_class,
+                a=avg_a,
+                b=avg_b,
+                session_type=session_type,
+                confidence=0.5,
+                data_points_used=0
+            )
+        
+        # Method 3: Any track, same class, same session
+        all_formulas = self.formula_manager.get_all_formulas()
+        same_class_same_session = [f for f in all_formulas if f.vehicle_class == vehicle_class and f.session_type == session_type and f.is_valid()]
+        
+        if same_class_same_session:
+            avg_a = sum(f.a for f in same_class_same_session) / len(same_class_same_session)
+            avg_b = sum(f.b for f in same_class_same_session) / len(same_class_same_session)
+            print(f"  📍 Template: global {vehicle_class} average from {len(same_class_same_session)} formula(s)")
+            print(f"     Avg a={avg_a:.4f}, Avg b={avg_b:.4f}")
+            return Formula(
+                track=track,
+                vehicle_class=vehicle_class,
+                a=avg_a,
+                b=avg_b,
+                session_type=session_type,
+                confidence=0.3,
+                data_points_used=0
+            )
+        
+        # Method 4: Any track, any class, same session
+        all_same_session = [f for f in all_formulas if f.session_type == session_type and f.is_valid()]
+        
+        if all_same_session:
+            avg_a = sum(f.a for f in all_same_session) / len(all_same_session)
+            avg_b = sum(f.b for f in all_same_session) / len(all_same_session)
+            print(f"  📍 Template: global average from {len(all_same_session)} formula(s)")
+            print(f"     Avg a={avg_a:.4f}, Avg b={avg_b:.4f}")
+            return Formula(
+                track=track,
+                vehicle_class=vehicle_class,
+                a=avg_a,
+                b=avg_b,
+                session_type=session_type,
+                confidence=0.2,
+                data_points_used=0
+            )
+        
+        # Method 5: Default formula
+        print(f"  📍 Template: DEFAULT (a=30.0, b=70.0)")
+        return Formula(
+            track=track,
+            vehicle_class=vehicle_class,
+            a=30.0,
+            b=70.0,
+            session_type=session_type,
+            confidence=0.1,
+            data_points_used=0
         )
-        print(f"    Found {len(points)} raw points in database")
-        
-        # Show raw points
-        for i, (r, t, st) in enumerate(points):
-            print(f"      Raw point {i+1}: R={r:.6f}, T={t:.3f} ({st})")
-        
-        # Convert to simple list of (ratio, lap_time)
-        simple_points = [(p[0], p[1]) for p in points]
-        
-        # Aggregate by ratio
-        aggregated = self._aggregate_points_by_ratio(simple_points)
-        print(f"    After aggregation: {len(aggregated)} unique ratios")
-        
-        return aggregated
-    
-    def _calculate_simple_formula(self, ratio: float, lap_time: float) -> Tuple[float, float]:
-        """
-        Calculate a simple formula from a single data point.
-        Uses default slope of 30, adjusts b to hit the point.
-        """
-        default_a = 30.0
-        b = lap_time - (default_a / ratio)
-        b = max(10.0, min(200.0, b))
-        return default_a, b
     
     def process_race_data(self, race_data: RaceData, aiw_path: Path) -> Dict[str, Any]:
-        """
-        Process race data - aggregate points by ratio, then use fit_curve
-        """
+        """Process race data - adapt existing formulas to new data points"""
         result = {
             "success": False,
             "qual_updated": False,
@@ -286,8 +422,6 @@ class AutopilotEngine:
             "race_new_ratio": None,
             "qual_old_ratio": None,
             "race_old_ratio": None,
-            "qual_formula": None,
-            "race_formula": None,
             "method": None,
             "message": ""
         }
@@ -297,14 +431,17 @@ class AutopilotEngine:
             return result
         
         track = race_data.track_name
-        vehicle = race_data.user_vehicle or "Unknown"
+        user_vehicle = race_data.user_vehicle or "Unknown"
+        vehicle_class = get_vehicle_class(user_vehicle, self._class_mapping)
+        user_vehicle = race_data.user_vehicle or "Unknown"
+        print(f"\n  RACE DATA: User Vehicle = '{user_vehicle}'")
+        print(f"  RACE DATA: Mapped to class = '{vehicle_class}'")
         
         print(f"\n{'='*70}")
-        print(f"🤖 AUTOPILOT - Processing race data")
+        print(f"🤖 AUTOPILOT - Adapting formulas to new data")
         print(f"{'='*70}")
         print(f"  Track: '{track}'")
-        print(f"  Vehicle: '{vehicle}'")
-        print(f"  AIW path: {aiw_path}")
+        print(f"  User Vehicle: '{user_vehicle}' → Class: '{vehicle_class}'")
         
         # Process qualifying
         if race_data.qual_ratio and race_data.qual_best_ai_lap_sec > 0 and race_data.qual_worst_ai_lap_sec > 0:
@@ -312,108 +449,55 @@ class AutopilotEngine:
             qual_midpoint = (race_data.qual_best_ai_lap_sec + race_data.qual_worst_ai_lap_sec) / 2
             
             print(f"\n{'─'*50}")
-            print(f"📊 QUALIFYING Session")
-            print(f"  Current ratio in AIW: {race_data.qual_ratio:.6f}")
-            print(f"  Best AI time: {race_data.qual_best_ai_lap_sec:.3f}s")
-            print(f"  Worst AI time: {race_data.qual_worst_ai_lap_sec:.3f}s")
-            print(f"  Target lap time (midpoint): {qual_midpoint:.3f}s")
-            print(f"  New data point: (R={race_data.qual_ratio:.6f}, T={qual_midpoint:.3f})")
+            print(f"📊 QUALIFYING")
+            print(f"  New data point: R={race_data.qual_ratio:.6f}, T={qual_midpoint:.3f}s")
             
-            # Get ALL existing points from database (already aggregated)
-            all_points = self._get_all_data_points(track, vehicle, "qual")
+            # Get existing data points for this class
+            existing_points = self._get_data_points(track, vehicle_class, "qual")
+            print(f"  Existing points for this class: {len(existing_points)}")
+            for r, t in existing_points:
+                print(f"    R={r:.6f}, T={t:.3f}")
             
-            # Add the new point
-            all_points.append((race_data.qual_ratio, qual_midpoint))
-            print(f"  Total points before aggregation: {len(all_points)}")
+            # Combine existing and new points
+            all_points = existing_points + [(race_data.qual_ratio, qual_midpoint)]
             
-            # Aggregate again to handle any duplicates with the new point
-            all_points = self._aggregate_points_by_ratio(all_points)
-            print(f"  Total unique ratios after aggregation: {len(all_points)}")
+            # Calculate the midpoint (average) of ALL points
+            target_ratio, target_time = self._calculate_midpoint(all_points)
             
-            if len(all_points) >= 2:
-                print(f"\n  >>> Fitting curve with {len(all_points)} unique ratio points...")
-                ratios = [p[0] for p in all_points]
-                times = [p[1] for p in all_points]
+            if target_ratio is not None:
+                print(f"\n  🎯 Target point for formula: R={target_ratio:.6f}, T={target_time:.3f}s")
                 
-                # Show the points being fitted
-                print(f"  Points for fitting:")
-                for i, (r, t) in enumerate(zip(ratios, times)):
-                    print(f"    {i+1}: R={r:.6f}, T={t:.3f}")
+                # Get template formula
+                template = self._get_template_formula(track, vehicle_class, "qual")
+                print(f"\n  📐 Template formula: {template.get_formula_string()}")
                 
-                # Call fit_curve
-                a, b, avg_error, max_error = fit_curve(ratios, times, verbose=True)
+                # Adjust the template to hit the target point
+                adapted_formula = template.adjust_height_to_point(target_ratio, target_time)
+                print(f"  ✨ Adapted formula: {adapted_formula.get_formula_string()}")
                 
-                if a is not None and b is not None and a > 0 and b > 0:
-                    print(f"\n  ✓ fit_curve SUCCEEDED for QUALIFYING")
-                    print(f"    a={a:.6f}, b={b:.6f}")
-                    print(f"    Formula: {get_formula_string(a, b)}")
-                    
-                    formula = Formula(
-                        track=track, vehicle=vehicle, a=a, b=b,
-                        session_type="qual",
-                        confidence=min(1.0, len(all_points) / 10.0),
-                        data_points_used=len(all_points),
-                        avg_error=avg_error,
-                        max_error=max_error
-                    )
-                    self.formula_manager.save_formula(formula)
-                    result["qual_formula"] = formula
-                    
-                    new_ratio = formula.get_ratio_for_time(qual_midpoint)
-                    print(f"  Target lap time: {qual_midpoint:.3f}s")
-                    print(f"  Calculated new ratio: {new_ratio:.6f}")
-                    
-                    if new_ratio is not None and 0.3 < new_ratio < 3.0:
-                        if self._update_aiw_ratio(aiw_path, "QualRatio", new_ratio):
-                            result["qual_updated"] = True
-                            result["qual_new_ratio"] = new_ratio
-                            result["method"] = "fit_curve_aggregated"
-                            print(f"\n  ✅ QualRatio UPDATED in AIW: {race_data.qual_ratio:.6f} → {new_ratio:.6f}")
-                        else:
-                            print(f"\n  ❌ Failed to update AIW file")
-                    else:
-                        print(f"\n  ❌ Invalid ratio: {new_ratio} (outside 0.3-3.0 range)")
-                else:
-                    print(f"\n  ❌ fit_curve FAILED for QUALIFYING (invalid a={a}, b={b})")
-                    # Fallback to simple formula
-                    print(f"  Falling back to simple formula...")
-                    a, b = self._calculate_simple_formula(race_data.qual_ratio, qual_midpoint)
-                    formula = Formula(
-                        track=track, vehicle=vehicle, a=a, b=b,
-                        session_type="qual",
-                        confidence=0.3,
-                        data_points_used=len(all_points),
-                        avg_error=0,
-                        max_error=0
-                    )
-                    self.formula_manager.save_formula(formula)
-                    new_ratio = formula.get_ratio_for_time(qual_midpoint)
-                    if new_ratio and 0.3 < new_ratio < 3.0:
-                        if self._update_aiw_ratio(aiw_path, "QualRatio", new_ratio):
-                            result["qual_updated"] = True
-                            result["qual_new_ratio"] = new_ratio
-                            result["method"] = "simple_formula_fallback"
-                            print(f"\n  ✅ QualRatio UPDATED using fallback: {new_ratio:.6f}")
-            else:
-                print(f"\n  ⚠ Need at least 2 unique ratios to fit (have {len(all_points)})")
-                # With only 1 unique ratio, use simple formula
-                a, b = self._calculate_simple_formula(race_data.qual_ratio, qual_midpoint)
-                formula = Formula(
-                    track=track, vehicle=vehicle, a=a, b=b,
-                    session_type="qual",
-                    confidence=0.2,
-                    data_points_used=1,
-                    avg_error=0,
-                    max_error=0
-                )
-                self.formula_manager.save_formula(formula)
-                new_ratio = formula.get_ratio_for_time(qual_midpoint)
+                # Verify the adapted formula hits the target point
+                verify_time = adapted_formula.get_time_at_ratio(target_ratio)
+                print(f"  ✓ Verification: at R={target_ratio:.6f}, T={verify_time:.3f}s (target was {target_time:.3f}s)")
+                
+                # Save the formula
+                self.formula_manager.save_formula(adapted_formula)
+                
+                # Calculate new ratio for the target lap time
+                new_ratio = adapted_formula.get_ratio_for_time(qual_midpoint)
+                print(f"\n  🎯 Target lap time: {qual_midpoint:.3f}s")
+                print(f"  🔄 New ratio needed: {new_ratio:.6f}")
+                print(f"  📊 Old ratio: {race_data.qual_ratio:.6f}")
+                
                 if new_ratio and 0.3 < new_ratio < 3.0:
                     if self._update_aiw_ratio(aiw_path, "QualRatio", new_ratio):
                         result["qual_updated"] = True
                         result["qual_new_ratio"] = new_ratio
-                        result["method"] = "single_point_formula"
-                        print(f"\n  ✅ QualRatio UPDATED (single point): {new_ratio:.6f}")
+                        result["method"] = "adapt_template"
+                        print(f"\n  ✅ QualRatio UPDATED in AIW")
+                    else:
+                        print(f"\n  ❌ Failed to update AIW file")
+                else:
+                    print(f"\n  ❌ Invalid ratio: {new_ratio}")
         
         # Process race
         if race_data.race_ratio and race_data.best_ai_lap_sec > 0 and race_data.worst_ai_lap_sec > 0:
@@ -421,161 +505,80 @@ class AutopilotEngine:
             race_midpoint = (race_data.best_ai_lap_sec + race_data.worst_ai_lap_sec) / 2
             
             print(f"\n{'─'*50}")
-            print(f"🏁 RACE Session")
-            print(f"  Current ratio in AIW: {race_data.race_ratio:.6f}")
-            print(f"  Best AI time: {race_data.best_ai_lap_sec:.3f}s")
-            print(f"  Worst AI time: {race_data.worst_ai_lap_sec:.3f}s")
-            print(f"  Target lap time (midpoint): {race_midpoint:.3f}s")
-            print(f"  New data point: (R={race_data.race_ratio:.6f}, T={race_midpoint:.3f})")
+            print(f"🏁 RACE")
+            print(f"  New data point: R={race_data.race_ratio:.6f}, T={race_midpoint:.3f}s")
             
-            # Get ALL existing points from database (already aggregated)
-            all_points = self._get_all_data_points(track, vehicle, "race")
+            # Get existing data points for this class
+            existing_points = self._get_data_points(track, vehicle_class, "race")
+            print(f"  Existing points for this class: {len(existing_points)}")
+            for r, t in existing_points:
+                print(f"    R={r:.6f}, T={t:.3f}")
             
-            # Add the new point
-            all_points.append((race_data.race_ratio, race_midpoint))
-            print(f"  Total points before aggregation: {len(all_points)}")
+            # Combine existing and new points
+            all_points = existing_points + [(race_data.race_ratio, race_midpoint)]
             
-            # Aggregate again to handle any duplicates with the new point
-            all_points = self._aggregate_points_by_ratio(all_points)
-            print(f"  Total unique ratios after aggregation: {len(all_points)}")
+            # Calculate the midpoint (average) of ALL points
+            target_ratio, target_time = self._calculate_midpoint(all_points)
             
-            if len(all_points) >= 2:
-                print(f"\n  >>> Fitting curve with {len(all_points)} unique ratio points...")
-                ratios = [p[0] for p in all_points]
-                times = [p[1] for p in all_points]
+            if target_ratio is not None:
+                print(f"\n  🎯 Target point for formula: R={target_ratio:.6f}, T={target_time:.3f}s")
                 
-                # Show the points being fitted
-                print(f"  Points for fitting:")
-                for i, (r, t) in enumerate(zip(ratios, times)):
-                    print(f"    {i+1}: R={r:.6f}, T={t:.3f}")
+                # Get template formula
+                template = self._get_template_formula(track, vehicle_class, "race")
+                print(f"\n  📐 Template formula: {template.get_formula_string()}")
                 
-                # Call fit_curve
-                a, b, avg_error, max_error = fit_curve(ratios, times, verbose=True)
+                # Adjust the template to hit the target point
+                adapted_formula = template.adjust_height_to_point(target_ratio, target_time)
+                print(f"  ✨ Adapted formula: {adapted_formula.get_formula_string()}")
                 
-                if a is not None and b is not None and a > 0 and b > 0:
-                    print(f"\n  ✓ fit_curve SUCCEEDED for RACE")
-                    print(f"    a={a:.6f}, b={b:.6f}")
-                    print(f"    Formula: {get_formula_string(a, b)}")
-                    
-                    formula = Formula(
-                        track=track, vehicle=vehicle, a=a, b=b,
-                        session_type="race",
-                        confidence=min(1.0, len(all_points) / 10.0),
-                        data_points_used=len(all_points),
-                        avg_error=avg_error,
-                        max_error=max_error
-                    )
-                    self.formula_manager.save_formula(formula)
-                    result["race_formula"] = formula
-                    
-                    new_ratio = formula.get_ratio_for_time(race_midpoint)
-                    print(f"  Target lap time: {race_midpoint:.3f}s")
-                    print(f"  Calculated new ratio: {new_ratio:.6f}")
-                    
-                    if new_ratio is not None and 0.3 < new_ratio < 3.0:
-                        if self._update_aiw_ratio(aiw_path, "RaceRatio", new_ratio):
-                            result["race_updated"] = True
-                            result["race_new_ratio"] = new_ratio
-                            result["method"] = "fit_curve_aggregated"
-                            print(f"\n  ✅ RaceRatio UPDATED in AIW: {race_data.race_ratio:.6f} → {new_ratio:.6f}")
-                        else:
-                            print(f"\n  ❌ Failed to update AIW file")
-                    else:
-                        print(f"\n  ❌ Invalid ratio: {new_ratio} (outside 0.3-3.0 range)")
-                else:
-                    print(f"\n  ❌ fit_curve FAILED for RACE (invalid a={a}, b={b})")
-                    # Fallback to simple formula
-                    print(f"  Falling back to simple formula...")
-                    a, b = self._calculate_simple_formula(race_data.race_ratio, race_midpoint)
-                    formula = Formula(
-                        track=track, vehicle=vehicle, a=a, b=b,
-                        session_type="race",
-                        confidence=0.3,
-                        data_points_used=len(all_points),
-                        avg_error=0,
-                        max_error=0
-                    )
-                    self.formula_manager.save_formula(formula)
-                    new_ratio = formula.get_ratio_for_time(race_midpoint)
-                    if new_ratio and 0.3 < new_ratio < 3.0:
-                        if self._update_aiw_ratio(aiw_path, "RaceRatio", new_ratio):
-                            result["race_updated"] = True
-                            result["race_new_ratio"] = new_ratio
-                            result["method"] = "simple_formula_fallback"
-                            print(f"\n  ✅ RaceRatio UPDATED using fallback: {new_ratio:.6f}")
-            else:
-                print(f"\n  ⚠ Need at least 2 unique ratios to fit (have {len(all_points)})")
-                a, b = self._calculate_simple_formula(race_data.race_ratio, race_midpoint)
-                formula = Formula(
-                    track=track, vehicle=vehicle, a=a, b=b,
-                    session_type="race",
-                    confidence=0.2,
-                    data_points_used=1,
-                    avg_error=0,
-                    max_error=0
-                )
-                self.formula_manager.save_formula(formula)
-                new_ratio = formula.get_ratio_for_time(race_midpoint)
+                # Verify the adapted formula hits the target point
+                verify_time = adapted_formula.get_time_at_ratio(target_ratio)
+                print(f"  ✓ Verification: at R={target_ratio:.6f}, T={verify_time:.3f}s (target was {target_time:.3f}s)")
+                
+                # Save the formula
+                self.formula_manager.save_formula(adapted_formula)
+                
+                # Calculate new ratio for the target lap time
+                new_ratio = adapted_formula.get_ratio_for_time(race_midpoint)
+                print(f"\n  🎯 Target lap time: {race_midpoint:.3f}s")
+                print(f"  🔄 New ratio needed: {new_ratio:.6f}")
+                print(f"  📊 Old ratio: {race_data.race_ratio:.6f}")
+                
                 if new_ratio and 0.3 < new_ratio < 3.0:
                     if self._update_aiw_ratio(aiw_path, "RaceRatio", new_ratio):
                         result["race_updated"] = True
                         result["race_new_ratio"] = new_ratio
-                        result["method"] = "single_point_formula"
-                        print(f"\n  ✅ RaceRatio UPDATED (single point): {new_ratio:.6f}")
+                        result["method"] = "adapt_template"
+                        print(f"\n  ✅ RaceRatio UPDATED in AIW")
+                    else:
+                        print(f"\n  ❌ Failed to update AIW file")
+                else:
+                    print(f"\n  ❌ Invalid ratio: {new_ratio}")
         
         result["success"] = result["qual_updated"] or result["race_updated"]
-        
-        print(f"\n{'='*70}")
-        if result["success"]:
-            print(f"✅ AUTOPILOT COMPLETE")
-            if result["qual_updated"]:
-                print(f"  🟡 Qualifying: {result['qual_old_ratio']:.6f} → {result['qual_new_ratio']:.6f} ({result['method']})")
-            if result["race_updated"]:
-                print(f"  🟠 Race: {result['race_old_ratio']:.6f} → {result['race_new_ratio']:.6f} ({result['method']})")
-        else:
-            print(f"⚠ AUTOPILOT - No updates performed")
-            if result["message"]:
-                print(f"  Reason: {result['message']}")
-        print(f"{'='*70}\n")
-        
+        print(f"\n{'='*70}\n")
         return result
     
     def _update_aiw_ratio(self, aiw_path: Path, ratio_name: str, new_ratio: float) -> bool:
-        """Update a ratio in the AIW file"""
         try:
             if not aiw_path.exists():
-                print(f"    ✗ AIW file not found: {aiw_path}")
                 return False
             
-            print(f"    Reading AIW file: {aiw_path}")
             raw = aiw_path.read_bytes()
             content = raw.replace(b"\x00", b"").decode("utf-8", errors="ignore")
             
-            # Update ratio
             pattern = rf'({re.escape(ratio_name)}\s*=\s*\(?)\s*[0-9.eE+-]+\s*(\)?)'
-            new_content, count = re.subn(
-                pattern,
-                lambda m: f"{m.group(1)}{new_ratio:.6f}{m.group(2)}",
-                content,
-                flags=re.IGNORECASE
-            )
+            new_content, count = re.subn(pattern, lambda m: f"{m.group(1)}{new_ratio:.6f}{m.group(2)}", content, flags=re.IGNORECASE)
             
             if count > 0:
                 aiw_path.write_bytes(new_content.encode("utf-8", errors="ignore"))
-                print(f"    ✓ Updated {ratio_name} to {new_ratio:.6f}")
                 return True
-            else:
-                print(f"    ⚠ Could not find {ratio_name} pattern in AIW file")
-                return False
-                
-        except Exception as e:
-            print(f"    ✗ Failed to update {ratio_name}: {e}")
+            return False
+        except Exception:
             return False
 
 
 class AutopilotManager:
-    """Main manager for autopilot functionality"""
-    
     def __init__(self, db: CurveDatabase):
         self.db = db
         self.formula_manager = FormulaManager(db)
@@ -585,10 +588,7 @@ class AutopilotManager:
     
     def set_enabled(self, enabled: bool):
         self.enabled = enabled
-        if enabled:
-            print("\n🤖 AUTOPILOT ENABLED - Aggregating points by ratio before fitting")
-        else:
-            print("\n🤖 AUTOPILOT DISABLED")
+        print(f"\n🤖 AUTOPILOT {'ENABLED' if enabled else 'DISABLED'}")
     
     def set_silent(self, silent: bool):
         self.silent = silent
@@ -596,15 +596,7 @@ class AutopilotManager:
     
     def process_new_data(self, race_data: RaceData, aiw_path: Path) -> Dict[str, Any]:
         if not self.enabled:
-            print("\n🤖 Autopilot is disabled - skipping")
             return {"success": False, "message": "Autopilot disabled"}
-        if not race_data or not race_data.has_data():
-            print("\n🤖 No valid race data - skipping")
-            return {"success": False, "message": "No valid race data"}
-        if not aiw_path or not aiw_path.exists():
-            print(f"\n🤖 AIW file not found: {aiw_path}")
-            return {"success": False, "message": f"AIW file not found: {aiw_path}"}
-        
         return self.engine.process_race_data(race_data, aiw_path)
     
     def get_status(self) -> Dict[str, Any]:
@@ -616,7 +608,6 @@ class AutopilotManager:
         }
     
     def reload_formulas(self):
-        print("\n🤖 Reloading formulas from database...")
         self.formula_manager._load_formulas()
 
 

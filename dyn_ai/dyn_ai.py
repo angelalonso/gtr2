@@ -342,48 +342,40 @@ class SimpleCurveViewer(QMainWindow):
         track = selected_tracks[0]
         vehicle = selected_vehicles[0]
         
-        print(f"\n[GUI] Updating formulas from autopilot for {track}/{vehicle}")
+        print(f"\n[GUI] Updating formulas for {track}/{vehicle}")
         
-        # Get qualifying formula - try exact match first
+        # Get qualifying formula
         qual_formula = self.autopilot_manager.formula_manager.get_formula(track, vehicle, "qual")
-        
-        # If no exact match, try to get ANY qualifying formula for this track
-        if not qual_formula:
-            track_formulas = self.autopilot_manager.formula_manager.get_all_formulas_for_track(track)
-            # Find any qualifying formula
-            for f in track_formulas:
-                if f.session_type == "qual" and f.is_valid():
-                    qual_formula = f
-                    print(f"  🟡 Using fallback qualifying formula from vehicle '{f.vehicle}'")
-                    break
-        
         if qual_formula and qual_formula.is_valid():
             self.qual_a = qual_formula.a
             self.qual_b = qual_formula.b
-            self.formula_source = f"Autopilot ({qual_formula.vehicle}, {qual_formula.data_points_used} pts, err: {qual_formula.avg_error:.2f}s)"
-            print(f"  🟡 QUALIFYING formula loaded: {qual_formula.get_formula_string()}")
+            print(f"  🟡 QUAL formula loaded: {qual_formula.get_formula_string()}")
         else:
-            print(f"  🟡 No qualifying formula found for track {track}")
-        
-        # Get race formula - try exact match first
-        race_formula = self.autopilot_manager.formula_manager.get_formula(track, vehicle, "race")
-        
-        # If no exact match, try to get ANY race formula for this track
-        if not race_formula:
+            # Try to get ANY qualifying formula for this track
             track_formulas = self.autopilot_manager.formula_manager.get_all_formulas_for_track(track)
-            # Find any race formula
             for f in track_formulas:
-                if f.session_type == "race" and f.is_valid():
-                    race_formula = f
-                    print(f"  🟠 Using fallback race formula from vehicle '{f.vehicle}'")
+                if f.session_type == "qual" and f.is_valid():
+                    self.qual_a = f.a
+                    self.qual_b = f.b
+                    print(f"  🟡 QUAL fallback from class '{f.vehicle_class}': {f.get_formula_string()}")
                     break
         
+        # Get race formula
+        race_formula = self.autopilot_manager.formula_manager.get_formula(track, vehicle, "race")
         if race_formula and race_formula.is_valid():
             self.race_a = race_formula.a
             self.race_b = race_formula.b
             print(f"  🟠 RACE formula loaded: {race_formula.get_formula_string()}")
         else:
-            print(f"  🟠 No race formula found for track {track}")
+            # Try to get ANY race formula for this track
+            track_formulas = self.autopilot_manager.formula_manager.get_all_formulas_for_track(track)
+            for f in track_formulas:
+                if f.session_type == "race" and f.is_valid():
+                    self.race_a = f.a
+                    self.race_b = f.b
+                    print(f"  🟠 RACE fallback from class '{f.vehicle_class}': {f.get_formula_string()}")
+                    break
+
     
     def on_file_changed(self, race_data: RaceData):
         """Handle file change event - run autopilot and update display"""
@@ -395,6 +387,8 @@ class SimpleCurveViewer(QMainWindow):
             print(f"\n{'='*60}")
             print(f"[{timestamp}] New race data detected")
             print(f"{'='*60}")
+            print(f"  RACE DATA VEHICLE: '{race_data.user_vehicle}'")
+            print(f"  RACE DATA TRACK: '{race_data.track_name}'")
             
             # Save race session
             race_dict = race_data.to_dict()
@@ -407,6 +401,7 @@ class SimpleCurveViewer(QMainWindow):
                     vehicle = race_data.user_vehicle or "Unknown"
                     if self.db.add_data_point(track, vehicle, ratio, lap_time, session_type):
                         points_added += 1
+                        print(f"  Added {session_type} point: {track} R={ratio:.4f} T={lap_time:.3f}s")
                 
                 print(f"✓ Added {points_added} new data points")
                 
@@ -419,8 +414,15 @@ class SimpleCurveViewer(QMainWindow):
                     if items:
                         self.track_list.clearSelection()
                         items[0].setSelected(True)
-                        self.vehicle_list.selectAll()
+                        # Also select the vehicle that was used
+                        vehicle_items = self.vehicle_list.findItems(race_data.user_vehicle or "Unknown", Qt.MatchExactly)
+                        if vehicle_items:
+                            self.vehicle_list.clearSelection()
+                            vehicle_items[0].setSelected(True)
+                        else:
+                            self.vehicle_list.selectAll()
                         print(f"✓ Auto-selected track: {race_data.track_name}")
+                        print(f"✓ Auto-selected vehicle: {race_data.user_vehicle}")
                 
                 # Run autopilot if enabled
                 if self.autopilot_enabled and race_data.aiw_path:
@@ -429,7 +431,7 @@ class SimpleCurveViewer(QMainWindow):
                     # Reload formulas to include new data
                     self.autopilot_manager.reload_formulas()
                     
-                    # Process the data (this will use fit_curve on ALL data points)
+                    # Process the data
                     result = self.autopilot_manager.process_new_data(race_data, race_data.aiw_path)
                     
                     if result["success"]:
@@ -444,7 +446,7 @@ class SimpleCurveViewer(QMainWindow):
                     # CRITICAL: Reload formulas again to get the updated ones
                     self.autopilot_manager.reload_formulas()
                 
-                # CRITICAL: Update the GUI with the latest formulas
+                # CRITICAL: Update the GUI with the latest formulas for the selected track/vehicle
                 self._update_formulas_from_autopilot()
                 
                 # CRITICAL: Refresh the graph
@@ -452,6 +454,8 @@ class SimpleCurveViewer(QMainWindow):
                 self._update_autopilot_status()
                 
                 print(f"\n✓ Graph updated with new formulas")
+                print(f"  Qual formula: T = {self.qual_a:.4f}/R + {self.qual_b:.4f}")
+                print(f"  Race formula: T = {self.race_a:.4f}/R + {self.race_b:.4f}")
             else:
                 print(f"✗ Failed to save race session")
         else:
@@ -591,6 +595,7 @@ class SimpleCurveViewer(QMainWindow):
         self.update_display()
         print(f"\n{'='*50}")
     
+
     def update_display(self):
         """Update the plot with both curves and data points"""
         ratios = np.linspace(0.4, 2.0, 200)
@@ -600,9 +605,11 @@ class SimpleCurveViewer(QMainWindow):
         qual_times = self.qual_a / ratios + self.qual_b
         race_times = self.race_a / ratios + self.race_b
         
-        print(f"\n[GUI] Displaying curves:")
+        print(f"\n[GUI] Drawing curves:")
         print(f"  🟡 Qualifying: T = {self.qual_a:.4f}/R + {self.qual_b:.4f}")
         print(f"  🟠 Race: T = {self.race_a:.4f}/R + {self.race_b:.4f}")
+        print(f"  📊 Qual data points: {len(points_data.get('quali', []))}")
+        print(f"  📊 Race data points: {len(points_data.get('race', []))}")
         
         # Update qualifying curve (yellow)
         if self.qual_curve is None:

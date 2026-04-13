@@ -1,5 +1,5 @@
 auto_apply: false
-autopilot_enabled: false
+autopilot_enabled: true
 autopilot_silent: true
 backup_enabled: true
 base_path: /home/aaf/Software/Dev/gtr2/dyn_ai/test_mocks/

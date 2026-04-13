@@ -1,0 +1,113 @@
+{
+  "Formula Cars": {
+    "classes": ["Formula", "OpenWheel", "SingleSeater"],
+    "vehicles": [
+      "Formula Senior",
+      "Formula Junior",
+      "Formula 3",
+      "Formula Renault",
+      "Formula Ford",
+      "Formula BMW",
+      "Formula 3000",
+      "Formula 1",
+      "F1",
+      "IndyCar",
+      "Champ Car",
+      "f4",
+      "F4",
+      "F3",
+      "F2",
+      "F1"
+    ]
+  },
+  "GT Cars": {
+    "classes": ["GT", "GTE", "GT3", "GT4", "GT2", "GT1"],
+    "vehicles": [
+      "Porsche 911",
+      "Porsche 996",
+      "Porsche 997",
+      "Ferrari 550",
+      "Ferrari 360",
+      "Ferrari 458",
+      "Ferrari 488",
+      "Lamborghini Murcielago",
+      "Lamborghini Gallardo",
+      "Lamborghini Huracan",
+      "Saleen S7",
+      "Corvette C5R",
+      "Corvette C6R",
+      "Corvette C7R",
+      "Dodge Viper",
+      "Aston Martin DBR9",
+      "Aston Martin Vantage",
+      "Maserati MC12",
+      "BMW M3 GT",
+      "BMW M6 GT",
+      "Mercedes SLS",
+      "Mercedes AMG GT",
+      "Audi R8 LMS",
+      "Nissan GT-R",
+      "McLaren MP4-12C",
+      "McLaren 720S",
+      "Ford GT",
+      "gt",
+      "GT",
+      "GTE",
+      "GT3"
+    ]
+  },
+  "Prototype Cars": {
+    "classes": ["Prototype", "LMP1", "LMP2", "LMP3", "DPi"],
+    "vehicles": [
+      "LMP1",
+      "LMP2",
+      "LMP3",
+      "Audi R8",
+      "Audi R10",
+      "Audi R15",
+      "Audi R18",
+      "Bentley Speed 8",
+      "Cadillac LMP",
+      "Porsche 919",
+      "Toyota TS040",
+      "Toyota TS050",
+      "Peugeot 908",
+      "Acura ARX",
+      "Mazda DPi",
+      "Oreca",
+      "Ligier",
+      "Riley"
+    ]
+  },
+  "Production Cars": {
+    "classes": ["Production", "Street", "Road"],
+    "vehicles": [
+      "BMW M3",
+      "BMW M4",
+      "Audi R8",
+      "Porsche 911 Carrera",
+      "Porsche Cayman",
+      "Ferrari F430",
+      "Lamborghini",
+      "Nissan GT-R",
+      "Mercedes C63",
+      "Ford Mustang",
+      "Chevrolet Camaro"
+    ]
+  },
+  "Touring Cars": {
+    "classes": ["Touring", "TC", "WTCC", "BTCC"],
+    "vehicles": [
+      "BMW 320",
+      "BMW 125",
+      "Honda Civic",
+      "Honda Accord",
+      "Ford Focus",
+      "Chevrolet Cruze",
+      "SEAT Leon",
+      "Alfa Romeo 156",
+      "Volvo S60",
+      "Vauxhall Vectra"
+    ]
+  }
+}
