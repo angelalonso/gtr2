@@ -70,14 +70,14 @@ def get_vehicle_class(vehicle_name: str, class_mapping: Dict[str, Dict]) -> str:
         vehicles = class_data.get("vehicles", [])
         for v in vehicles:
             if v.lower() == vehicle_lower:
-                print(f"  [ClassMap] Mapped '{vehicle_name}' → '{class_name}'")
+                print(f"  [ClassMap] Mapped '{vehicle_name}' -> '{class_name}'")
                 return class_name
     
     for class_name, class_data in class_mapping.items():
         vehicles = class_data.get("vehicles", [])
         for v in vehicles:
             if v.lower() in vehicle_lower or vehicle_lower in v.lower():
-                print(f"  [ClassMap] Mapped '{vehicle_name}' → '{class_name}' (partial)")
+                print(f"  [ClassMap] Mapped '{vehicle_name}' -> '{class_name}' (partial)")
                 return class_name
     
     print(f"  [ClassMap] No class for '{vehicle_name}', using as own class")
@@ -128,7 +128,7 @@ class Formula:
         # Ensure b is reasonable
         new_b = max(10.0, min(200.0, new_b))
         
-        print(f"    Adjusting height: a={self.a:.4f} (unchanged), b={old_b:.4f} → {new_b:.4f}")
+        print(f"    Adjusting height: a={self.a:.4f} (unchanged), b={old_b:.4f} -> {new_b:.4f}")
         
         return Formula(
             track=self.track,
@@ -301,9 +301,9 @@ class AutopilotEngine:
             print(f"      Point: R={ratio:.6f}, T={lap_time:.3f}, Vehicle='{vehicle}', Class='{vehicle_class_of_point}'")
             if vehicle_class_of_point == vehicle_class:
                 points.append((ratio, lap_time))
-                print(f"        ✓ MATCHES class '{vehicle_class}'")
+                print(f"        [OK] MATCHES class '{vehicle_class}'")
             else:
-                print(f"        ✗ Does NOT match (needs '{vehicle_class}')")
+                print(f"        [NO] Does NOT match (needs '{vehicle_class}')")
         
         conn.close()
         print(f"    Total points for class '{vehicle_class}': {len(points)}")
@@ -327,7 +327,7 @@ class AutopilotEngine:
     def _get_template_formula(self, track: str, vehicle_class: str, session_type: str) -> Optional[Formula]:
         """
         Get a template formula to adapt:
-        1. Same track, same class, opposite session (qual ↔ race)
+        1. Same track, same class, opposite session (qual <-> race)
         2. Same track, any class, same session (average of all)
         3. Any track, same class, same session (global by class)
         4. Any track, any class, same session (global average)
@@ -340,7 +340,7 @@ class AutopilotEngine:
         # Method 1: Same track, same class, opposite session
         formula = self.formula_manager.get_formula_by_class(track, vehicle_class, opposite_session)
         if formula:
-            print(f"  📍 Template: same track/class from {opposite_session} session")
+            print(f"  [TEMPLATE] same track/class from {opposite_session} session")
             print(f"     {formula.get_formula_string()}")
             return formula
         
@@ -351,7 +351,7 @@ class AutopilotEngine:
         if same_session_formulas:
             avg_a = sum(f.a for f in same_session_formulas) / len(same_session_formulas)
             avg_b = sum(f.b for f in same_session_formulas) / len(same_session_formulas)
-            print(f"  📍 Template: track average from {len(same_session_formulas)} formula(s)")
+            print(f"  [TEMPLATE] track average from {len(same_session_formulas)} formula(s)")
             print(f"     Avg a={avg_a:.4f}, Avg b={avg_b:.4f}")
             return Formula(
                 track=track,
@@ -370,7 +370,7 @@ class AutopilotEngine:
         if same_class_same_session:
             avg_a = sum(f.a for f in same_class_same_session) / len(same_class_same_session)
             avg_b = sum(f.b for f in same_class_same_session) / len(same_class_same_session)
-            print(f"  📍 Template: global {vehicle_class} average from {len(same_class_same_session)} formula(s)")
+            print(f"  [TEMPLATE] global {vehicle_class} average from {len(same_class_same_session)} formula(s)")
             print(f"     Avg a={avg_a:.4f}, Avg b={avg_b:.4f}")
             return Formula(
                 track=track,
@@ -388,7 +388,7 @@ class AutopilotEngine:
         if all_same_session:
             avg_a = sum(f.a for f in all_same_session) / len(all_same_session)
             avg_b = sum(f.b for f in all_same_session) / len(all_same_session)
-            print(f"  📍 Template: global average from {len(all_same_session)} formula(s)")
+            print(f"  [TEMPLATE] global average from {len(all_same_session)} formula(s)")
             print(f"     Avg a={avg_a:.4f}, Avg b={avg_b:.4f}")
             return Formula(
                 track=track,
@@ -401,7 +401,7 @@ class AutopilotEngine:
             )
         
         # Method 5: Default formula
-        print(f"  📍 Template: DEFAULT (a=30.0, b=70.0)")
+        print(f"  [TEMPLATE] DEFAULT (a=30.0, b=70.0)")
         return Formula(
             track=track,
             vehicle_class=vehicle_class,
@@ -432,24 +432,23 @@ class AutopilotEngine:
         
         track = race_data.track_name
         user_vehicle = race_data.user_vehicle or "Unknown"
-        vehicle_class = get_vehicle_class(user_vehicle, self._class_mapping)
-        user_vehicle = race_data.user_vehicle or "Unknown"
         print(f"\n  RACE DATA: User Vehicle = '{user_vehicle}'")
+        vehicle_class = get_vehicle_class(user_vehicle, self._class_mapping)
         print(f"  RACE DATA: Mapped to class = '{vehicle_class}'")
         
         print(f"\n{'='*70}")
-        print(f"🤖 AUTOPILOT - Adapting formulas to new data")
+        print(f"[AUTO] Autopilot - Adapting formulas to new data")
         print(f"{'='*70}")
         print(f"  Track: '{track}'")
-        print(f"  User Vehicle: '{user_vehicle}' → Class: '{vehicle_class}'")
+        print(f"  User Vehicle: '{user_vehicle}' -> Class: '{vehicle_class}'")
         
         # Process qualifying
         if race_data.qual_ratio and race_data.qual_best_ai_lap_sec > 0 and race_data.qual_worst_ai_lap_sec > 0:
             result["qual_old_ratio"] = race_data.qual_ratio
             qual_midpoint = (race_data.qual_best_ai_lap_sec + race_data.qual_worst_ai_lap_sec) / 2
             
-            print(f"\n{'─'*50}")
-            print(f"📊 QUALIFYING")
+            print(f"\n{'-'*50}")
+            print(f"[QUAL] Qualifying Session")
             print(f"  New data point: R={race_data.qual_ratio:.6f}, T={qual_midpoint:.3f}s")
             
             # Get existing data points for this class
@@ -465,47 +464,47 @@ class AutopilotEngine:
             target_ratio, target_time = self._calculate_midpoint(all_points)
             
             if target_ratio is not None:
-                print(f"\n  🎯 Target point for formula: R={target_ratio:.6f}, T={target_time:.3f}s")
+                print(f"\n  [TARGET] Target point for formula: R={target_ratio:.6f}, T={target_time:.3f}s")
                 
                 # Get template formula
                 template = self._get_template_formula(track, vehicle_class, "qual")
-                print(f"\n  📐 Template formula: {template.get_formula_string()}")
+                print(f"\n  [TEMPLATE] Template formula: {template.get_formula_string()}")
                 
                 # Adjust the template to hit the target point
                 adapted_formula = template.adjust_height_to_point(target_ratio, target_time)
-                print(f"  ✨ Adapted formula: {adapted_formula.get_formula_string()}")
+                print(f"  [ADAPTED] Adapted formula: {adapted_formula.get_formula_string()}")
                 
                 # Verify the adapted formula hits the target point
                 verify_time = adapted_formula.get_time_at_ratio(target_ratio)
-                print(f"  ✓ Verification: at R={target_ratio:.6f}, T={verify_time:.3f}s (target was {target_time:.3f}s)")
+                print(f"  [OK] Verification: at R={target_ratio:.6f}, T={verify_time:.3f}s (target was {target_time:.3f}s)")
                 
                 # Save the formula
                 self.formula_manager.save_formula(adapted_formula)
                 
                 # Calculate new ratio for the target lap time
                 new_ratio = adapted_formula.get_ratio_for_time(qual_midpoint)
-                print(f"\n  🎯 Target lap time: {qual_midpoint:.3f}s")
-                print(f"  🔄 New ratio needed: {new_ratio:.6f}")
-                print(f"  📊 Old ratio: {race_data.qual_ratio:.6f}")
+                print(f"\n  [TARGET] Target lap time: {qual_midpoint:.3f}s")
+                print(f"  [NEW] New ratio needed: {new_ratio:.6f}")
+                print(f"  [OLD] Old ratio: {race_data.qual_ratio:.6f}")
                 
                 if new_ratio and 0.3 < new_ratio < 3.0:
                     if self._update_aiw_ratio(aiw_path, "QualRatio", new_ratio):
                         result["qual_updated"] = True
                         result["qual_new_ratio"] = new_ratio
                         result["method"] = "adapt_template"
-                        print(f"\n  ✅ QualRatio UPDATED in AIW")
+                        print(f"\n  [OK] QualRatio UPDATED in AIW")
                     else:
-                        print(f"\n  ❌ Failed to update AIW file")
+                        print(f"\n  [FAIL] Failed to update AIW file")
                 else:
-                    print(f"\n  ❌ Invalid ratio: {new_ratio}")
+                    print(f"\n  [FAIL] Invalid ratio: {new_ratio}")
         
         # Process race
         if race_data.race_ratio and race_data.best_ai_lap_sec > 0 and race_data.worst_ai_lap_sec > 0:
             result["race_old_ratio"] = race_data.race_ratio
             race_midpoint = (race_data.best_ai_lap_sec + race_data.worst_ai_lap_sec) / 2
             
-            print(f"\n{'─'*50}")
-            print(f"🏁 RACE")
+            print(f"\n{'-'*50}")
+            print(f"[RACE] Race Session")
             print(f"  New data point: R={race_data.race_ratio:.6f}, T={race_midpoint:.3f}s")
             
             # Get existing data points for this class
@@ -521,39 +520,39 @@ class AutopilotEngine:
             target_ratio, target_time = self._calculate_midpoint(all_points)
             
             if target_ratio is not None:
-                print(f"\n  🎯 Target point for formula: R={target_ratio:.6f}, T={target_time:.3f}s")
+                print(f"\n  [TARGET] Target point for formula: R={target_ratio:.6f}, T={target_time:.3f}s")
                 
                 # Get template formula
                 template = self._get_template_formula(track, vehicle_class, "race")
-                print(f"\n  📐 Template formula: {template.get_formula_string()}")
+                print(f"\n  [TEMPLATE] Template formula: {template.get_formula_string()}")
                 
                 # Adjust the template to hit the target point
                 adapted_formula = template.adjust_height_to_point(target_ratio, target_time)
-                print(f"  ✨ Adapted formula: {adapted_formula.get_formula_string()}")
+                print(f"  [ADAPTED] Adapted formula: {adapted_formula.get_formula_string()}")
                 
                 # Verify the adapted formula hits the target point
                 verify_time = adapted_formula.get_time_at_ratio(target_ratio)
-                print(f"  ✓ Verification: at R={target_ratio:.6f}, T={verify_time:.3f}s (target was {target_time:.3f}s)")
+                print(f"  [OK] Verification: at R={target_ratio:.6f}, T={verify_time:.3f}s (target was {target_time:.3f}s)")
                 
                 # Save the formula
                 self.formula_manager.save_formula(adapted_formula)
                 
                 # Calculate new ratio for the target lap time
                 new_ratio = adapted_formula.get_ratio_for_time(race_midpoint)
-                print(f"\n  🎯 Target lap time: {race_midpoint:.3f}s")
-                print(f"  🔄 New ratio needed: {new_ratio:.6f}")
-                print(f"  📊 Old ratio: {race_data.race_ratio:.6f}")
+                print(f"\n  [TARGET] Target lap time: {race_midpoint:.3f}s")
+                print(f"  [NEW] New ratio needed: {new_ratio:.6f}")
+                print(f"  [OLD] Old ratio: {race_data.race_ratio:.6f}")
                 
                 if new_ratio and 0.3 < new_ratio < 3.0:
                     if self._update_aiw_ratio(aiw_path, "RaceRatio", new_ratio):
                         result["race_updated"] = True
                         result["race_new_ratio"] = new_ratio
                         result["method"] = "adapt_template"
-                        print(f"\n  ✅ RaceRatio UPDATED in AIW")
+                        print(f"\n  [OK] RaceRatio UPDATED in AIW")
                     else:
-                        print(f"\n  ❌ Failed to update AIW file")
+                        print(f"\n  [FAIL] Failed to update AIW file")
                 else:
-                    print(f"\n  ❌ Invalid ratio: {new_ratio}")
+                    print(f"\n  [FAIL] Invalid ratio: {new_ratio}")
         
         result["success"] = result["qual_updated"] or result["race_updated"]
         print(f"\n{'='*70}\n")
@@ -588,7 +587,7 @@ class AutopilotManager:
     
     def set_enabled(self, enabled: bool):
         self.enabled = enabled
-        print(f"\n🤖 AUTOPILOT {'ENABLED' if enabled else 'DISABLED'}")
+        print(f"\n[AUTO] AUTOPILOT {'ENABLED' if enabled else 'DISABLED'}")
     
     def set_silent(self, silent: bool):
         self.silent = silent
