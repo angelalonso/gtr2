@@ -32,7 +32,7 @@ Penalty=0
 QualTime=1:48.133
 Laps=8
 LapDistanceTravelled=5714.660645
-BestLap=1:46.281
+BestLap=1:49.234
 RaceTime=0:15:54.100
 
 [Slot002]
@@ -44,7 +44,7 @@ Penalty=0
 QualTime=1:49.533
 Laps=8
 LapDistanceTravelled=5703.221680
-BestLap=1:47.781
+BestLap=1:50.987
 RaceTime=0:15:40.165
 
 [Slot003]
@@ -56,7 +56,7 @@ Penalty=0
 QualTime=1:50.933
 Laps=8
 LapDistanceTravelled=5695.196289
-BestLap=1:49.381
+BestLap=1:52.456
 RaceTime=0:16:15.417
 
 [Slot004]
@@ -68,7 +68,7 @@ Penalty=0
 QualTime=1:52.433
 Laps=8
 LapDistanceTravelled=5687.183594
-BestLap=1:50.881
+BestLap=1:54.123
 RaceTime=0:16:10.146
 
 [Slot005]
@@ -80,7 +80,7 @@ Penalty=0
 QualTime=1:54.033
 Laps=8
 LapDistanceTravelled=5682.786133
-BestLap=1:52.481
+BestLap=1:55.678
 RaceTime=0:15:33.000
 
 [Slot006]
@@ -92,7 +92,7 @@ Penalty=0
 QualTime=1:55.633
 Laps=8
 LapDistanceTravelled=5674.729004
-BestLap=1:54.181
+BestLap=1:57.345
 RaceTime=0:17:21.661
 
 [END]

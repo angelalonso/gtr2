@@ -9,12 +9,15 @@ Shows both Qualifying and Race curves on the same graph
 
 import sys
 import threading
+import logging
 from pathlib import Path
 from typing import List, Tuple, Optional, Dict, Any
+from datetime import datetime
 
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QHBoxLayout, QSplitter,
-    QLabel, QPushButton
+    QLabel, QPushButton, QTextEdit, QDialog, QVBoxLayout, QTabWidget,
+    QCheckBox, QSpinBox, QGroupBox, QComboBox
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QObject
 import pyqtgraph as pg
@@ -24,7 +27,7 @@ from db_funcs import CurveDatabase
 from formula_funcs import fit_curve, calculate_derived_values, get_formula_string
 from gui_funcs import (
     create_control_panel, setup_dark_theme, show_error_dialog, 
-    show_info_dialog, show_warning_dialog
+    show_info_dialog, show_warning_dialog, MultiTrackSelectionDialog
 )
 from cfg_funcs import (
     get_config_with_defaults, get_results_file_path, get_poll_interval,
@@ -34,6 +37,160 @@ from cfg_funcs import (
 )
 from data_extraction import DataExtractor, RaceData
 from autopilot import AutopilotManager, Formula
+
+
+# Set up logging
+logger = logging.getLogger(__name__)
+
+
+class LogWindow(QDialog):
+    """Separate window for displaying logs on demand"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Live AI Tuner - Log Viewer")
+        self.setGeometry(200, 200, 800, 500)
+        
+        self.log_buffer = []
+        self.max_lines = 1000
+        self.current_level = "INFO"
+        
+        self.setup_ui()
+        
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        
+        # Controls at top
+        control_layout = QHBoxLayout()
+        
+        # Log level filter
+        control_layout.addWidget(QLabel("Show level:"))
+        self.level_combo = QComboBox()
+        self.level_combo.addItems(["ERROR", "WARNING", "INFO", "DEBUG", "ALL"])
+        self.level_combo.setCurrentText("INFO")
+        self.level_combo.currentTextChanged.connect(self.on_level_changed)
+        control_layout.addWidget(self.level_combo)
+        
+        control_layout.addWidget(QLabel("Max lines:"))
+        self.max_lines_spin = QSpinBox()
+        self.max_lines_spin.setRange(100, 10000)
+        self.max_lines_spin.setValue(1000)
+        self.max_lines_spin.valueChanged.connect(self.on_max_lines_changed)
+        control_layout.addWidget(self.max_lines_spin)
+        
+        control_layout.addStretch()
+        
+        # Clear button
+        self.clear_btn = QPushButton("Clear")
+        self.clear_btn.clicked.connect(self.clear_log)
+        control_layout.addWidget(self.clear_btn)
+        
+        # Auto-scroll checkbox
+        self.auto_scroll_cb = QCheckBox("Auto-scroll")
+        self.auto_scroll_cb.setChecked(True)
+        control_layout.addWidget(self.auto_scroll_cb)
+        
+        layout.addLayout(control_layout)
+        
+        # Log text area
+        self.log_text = QTextEdit()
+        self.log_text.setReadOnly(True)
+        self.log_text.setFontFamily("Courier New")
+        self.log_text.setStyleSheet("""
+            QTextEdit {
+                background-color: #1e1e1e;
+                color: #d4d4d4;
+                font-size: 10px;
+            }
+        """)
+        layout.addWidget(self.log_text)
+        
+    def add_log(self, level: str, message: str):
+        """Add a log message to the buffer and display"""
+        timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+        formatted = f"[{timestamp}] [{level:7}] {message}"
+        
+        self.log_buffer.append((level, formatted))
+        
+        # Trim buffer
+        if len(self.log_buffer) > self.max_lines:
+            self.log_buffer = self.log_buffer[-self.max_lines:]
+        
+        # Update display if level matches filter
+        self._update_display()
+        
+    def _update_display(self):
+        """Update the display based on current filter"""
+        level_map = {
+            "ERROR": 40,
+            "WARNING": 30,
+            "INFO": 20,
+            "DEBUG": 10,
+            "ALL": 0
+        }
+        min_level = level_map.get(self.current_level, 20)
+        
+        level_values = {
+            "ERROR": 40,
+            "WARNING": 30,
+            "INFO": 20,
+            "DEBUG": 10
+        }
+        
+        # Color mapping
+        color_map = {
+            "ERROR": "#f44336",
+            "WARNING": "#ff9800",
+            "INFO": "#4caf50",
+            "DEBUG": "#9e9e9e"
+        }
+        
+        html_lines = []
+        for level, formatted in self.log_buffer:
+            if self.current_level == "ALL" or level_values.get(level, 0) >= min_level:
+                color = color_map.get(level, "#ffffff")
+                html_lines.append(f'<span style="color: {color};">{formatted}</span>')
+        
+        if self.auto_scroll_cb.isChecked():
+            self.log_text.setHtml("<br>".join(html_lines))
+            # Scroll to bottom
+            scrollbar = self.log_text.verticalScrollBar()
+            scrollbar.setValue(scrollbar.maximum())
+        else:
+            self.log_text.setHtml("<br>".join(html_lines))
+        
+    def on_level_changed(self, level: str):
+        """Handle log level change"""
+        self.current_level = level
+        self._update_display()
+        
+    def on_max_lines_changed(self, value: int):
+        """Handle max lines change"""
+        self.max_lines = value
+        if len(self.log_buffer) > self.max_lines:
+            self.log_buffer = self.log_buffer[-self.max_lines:]
+        self._update_display()
+        
+    def clear_log(self):
+        """Clear the log buffer and display"""
+        self.log_buffer.clear()
+        self.log_text.clear()
+
+
+class LogHandler(logging.Handler):
+    """Custom logging handler that sends logs to the GUI window"""
+    
+    def __init__(self, log_window: LogWindow):
+        super().__init__()
+        self.log_window = log_window
+        
+    def emit(self, record):
+        try:
+            level = record.levelname
+            message = self.format(record)
+            self.log_window.add_log(level, message)
+        except Exception:
+            pass
 
 
 class FileChangeSignal(QObject):
@@ -59,21 +216,21 @@ class FileMonitorDaemon(QObject):
     def start(self):
         """Start monitoring"""
         if not self.file_path.exists():
-            print(f"Warning: File does not exist yet: {self.file_path}")
+            logger.warning(f"File does not exist yet: {self.file_path}")
             self.file_path.parent.mkdir(parents=True, exist_ok=True)
         
         self._update_file_state()
         self.running = True
         self._schedule_check()
-        print(f"Started monitoring: {self.file_path}")
-        print(f"Poll interval: {self.poll_interval} seconds")
+        logger.info(f"Started monitoring: {self.file_path}")
+        logger.info(f"Poll interval: {self.poll_interval} seconds")
         
     def stop(self):
         """Stop monitoring"""
         self.running = False
         if self.timer:
             self.timer.cancel()
-        print("Stopped monitoring")
+        logger.info("Stopped monitoring")
     
     def _schedule_check(self):
         """Schedule the next file check"""
@@ -127,7 +284,7 @@ class FileMonitorDaemon(QObject):
                 self.last_size = current_size
             
         except Exception as e:
-            print(f"Error checking file: {e}")
+            logger.error(f"Error checking file: {e}")
         finally:
             self._schedule_check()
 
@@ -137,7 +294,7 @@ class SimpleCurveViewer(QMainWindow):
     
     def __init__(self, db_path: str = "ai_data.db", config_file: str = "cfg.yml"):
         super().__init__()
-        self.setWindowTitle("Curve Viewer - Qualifying and Race Curves")
+        self.setWindowTitle("Live AI Tuner - Curve Viewer")
         self.setGeometry(100, 100, 1200, 700)
         
         # Config
@@ -146,6 +303,13 @@ class SimpleCurveViewer(QMainWindow):
         
         # Database handler
         self.db = CurveDatabase(db_path)
+        
+        # Set up log window
+        self.log_window = LogWindow(self)
+        log_handler = LogHandler(self.log_window)
+        log_handler.setFormatter(logging.Formatter('%(message)s'))
+        logging.getLogger().addHandler(log_handler)
+        logging.getLogger().setLevel(logging.DEBUG)
         
         # Autopilot
         self.autopilot_manager = AutopilotManager(self.db)
@@ -166,6 +330,14 @@ class SimpleCurveViewer(QMainWindow):
         self.show_race: bool = True
         self.show_unknown: bool = True
         
+        # Currently selected curve for manual editing
+        self.selected_curve = "qual"  # "qual" or "race"
+        
+        # Track selection state
+        self.current_track: str = ""
+        self.multi_track_mode: bool = False
+        self.selected_tracks: List[str] = []
+        
         # Cache for tracks and vehicles
         self.all_tracks: List[str] = []
         self.all_vehicles: List[str] = []
@@ -176,6 +348,7 @@ class SimpleCurveViewer(QMainWindow):
         self.setup_ui()
         self.load_data()
         self.update_display()
+        self.update_manual_controls()
         
         # Auto-start daemon if base path is configured
         base_path = get_base_path(config_file)
@@ -194,12 +367,32 @@ class SimpleCurveViewer(QMainWindow):
         self.controls = controls
         
         # Store references to controls
-        self.track_list = controls['track_list']
+        self.track_list = controls['track_list']  # Hidden, kept for compatibility
+        self.current_track_display = controls['current_track_display']
+        self.multi_track_btn = controls['multi_track_btn']
         self.vehicle_list = controls['vehicle_list']
         self.qual_btn = controls['qual_btn']
         self.race_btn = controls['race_btn']
         self.unkn_btn = controls['unkn_btn']
         self.stats_label = controls['stats_label']
+        
+        # Manual curve controls
+        self.curve_selector = controls.get('curve_selector')
+        self.current_formula_label = controls.get('current_formula_label')
+        self.a_spin = controls['a_spin']
+        self.b_spin = controls['b_spin']
+        self.k_label = controls['k_label']
+        self.m_label = controls['m_label']
+        self.apply_btn = controls.get('apply_btn')
+        
+        # Connect manual curve signals
+        if self.curve_selector:
+            self.curve_selector.currentIndexChanged.connect(self.on_curve_selected)
+        if self.apply_btn:
+            self.apply_btn.clicked.connect(self.on_apply_manual_curve)
+        
+        # Connect track selection signals
+        self.multi_track_btn.clicked.connect(self.open_multi_track_dialog)
         
         # Autopilot controls
         self.autopilot_enable_btn = controls.get('autopilot_enable_btn')
@@ -207,7 +400,6 @@ class SimpleCurveViewer(QMainWindow):
         self.autopilot_status_label = controls.get('autopilot_status')
         
         # Connect signals
-        self.track_list.itemSelectionChanged.connect(self.on_selection_changed)
         self.vehicle_list.itemSelectionChanged.connect(self.on_selection_changed)
         self.qual_btn.clicked.connect(self.on_filter_buttons)
         self.race_btn.clicked.connect(self.on_filter_buttons)
@@ -215,8 +407,6 @@ class SimpleCurveViewer(QMainWindow):
         controls['fit_btn'].clicked.connect(self.auto_fit)
         controls['reset_btn'].clicked.connect(self.reset_view)
         controls['exit_btn'].clicked.connect(self.close)
-        controls['select_all_tracks'].clicked.connect(lambda: self.track_list.selectAll())
-        controls['clear_tracks'].clicked.connect(lambda: self.track_list.clearSelection())
         controls['select_all_vehicles'].clicked.connect(lambda: self.vehicle_list.selectAll())
         controls['clear_vehicles'].clicked.connect(lambda: self.vehicle_list.clearSelection())
         
@@ -224,12 +414,19 @@ class SimpleCurveViewer(QMainWindow):
         if self.autopilot_enable_btn:
             self.autopilot_enable_btn.setChecked(self.autopilot_enabled)
             self.autopilot_enable_btn.clicked.connect(self.toggle_autopilot)
+            self._update_autopilot_button_text()
         
         if self.autopilot_silent_btn:
             self.autopilot_silent_btn.setChecked(self.autopilot_silent)
             self.autopilot_silent_btn.clicked.connect(self.toggle_autopilot_silent)
         
         self._update_autopilot_status()
+        
+        # Add Log button to control panel
+        log_btn = QPushButton("Show Log Window")
+        log_btn.setStyleSheet("background-color: #2196F3;")
+        controls['panel'].layout().insertWidget(controls['panel'].layout().count() - 2, log_btn)
+        log_btn.clicked.connect(self.show_log_window)
         
         # Create plot widget
         self.plot_widget = pg.GraphicsLayoutWidget()
@@ -263,6 +460,74 @@ class SimpleCurveViewer(QMainWindow):
         splitter.setSizes([340, 860])
         main_layout.addWidget(splitter)
     
+    def open_multi_track_dialog(self):
+        """Open dialog to select multiple tracks"""
+        if not self.all_tracks:
+            show_warning_dialog(self, "No Tracks", "No tracks found in database.")
+            return
+        
+        dialog = MultiTrackSelectionDialog(self.all_tracks, self.current_track, self)
+        if dialog.exec_() == QDialog.Accepted:
+            selected = dialog.get_selected_tracks()
+            if selected:
+                self.selected_tracks = selected
+                self.multi_track_mode = len(selected) > 1
+                self.current_track = selected[0] if selected else ""
+                self.update_track_display()
+                self.on_selection_changed()
+    
+    def update_track_display(self):
+        """Update the track display label"""
+        if self.multi_track_mode and len(self.selected_tracks) > 1:
+            self.current_track_display.setText(f"{len(self.selected_tracks)} tracks selected")
+            self.current_track_display.setStyleSheet("color: #FF9800; font-family: monospace; font-weight: bold;")
+        elif self.current_track:
+            self.current_track_display.setText(self.current_track)
+            self.current_track_display.setStyleSheet("color: #4CAF50; font-family: monospace; font-weight: bold;")
+        else:
+            self.current_track_display.setText("-")
+            self.current_track_display.setStyleSheet("color: #888; font-family: monospace;")
+    
+    def get_selected_tracks(self) -> List[str]:
+        """Get the list of selected tracks"""
+        if self.multi_track_mode and self.selected_tracks:
+            return self.selected_tracks
+        elif self.current_track:
+            return [self.current_track]
+        return []
+    
+    def show_log_window(self):
+        """Show the log window"""
+        self.log_window.show()
+        self.log_window.raise_()
+    
+    def _update_autopilot_button_text(self):
+        """Update the autopilot button text based on state"""
+        if self.autopilot_enable_btn:
+            if self.autopilot_enabled:
+                self.autopilot_enable_btn.setText("Autopilot is ON")
+                self.autopilot_enable_btn.setStyleSheet("""
+                    QPushButton {
+                        background-color: #4CAF50;
+                        color: white;
+                        font-weight: bold;
+                    }
+                    QPushButton:checked {
+                        background-color: #FF9800;
+                    }
+                """)
+            else:
+                self.autopilot_enable_btn.setText("Autopilot is OFF")
+                self.autopilot_enable_btn.setStyleSheet("""
+                    QPushButton {
+                        background-color: #555;
+                        color: white;
+                    }
+                    QPushButton:checked {
+                        background-color: #FF9800;
+                    }
+                """)
+    
     def _update_autopilot_status(self):
         """Update autopilot status label"""
         if self.autopilot_status_label:
@@ -274,27 +539,81 @@ class SimpleCurveViewer(QMainWindow):
                 self.autopilot_status_label.setText("Status: Disabled")
                 self.autopilot_status_label.setStyleSheet("color: #888; font-size: 10px;")
     
+    def update_manual_controls(self):
+        """Update the manual control panel with current formula values"""
+        if self.selected_curve == "qual":
+            a = self.qual_a
+            b = self.qual_b
+            curve_name = "Qualifying"
+            color = "#FFFF00"
+        else:
+            a = self.race_a
+            b = self.race_b
+            curve_name = "Race"
+            color = "#FF6600"
+        
+        # Update spin boxes without triggering signals
+        self.a_spin.blockSignals(True)
+        self.b_spin.blockSignals(True)
+        self.a_spin.setValue(a)
+        self.b_spin.setValue(b)
+        self.a_spin.blockSignals(False)
+        self.b_spin.blockSignals(False)
+        
+        # Update formula display
+        formula_str = get_formula_string(a, b)
+        self.current_formula_label.setText(f"Current {curve_name}: {formula_str}")
+        self.current_formula_label.setStyleSheet(f"color: {color}; font-family: monospace; font-size: 11px;")
+        
+        # Update derived values
+        M = a + b
+        k = a / M if M > 0 else 0
+        self.m_label.setText(f"Time at R=1.0 = a+b = {M:.3f}s")
+        self.k_label.setText(f"Steepness k = a/(a+b) = {k:.3f}")
+    
+    def on_curve_selected(self, index):
+        """Handle curve selector change"""
+        self.selected_curve = self.curve_selector.currentData()
+        self.update_manual_controls()
+    
+    def on_apply_manual_curve(self):
+        """Apply manually edited curve parameters"""
+        a = self.a_spin.value()
+        b = self.b_spin.value()
+        
+        if self.selected_curve == "qual":
+            self.qual_a = a
+            self.qual_b = b
+            logger.info(f"Manually updated qualifying curve: {get_formula_string(a, b)}")
+        else:
+            self.race_a = a
+            self.race_b = b
+            logger.info(f"Manually updated race curve: {get_formula_string(a, b)}")
+        
+        self.formula_source = "Manual Edit"
+        self.update_manual_controls()
+        self.update_display()
+    
     def toggle_autopilot(self):
         """Toggle autopilot mode"""
         self.autopilot_enabled = not self.autopilot_enabled
         self.autopilot_manager.set_enabled(self.autopilot_enabled)
         update_autopilot_enabled(self.autopilot_enabled, self.config_file)
         
+        self._update_autopilot_button_text()
         self._update_autopilot_status()
+        
         status = "ENABLED" if self.autopilot_enabled else "DISABLED"
-        self.statusBar().showMessage(f"[AUTO] Autopilot {status}", 3000)
+        logger.info(f"Autopilot {status}")
+        self.statusBar().showMessage(f"Autopilot {status}", 3000)
         
         if self.autopilot_enabled:
             self.autopilot_manager.reload_formulas()
             self._update_formulas_from_autopilot()
             count = self.autopilot_manager.formula_manager.get_formula_count()
-            show_info_dialog(self, "Autopilot Enabled", 
-                           f"Autopilot will automatically fit curves using the same\n"
-                           f"method as the 'Auto-fit' button.\n\n"
-                           f"Loaded {count} formulas.\n\n"
-                           f"Qualifying: Yellow line\n"
-                           f"Race: Orange line")
+            logger.info(f"Autopilot enabled with {count} stored formulas")
             self.update_display()
+            self.update_manual_controls()
     
     def toggle_autopilot_silent(self):
         """Toggle autopilot silent mode"""
@@ -303,18 +622,19 @@ class SimpleCurveViewer(QMainWindow):
         update_autopilot_silent(self.autopilot_silent, self.config_file)
         
         mode = "SILENT" if self.autopilot_silent else "VERBOSE"
+        logger.info(f"Autopilot {mode} mode")
         self.statusBar().showMessage(f"Autopilot {mode} mode", 2000)
     
     def start_daemon(self):
         """Start the file monitoring daemon"""
         file_path = get_results_file_path(self.config_file)
         if not file_path:
-            print("No base path configured - daemon not started")
+            logger.warning("No base path configured - daemon not started")
             return
         
         base_path = get_base_path(self.config_file)
         if not base_path:
-            print("Base path not configured - daemon not started")
+            logger.warning("Base path not configured - daemon not started")
             return
         
         poll_interval = get_poll_interval(self.config_file)
@@ -322,7 +642,7 @@ class SimpleCurveViewer(QMainWindow):
         self.daemon = FileMonitorDaemon(file_path, base_path, poll_interval)
         self.daemon.signal.file_changed.connect(self.on_file_changed)
         self.daemon.start()
-        print(f"Daemon started - monitoring: {file_path}")
+        logger.info(f"Daemon started - monitoring: {file_path}")
     
     def stop_daemon(self):
         """Stop the file monitoring daemon"""
@@ -332,17 +652,17 @@ class SimpleCurveViewer(QMainWindow):
     
     def _update_formulas_from_autopilot(self):
         """Update current formulas from autopilot for selected track/vehicle"""
-        selected_tracks = [item.text() for item in self.track_list.selectedItems()]
+        selected_tracks = self.get_selected_tracks()
         selected_vehicles = [item.text() for item in self.vehicle_list.selectedItems()]
         
         if not selected_tracks or not selected_vehicles:
-            print("  No track/vehicle selected")
             return
         
+        # For multi-track mode, use the first track for formula selection
         track = selected_tracks[0]
         vehicle = selected_vehicles[0]
         
-        print(f"\n[GUI] Updating formulas from autopilot for {track}/{vehicle}")
+        logger.debug(f"Updating formulas from autopilot for {track}/{vehicle}")
         
         # Get qualifying formula - try exact match first
         qual_formula = self.autopilot_manager.formula_manager.get_formula(track, vehicle, "qual")
@@ -353,16 +673,14 @@ class SimpleCurveViewer(QMainWindow):
             for f in track_formulas:
                 if f.session_type == "qual" and f.is_valid():
                     qual_formula = f
-                    print(f"  [QUAL] Using fallback qualifying formula from class '{f.vehicle_class}'")
+                    logger.info(f"Using fallback qualifying formula from class '{f.vehicle_class}'")
                     break
         
         if qual_formula and qual_formula.is_valid():
             self.qual_a = qual_formula.a
             self.qual_b = qual_formula.b
-            self.formula_source = f"Autopilot ({qual_formula.vehicle_class}, {qual_formula.data_points_used} pts, err: {qual_formula.avg_error:.2f}s)"
-            print(f"  [QUAL] QUALIFYING formula loaded: {qual_formula.get_formula_string()}")
-        else:
-            print(f"  [QUAL] No qualifying formula found for track {track}")
+            self.formula_source = f"Autopilot ({qual_formula.vehicle_class})"
+            logger.debug(f"QUALIFYING formula loaded: {qual_formula.get_formula_string()}")
         
         # Get race formula - try exact match first
         race_formula = self.autopilot_manager.formula_manager.get_formula(track, vehicle, "race")
@@ -373,30 +691,22 @@ class SimpleCurveViewer(QMainWindow):
             for f in track_formulas:
                 if f.session_type == "race" and f.is_valid():
                     race_formula = f
-                    print(f"  [RACE] Using fallback race formula from class '{f.vehicle_class}'")
+                    logger.info(f"Using fallback race formula from class '{f.vehicle_class}'")
                     break
         
         if race_formula and race_formula.is_valid():
             self.race_a = race_formula.a
             self.race_b = race_formula.b
-            print(f"  [RACE] RACE formula loaded: {race_formula.get_formula_string()}")
-        else:
-            print(f"  [RACE] No race formula found for track {track}")
+            logger.debug(f"RACE formula loaded: {race_formula.get_formula_string()}")
     
     def on_file_changed(self, race_data: RaceData):
         """Handle file change event - run autopilot and update display"""
-        from datetime import datetime
-        
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         if race_data:
-            print(f"\n{'='*60}")
-            print(f"[{timestamp}] New race data detected")
-            print(f"{'='*60}")
-            print(f"  RACE DATA VEHICLE: '{race_data.user_vehicle}'")
-            print(f"  RACE DATA TRACK: '{race_data.track_name}'")
-            print(f"  QUAL RATIO: {race_data.qual_ratio}")
-            print(f"  RACE RATIO: {race_data.race_ratio}")
+            logger.info(f"New race data detected: {race_data.track_name}")
+            logger.debug(f"User vehicle: {race_data.user_vehicle}")
+            logger.debug(f"Qual ratio: {race_data.qual_ratio}, Race ratio: {race_data.race_ratio}")
             
             # Save race session
             race_dict = race_data.to_dict()
@@ -409,32 +719,31 @@ class SimpleCurveViewer(QMainWindow):
                     vehicle = race_data.user_vehicle or "Unknown"
                     if self.db.add_data_point(track, vehicle, ratio, lap_time, session_type):
                         points_added += 1
-                        print(f"  Added {session_type} point: {track} R={ratio:.4f} T={lap_time:.3f}s")
+                        logger.debug(f"Added {session_type} point: {track} R={ratio:.4f} T={lap_time:.3f}s")
                 
-                print(f"[OK] Added {points_added} new data points")
+                logger.info(f"Added {points_added} new data points")
                 
                 # Reload data (refresh track list)
                 self.load_data()
                 
-                # Auto-select the track that was just detected
+                # Auto-select the track that was just detected (only if not in multi-track mode)
                 if race_data.track_name and race_data.track_name in self.all_tracks:
-                    items = self.track_list.findItems(race_data.track_name, Qt.MatchExactly)
-                    if items:
-                        self.track_list.clearSelection()
-                        items[0].setSelected(True)
-                        # Also select the vehicle that was used
-                        vehicle_items = self.vehicle_list.findItems(race_data.user_vehicle or "Unknown", Qt.MatchExactly)
-                        if vehicle_items:
-                            self.vehicle_list.clearSelection()
-                            vehicle_items[0].setSelected(True)
-                        else:
-                            self.vehicle_list.selectAll()
-                        print(f"[OK] Auto-selected track: {race_data.track_name}")
-                        print(f"[OK] Auto-selected vehicle: {race_data.user_vehicle}")
+                    if not self.multi_track_mode:
+                        self.current_track = race_data.track_name
+                        self.update_track_display()
+                        logger.info(f"Auto-selected track: {race_data.track_name}")
+                    
+                    # Auto-select the vehicle that was used
+                    vehicle_items = self.vehicle_list.findItems(race_data.user_vehicle or "Unknown", Qt.MatchExactly)
+                    if vehicle_items:
+                        self.vehicle_list.clearSelection()
+                        vehicle_items[0].setSelected(True)
+                    else:
+                        self.vehicle_list.selectAll()
                 
                 # Run autopilot if enabled
                 if self.autopilot_enabled and race_data.aiw_path:
-                    print(f"\n[AUTO] Running autopilot...")
+                    logger.info("Running autopilot...")
                     
                     # Reload formulas to include new data
                     self.autopilot_manager.reload_formulas()
@@ -443,13 +752,13 @@ class SimpleCurveViewer(QMainWindow):
                     result = self.autopilot_manager.process_new_data(race_data, race_data.aiw_path)
                     
                     if result["success"]:
-                        print(f"\n[OK] Autopilot completed successfully:")
+                        logger.info("Autopilot completed successfully")
                         if result.get("qual_updated"):
-                            print(f"  [QUAL] Qualifying: {result['qual_old_ratio']:.6f} -> {result['qual_new_ratio']:.6f}")
+                            logger.info(f"Qualifying: {result['qual_old_ratio']:.6f} -> {result['qual_new_ratio']:.6f}")
                         if result.get("race_updated"):
-                            print(f"  [RACE] Race: {result['race_old_ratio']:.6f} -> {result['race_new_ratio']:.6f}")
+                            logger.info(f"Race: {result['race_old_ratio']:.6f} -> {result['race_new_ratio']:.6f}")
                     else:
-                        print(f"\n[WARN] Autopilot: {result.get('message', 'No updates')}")
+                        logger.warning(f"Autopilot: {result.get('message', 'No updates')}")
                     
                     # Reload formulas again to get the updated ones
                     self.autopilot_manager.reload_formulas()
@@ -457,29 +766,26 @@ class SimpleCurveViewer(QMainWindow):
                 # Update the GUI with the latest formulas
                 self._update_formulas_from_autopilot()
                 
-                # Refresh the graph
+                # Refresh the graph and controls
                 self.update_display()
+                self.update_manual_controls()
                 self._update_autopilot_status()
                 
-                print(f"\n[OK] Graph updated with new formulas")
-                print(f"  [QUAL] Qual formula: T = {self.qual_a:.4f}/R + {self.qual_b:.4f}")
-                print(f"  [RACE] Race formula: T = {self.race_a:.4f}/R + {self.race_b:.4f}")
+                logger.debug(f"Qual formula: T = {self.qual_a:.4f}/R + {self.qual_b:.4f}")
+                logger.debug(f"Race formula: T = {self.race_a:.4f}/R + {self.race_b:.4f}")
             else:
-                print(f"[FAIL] Failed to save race session")
+                logger.error("Failed to save race session")
         else:
-            print(f"\n[{timestamp}] File changed but no race data extracted")
+            logger.warning("File changed but no race data extracted")
     
     def load_data(self):
         """Load tracks and vehicles from database"""
         if not self.db.database_exists():
-            print(f"Database not found: {self.db.db_path}")
+            logger.warning(f"Database not found: {self.db.db_path}")
             return
         
         # Store current selection to restore later
-        current_track = None
-        if self.track_list.selectedItems():
-            current_track = self.track_list.selectedItems()[0].text()
-        
+        current_track = self.current_track
         current_vehicle = None
         if self.vehicle_list.selectedItems():
             current_vehicle = self.vehicle_list.selectedItems()[0].text()
@@ -489,11 +795,6 @@ class SimpleCurveViewer(QMainWindow):
         self.all_vehicles = self.db.get_all_vehicles()
         stats = self.db.get_stats()
         
-        # Populate track list
-        self.track_list.clear()
-        for track in self.all_tracks:
-            self.track_list.addItem(track)
-        
         # Populate vehicle list
         self.vehicle_list.clear()
         for vehicle in self.all_vehicles:
@@ -501,11 +802,11 @@ class SimpleCurveViewer(QMainWindow):
         
         # Restore selection
         if current_track and current_track in self.all_tracks:
-            items = self.track_list.findItems(current_track, Qt.MatchExactly)
-            if items:
-                items[0].setSelected(True)
+            self.current_track = current_track
+            self.update_track_display()
         elif self.all_tracks:
-            self.track_list.setCurrentRow(0)
+            self.current_track = self.all_tracks[0]
+            self.update_track_display()
         
         if current_vehicle and current_vehicle in self.all_vehicles:
             items = self.vehicle_list.findItems(current_vehicle, Qt.MatchExactly)
@@ -518,13 +819,11 @@ class SimpleCurveViewer(QMainWindow):
         type_str = ", ".join([f"{t}: {c}" for t, c in stats['by_type'].items()])
         self.stats_label.setText(f"Points: {stats['total_points']} | Races: {stats['total_races']}\n{type_str}")
         
-        print(f"Loaded {stats['total_points']} points, {stats['total_races']} races")
-        print(f"  Tracks: {self.all_tracks}")
-        print(f"  Vehicles: {self.all_vehicles}")
+        logger.debug(f"Loaded {stats['total_points']} points, {stats['total_races']} races")
     
     def get_selected_data(self) -> dict:
         """Get all data points from selected tracks and vehicles"""
-        selected_tracks = [item.text() for item in self.track_list.selectedItems()]
+        selected_tracks = self.get_selected_tracks()
         selected_vehicles = [item.text() for item in self.vehicle_list.selectedItems()]
         
         if not selected_tracks or not selected_vehicles:
@@ -550,6 +849,7 @@ class SimpleCurveViewer(QMainWindow):
         """Handle selection changes"""
         if self.autopilot_enabled:
             self._update_formulas_from_autopilot()
+            self.update_manual_controls()
         self.update_display()
     
     def on_filter_buttons(self):
@@ -563,45 +863,43 @@ class SimpleCurveViewer(QMainWindow):
         """Manually fit curves using the same fit_curve function"""
         points_data = self.get_selected_data()
         
-        print(f"\n{'='*50}")
-        print(f"Manual Auto-Fit using fit_curve()")
-        print(f"{'='*50}")
+        logger.info("Manual Auto-Fit using fit_curve()")
         
         # Fit qualifying
         if points_data['quali'] and len(points_data['quali']) >= 2:
             ratios = [p[0] for p in points_data['quali']]
             times = [p[1] for p in points_data['quali']]
-            print(f"\n[QUAL] Qualifying: fitting {len(ratios)} points...")
-            a, b, avg_err, max_err = fit_curve(ratios, times, verbose=True)
+            logger.info(f"Qualifying: fitting {len(ratios)} points...")
+            a, b, avg_err, max_err = fit_curve(ratios, times, verbose=False)
             if a is not None and b is not None and a > 0 and b > 0:
                 self.qual_a = a
                 self.qual_b = b
-                print(f"   Result: {get_formula_string(a, b)}")
-                print(f"   Avg error: {avg_err:.3f}s, Max error: {max_err:.3f}s")
+                logger.info(f"Qualifying result: {get_formula_string(a, b)}")
+                logger.info(f"Avg error: {avg_err:.3f}s, Max error: {max_err:.3f}s")
             else:
-                print(f"   [FAIL] Fit failed")
+                logger.warning("Qualifying fit failed")
         else:
-            print(f"\n[QUAL] Qualifying: Need at least 2 points (have {len(points_data['quali'])})")
+            logger.info(f"Qualifying: Need at least 2 points (have {len(points_data['quali'])})")
         
         # Fit race
         if points_data['race'] and len(points_data['race']) >= 2:
             ratios = [p[0] for p in points_data['race']]
             times = [p[1] for p in points_data['race']]
-            print(f"\n[RACE] Race: fitting {len(ratios)} points...")
-            a, b, avg_err, max_err = fit_curve(ratios, times, verbose=True)
+            logger.info(f"Race: fitting {len(ratios)} points...")
+            a, b, avg_err, max_err = fit_curve(ratios, times, verbose=False)
             if a is not None and b is not None and a > 0 and b > 0:
                 self.race_a = a
                 self.race_b = b
-                print(f"   Result: {get_formula_string(a, b)}")
-                print(f"   Avg error: {avg_err:.3f}s, Max error: {max_err:.3f}s")
+                logger.info(f"Race result: {get_formula_string(a, b)}")
+                logger.info(f"Avg error: {avg_err:.3f}s, Max error: {max_err:.3f}s")
             else:
-                print(f"   [FAIL] Fit failed")
+                logger.warning("Race fit failed")
         else:
-            print(f"\n[RACE] Race: Need at least 2 points (have {len(points_data['race'])})")
+            logger.info(f"Race: Need at least 2 points (have {len(points_data['race'])})")
         
         self.formula_source = "Manual Fit"
+        self.update_manual_controls()
         self.update_display()
-        print(f"\n{'='*50}")
     
     def update_display(self):
         """Update the plot with both curves and data points"""
@@ -612,31 +910,35 @@ class SimpleCurveViewer(QMainWindow):
         qual_times = self.qual_a / ratios + self.qual_b
         race_times = self.race_a / ratios + self.race_b
         
-        print(f"\n[GUI] Drawing curves:")
-        print(f"  [QUAL] Qualifying: T = {self.qual_a:.4f}/R + {self.qual_b:.4f}")
-        print(f"  [RACE] Race: T = {self.race_a:.4f}/R + {self.race_b:.4f}")
-        print(f"  [DATA] Qual data points: {len(points_data.get('quali', []))}")
-        print(f"  [DATA] Race data points: {len(points_data.get('race', []))}")
-        
-        # Update qualifying curve (yellow)
-        if self.qual_curve is None:
-            self.qual_curve = self.plot.plot(ratios, qual_times, 
-                                             pen=pg.mkPen(color='#FFFF00', width=2.5),
-                                             name='Qualifying')
+        # Update qualifying curve (yellow) - only if qualifying data is shown
+        if self.show_qualifying:
+            if self.qual_curve is None:
+                self.qual_curve = self.plot.plot(ratios, qual_times, 
+                                                 pen=pg.mkPen(color='#FFFF00', width=2.5),
+                                                 name='Qualifying')
+            else:
+                self.qual_curve.setData(ratios, qual_times)
+                self.qual_curve.setVisible(True)
         else:
-            self.qual_curve.setData(ratios, qual_times)
+            if self.qual_curve is not None:
+                self.qual_curve.setVisible(False)
         
-        # Update race curve (orange)
-        if self.race_curve is None:
-            self.race_curve = self.plot.plot(ratios, race_times,
-                                             pen=pg.mkPen(color='#FF6600', width=2.5),
-                                             name='Race')
+        # Update race curve (orange) - only if race data is shown
+        if self.show_race:
+            if self.race_curve is None:
+                self.race_curve = self.plot.plot(ratios, race_times,
+                                                 pen=pg.mkPen(color='#FF6600', width=2.5),
+                                                 name='Race')
+            else:
+                self.race_curve.setData(ratios, race_times)
+                self.race_curve.setVisible(True)
         else:
-            self.race_curve.setData(ratios, race_times)
+            if self.race_curve is not None:
+                self.race_curve.setVisible(False)
         
         # Update qualifying scatter points
         quali_points = points_data.get('quali', [])
-        if quali_points:
+        if self.show_qualifying and quali_points:
             r = [p[0] for p in quali_points]
             t = [p[1] for p in quali_points]
             if self.qual_scatter is None:
@@ -647,13 +949,13 @@ class SimpleCurveViewer(QMainWindow):
                 self.plot.addItem(self.qual_scatter)
             else:
                 self.qual_scatter.setData(r, t)
+                self.qual_scatter.setVisible(True)
         elif self.qual_scatter is not None:
-            self.plot.removeItem(self.qual_scatter)
-            self.qual_scatter = None
+            self.qual_scatter.setVisible(False)
         
         # Update race scatter points
         race_points = points_data.get('race', [])
-        if race_points:
+        if self.show_race and race_points:
             r = [p[0] for p in race_points]
             t = [p[1] for p in race_points]
             if self.race_scatter is None:
@@ -664,13 +966,13 @@ class SimpleCurveViewer(QMainWindow):
                 self.plot.addItem(self.race_scatter)
             else:
                 self.race_scatter.setData(r, t)
+                self.race_scatter.setVisible(True)
         elif self.race_scatter is not None:
-            self.plot.removeItem(self.race_scatter)
-            self.race_scatter = None
+            self.race_scatter.setVisible(False)
         
         # Update unknown scatter points
         unknown_points = points_data.get('unknown', [])
-        if unknown_points:
+        if self.show_unknown and unknown_points:
             r = [p[0] for p in unknown_points]
             t = [p[1] for p in unknown_points]
             if self.unknown_scatter is None:
@@ -681,39 +983,45 @@ class SimpleCurveViewer(QMainWindow):
                 self.plot.addItem(self.unknown_scatter)
             else:
                 self.unknown_scatter.setData(r, t)
+                self.unknown_scatter.setVisible(True)
         elif self.unknown_scatter is not None:
-            self.plot.removeItem(self.unknown_scatter)
-            self.unknown_scatter = None
+            self.unknown_scatter.setVisible(False)
         
-        # Update legend
+        # Update legend - remove old and recreate
         if self.legend is not None:
             self.plot.scene().removeItem(self.legend)
         
         self.legend = self.plot.addLegend()
-        self.legend.addItem(self.qual_curve, f'Qualifying: T = {self.qual_a:.3f}/R + {self.qual_b:.3f}')
-        self.legend.addItem(self.race_curve, f'Race: T = {self.race_a:.3f}/R + {self.race_b:.3f}')
         
-        if quali_points:
+        # Only add visible curves to legend
+        if self.show_qualifying and self.qual_curve is not None:
+            self.legend.addItem(self.qual_curve, f'Qualifying: T = {self.qual_a:.3f}/R + {self.qual_b:.3f}')
+        if self.show_race and self.race_curve is not None:
+            self.legend.addItem(self.race_curve, f'Race: T = {self.race_a:.3f}/R + {self.race_b:.3f}')
+        
+        if self.show_qualifying and quali_points:
             self.legend.addItem(self.qual_scatter, f'Qual Data ({len(quali_points)})')
-        if race_points:
+        if self.show_race and race_points:
             self.legend.addItem(self.race_scatter, f'Race Data ({len(race_points)})')
-        if unknown_points:
+        if self.show_unknown and unknown_points:
             self.legend.addItem(self.unknown_scatter, f'Unknown ({len(unknown_points)})')
         
-        # Update title with source info
+        # Update title with source info and multi-track indicator
+        track_info = f" - {len(self.get_selected_tracks())} track(s)" if self.multi_track_mode else ""
         if self.autopilot_enabled and "Autopilot" in self.formula_source:
-            self.plot.setTitle(f'[AUTO] Autopilot - {self.formula_source}', color='#4CAF50', size='12pt')
+            self.plot.setTitle(f'[AUTO] Autopilot - {self.formula_source}{track_info}', color='#4CAF50', size='12pt')
         else:
-            self.plot.setTitle(f'Manual - {self.formula_source}', color='#FFA500', size='12pt')
+            self.plot.setTitle(f'Manual - {self.formula_source}{track_info}', color='#FFA500', size='12pt')
         
         # Update status bar
-        selected_tracks = len(self.track_list.selectedItems())
+        selected_tracks = len(self.get_selected_tracks())
         selected_vehicles = len(self.vehicle_list.selectedItems())
         total_points = len(quali_points) + len(race_points) + len(unknown_points)
         
         mode = "[AUTO] Autopilot" if self.autopilot_enabled else "Manual"
+        track_mode = "Multi-track" if self.multi_track_mode else "Single track"
         self.statusBar().showMessage(
-            f"{mode} | Tracks: {selected_tracks} | Vehicles: {selected_vehicles} | Points: {total_points}"
+            f"{mode} | {track_mode}: {selected_tracks} | Vehicles: {selected_vehicles} | Points: {total_points}"
         )
     
     def reset_view(self):

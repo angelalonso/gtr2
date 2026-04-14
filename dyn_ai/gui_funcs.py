@@ -8,10 +8,66 @@ import numpy as np
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QListWidget, 
     QDoubleSpinBox, QPushButton, QGroupBox, QSplitter, 
-    QMessageBox, QAbstractItemView
+    QMessageBox, QAbstractItemView, QComboBox, QDialog,
+    QDialogButtonBox
 )
 from PyQt5.QtCore import Qt
 import pyqtgraph as pg
+
+
+class MultiTrackSelectionDialog(QDialog):
+    """Dialog for selecting multiple tracks"""
+    
+    def __init__(self, all_tracks, current_track, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Select Multiple Tracks")
+        self.setGeometry(300, 300, 400, 500)
+        self.all_tracks = all_tracks
+        self.current_track = current_track
+        self.selected_tracks = [current_track] if current_track else []
+        
+        self.setup_ui()
+        
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        
+        # Instructions
+        info_label = QLabel("Select tracks to display data from.\n"
+                           "Ctrl+Click = multi-select | Shift+Click = range")
+        info_label.setStyleSheet("color: #888; font-size: 10px;")
+        info_label.setWordWrap(True)
+        layout.addWidget(info_label)
+        
+        # Track list
+        self.track_list = QListWidget()
+        self.track_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        for track in self.all_tracks:
+            item = self.track_list.addItem(track)
+            if track == self.current_track:
+                self.track_list.setCurrentItem(item)
+                item.setSelected(True)
+        layout.addWidget(self.track_list)
+        
+        # Buttons
+        btn_layout = QHBoxLayout()
+        select_all_btn = QPushButton("Select All")
+        select_all_btn.clicked.connect(self.track_list.selectAll)
+        btn_layout.addWidget(select_all_btn)
+        
+        clear_btn = QPushButton("Clear All")
+        clear_btn.clicked.connect(self.track_list.clearSelection)
+        btn_layout.addWidget(clear_btn)
+        btn_layout.addStretch()
+        layout.addLayout(btn_layout)
+        
+        # Dialog buttons
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+        
+    def get_selected_tracks(self):
+        return [item.text() for item in self.track_list.selectedItems()]
 
 
 def create_control_panel(parent=None):
@@ -21,25 +77,48 @@ def create_control_panel(parent=None):
     layout.setSpacing(10)
     
     # Instructions
-    info_label = QLabel("Select tracks and vehicles to display data points.\n"
+    info_label = QLabel("Select vehicles to display data points.\n"
                        "Ctrl+Click = multi-select | Click = single")
     info_label.setStyleSheet("color: #888; font-size: 10px;")
     info_label.setWordWrap(True)
     layout.addWidget(info_label)
     
-    # Track selection
-    track_group = QGroupBox("Tracks")
+    # Track selection - now single track with multi-select button
+    track_group = QGroupBox("Track")
     track_layout = QVBoxLayout(track_group)
-    track_list = QListWidget()
-    track_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
-    track_layout.addWidget(track_list)
     
-    track_btn_layout = QHBoxLayout()
-    select_all_tracks = QPushButton("Select All")
-    clear_tracks = QPushButton("Clear")
-    track_btn_layout.addWidget(select_all_tracks)
-    track_btn_layout.addWidget(clear_tracks)
-    track_layout.addLayout(track_btn_layout)
+    # Current track display
+    current_track_layout = QHBoxLayout()
+    current_track_label = QLabel("Current:")
+    current_track_label.setStyleSheet("color: #FFA500; font-weight: bold;")
+    current_track_layout.addWidget(current_track_label)
+    
+    current_track_display = QLabel("-")
+    current_track_display.setStyleSheet("color: #4CAF50; font-family: monospace; font-weight: bold;")
+    current_track_display.setWordWrap(True)
+    current_track_layout.addWidget(current_track_display, 1)
+    track_layout.addLayout(current_track_layout)
+    
+    # Multi-select button
+    multi_track_btn = QPushButton("📋 Select Multiple Tracks...")
+    multi_track_btn.setStyleSheet("""
+        QPushButton {
+            background-color: #2196F3;
+            color: white;
+            padding: 6px;
+            font-size: 11px;
+        }
+        QPushButton:hover {
+            background-color: #1976D2;
+        }
+    """)
+    multi_track_btn.setToolTip("Open dialog to select multiple tracks for data comparison")
+    track_layout.addWidget(multi_track_btn)
+    
+    # Hidden track list for internal use (kept for compatibility but not shown)
+    track_list = QListWidget()
+    track_list.setVisible(False)
+    
     layout.addWidget(track_group)
     
     # Vehicle selection
@@ -119,9 +198,49 @@ def create_control_panel(parent=None):
     type_layout.addStretch()
     layout.addWidget(type_group)
     
-    # Formula parameters
+    # Formula parameters - now with curve selector
     param_group = QGroupBox("Manual Curve Parameters: T = a / R + b")
     param_layout = QVBoxLayout(param_group)
+    
+    # Curve selector (Quali or Race)
+    curve_selector_layout = QHBoxLayout()
+    curve_selector_label = QLabel("Edit curve:")
+    curve_selector_label.setStyleSheet("color: #FFA500; font-weight: bold;")
+    curve_selector_layout.addWidget(curve_selector_label)
+    
+    curve_selector = QComboBox()
+    curve_selector.addItem("🏁 Qualifying (Yellow)", "qual")
+    curve_selector.addItem("🏎️ Race (Orange)", "race")
+    curve_selector.setStyleSheet("""
+        QComboBox {
+            background-color: #3c3c3c;
+            color: white;
+            border: 1px solid #4CAF50;
+            border-radius: 3px;
+            padding: 4px;
+        }
+        QComboBox::drop-down {
+            border: none;
+        }
+        QComboBox::down-arrow {
+            image: none;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 5px solid white;
+            margin-right: 5px;
+        }
+    """)
+    curve_selector_layout.addWidget(curve_selector)
+    curve_selector_layout.addStretch()
+    param_layout.addLayout(curve_selector_layout)
+    
+    # Current formula display
+    current_formula_label = QLabel("Current formula: T = -- / R + --")
+    current_formula_label.setStyleSheet("color: #4CAF50; font-family: monospace; font-size: 11px;")
+    current_formula_label.setWordWrap(True)
+    param_layout.addWidget(current_formula_label)
+    
+    param_layout.addSpacing(5)
     
     # a parameter
     a_layout = QHBoxLayout()
@@ -149,6 +268,11 @@ def create_control_panel(parent=None):
     b_layout.addWidget(b_spin)
     param_layout.addLayout(b_layout)
     
+    # Apply button for manual edits
+    apply_btn = QPushButton("Apply to Selected Curve")
+    apply_btn.setStyleSheet("background-color: #2196F3;")
+    param_layout.addWidget(apply_btn)
+    
     # Derived values
     info_layout = QVBoxLayout()
     k_label = QLabel("Steepness k = a/(a+b) = ---")
@@ -169,7 +293,7 @@ def create_control_panel(parent=None):
     
     # Autopilot enable/disable
     autopilot_enable_layout = QHBoxLayout()
-    autopilot_enable_btn = QPushButton("Enable Autopilot")
+    autopilot_enable_btn = QPushButton("Autopilot is OFF")
     autopilot_enable_btn.setCheckable(True)
     autopilot_enable_btn.setStyleSheet("""
         QPushButton {
@@ -236,7 +360,9 @@ def create_control_panel(parent=None):
     
     return {
         'panel': panel,
-        'track_list': track_list,
+        'track_list': track_list,  # Kept for compatibility but hidden
+        'current_track_display': current_track_display,
+        'multi_track_btn': multi_track_btn,
         'vehicle_list': vehicle_list,
         'qual_btn': qual_btn,
         'race_btn': race_btn,
@@ -249,13 +375,14 @@ def create_control_panel(parent=None):
         'reset_btn': reset_btn,
         'exit_btn': exit_btn,
         'stats_label': stats_label,
-        'select_all_tracks': select_all_tracks,
-        'clear_tracks': clear_tracks,
         'select_all_vehicles': select_all_vehicles,
         'clear_vehicles': clear_vehicles,
         'autopilot_enable_btn': autopilot_enable_btn,
         'autopilot_silent_btn': autopilot_silent_btn,
-        'autopilot_status': autopilot_status
+        'autopilot_status': autopilot_status,
+        'curve_selector': curve_selector,
+        'current_formula_label': current_formula_label,
+        'apply_btn': apply_btn
     }
 
 

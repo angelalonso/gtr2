@@ -2,7 +2,7 @@
 [Header]
 Game=GTR2
 Version=1.100
-TimeString=2026/03/30 14:37:27
+TimeString=2026/03/13 16:19:56
 Aids=0,0,0,0,0,1,1,0,0
 
 [Race]
@@ -18,10 +18,9 @@ Vehicle=Porsche 911
 VehicleNumber=6004
 Team=Ajira Racing
 Penalty=0
-QualTime=1:51.903
 Laps=8
 LapDistanceTravelled=5722.570801
-BestLap=1:53.610
+BestLap=1:55.364
 RaceTime=0:17:06.061
 
 [Slot001]
@@ -30,10 +29,10 @@ Vehicle=Gallardo
 VehicleNumber=6002
 Team=Team RaceSim Central
 Penalty=0
-QualTime=1:47.900
+QualTime=1:41.733
 Laps=8
 LapDistanceTravelled=5714.660645
-BestLap=1:48.300
+BestLap=1:43.123
 RaceTime=0:15:54.100
 
 [Slot002]
@@ -42,10 +41,10 @@ Vehicle=Ferrari 458
 VehicleNumber=6001
 Team=Team RaceSim Central
 Penalty=0
-QualTime=1:49.500
+QualTime=1:43.533
 Laps=8
 LapDistanceTravelled=5703.221680
-BestLap=1:49.900
+BestLap=1:44.789
 RaceTime=0:15:40.165
 
 [Slot003]
@@ -54,10 +53,10 @@ Vehicle=BMW M3
 VehicleNumber=6009
 Team=Roaring Pipes Maniacs
 Penalty=0
-QualTime=1:51.300
+QualTime=1:45.333
 Laps=8
 LapDistanceTravelled=5695.196289
-BestLap=1:51.700
+BestLap=1:46.901
 RaceTime=0:16:15.417
 
 [Slot004]
@@ -66,10 +65,10 @@ Vehicle=Mercedes GT
 VehicleNumber=6007
 Team=Team Redline
 Penalty=0
-QualTime=1:52.900
+QualTime=1:46.833
 Laps=8
 LapDistanceTravelled=5687.183594
-BestLap=1:53.300
+BestLap=1:48.234
 RaceTime=0:16:10.146
 
 [Slot005]
@@ -78,10 +77,10 @@ Vehicle=Mclaren
 VehicleNumber=6006
 Team=Ajira Racing
 Penalty=0
-QualTime=1:54.500
+QualTime=1:48.233
 Laps=8
 LapDistanceTravelled=5682.786133
-BestLap=1:54.900
+BestLap=1:49.789
 RaceTime=0:15:33.000
 
 [Slot006]
@@ -90,10 +89,10 @@ Vehicle=Aston Martin
 VehicleNumber=6010
 Team=Roaring Pipes Maniacs
 Penalty=0
-QualTime=1:56.200
+QualTime=1:49.733
 Laps=8
 LapDistanceTravelled=5674.729004
-BestLap=1:56.600
+BestLap=1:51.456
 RaceTime=0:17:21.661
 
 [END]
