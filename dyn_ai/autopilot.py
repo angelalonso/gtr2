@@ -360,11 +360,21 @@ class AutopilotEngine:
             return formula
         
         # Method 2: Same track, same class, opposite session
-        formula = self.formula_manager.get_formula_by_class(track, vehicle_class, opposite_session)
-        if formula:
-            logger.info(f"  Using template: same track/class from {opposite_session} session")
-            logger.info(f"    Template: {formula.get_formula_string()}")
-            return formula
+        # BUT ONLY if we have at least 2 data points for this session type
+        # Otherwise, using opposite session's slope might be misleading
+        opposite_formula = self.formula_manager.get_formula_by_class(track, vehicle_class, opposite_session)
+        if opposite_formula:
+            # Check if we have data for this session type
+            existing_points = self._get_data_points(track, vehicle_class, session_type)
+            if len(existing_points) == 0:
+                # No data yet for this session - using opposite session's slope is reasonable
+                logger.info(f"  Using template: same track/class from {opposite_session} session (no existing {session_type} data)")
+                logger.info(f"    Template: {opposite_formula.get_formula_string()}")
+                return opposite_formula
+            else:
+                # We have data for this session - better to use a fresh template
+                logger.info(f"  Have {len(existing_points)} existing {session_type} points, not using opposite session template")
+                # Continue to next method
         
         # Method 3: Same track, any class, same session (average of all)
         track_formulas = self.formula_manager.get_all_formulas_for_track(track)
