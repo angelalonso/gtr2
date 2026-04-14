@@ -80,6 +80,7 @@ class CurveDatabase:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_track ON data_points(track)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_vehicle ON data_points(vehicle)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_session ON data_points(session_type)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_track_session ON data_points(track, session_type)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_race_track ON race_sessions(track_name)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_race_timestamp ON race_sessions(timestamp)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_race ON ai_results(race_id)")
@@ -142,16 +143,18 @@ class CurveDatabase:
         if show_unknown:
             session_filters.append("session_type = 'unknown'")
         
-        session_clause = ""
-        if session_filters:
-            session_clause = f"AND ({' OR '.join(session_filters)})"
+        if not session_filters:
+            conn.close()
+            return []
+        
+        session_clause = f"({' OR '.join(session_filters)})"
         
         query = f"""
             SELECT ratio, lap_time, session_type 
             FROM data_points 
             WHERE track IN ({track_placeholders}) 
             AND vehicle IN ({vehicle_placeholders})
-            {session_clause}
+            AND {session_clause}
             ORDER BY ratio
         """
         
@@ -160,6 +163,21 @@ class CurveDatabase:
         
         points = [(row[0], row[1], row[2]) for row in cursor.fetchall()]
         conn.close()
+        
+        # Debug output
+        print(f"\n[Database] get_data_points called:")
+        print(f"  Tracks: {tracks}")
+        print(f"  Vehicles: {vehicles}")
+        print(f"  Show qualifying: {show_qualifying}")
+        print(f"  Show race: {show_race}")
+        print(f"  Show unknown: {show_unknown}")
+        print(f"  Returned {len(points)} points")
+        
+        # Group by type for debugging
+        qual_count = sum(1 for p in points if p[2] == 'qual')
+        race_count = sum(1 for p in points if p[2] == 'race')
+        unknown_count = sum(1 for p in points if p[2] == 'unknown')
+        print(f"  Qual points: {qual_count}, Race points: {race_count}, Unknown: {unknown_count}")
         
         return points
     
@@ -311,6 +329,7 @@ class CurveDatabase:
             """, (track, vehicle, ratio, lap_time, session_type))
             conn.commit()
             conn.close()
+            print(f"  [DB] Added {session_type} point: {track} R={ratio:.4f} T={lap_time:.2f}s")
             return True
         except Exception as e:
             print(f"Error adding data point: {e}")

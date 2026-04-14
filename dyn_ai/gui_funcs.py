@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QListWidget, 
     QDoubleSpinBox, QPushButton, QGroupBox, QSplitter, 
     QMessageBox, QAbstractItemView, QComboBox, QDialog,
-    QDialogButtonBox
+    QDialogButtonBox, QListWidgetItem
 )
 from PyQt5.QtCore import Qt
 import pyqtgraph as pg
@@ -41,11 +41,15 @@ class MultiTrackSelectionDialog(QDialog):
         # Track list
         self.track_list = QListWidget()
         self.track_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        for track in self.all_tracks:
-            item = self.track_list.addItem(track)
+        
+        # Add items and select the current track
+        for i, track in enumerate(self.all_tracks):
+            item = QListWidgetItem(track)
+            self.track_list.addItem(item)
             if track == self.current_track:
-                self.track_list.setCurrentItem(item)
                 item.setSelected(True)
+                self.track_list.setCurrentItem(item)
+        
         layout.addWidget(self.track_list)
         
         # Buttons

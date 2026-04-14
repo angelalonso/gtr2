@@ -910,6 +910,19 @@ class SimpleCurveViewer(QMainWindow):
         qual_times = self.qual_a / ratios + self.qual_b
         race_times = self.race_a / ratios + self.race_b
         
+        # Debug: Print what points we have
+        quali_points = points_data.get('quali', [])
+        race_points = points_data.get('race', [])
+        print(f"\n[GUI] update_display:")
+        print(f"  Qualifying points: {len(quali_points)}")
+        for r, t in quali_points[:5]:  # Show first 5
+            print(f"    R={r:.4f}, T={t:.2f}s")
+        print(f"  Race points: {len(race_points)}")
+        for r, t in race_points[:5]:
+            print(f"    R={r:.4f}, T={t:.2f}s")
+        print(f"  Qual formula: T = {self.qual_a:.4f}/R + {self.qual_b:.4f}")
+        print(f"  Race formula: T = {self.race_a:.4f}/R + {self.race_b:.4f}")
+        
         # Update qualifying curve (yellow) - only if qualifying data is shown
         if self.show_qualifying:
             if self.qual_curve is None:
