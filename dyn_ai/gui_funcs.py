@@ -105,12 +105,17 @@ class AdvancedSettingsDialog(QDialog):
         
         # Explanation
         target_info = QLabel(
-            "🎯 AI Target Percentage\n\n"
+            "AI Target Percentage\n\n"
             "This controls how fast the AI should be compared to your best lap.\n"
-            "• 100% = AI matches your best lap exactly\n"
-            "• 95% = AI is 5% SLOWER than you (easier race)\n"
-            "• 105% = AI is 5% FASTER than you (harder race)\n\n"
-            "The tool will automatically adjust AI ratios to hit this target."
+            " 100% = AI matches your best lap exactly\n"
+            " 95% = AI is 5% SLOWER than you (easier race)\n"
+            " 105% = AI is 5% FASTER than you (harder race)\n\n"
+            "The tool will automatically adjust AI ratios to hit this target.\n\n"
+            "How it works internally:\n"
+            " 1. Your best lap time is compared to the AI's predicted time\n"
+            " 2. The AI ratio is adjusted using: New Ratio = a / (Target Time - b)\n"
+            " 3. Target Time = Your Best Lap * (Target Percentage / 100)\n"
+            " 4. The formula T = a/R + b is used to find the right ratio"
         )
         target_info.setStyleSheet("color: #FFA500; background-color: #2b2b2b; padding: 10px; border-radius: 5px;")
         target_info.setWordWrap(True)
@@ -154,14 +159,14 @@ class AdvancedSettingsDialog(QDialog):
         target_layout.addWidget(apply_target_btn)
         
         target_layout.addStretch()
-        tabs.addTab(target_tab, "🎯 AI Target")
+        tabs.addTab(target_tab, "AI Target")
         
         # Tab 2: Data Management
         data_tab = QWidget()
         data_layout = QVBoxLayout(data_tab)
         
         # Data points list
-        data_layout.addWidget(QLabel("📊 Data Points in Database:"))
+        data_layout.addWidget(QLabel("Data Points in Database:"))
         
         self.data_table = QTableWidget()
         self.data_table.setColumnCount(5)
@@ -191,14 +196,14 @@ class AdvancedSettingsDialog(QDialog):
         data_btn_layout.addStretch()
         data_layout.addLayout(data_btn_layout)
         
-        tabs.addTab(data_tab, "🗑️ Data Management")
+        tabs.addTab(data_tab, "Data Management")
         
         # Tab 3: Logging & Settings
         settings_tab = QWidget()
         settings_layout = QVBoxLayout(settings_tab)
         
         # Logging options
-        log_group = QGroupBox("📝 Logging Options")
+        log_group = QGroupBox("Logging Options")
         log_layout = QVBoxLayout(log_group)
         
         self.show_log_checkbox = QCheckBox("Show Log Window on Startup")
@@ -217,13 +222,13 @@ class AdvancedSettingsDialog(QDialog):
         settings_layout.addWidget(log_group)
         
         # Show log button
-        show_log_btn = QPushButton("📋 Show Log Window")
+        show_log_btn = QPushButton("Show Log Window")
         show_log_btn.setStyleSheet("background-color: #2196F3;")
         show_log_btn.clicked.connect(self.show_log_window)
         settings_layout.addWidget(show_log_btn)
         
         # Track changes list
-        changes_group = QGroupBox("📋 Session Changes History")
+        changes_group = QGroupBox("Session Changes History")
         changes_layout = QVBoxLayout(changes_group)
         
         self.changes_list = QListWidget()
@@ -236,7 +241,7 @@ class AdvancedSettingsDialog(QDialog):
         settings_layout.addWidget(changes_group)
         
         settings_layout.addStretch()
-        tabs.addTab(settings_tab, "⚙️ Settings & Logs")
+        tabs.addTab(settings_tab, "Settings & Logs")
         
         layout.addWidget(tabs)
         
@@ -507,14 +512,15 @@ def create_control_panel(parent=None):
     current_track_layout.addWidget(current_track_display, 1)
     track_layout.addLayout(current_track_layout)
     
-    # Multi-select button
-    multi_track_btn = QPushButton("📋 Select Multiple Tracks...")
+    # Multi-select button with fixed height
+    multi_track_btn = QPushButton("Select Multiple Tracks...")
+    multi_track_btn.setFixedHeight(30)
     multi_track_btn.setStyleSheet("""
         QPushButton {
             background-color: #2196F3;
             color: white;
-            padding: 6px;
             font-size: 11px;
+            padding: 4px 8px;
         }
         QPushButton:hover {
             background-color: #1976D2;
@@ -538,7 +544,9 @@ def create_control_panel(parent=None):
     
     vehicle_btn_layout = QHBoxLayout()
     select_all_vehicles = QPushButton("Select All")
+    select_all_vehicles.setFixedHeight(28)
     clear_vehicles = QPushButton("Clear")
+    clear_vehicles.setFixedHeight(28)
     vehicle_btn_layout.addWidget(select_all_vehicles)
     vehicle_btn_layout.addWidget(clear_vehicles)
     vehicle_layout.addLayout(vehicle_btn_layout)
@@ -552,6 +560,7 @@ def create_control_panel(parent=None):
     qual_btn = QPushButton("Quali")
     qual_btn.setCheckable(True)
     qual_btn.setChecked(True)
+    qual_btn.setFixedHeight(28)
     qual_btn.setStyleSheet("""
         QPushButton {
             background-color: #4CAF50;
@@ -570,6 +579,7 @@ def create_control_panel(parent=None):
     race_btn = QPushButton("Race")
     race_btn.setCheckable(True)
     race_btn.setChecked(True)
+    race_btn.setFixedHeight(28)
     race_btn.setStyleSheet("""
         QPushButton {
             background-color: #4CAF50;
@@ -588,6 +598,7 @@ def create_control_panel(parent=None):
     unkn_btn = QPushButton("Unknw")
     unkn_btn.setCheckable(True)
     unkn_btn.setChecked(True)
+    unkn_btn.setFixedHeight(28)
     unkn_btn.setStyleSheet("""
         QPushButton {
             background-color: #4CAF50;
@@ -617,8 +628,9 @@ def create_control_panel(parent=None):
     curve_selector_layout.addWidget(curve_selector_label)
     
     curve_selector = QComboBox()
-    curve_selector.addItem("🏁 Qualifying (Yellow)", "qual")
-    curve_selector.addItem("🏎️ Race (Orange)", "race")
+    curve_selector.addItem("Qualifying (Yellow)", "qual")
+    curve_selector.addItem("Race (Orange)", "race")
+    curve_selector.setFixedHeight(28)
     curve_selector.setStyleSheet("""
         QComboBox {
             background-color: #3c3c3c;
@@ -660,6 +672,7 @@ def create_control_panel(parent=None):
     a_spin.setDecimals(3)
     a_spin.setSingleStep(1.0)
     a_spin.setValue(30.0)
+    a_spin.setFixedHeight(28)
     a_layout.addWidget(a_spin)
     param_layout.addLayout(a_layout)
     
@@ -673,11 +686,13 @@ def create_control_panel(parent=None):
     b_spin.setDecimals(3)
     b_spin.setSingleStep(0.5)
     b_spin.setValue(70.0)
+    b_spin.setFixedHeight(28)
     b_layout.addWidget(b_spin)
     param_layout.addLayout(b_layout)
     
     # Apply button for manual edits
     apply_btn = QPushButton("Apply to Selected Curve")
+    apply_btn.setFixedHeight(32)
     apply_btn.setStyleSheet("background-color: #2196F3;")
     param_layout.addWidget(apply_btn)
     
@@ -695,17 +710,19 @@ def create_control_panel(parent=None):
     param_layout.addLayout(info_layout)
     layout.addWidget(param_group)
     
-    # Autopilot group (simplified - silent mode moved to advanced)
-    autopilot_group = QGroupBox("[AUTO] Autopilot")
+    # Autopilot group
+    autopilot_group = QGroupBox("Autopilot")
     autopilot_layout = QVBoxLayout(autopilot_group)
     
-    # Autopilot enable/disable
+    # Autopilot enable/disable with fixed height
     autopilot_enable_btn = QPushButton("Autopilot is OFF")
     autopilot_enable_btn.setCheckable(True)
+    autopilot_enable_btn.setFixedHeight(32)
     autopilot_enable_btn.setStyleSheet("""
         QPushButton {
             background-color: #555;
             color: white;
+            font-weight: bold;
         }
         QPushButton:checked {
             background-color: #FF9800;
@@ -729,20 +746,25 @@ def create_control_panel(parent=None):
     
     # Buttons
     btn_layout = QVBoxLayout()
+    btn_layout.setSpacing(8)
     
     fit_btn = QPushButton("Auto-Fit to Selected Data")
+    fit_btn.setFixedHeight(32)
     fit_btn.setStyleSheet("background-color: #4CAF50;")
     btn_layout.addWidget(fit_btn)
     
     reset_btn = QPushButton("Reset View")
+    reset_btn.setFixedHeight(32)
     btn_layout.addWidget(reset_btn)
     
     # Advanced button (above exit)
-    advanced_btn = QPushButton("⚙️ Advanced Settings")
+    advanced_btn = QPushButton("Advanced Settings")
+    advanced_btn.setFixedHeight(32)
     advanced_btn.setStyleSheet("background-color: #9C27B0;")
     btn_layout.addWidget(advanced_btn)
     
     exit_btn = QPushButton("Exit")
+    exit_btn.setFixedHeight(32)
     exit_btn.setStyleSheet("background-color: #f44336;")
     btn_layout.addWidget(exit_btn)
     
@@ -779,7 +801,7 @@ def create_control_panel(parent=None):
         'curve_selector': curve_selector,
         'current_formula_label': current_formula_label,
         'apply_btn': apply_btn,
-        'advanced_btn': advanced_btn  # Add advanced button reference
+        'advanced_btn': advanced_btn
     }
 
 
@@ -973,7 +995,7 @@ def setup_dark_theme(app):
             color: white;
             border: none;
             border-radius: 4px;
-            padding: 8px;
+            padding: 6px 12px;
             font-weight: bold;
         }
         QPushButton:hover {
