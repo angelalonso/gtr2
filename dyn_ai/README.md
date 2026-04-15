@@ -112,6 +112,45 @@ This approach means:
 
 ---
 
+## AI Target - Make Races Easier or Harder
+
+This setting changes how fast the AI drivers are compared to you.
+
+### What The Numbers Mean
+
+| Setting | What Happens |
+|---------|--------------|
+| 100% | AI is exactly as fast as your best lap |
+| 95% | AI is 5% SLOWER (you win easier) |
+| 105% | AI is 5% FASTER (harder to win) |
+
+### How It Works (Simple Version)
+
+1. The game uses a math formula: `AI Lap Time = a / Ratio + b`
+2. We know `a` and `b` from your past races (the yellow/orange curves)
+3. We know your best lap time from the race
+4. We pick a target AI time (your time × percentage)
+5. We solve the formula backwards to find the new Ratio
+6. The tool writes that Ratio to the AIW file
+
+### Example
+
+Your best lap: 90 seconds
+Target: 95% (easier race)
+
+Target AI time = 90 × 0.95 = 85.5 seconds
+
+Formula says: 85.5 = 28 / Ratio + 68
+So Ratio = 1.46
+
+The tool sets RaceRatio = 1.46 in the AIW file
+text
+
+
+**Lower number = harder AI, Higher number = easier AI** (because Ratio works backwards)
+
+---
+
 ## Graph Features
 
 The graph shows **two curves**:

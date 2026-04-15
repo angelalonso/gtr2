@@ -377,6 +377,13 @@ class SimpleCurveViewer(QMainWindow):
         
         # AI Target percentage (default 100% = match user time)
         self.target_percentage = 1.0
+        # AI Target settings (default: middle of AI range)
+        self.ai_target_settings = {
+            "mode": "percentage",
+            "percentage": 50,
+            "offset_seconds": 0.0,
+            "error_margin": 0.0
+        }
         
         # Current formulas (updated by autopilot or manual fit)
         self.qual_a: float = 30.0
@@ -828,9 +835,9 @@ class SimpleCurveViewer(QMainWindow):
                     # Reload formulas
                     self.autopilot_manager.reload_formulas()
                     
-                    # Process the data
-                    result = self.autopilot_manager.process_new_data(race_data, race_data.aiw_path)
-                    
+                    # Process the data with AI target settings
+                    result = self.autopilot_manager.process_new_data(race_data, race_data.aiw_path, self.ai_target_settings)
+
                     if result["success"]:
                         logger.info("✅ Autopilot completed successfully!")
                         
