@@ -9,9 +9,12 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QListWidget, 
     QDoubleSpinBox, QPushButton, QGroupBox, QSplitter, 
     QMessageBox, QAbstractItemView, QComboBox, QDialog,
-    QDialogButtonBox, QListWidgetItem
+    QDialogButtonBox, QListWidgetItem, QSlider, QSpinBox,
+    QCheckBox, QTabWidget, QTableWidget, QTableWidgetItem,
+    QHeaderView, QScrollArea
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtGui import QColor
 import pyqtgraph as pg
 
 
@@ -74,9 +77,410 @@ class MultiTrackSelectionDialog(QDialog):
         return [item.text() for item in self.track_list.selectedItems()]
 
 
+class AdvancedSettingsDialog(QDialog):
+    """Advanced settings window with data management and logging options"""
+    
+    def __init__(self, parent=None, db=None, log_window=None):
+        super().__init__(parent)
+        self.parent = parent
+        self.db = db
+        self.log_window = log_window
+        self.setWindowTitle("Advanced Settings")
+        self.setGeometry(200, 200, 700, 500)
+        self.setMinimumWidth(600)
+        self.setMinimumHeight(400)
+        
+        self.setup_ui()
+        self.load_data()
+    
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        
+        # Create tab widget
+        tabs = QTabWidget()
+        
+        # Tab 1: AI Target Settings
+        target_tab = QWidget()
+        target_layout = QVBoxLayout(target_tab)
+        
+        # Explanation
+        target_info = QLabel(
+            "🎯 AI Target Percentage\n\n"
+            "This controls how fast the AI should be compared to your best lap.\n"
+            "• 100% = AI matches your best lap exactly\n"
+            "• 95% = AI is 5% SLOWER than you (easier race)\n"
+            "• 105% = AI is 5% FASTER than you (harder race)\n\n"
+            "The tool will automatically adjust AI ratios to hit this target."
+        )
+        target_info.setStyleSheet("color: #FFA500; background-color: #2b2b2b; padding: 10px; border-radius: 5px;")
+        target_info.setWordWrap(True)
+        target_layout.addWidget(target_info)
+        
+        target_layout.addSpacing(10)
+        
+        # Target percentage slider
+        target_percent_layout = QHBoxLayout()
+        target_percent_layout.addWidget(QLabel("AI Target Percentage:"))
+        
+        self.target_percent_spin = QSpinBox()
+        self.target_percent_spin.setRange(80, 120)
+        self.target_percent_spin.setValue(100)
+        self.target_percent_spin.setSuffix("%")
+        self.target_percent_spin.setToolTip("100% = AI matches your time, lower = easier, higher = harder")
+        target_percent_layout.addWidget(self.target_percent_spin)
+        
+        self.target_percent_slider = QSlider(Qt.Horizontal)
+        self.target_percent_slider.setRange(80, 120)
+        self.target_percent_slider.setValue(100)
+        self.target_percent_slider.setTickPosition(QSlider.TicksBelow)
+        self.target_percent_slider.setTickInterval(5)
+        self.target_percent_slider.valueChanged.connect(self.on_target_percent_changed)
+        self.target_percent_spin.valueChanged.connect(self.on_target_percent_spin_changed)
+        target_percent_layout.addWidget(self.target_percent_slider)
+        
+        target_layout.addLayout(target_percent_layout)
+        
+        # Target description
+        self.target_description = QLabel("Current: AI will match your best lap time")
+        self.target_description.setStyleSheet("color: #4CAF50; font-weight: bold;")
+        target_layout.addWidget(self.target_description)
+        
+        target_layout.addSpacing(20)
+        
+        # Apply button
+        apply_target_btn = QPushButton("Apply Target Percentage to Next Calculation")
+        apply_target_btn.setStyleSheet("background-color: #FF9800;")
+        apply_target_btn.clicked.connect(self.apply_target_percentage)
+        target_layout.addWidget(apply_target_btn)
+        
+        target_layout.addStretch()
+        tabs.addTab(target_tab, "🎯 AI Target")
+        
+        # Tab 2: Data Management
+        data_tab = QWidget()
+        data_layout = QVBoxLayout(data_tab)
+        
+        # Data points list
+        data_layout.addWidget(QLabel("📊 Data Points in Database:"))
+        
+        self.data_table = QTableWidget()
+        self.data_table.setColumnCount(5)
+        self.data_table.setHorizontalHeaderLabels(["Track", "Vehicle", "Ratio", "Lap Time", "Session"])
+        self.data_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.data_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.data_table.setAlternatingRowColors(True)
+        data_layout.addWidget(self.data_table)
+        
+        # Data management buttons
+        data_btn_layout = QHBoxLayout()
+        
+        refresh_btn = QPushButton("Refresh List")
+        refresh_btn.clicked.connect(self.load_data)
+        data_btn_layout.addWidget(refresh_btn)
+        
+        delete_selected_btn = QPushButton("Delete Selected")
+        delete_selected_btn.setStyleSheet("background-color: #f44336;")
+        delete_selected_btn.clicked.connect(self.delete_selected_points)
+        data_btn_layout.addWidget(delete_selected_btn)
+        
+        delete_all_btn = QPushButton("Delete All for Track")
+        delete_all_btn.setStyleSheet("background-color: #f44336;")
+        delete_all_btn.clicked.connect(self.delete_all_for_track)
+        data_btn_layout.addWidget(delete_all_btn)
+        
+        data_btn_layout.addStretch()
+        data_layout.addLayout(data_btn_layout)
+        
+        tabs.addTab(data_tab, "🗑️ Data Management")
+        
+        # Tab 3: Logging & Settings
+        settings_tab = QWidget()
+        settings_layout = QVBoxLayout(settings_tab)
+        
+        # Logging options
+        log_group = QGroupBox("📝 Logging Options")
+        log_layout = QVBoxLayout(log_group)
+        
+        self.show_log_checkbox = QCheckBox("Show Log Window on Startup")
+        self.show_log_checkbox.setChecked(False)
+        log_layout.addWidget(self.show_log_checkbox)
+        
+        self.silent_mode_checkbox = QCheckBox("Silent Mode (suppress popup notifications)")
+        if self.parent and hasattr(self.parent, 'autopilot_silent'):
+            self.silent_mode_checkbox.setChecked(self.parent.autopilot_silent)
+        self.silent_mode_checkbox.toggled.connect(self.on_silent_mode_toggled)
+        log_layout.addWidget(self.silent_mode_checkbox)
+        
+        self.verbose_logging_checkbox = QCheckBox("Verbose Logging (more details)")
+        log_layout.addWidget(self.verbose_logging_checkbox)
+        
+        settings_layout.addWidget(log_group)
+        
+        # Show log button
+        show_log_btn = QPushButton("📋 Show Log Window")
+        show_log_btn.setStyleSheet("background-color: #2196F3;")
+        show_log_btn.clicked.connect(self.show_log_window)
+        settings_layout.addWidget(show_log_btn)
+        
+        # Track changes list
+        changes_group = QGroupBox("📋 Session Changes History")
+        changes_layout = QVBoxLayout(changes_group)
+        
+        self.changes_list = QListWidget()
+        changes_layout.addWidget(self.changes_list)
+        
+        clear_changes_btn = QPushButton("Clear History")
+        clear_changes_btn.clicked.connect(self.changes_list.clear)
+        changes_layout.addWidget(clear_changes_btn)
+        
+        settings_layout.addWidget(changes_group)
+        
+        settings_layout.addStretch()
+        tabs.addTab(settings_tab, "⚙️ Settings & Logs")
+        
+        layout.addWidget(tabs)
+        
+        # Dialog buttons
+        button_box = QDialogButtonBox(QDialogButtonBox.Close)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+        
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #1e1e1e;
+            }
+            QTabWidget::pane {
+                background-color: #2b2b2b;
+                border: 1px solid #555;
+            }
+            QTabBar::tab {
+                background-color: #3c3c3c;
+                color: white;
+                padding: 8px 12px;
+                margin-right: 2px;
+            }
+            QTabBar::tab:selected {
+                background-color: #4CAF50;
+            }
+            QTableWidget {
+                background-color: #2b2b2b;
+                color: white;
+                alternate-background-color: #3c3c3c;
+                gridline-color: #555;
+            }
+            QHeaderView::section {
+                background-color: #3c3c3c;
+                color: white;
+                padding: 4px;
+            }
+            QListWidget {
+                background-color: #2b2b2b;
+                color: white;
+            }
+        """)
+    
+    def on_target_percent_changed(self, value):
+        """Handle target percentage slider change"""
+        self.target_percent_spin.blockSignals(True)
+        self.target_percent_spin.setValue(value)
+        self.target_percent_spin.blockSignals(False)
+        self.update_target_description(value)
+    
+    def on_target_percent_spin_changed(self, value):
+        """Handle target percentage spinbox change"""
+        self.target_percent_slider.blockSignals(True)
+        self.target_percent_slider.setValue(value)
+        self.target_percent_slider.blockSignals(False)
+        self.update_target_description(value)
+    
+    def update_target_description(self, percent):
+        """Update the target description text"""
+        if percent == 100:
+            desc = "AI will match your best lap time exactly"
+        elif percent < 100:
+            diff = 100 - percent
+            desc = f"AI will be {diff}% SLOWER than you (easier race)"
+        else:
+            diff = percent - 100
+            desc = f"AI will be {diff}% FASTER than you (harder race)"
+        self.target_description.setText(f"Current: {desc}")
+    
+    def apply_target_percentage(self):
+        """Apply the target percentage to the parent"""
+        percent = self.target_percent_spin.value() / 100.0
+        if self.parent:
+            self.parent.target_percentage = percent
+            self.parent.statusBar().showMessage(f"AI Target set to {self.target_percent_spin.value()}%", 3000)
+            # Add to changes list
+            self.add_change_entry("Settings", f"AI Target Percentage set to {self.target_percent_spin.value()}%")
+    
+    def load_data(self):
+        """Load data points from database into table"""
+        if not self.db:
+            return
+        
+        try:
+            import sqlite3
+            conn = sqlite3.connect(self.db.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT track, vehicle, ratio, lap_time, session_type 
+                FROM data_points 
+                ORDER BY track, session_type, ratio
+            """)
+            
+            rows = cursor.fetchall()
+            conn.close()
+            
+            self.data_table.setRowCount(len(rows))
+            for i, row in enumerate(rows):
+                for j, value in enumerate(row):
+                    item = QTableWidgetItem(str(value))
+                    self.data_table.setItem(i, j, item)
+            
+            # Color rows by session type
+            for i, row in enumerate(rows):
+                session_type = row[4]
+                if session_type == 'qual':
+                    color = QColor(58, 58, 0)  # dark yellow
+                elif session_type == 'race':
+                    color = QColor(58, 26, 0)  # dark orange
+                else:
+                    color = QColor(42, 0, 58)  # dark purple
+                
+                for j in range(5):
+                    item = self.data_table.item(i, j)
+                    if item:
+                        item.setBackground(color)
+            
+            self.data_table.resizeRowsToContents()
+            
+        except Exception as e:
+            print(f"Error loading data: {e}")
+    
+    def delete_selected_points(self):
+        """Delete selected data points from database"""
+        selected_rows = set()
+        for item in self.data_table.selectedItems():
+            selected_rows.add(item.row())
+        
+        if not selected_rows:
+            QMessageBox.warning(self, "No Selection", "Please select data points to delete.")
+            return
+        
+        reply = QMessageBox.question(
+            self, "Confirm Delete",
+            f"Delete {len(selected_rows)} data point(s)?\nThis cannot be undone.",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        
+        if reply != QMessageBox.Yes:
+            return
+        
+        try:
+            import sqlite3
+            conn = sqlite3.connect(self.db.db_path)
+            cursor = conn.cursor()
+            
+            deleted = 0
+            for row_idx in sorted(selected_rows, reverse=True):
+                track = self.data_table.item(row_idx, 0).text()
+                vehicle = self.data_table.item(row_idx, 1).text()
+                ratio = float(self.data_table.item(row_idx, 2).text())
+                lap_time = float(self.data_table.item(row_idx, 3).text())
+                session_type = self.data_table.item(row_idx, 4).text()
+                
+                cursor.execute("""
+                    DELETE FROM data_points 
+                    WHERE track = ? AND vehicle = ? AND ratio = ? 
+                    AND lap_time = ? AND session_type = ?
+                """, (track, vehicle, ratio, lap_time, session_type))
+                deleted += cursor.rowcount
+            
+            conn.commit()
+            conn.close()
+            
+            self.add_change_entry("Data", f"Deleted {deleted} data point(s)")
+            self.load_data()  # Refresh
+            
+            if self.parent:
+                self.parent.load_data()
+                self.parent.update_display()
+            
+            QMessageBox.information(self, "Success", f"Deleted {deleted} data point(s).")
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to delete: {e}")
+    
+    def delete_all_for_track(self):
+        """Delete all data points for a selected track"""
+        selected_rows = self.data_table.selectedItems()
+        if not selected_rows:
+            QMessageBox.warning(self, "No Selection", "Please select a data point to identify the track.")
+            return
+        
+        track_name = self.data_table.item(selected_rows[0].row(), 0).text()
+        
+        reply = QMessageBox.question(
+            self, "Confirm Delete",
+            f"Delete ALL data points for track '{track_name}'?\nThis cannot be undone.",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        
+        if reply != QMessageBox.Yes:
+            return
+        
+        try:
+            import sqlite3
+            conn = sqlite3.connect(self.db.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("DELETE FROM data_points WHERE track = ?", (track_name,))
+            deleted = cursor.rowcount
+            
+            conn.commit()
+            conn.close()
+            
+            self.add_change_entry("Data", f"Deleted all {deleted} data point(s) for track '{track_name}'")
+            self.load_data()  # Refresh
+            
+            if self.parent:
+                self.parent.load_data()
+                self.parent.update_display()
+            
+            QMessageBox.information(self, "Success", f"Deleted {deleted} data point(s) for '{track_name}'.")
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to delete: {e}")
+    
+    def on_silent_mode_toggled(self, checked):
+        """Handle silent mode toggle"""
+        if self.parent:
+            self.parent.autopilot_silent = checked
+            if hasattr(self.parent, 'autopilot_manager'):
+                self.parent.autopilot_manager.set_silent(checked)
+            self.add_change_entry("Settings", f"Silent Mode {'ON' if checked else 'OFF'}")
+    
+    def show_log_window(self):
+        """Show the log window"""
+        if self.log_window:
+            self.log_window.show()
+            self.log_window.raise_()
+    
+    def add_change_entry(self, category, message):
+        """Add an entry to the changes history list"""
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.changes_list.addItem(f"[{timestamp}] [{category}] {message}")
+        self.changes_list.scrollToBottom()
+
+
 def create_control_panel(parent=None):
     """Create the left control panel with all widgets"""
     panel = QWidget(parent)
+    panel.setMaximumWidth(400)  # Limit width to 1/3 of typical window
+    panel.setMinimumWidth(250)
     layout = QVBoxLayout(panel)
     layout.setSpacing(10)
     
@@ -291,12 +695,11 @@ def create_control_panel(parent=None):
     param_layout.addLayout(info_layout)
     layout.addWidget(param_group)
     
-    # Autopilot group
+    # Autopilot group (simplified - silent mode moved to advanced)
     autopilot_group = QGroupBox("[AUTO] Autopilot")
     autopilot_layout = QVBoxLayout(autopilot_group)
     
     # Autopilot enable/disable
-    autopilot_enable_layout = QHBoxLayout()
     autopilot_enable_btn = QPushButton("Autopilot is OFF")
     autopilot_enable_btn.setCheckable(True)
     autopilot_enable_btn.setStyleSheet("""
@@ -310,25 +713,10 @@ def create_control_panel(parent=None):
             font-weight: bold;
         }
     """)
-    autopilot_enable_layout.addWidget(autopilot_enable_btn)
-    
-    autopilot_silent_btn = QPushButton("Silent Mode")
-    autopilot_silent_btn.setCheckable(True)
-    autopilot_silent_btn.setStyleSheet("""
-        QPushButton {
-            background-color: #555;
-            color: white;
-        }
-        QPushButton:checked {
-            background-color: #2196F3;
-            color: white;
-        }
-    """)
-    autopilot_enable_layout.addWidget(autopilot_silent_btn)
-    autopilot_layout.addLayout(autopilot_enable_layout)
+    autopilot_layout.addWidget(autopilot_enable_btn)
     
     # Autopilot info label
-    autopilot_info = QLabel("When enabled, automatically adjusts AIW ratios\nbased on detected race data and stored formulas.\nThe graph will show the formula being used.")
+    autopilot_info = QLabel("When enabled, automatically adjusts AIW ratios\nbased on detected race data.")
     autopilot_info.setStyleSheet("color: #888; font-size: 9px;")
     autopilot_info.setWordWrap(True)
     autopilot_layout.addWidget(autopilot_info)
@@ -348,6 +736,11 @@ def create_control_panel(parent=None):
     
     reset_btn = QPushButton("Reset View")
     btn_layout.addWidget(reset_btn)
+    
+    # Advanced button (above exit)
+    advanced_btn = QPushButton("⚙️ Advanced Settings")
+    advanced_btn.setStyleSheet("background-color: #9C27B0;")
+    btn_layout.addWidget(advanced_btn)
     
     exit_btn = QPushButton("Exit")
     exit_btn.setStyleSheet("background-color: #f44336;")
@@ -382,11 +775,11 @@ def create_control_panel(parent=None):
         'select_all_vehicles': select_all_vehicles,
         'clear_vehicles': clear_vehicles,
         'autopilot_enable_btn': autopilot_enable_btn,
-        'autopilot_silent_btn': autopilot_silent_btn,
         'autopilot_status': autopilot_status,
         'curve_selector': curve_selector,
         'current_formula_label': current_formula_label,
-        'apply_btn': apply_btn
+        'apply_btn': apply_btn,
+        'advanced_btn': advanced_btn  # Add advanced button reference
     }
 
 
