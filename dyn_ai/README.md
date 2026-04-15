@@ -1,4 +1,4 @@
-# dyn_ai — Live AI Tuner for GTR2 - v0.9.12
+# dyn_ai — Live AI Tuner for GTR2 - v0.9.13
 
 This tool watches your race results and helps you tweak the AI difficulty ratios so they match your pace.
 
@@ -15,14 +15,13 @@ Still: USE IT AT YOUR OWN RISK, probably on a SEPARATED DROP and please, ping me
 ## Quick Start
 
 **Windows (easy mode):**  
-Open dyn_ai.zip, grab the `.exe` from the zip, run it, done.
+Open dyn_ai_v0.9.13.zip, grab the `.exe` from the zip, run it, done.
 
 **From source:**
 ```bash
 pipenv install
 pipenv run python3 dyn_ai.py
 ```
-
 
 First launch will ask you to point it at your GTR2 install folder (the one that has `GameData/` in it). It saves that to `cfg.yml` so you only do this once.
 
@@ -201,15 +200,16 @@ Console output is minimized by default; use the log window for detailed debuggin
 ## Known Issues
 
 - The autofit curve doesn't always work perfectly
-- A proper historic.csv for all tracks would be very good to have
 - The cross-compilation (linux to windows) produces a good .exe BUT it does not always run on wine
 - Vehicle class detection relies on substring matching (can be improved)
 
 ## Wishlist
 
 - Ability to target specific positions (e.g., "make me top-5" instead of midpoint)
+  - There is a rough implementation on advanced
 - Better formula sharing across similar tracks
 - Export/import formulas for sharing between users
+- A proper DB for all tracks would be very good to have
 
 ## TODO NEXT
 
