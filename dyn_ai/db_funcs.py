@@ -321,20 +321,21 @@ class CurveDatabase:
     ) -> bool:
         """Add a new data point to the database"""
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = sqlite3.connect(self.db_path)  # FIXED: use self.db_path, not self.db
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO data_points (track, vehicle, ratio, lap_time, session_type)
                 VALUES (?, ?, ?, ?, ?)
-            """, (track, vehicle, ratio, lap_time, session_type))
+            """, (track, vehicle, float(ratio), float(lap_time), session_type))
             conn.commit()
             conn.close()
-            print(f"  [DB] Added {session_type} point: {track} R={ratio:.4f} T={lap_time:.2f}s")
+            print(f"  [DB] Added {session_type} point: {track} R={float(ratio):.4f} T={float(lap_time):.2f}s")
             return True
         except Exception as e:
             print(f"Error adding data point: {e}")
             return False
-    
+
+
     def add_data_points_batch(self, points: List[Tuple[str, str, float, float, str]]) -> int:
         """Add multiple data points in batch"""
         if not points:

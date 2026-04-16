@@ -1,3 +1,4 @@
+# autopilot.py - Fixed AIW backup (only once)
 #!/usr/bin/env python3
 """
 Autopilot module for Live AI Tuner
@@ -28,6 +29,9 @@ logger = logging.getLogger(__name__)
 
 # Path to vehicle classes configuration file
 VEHICLE_CLASSES_FILE = Path(__file__).parent / "vehicle_classes.json"
+
+# Track which AIW files have been backed up (global set to avoid double backups)
+_BACKED_UP_AIW_FILES: Set[str] = set()
 
 
 def load_vehicle_classes() -> Dict[str, Dict]:
@@ -302,7 +306,15 @@ class AutopilotEngine:
         self._class_mapping = load_vehicle_classes()
     
     def _backup_aiw_file(self, aiw_path: Path) -> bool:
-        """Create a backup of an AIW file before modifying it"""
+        """Create a backup of an AIW file before modifying it - ONLY ONCE per file"""
+        global _BACKED_UP_AIW_FILES
+        
+        # Check if already backed up in this session
+        aiw_key = str(aiw_path.absolute())
+        if aiw_key in _BACKED_UP_AIW_FILES:
+            logger.debug(f"  AIW already backed up in this session: {aiw_path.name}")
+            return True
+        
         try:
             # Create backup directory
             backup_dir = Path(self.db.db_path).parent / "aiw_backups"
@@ -312,11 +324,14 @@ class AutopilotEngine:
             backup_name = f"{aiw_path.stem}_ORIGINAL{aiw_path.suffix}"
             backup_path = backup_dir / backup_name
             
-            # Only backup if not already backed up
+            # Only backup if not already backed up (persistent check)
             if not backup_path.exists():
                 shutil.copy2(aiw_path, backup_path)
                 logger.info(f"  Created backup: {backup_path}")
-                return True
+            else:
+                logger.debug(f"  Backup already exists: {backup_path}")
+            
+            _BACKED_UP_AIW_FILES.add(aiw_key)
             return True
         except Exception as e:
             logger.error(f"  Failed to backup AIW: {e}")
@@ -656,7 +671,7 @@ class AutopilotEngine:
                 logger.error(f"AIW file not found: {aiw_path}")
                 return False
             
-            # Create backup before modifying
+            # Create backup before modifying (only once per file)
             self._backup_aiw_file(aiw_path)
             
             raw = aiw_path.read_bytes()

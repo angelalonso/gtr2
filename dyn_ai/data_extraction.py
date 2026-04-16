@@ -1,3 +1,4 @@
+# data_extraction.py - Fixed to store correct vehicle per AI driver
 #!/usr/bin/env python3
 """
 Data extraction module for parsing race results and AIW files
@@ -39,7 +40,7 @@ class RaceData:
     qual_worst_ai_lap: Optional[str] = None
     qual_worst_ai_lap_sec: float = 0.0
     ai_count: int = 0
-    ai_results: List[Dict] = field(default_factory=list)  # Now stores ALL AI drivers
+    ai_results: List[Dict] = field(default_factory=list)
     raw_content: str = ""
     
     def __post_init__(self):
@@ -69,37 +70,48 @@ class RaceData:
             'user_best_lap_sec': self.user_best_lap_sec,
             'user_qualifying': self.user_qualifying,
             'user_qualifying_sec': self.user_qualifying_sec,
-            'ai_results': self.ai_results,  # Now contains ALL AI drivers
+            'ai_results': self.ai_results,
         }
     
     def to_data_points(self) -> List[Tuple[str, float, float, str]]:
         """
         Convert to data points for curve database.
-        Now creates points from ALL AI drivers, not just best/worst!
+        OLD METHOD - kept for compatibility.
         """
         points = []
         
-        # Add data points from ALL qualifying AI drivers
         if self.qual_ratio:
             for ai in self.ai_results:
                 if ai.get('qual_time_sec') and ai['qual_time_sec'] > 0:
                     points.append((self.track_name, self.qual_ratio, ai['qual_time_sec'], 'qual'))
         
-        # Add data points from ALL race AI drivers  
         if self.race_ratio:
             for ai in self.ai_results:
                 if ai.get('best_lap_sec') and ai['best_lap_sec'] > 0:
                     points.append((self.track_name, self.race_ratio, ai['best_lap_sec'], 'race'))
         
-        # Also keep the best/worst for quick reference (but they're now derived from all)
-        if self.qual_ratio and self.qual_best_ai_lap_sec > 0 and self.qual_worst_ai_lap_sec > 0:
-            # Still add the midpoint as a data point for the curve fitting
-            midpoint = (self.qual_best_ai_lap_sec + self.qual_worst_ai_lap_sec) / 2
-            points.append((self.track_name, self.qual_ratio, midpoint, 'qual_midpoint'))
+        return points
+    
+    def to_data_points_with_vehicles(self) -> List[Tuple[str, str, float, float, str]]:
+        """
+        Convert to data points with CORRECT VEHICLE for each AI driver.
+        Returns list of (track, vehicle, ratio, lap_time, session_type)
+        """
+        points = []
         
-        if self.race_ratio and self.best_ai_lap_sec > 0 and self.worst_ai_lap_sec > 0:
-            midpoint = (self.best_ai_lap_sec + self.worst_ai_lap_sec) / 2
-            points.append((self.track_name, self.race_ratio, midpoint, 'race_midpoint'))
+        # Qualifying points - each AI driver has its own vehicle
+        if self.qual_ratio:
+            for ai in self.ai_results:
+                if ai.get('qual_time_sec') and ai['qual_time_sec'] > 0:
+                    vehicle = ai.get('vehicle', 'Unknown')
+                    points.append((self.track_name, vehicle, self.qual_ratio, ai['qual_time_sec'], 'qual'))
+        
+        # Race points - each AI driver has its own vehicle
+        if self.race_ratio:
+            for ai in self.ai_results:
+                if ai.get('best_lap_sec') and ai['best_lap_sec'] > 0:
+                    vehicle = ai.get('vehicle', 'Unknown')
+                    points.append((self.track_name, vehicle, self.race_ratio, ai['best_lap_sec'], 'race'))
         
         return points
     
@@ -164,20 +176,18 @@ class DataExtractor:
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
             
-            data = RaceData()  # This will auto-set timestamp and race_id
+            data = RaceData()
             data.raw_content = content
             
             # Parse header info
             self._parse_header(content, data)
             
-            # Parse driver slots (this now captures ALL AI drivers)
+            # Parse drivers - captures ALL AI drivers with their own vehicles
             self._parse_drivers(content, data)
             
             print(f"\n[DataExtractor] Parsed race data for {data.track_name or 'Unknown'}:")
             print(f"  User: {data.user_name or 'Unknown'} ({data.user_vehicle or 'Unknown'})")
             print(f"  AI Drivers: {data.ai_count}")
-            print(f"  Qualifying times: {len([a for a in data.ai_results if a.get('qual_time_sec')])} AI times recorded")
-            print(f"  Race times: {len([a for a in data.ai_results if a.get('best_lap_sec')])} AI times recorded")
             
             # Parse AIW ratios if we have AIW file and base path
             if data.aiw_file and self.base_path:
@@ -192,23 +202,19 @@ class DataExtractor:
     
     def _parse_header(self, content: str, data: RaceData):
         """Parse header information (track, AIW)"""
-        # Look for Race section
         race_match = re.search(r'\[Race\](.*?)(?=\[|$)', content, re.DOTALL)
         if race_match:
             race_section = race_match.group(1)
             
-            # Extract scene (track)
             scene_match = self.SCENE_PATTERN.search(race_section)
             if scene_match:
                 scene = scene_match.group(1).strip().replace('\\', '/')
                 scene_path = Path(scene)
                 data.track_folder = scene_path.parent.name
                 track_name = scene_path.stem
-                # Strip leading digits from track name
                 track_name = re.sub(r'^\d+', '', track_name)
                 data.track_name = track_name
             
-            # Extract AIW file
             aiw_match = self.AIDB_PATTERN.search(race_section)
             if aiw_match:
                 aiw_path_str = aiw_match.group(1).strip().replace('\\', '/')
@@ -216,14 +222,12 @@ class DataExtractor:
                 data.aiw_file = data.aiw_path.name
     
     def _parse_drivers(self, content: str, data: RaceData):
-        """Parse driver information from slots - captures ALL AI drivers"""
-        ai_times_qual = []  # (time, driver_name, vehicle)
-        ai_times_race = []  # (time, driver_name, vehicle)
-        slot_counter = 0
+        """Parse driver information - each AI driver keeps its own vehicle"""
+        ai_times_qual = []
+        ai_times_race = []
         
         for slot_str, slot_content in self.SLOT_PATTERN.findall(content):
             slot = int(slot_str)
-            slot_counter += 1
             
             name = self._extract(slot_content, self.DRIVER_PATTERN)
             vehicle = self._extract(slot_content, self.VEHICLE_PATTERN)
@@ -247,12 +251,12 @@ class DataExtractor:
                 data.user_qualifying = qual
                 data.user_qualifying_sec = qual_sec or 0.0
             else:
-                # AI driver - store ALL of them
+                # AI driver - store with its own vehicle
                 data.ai_count += 1
                 ai_result = {
                     'slot': slot,
                     'driver_name': name,
-                    'vehicle': vehicle,
+                    'vehicle': vehicle,  # Each AI has its own vehicle!
                     'team': team,
                     'qual_time': qual,
                     'qual_time_sec': qual_sec,
@@ -288,7 +292,6 @@ class DataExtractor:
         if not data.aiw_file:
             return
         
-        # Find AIW file
         aiw_path = self._find_aiw_file(data.aiw_file, data.track_folder)
         
         if not aiw_path or not aiw_path.exists():
@@ -301,21 +304,17 @@ class DataExtractor:
             with open(aiw_path, 'rb') as f:
                 raw = f.read()
             
-            # Remove null bytes and decode
             content = raw.replace(b'\x00', b'').decode('utf-8', errors='ignore')
             
-            # Find Waypoint section
             wp_match = self.WAYPOINT_PATTERN.search(content)
             if wp_match:
                 section = wp_match.group(1)
                 
-                # Extract QualRatio
                 q_match = self.QUAL_RATIO_PATTERN.search(section)
                 if q_match:
                     data.qual_ratio = float(q_match.group(1))
                     print(f"  QualRatio from AIW: {data.qual_ratio:.6f}")
                 
-                # Extract RaceRatio
                 r_match = self.RACE_RATIO_PATTERN.search(section)
                 if r_match:
                     data.race_ratio = float(r_match.group(1))
@@ -329,7 +328,6 @@ class DataExtractor:
         if not self.base_path:
             return None
         
-        # Check cache
         cache_key = f"{track_folder}_{aiw_filename}".lower()
         if cache_key in self._aiw_cache:
             cached = self._aiw_cache[cache_key]
@@ -343,25 +341,21 @@ class DataExtractor:
         
         filename_norm = Path(aiw_filename).name.lower()
         
-        # Strategy 1: Use track folder
         if track_folder:
             track_lower = track_folder.lower()
             for folder in locations_path.iterdir():
                 if folder.is_dir() and folder.name.lower() == track_lower:
-                    # Look for exact filename match
                     for f in folder.iterdir():
                         if f.is_file() and f.name.lower() == filename_norm:
                             self._aiw_cache[cache_key] = f
                             return f
                     
-                    # Look for any AIW file
                     for ext in ['*.AIW', '*.aiw']:
                         candidates = list(folder.glob(ext))
                         if candidates:
                             self._aiw_cache[cache_key] = candidates[0]
                             return candidates[0]
         
-        # Strategy 2: Recursive search
         for root, _, files in os.walk(locations_path):
             for f in files:
                 if f.lower() == filename_norm:
@@ -385,10 +379,8 @@ class DataExtractor:
         try:
             parts = time_str.split(':')
             if len(parts) == 3:
-                # h:mm:ss.ms
                 return int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
             elif len(parts) == 2:
-                # m:ss.ms
                 return int(parts[0]) * 60 + float(parts[1])
             else:
                 return float(time_str)
@@ -413,31 +405,26 @@ def get_display_text(data: RaceData) -> str:
     lines.append(f"🏁 {data.track_name or 'Unknown Track'} 🏁")
     lines.append("=" * 50)
     
-    # AIW info
     if data.aiw_file:
         lines.append(f"\n📄 AIW File: {data.aiw_file}")
     
-    # Ratios
     if data.qual_ratio is not None:
         lines.append(f"\n📊 Current Ratios:")
         lines.append(f"   Qualifying: {data.qual_ratio:.6f}")
     if data.race_ratio is not None:
         lines.append(f"   Race: {data.race_ratio:.6f}")
     
-    # User info
     if data.user_name:
         lines.append(f"\n👤 Driver: {data.user_name}")
     if data.user_vehicle:
         lines.append(f"   Vehicle: {data.user_vehicle}")
     
-    # User lap times
     if data.user_qualifying:
         lines.append(f"\n⏱️ Your Times:")
         lines.append(f"   Qualifying: {data.user_qualifying}")
     if data.user_best_lap:
         lines.append(f"   Best Lap: {data.user_best_lap}")
     
-    # AI statistics
     qual_stats = data.get_ai_statistics("qual")
     race_stats = data.get_ai_statistics("race")
     
@@ -445,17 +432,12 @@ def get_display_text(data: RaceData) -> str:
         lines.append(f"\n🤖 Qualifying AI ({qual_stats['count']} drivers):")
         lines.append(f"   Best: {format_time(qual_stats['min'])}")
         lines.append(f"   Worst: {format_time(qual_stats['max'])}")
-        lines.append(f"   Average: {format_time(qual_stats['mean'])}")
-        lines.append(f"   Median: {format_time(qual_stats['median'])}")
     
     if race_stats["count"] > 0:
         lines.append(f"\n🏁 Race AI ({race_stats['count']} drivers):")
         lines.append(f"   Best: {format_time(race_stats['min'])}")
         lines.append(f"   Worst: {format_time(race_stats['max'])}")
-        lines.append(f"   Average: {format_time(race_stats['mean'])}")
-        lines.append(f"   Median: {format_time(race_stats['median'])}")
     
-    # AIW path
     if data.aiw_path:
         lines.append(f"\n📁 AIW Path: {data.aiw_path}")
     
@@ -465,9 +447,7 @@ def get_display_text(data: RaceData) -> str:
 
 
 if __name__ == "__main__":
-    # Test the extractor
     import sys
-    import traceback
     
     if len(sys.argv) > 1:
         test_file = Path(sys.argv[1])
@@ -481,15 +461,8 @@ if __name__ == "__main__":
         
         if data and data.has_data():
             print(get_display_text(data))
-            print("\nData points for curve:")
-            for point in data.to_data_points():
-                print(f"  {point[0]}: R={point[1]:.4f}, T={point[2]:.3f}s ({point[3]})")
-            print(f"\nRace ID: {data.race_id}")
-            print(f"Timestamp: {data.timestamp}")
-            print(f"\nAll AI drivers: {data.ai_count}")
-            for i, ai in enumerate(data.ai_results[:5]):  # Show first 5
-                print(f"  AI {i+1}: {ai.get('driver_name')} - Qual: {ai.get('qual_time')}, Race: {ai.get('best_lap')}")
-        else:
-            print("No data extracted")
+            print("\nData points with vehicles:")
+            for point in data.to_data_points_with_vehicles():
+                print(f"  {point[0]}: {point[1]} | R={point[2]:.4f}, T={point[3]:.3f}s ({point[4]})")
     else:
         print(f"Test file not found: {test_file}")
