@@ -1,4 +1,4 @@
-# dyn_ai — Live AI Tuner for GTR2 - v0.9.13
+# dyn_ai — Live AI Tuner for GTR2 - v0.9.14
 
 This tool watches your race results and helps you tweak the AI difficulty ratios so they match your pace.
 

@@ -200,6 +200,12 @@ class SimplifiedCurveViewer(QMainWindow):
         self.current_vehicle: str = ""
         self.current_vehicle_class: str = ""
         
+        # User lap times (for display in advanced dialog)
+        self.user_qualifying_sec: float = 0.0
+        self.user_best_lap_sec: float = 0.0
+        self.last_qual_ratio: Optional[float] = None
+        self.last_race_ratio: Optional[float] = None
+        
         # Cache
         self.all_tracks: List[str] = []
         self.all_vehicles: List[str] = []
@@ -379,11 +385,35 @@ class SimplifiedCurveViewer(QMainWindow):
     
     def open_advanced_settings(self):
         """Open the advanced settings window with graph and data management"""
+        # Create window if it doesn't exist
         if self.advanced_window is None:
             self.advanced_window = AdvancedSettingsDialog(self, self.db, self.log_window)
             self.advanced_window.data_updated.connect(self.on_data_updated)
+        
+        # Force refresh the curve graph with current data before showing
+        if hasattr(self.advanced_window, 'curve_graph'):
+            # Update current info
+            self.advanced_window.curve_graph.update_current_info(
+                track=self.current_track,
+                vehicle=self.current_vehicle,
+                qual_time=self.user_qualifying_sec if self.user_qualifying_sec > 0 else None,
+                race_time=self.user_best_lap_sec if self.user_best_lap_sec > 0 else None,
+                qual_ratio=self.last_qual_ratio,
+                race_ratio=self.last_race_ratio
+            )
+            
+            # Update formulas
+            self.advanced_window.curve_graph.set_formulas(
+                self.qual_a, self.qual_b,
+                self.race_a, self.race_b
+            )
+            
+            # Force reload all data from database
+            self.advanced_window.curve_graph.load_data()
+        
         self.advanced_window.show()
         self.advanced_window.raise_()
+        self.advanced_window.activateWindow()
     
     def on_data_updated(self):
         """Handle data updates from advanced settings"""
@@ -481,6 +511,16 @@ class SimplifiedCurveViewer(QMainWindow):
             self.title_label.setText(self.current_track)
             self.setWindowTitle(f"GTR2 Dynamic AI - {self.current_track}")
         
+        # Store user lap times for display in advanced dialog
+        if race_data.user_qualifying_sec:
+            self.user_qualifying_sec = race_data.user_qualifying_sec
+        if race_data.user_best_lap_sec:
+            self.user_best_lap_sec = race_data.user_best_lap_sec
+        if race_data.qual_ratio:
+            self.last_qual_ratio = race_data.qual_ratio
+        if race_data.race_ratio:
+            self.last_race_ratio = race_data.race_ratio
+        
         # Log simplified message
         vehicle_class = get_vehicle_class(race_data.user_vehicle or "Unknown", self.class_mapping)
         logger.info(self.simplified_logger.new_data_detected(
@@ -533,6 +573,23 @@ class SimplifiedCurveViewer(QMainWindow):
                 self.autopilot_manager.reload_formulas()
                 self._update_formulas_from_autopilot()
                 self.update_display()
+            
+            # If advanced window is open, refresh its data
+            if self.advanced_window and self.advanced_window.isVisible():
+                if hasattr(self.advanced_window, 'curve_graph'):
+                    self.advanced_window.curve_graph.update_current_info(
+                        track=self.current_track,
+                        vehicle=self.current_vehicle,
+                        qual_time=self.user_qualifying_sec if self.user_qualifying_sec > 0 else None,
+                        race_time=self.user_best_lap_sec if self.user_best_lap_sec > 0 else None,
+                        qual_ratio=self.last_qual_ratio,
+                        race_ratio=self.last_race_ratio
+                    )
+                    self.advanced_window.curve_graph.set_formulas(
+                        self.qual_a, self.qual_b,
+                        self.race_a, self.race_b
+                    )
+                    self.advanced_window.curve_graph.load_data()
     
     def load_data(self):
         """Load tracks and vehicles from database"""
@@ -568,7 +625,7 @@ class SimplifiedCurveViewer(QMainWindow):
         qual_ratio = None
         race_ratio = None
         
-        if self.current_track and self.current_vehicle:
+        if self.current_track:
             conn = sqlite3.connect(self.db.db_path)
             cursor = conn.cursor()
             

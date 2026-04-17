@@ -62,7 +62,7 @@ if [ -f "dist/dyn_ai.exe" ]; then
     
     # Optional: Test the executable
     echo "Testing executable..."
-    wine dyn_ai.exe --help 2>&1 | head -5 || echo "Test completed"
+    wine dyn_ai.exe wine dyn_ai.exe --config=./cfg.yml | head -5 || echo "Test completed"
     
 else
     echo "ERROR: Build failed - executable not created"

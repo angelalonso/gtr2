@@ -1,4 +1,4 @@
-# gui_funcs.py - Updated with graph and data management
+# gui_funcs.py - Complete fixed version using vehicle classes
 #!/usr/bin/env python3
 """
 GUI module for curve viewer
@@ -11,6 +11,7 @@ import shutil
 import sqlite3
 from pathlib import Path
 from datetime import datetime
+from typing import List, Dict, Optional, Tuple, Any
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QListWidget, 
     QDoubleSpinBox, QPushButton, QGroupBox, QSplitter, 
@@ -18,14 +19,13 @@ from PyQt5.QtWidgets import (
     QDialogButtonBox, QListWidgetItem, QSlider, QSpinBox,
     QCheckBox, QTabWidget, QTableWidget, QTableWidgetItem,
     QHeaderView, QScrollArea, QFileDialog, QSizePolicy, QRadioButton,
-    QTextEdit, QSplitter
+    QTextEdit, QSplitter, QFrame
 )
 from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QColor
+from PyQt5.QtGui import QColor, QFont
 import pyqtgraph as pg
 
 from formula_funcs import fit_curve, get_formula_string, hyperbolic
-#from data_extraction import get_vehicle_class
 from autopilot import load_vehicle_classes, get_vehicle_class
 
 
@@ -235,7 +235,8 @@ class SimpleLogHandler(logging.Handler):
 class CurveGraphWidget(QWidget):
     """Widget containing the curve graph and data management"""
     
-    point_selected = pyqtSignal(str, str, float, float)  # track, vehicle, ratio, lap_time
+    point_selected = pyqtSignal(str, str, float, float)
+    data_updated = pyqtSignal()
     
     def __init__(self, db, parent=None):
         super().__init__(parent)
@@ -250,14 +251,21 @@ class CurveGraphWidget(QWidget):
         self.show_qualifying = True
         self.show_race = True
         self.show_unknown = True
+        self.show_user_points = True
         
         # Data
         self.all_tracks = []
-        self.all_vehicles = []
+        self.all_classes = []
         self.current_track = ""
-        self.selected_vehicles = []
-        self.multi_track_mode = False
-        self.selected_tracks = []
+        self.current_vehicle = ""
+        self.current_vehicle_class = ""
+        self.selected_classes = []
+        
+        # Current user times
+        self.user_qual_time = None
+        self.user_race_time = None
+        self.user_qual_ratio = None
+        self.user_race_ratio = None
         
         # Plot items
         self.qual_curve = None
@@ -265,6 +273,8 @@ class CurveGraphWidget(QWidget):
         self.qual_scatter = None
         self.race_scatter = None
         self.unknown_scatter = None
+        self.user_qual_point = None
+        self.user_race_point = None
         self.legend = None
         self.selected_point_marker = None
         
@@ -274,27 +284,83 @@ class CurveGraphWidget(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         
+        # Current track/vehicle info bar
+        info_frame = QFrame()
+        info_frame.setStyleSheet("""
+            QFrame {
+                background-color: #2b2b2b;
+                border-radius: 5px;
+                padding: 5px;
+            }
+        """)
+        info_layout = QHBoxLayout(info_frame)
+        
+        track_group = QFrame()
+        track_group.setStyleSheet("background-color: #1e1e1e; border-radius: 3px;")
+        track_layout = QHBoxLayout(track_group)
+        track_layout.setContentsMargins(8, 4, 8, 4)
+        track_layout.addWidget(QLabel("🏁 Track:"))
+        self.current_track_label = QLabel("-")
+        self.current_track_label.setStyleSheet("color: #FFA500; font-weight: bold;")
+        track_layout.addWidget(self.current_track_label)
+        info_layout.addWidget(track_group)
+        
+        vehicle_group = QFrame()
+        vehicle_group.setStyleSheet("background-color: #1e1e1e; border-radius: 3px;")
+        vehicle_layout = QHBoxLayout(vehicle_group)
+        vehicle_layout.setContentsMargins(8, 4, 8, 4)
+        vehicle_layout.addWidget(QLabel("🚗 Vehicle:"))
+        self.current_vehicle_label = QLabel("-")
+        self.current_vehicle_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
+        vehicle_layout.addWidget(self.current_vehicle_label)
+        info_layout.addWidget(vehicle_group)
+        
+        class_group = QFrame()
+        class_group.setStyleSheet("background-color: #1e1e1e; border-radius: 3px;")
+        class_layout = QHBoxLayout(class_group)
+        class_layout.setContentsMargins(8, 4, 8, 4)
+        class_layout.addWidget(QLabel("📊 Class:"))
+        self.current_class_label = QLabel("-")
+        self.current_class_label.setStyleSheet("color: #FF6600; font-weight: bold;")
+        class_layout.addWidget(self.current_class_label)
+        info_layout.addWidget(class_group)
+        
+        info_layout.addStretch()
+        
+        user_group = QFrame()
+        user_group.setStyleSheet("background-color: #1e1e1e; border-radius: 3px;")
+        user_layout = QHBoxLayout(user_group)
+        user_layout.setContentsMargins(8, 4, 8, 4)
+        user_layout.addWidget(QLabel("⏱️ Your Times:"))
+        self.user_qual_time_label = QLabel("Qual: -")
+        self.user_qual_time_label.setStyleSheet("color: #FFFF00;")
+        user_layout.addWidget(self.user_qual_time_label)
+        user_layout.addWidget(QLabel("|"))
+        self.user_race_time_label = QLabel("Race: -")
+        self.user_race_time_label.setStyleSheet("color: #FF6600;")
+        user_layout.addWidget(self.user_race_time_label)
+        info_layout.addWidget(user_group)
+        
+        layout.addWidget(info_frame)
+        
+        layout.addSpacing(5)
+        
         # Filter controls
         filter_layout = QHBoxLayout()
         
-        filter_layout.addWidget(QLabel("Tracks:"))
+        filter_layout.addWidget(QLabel("Track:"))
         self.track_combo = QComboBox()
         self.track_combo.currentTextChanged.connect(self.on_track_changed)
         filter_layout.addWidget(self.track_combo)
         
-        self.multi_track_btn = QPushButton("Multi")
-        self.multi_track_btn.setFixedWidth(40)
-        self.multi_track_btn.clicked.connect(self.open_multi_track)
-        filter_layout.addWidget(self.multi_track_btn)
-        
         filter_layout.addSpacing(20)
         
-        filter_layout.addWidget(QLabel("Vehicles:"))
-        self.vehicle_list = QListWidget()
-        self.vehicle_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.vehicle_list.setMaximumHeight(80)
-        self.vehicle_list.itemSelectionChanged.connect(self.on_vehicles_changed)
-        filter_layout.addWidget(self.vehicle_list)
+        filter_layout.addWidget(QLabel("Vehicle Class:"))
+        self.class_list = QListWidget()
+        self.class_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.class_list.setMaximumHeight(80)
+        self.class_list.itemSelectionChanged.connect(self.on_classes_changed)
+        filter_layout.addWidget(self.class_list)
         
         filter_layout.addSpacing(20)
         
@@ -316,6 +382,12 @@ class CurveGraphWidget(QWidget):
         self.unknown_check.stateChanged.connect(self.on_filter_changed)
         filter_layout.addWidget(self.unknown_check)
         
+        self.user_check = QCheckBox("Your Times")
+        self.user_check.setChecked(True)
+        self.user_check.setStyleSheet("color: #00FFFF;")
+        self.user_check.stateChanged.connect(self.on_filter_changed)
+        filter_layout.addWidget(self.user_check)
+        
         filter_layout.addStretch()
         layout.addLayout(filter_layout)
         
@@ -335,7 +407,6 @@ class CurveGraphWidget(QWidget):
         self.plot.getAxis('left').setPen('white')
         self.plot.getAxis('left').setTextPen('white')
         
-        # Enable point clicking
         self.plot.scene().sigMouseClicked.connect(self.on_plot_click)
         
         layout.addWidget(self.plot_widget)
@@ -385,7 +456,7 @@ class CurveGraphWidget(QWidget):
         
         self.data_table = QTableWidget()
         self.data_table.setColumnCount(5)
-        self.data_table.setHorizontalHeaderLabels(["Track", "Vehicle", "Ratio", "Lap Time", "Session"])
+        self.data_table.setHorizontalHeaderLabels(["Track", "Vehicle", "Class", "Ratio", "Lap Time", "Session"])
         self.data_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.data_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.data_table.setAlternatingRowColors(True)
@@ -395,7 +466,7 @@ class CurveGraphWidget(QWidget):
         table_btn_layout = QHBoxLayout()
         
         refresh_btn = QPushButton("Refresh")
-        refresh_btn.clicked.connect(self.load_data)
+        refresh_btn.clicked.connect(self.full_refresh)
         table_btn_layout.addWidget(refresh_btn)
         
         delete_btn = QPushButton("Delete Selected")
@@ -408,130 +479,223 @@ class CurveGraphWidget(QWidget):
         
         layout.addWidget(table_group)
         
-        # Formula info
         info_layout = QHBoxLayout()
         self.formula_label = QLabel("")
         self.formula_label.setStyleSheet("color: #888; font-size: 10px; font-family: monospace;")
         info_layout.addWidget(self.formula_label)
         info_layout.addStretch()
         layout.addLayout(info_layout)
+    
+    def full_refresh(self):
+        """Complete refresh of all data and display"""
+        self.load_data()
+        self.update_graph()
+    
+    def update_current_info(self, track: str = None, vehicle: str = None, 
+                            qual_time: float = None, race_time: float = None,
+                            qual_ratio: float = None, race_ratio: float = None):
+        """Update the current track/vehicle info and user lap times"""
+        needs_refresh = False
         
+        if track is not None and track != self.current_track:
+            self.current_track = track
+            self.current_track_label.setText(track)
+            needs_refresh = True
+        
+        if vehicle is not None and vehicle != self.current_vehicle:
+            self.current_vehicle = vehicle
+            self.current_vehicle_label.setText(vehicle)
+            self.current_vehicle_class = get_vehicle_class(vehicle, self.class_mapping)
+            self.current_class_label.setText(self.current_vehicle_class)
+            # Also update selected_classes to include current vehicle's class
+            if self.current_vehicle_class not in self.selected_classes:
+                self.selected_classes = [self.current_vehicle_class]
+            needs_refresh = True
+        
+        if qual_time is not None and qual_time > 0:
+            self.user_qual_time = qual_time
+            self.user_qual_time_label.setText(f"Qual: {qual_time:.3f}s")
+            needs_refresh = True
+        
+        if race_time is not None and race_time > 0:
+            self.user_race_time = race_time
+            self.user_race_time_label.setText(f"Race: {race_time:.3f}s")
+            needs_refresh = True
+        
+        if qual_ratio is not None:
+            self.user_qual_ratio = qual_ratio
+            needs_refresh = True
+        
+        if race_ratio is not None:
+            self.user_race_ratio = race_ratio
+            needs_refresh = True
+        
+        if needs_refresh:
+            self.full_refresh()
+    
     def load_data(self):
-        """Load tracks, vehicles, and data points"""
+        """Load tracks and vehicle classes from database"""
         if not self.db.database_exists():
             return
         
         conn = sqlite3.connect(self.db.db_path)
         cursor = conn.cursor()
         
-        # Load tracks
+        # Get all tracks
         cursor.execute("SELECT DISTINCT track FROM data_points ORDER BY track")
         self.all_tracks = [row[0] for row in cursor.fetchall()]
         
-        # Load vehicles
-        cursor.execute("SELECT DISTINCT vehicle FROM data_points ORDER BY vehicle")
-        self.all_vehicles = [row[0] for row in cursor.fetchall()]
+        # Get all distinct vehicle classes from the database by mapping each vehicle to its class
+        cursor.execute("SELECT DISTINCT vehicle FROM data_points")
+        all_vehicles = [row[0] for row in cursor.fetchall()]
+        
+        # Convert to classes using the mapping
+        class_set = set()
+        for vehicle in all_vehicles:
+            vehicle_class = get_vehicle_class(vehicle, self.class_mapping)
+            class_set.add(vehicle_class)
+        self.all_classes = sorted(class_set)
         
         # Update track combo
+        self.track_combo.blockSignals(True)
         self.track_combo.clear()
         for track in self.all_tracks:
             self.track_combo.addItem(track)
+        
+        # Set current track in combo
         if self.current_track and self.current_track in self.all_tracks:
             self.track_combo.setCurrentText(self.current_track)
         elif self.all_tracks:
             self.current_track = self.all_tracks[0]
             self.track_combo.setCurrentIndex(0)
+            self.current_track_label.setText(self.current_track)
+        self.track_combo.blockSignals(False)
         
-        # Update vehicle list
-        self.vehicle_list.clear()
-        for vehicle in self.all_vehicles:
-            self.vehicle_list.addItem(vehicle)
-        if not self.selected_vehicles:
-            self.vehicle_list.selectAll()
-            self.selected_vehicles = self.all_vehicles.copy()
+        # Update class list - select the current vehicle's class by default
+        self.class_list.blockSignals(True)
+        self.class_list.clear()
+        for cls in self.all_classes:
+            self.class_list.addItem(cls)
         
-        # Load data table
-        self._load_data_table()
+        # Select current class if it exists in the list
+        if self.current_vehicle_class and self.current_vehicle_class in self.all_classes:
+            items = self.class_list.findItems(self.current_vehicle_class, Qt.MatchExactly)
+            if items:
+                self.class_list.setCurrentItem(items[0])
+                self.selected_classes = [self.current_vehicle_class]
+            else:
+                self.class_list.selectAll()
+                self.selected_classes = self.all_classes.copy()
+        else:
+            # If no current class, select all
+            self.class_list.selectAll()
+            self.selected_classes = self.all_classes.copy()
+        self.class_list.blockSignals(False)
         
         conn.close()
         
-        # Update graph
-        self.update_graph()
+        # Load data table for current track and selected classes
+        self._load_data_table()
+        self.data_updated.emit()
+    
+    def _get_vehicles_for_classes(self, classes: List[str]) -> List[str]:
+        """Get all vehicle names that belong to the given classes"""
+        if not classes:
+            return []
         
+        conn = sqlite3.connect(self.db.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT DISTINCT vehicle FROM data_points")
+        all_vehicles = [row[0] for row in cursor.fetchall()]
+        conn.close()
+        
+        vehicles = []
+        for vehicle in all_vehicles:
+            vehicle_class = get_vehicle_class(vehicle, self.class_mapping)
+            if vehicle_class in classes:
+                vehicles.append(vehicle)
+        
+        return vehicles
+    
     def _load_data_table(self):
-        """Load data points into table"""
+        """Load data points into table for current track and selected classes"""
         if not self.current_track:
+            self.data_table.setRowCount(0)
+            return
+        
+        vehicles = self._get_vehicles_for_classes(self.selected_classes)
+        if not vehicles:
+            self.data_table.setRowCount(0)
             return
         
         conn = sqlite3.connect(self.db.db_path)
         cursor = conn.cursor()
         
-        # Build vehicle filter
-        if self.selected_vehicles:
-            placeholders = ','.join('?' * len(self.selected_vehicles))
-            query = f"""
-                SELECT track, vehicle, ratio, lap_time, session_type 
-                FROM data_points 
-                WHERE track = ? AND vehicle IN ({placeholders})
-                ORDER BY session_type, ratio
-            """
-            cursor.execute(query, [self.current_track] + self.selected_vehicles)
-        else:
-            cursor.execute("""
-                SELECT track, vehicle, ratio, lap_time, session_type 
-                FROM data_points 
-                WHERE track = ?
-                ORDER BY session_type, ratio
-            """, (self.current_track,))
-        
+        placeholders = ','.join('?' * len(vehicles))
+        query = f"""
+            SELECT track, vehicle, ratio, lap_time, session_type 
+            FROM data_points 
+            WHERE track = ? AND vehicle IN ({placeholders})
+            ORDER BY session_type, ratio
+        """
+        cursor.execute(query, [self.current_track] + vehicles)
         rows = cursor.fetchall()
         conn.close()
         
         self.data_table.setRowCount(len(rows))
         for i, row in enumerate(rows):
-            for j, value in enumerate(row):
-                item = QTableWidgetItem(str(value))
-                self.data_table.setItem(i, j, item)
+            track, vehicle, ratio, lap_time, session_type = row
+            vehicle_class = get_vehicle_class(vehicle, self.class_mapping)
             
-            # Color rows by session type
-            session = row[4]
-            if session == 'qual':
+            self.data_table.setItem(i, 0, QTableWidgetItem(str(track)))
+            self.data_table.setItem(i, 1, QTableWidgetItem(str(vehicle)))
+            self.data_table.setItem(i, 2, QTableWidgetItem(str(vehicle_class)))
+            self.data_table.setItem(i, 3, QTableWidgetItem(f"{ratio:.6f}"))
+            self.data_table.setItem(i, 4, QTableWidgetItem(f"{lap_time:.3f}"))
+            self.data_table.setItem(i, 5, QTableWidgetItem(str(session_type)))
+            
+            if session_type == 'qual':
                 color = QColor(58, 58, 0)
-            elif session == 'race':
+            elif session_type == 'race':
                 color = QColor(58, 26, 0)
             else:
                 color = QColor(42, 0, 58)
             
-            for j in range(5):
+            for j in range(6):
                 item = self.data_table.item(i, j)
                 if item:
                     item.setBackground(color)
         
         self.data_table.resizeRowsToContents()
         
+        print(f"[DEBUG] Loaded {len(rows)} data points for track '{self.current_track}' with classes {self.selected_classes}")
+    
     def on_track_changed(self, track):
         """Handle track selection change"""
-        self.current_track = track
+        if track != self.current_track:
+            self.current_track = track
+            self.current_track_label.setText(track)
+            self._load_data_table()
+            self.update_graph()
+    
+    def on_classes_changed(self):
+        """Handle class selection change"""
+        self.selected_classes = [item.text() for item in self.class_list.selectedItems()]
+        if not self.selected_classes:
+            self.selected_classes = self.all_classes.copy()
         self._load_data_table()
         self.update_graph()
-        
-    def on_vehicles_changed(self):
-        """Handle vehicle selection change"""
-        self.selected_vehicles = [item.text() for item in self.vehicle_list.selectedItems()]
-        if not self.selected_vehicles:
-            self.selected_vehicles = self.all_vehicles.copy()
-        self._load_data_table()
-        self.update_graph()
-        
+    
     def on_filter_changed(self):
         """Handle filter checkbox changes"""
         self.show_qualifying = self.qual_check.isChecked()
         self.show_race = self.race_check.isChecked()
         self.show_unknown = self.unknown_check.isChecked()
+        self.show_user_points = self.user_check.isChecked()
         self.update_graph()
-        
+    
     def on_curve_selected(self):
-        """Handle curve selection change"""
         curve = self.curve_selector.currentData()
         if curve == "qual":
             self.a_spin.setValue(self.qual_a)
@@ -539,12 +703,10 @@ class CurveGraphWidget(QWidget):
         else:
             self.a_spin.setValue(self.race_a)
             self.b_spin.setValue(self.race_b)
-            
+    
     def apply_manual_curve(self):
-        """Apply manually edited curve"""
         a = self.a_spin.value()
         b = self.b_spin.value()
-        
         curve = self.curve_selector.currentData()
         if curve == "qual":
             self.qual_a = a
@@ -552,14 +714,11 @@ class CurveGraphWidget(QWidget):
         else:
             self.race_a = a
             self.race_b = b
-        
         self.update_graph()
-        
+    
     def auto_fit(self):
-        """Auto-fit curves to data"""
         points_data = self.get_selected_data()
         
-        # Fit qualifying
         if points_data['quali'] and len(points_data['quali']) >= 2:
             ratios = [p[0] for p in points_data['quali']]
             times = [p[1] for p in points_data['quali']]
@@ -568,7 +727,6 @@ class CurveGraphWidget(QWidget):
                 self.qual_a = a
                 self.qual_b = b
         
-        # Fit race
         if points_data['race'] and len(points_data['race']) >= 2:
             ratios = [p[0] for p in points_data['race']]
             times = [p[1] for p in points_data['race']]
@@ -578,27 +736,31 @@ class CurveGraphWidget(QWidget):
                 self.race_b = b
         
         self.update_graph()
-        
+    
     def reset_view(self):
-        """Reset plot view"""
         self.plot.setXRange(0.4, 2.0)
         self.plot.setYRange(50, 200)
-        
+    
     def get_selected_data(self) -> dict:
-        """Get data points from selected track and vehicles"""
-        if not self.current_track or not self.selected_vehicles:
+        """Get data points from database for current track and selected classes"""
+        if not self.current_track or not self.selected_classes:
+            print(f"[DEBUG] No track or classes: track={self.current_track}, classes={self.selected_classes}")
+            return {'quali': [], 'race': [], 'unknown': []}
+        
+        vehicles = self._get_vehicles_for_classes(self.selected_classes)
+        if not vehicles:
             return {'quali': [], 'race': [], 'unknown': []}
         
         conn = sqlite3.connect(self.db.db_path)
         cursor = conn.cursor()
         
-        placeholders = ','.join('?' * len(self.selected_vehicles))
+        placeholders = ','.join('?' * len(vehicles))
         query = f"""
             SELECT ratio, lap_time, session_type 
             FROM data_points 
             WHERE track = ? AND vehicle IN ({placeholders})
         """
-        cursor.execute(query, [self.current_track] + self.selected_vehicles)
+        cursor.execute(query, [self.current_track] + vehicles)
         rows = cursor.fetchall()
         conn.close()
         
@@ -611,14 +773,15 @@ class CurveGraphWidget(QWidget):
             else:
                 result['unknown'].append((ratio, lap_time))
         
-        return result
+        print(f"[DEBUG] get_selected_data: track={self.current_track}, classes={self.selected_classes}")
+        print(f"[DEBUG]   quali: {len(result['quali'])}, race: {len(result['race'])}, unknown: {len(result['unknown'])}")
         
+        return result
+    
     def update_graph(self):
-        """Update the plot with curves and data points"""
         ratios = np.linspace(0.4, 2.0, 200)
         points_data = self.get_selected_data()
         
-        # Calculate curve values
         qual_times = self.qual_a / ratios + self.qual_b
         race_times = self.race_a / ratios + self.race_b
         
@@ -644,7 +807,7 @@ class CurveGraphWidget(QWidget):
         elif self.race_curve is not None:
             self.race_curve.setVisible(False)
         
-        # Update scatter points
+        # Update qualifying scatter points
         quali_points = points_data.get('quali', [])
         if self.show_qualifying and quali_points:
             r = [p[0] for p in quali_points]
@@ -661,6 +824,7 @@ class CurveGraphWidget(QWidget):
         elif self.qual_scatter is not None:
             self.qual_scatter.setVisible(False)
         
+        # Update race scatter points
         race_points = points_data.get('race', [])
         if self.show_race and race_points:
             r = [p[0] for p in race_points]
@@ -677,6 +841,7 @@ class CurveGraphWidget(QWidget):
         elif self.race_scatter is not None:
             self.race_scatter.setVisible(False)
         
+        # Update unknown scatter points
         unknown_points = points_data.get('unknown', [])
         if self.show_unknown and unknown_points:
             r = [p[0] for p in unknown_points]
@@ -692,6 +857,31 @@ class CurveGraphWidget(QWidget):
                 self.unknown_scatter.setVisible(True)
         elif self.unknown_scatter is not None:
             self.unknown_scatter.setVisible(False)
+        
+        # Update user points (your lap times)
+        if self.show_user_points:
+            user_points = []
+            if self.user_qual_time and self.user_qual_time > 0 and self.user_qual_ratio:
+                user_points.append((self.user_qual_ratio, self.user_qual_time))
+            if self.user_race_time and self.user_race_time > 0 and self.user_race_ratio:
+                user_points.append((self.user_race_ratio, self.user_race_time))
+            
+            if user_points:
+                r = [p[0] for p in user_points]
+                t = [p[1] for p in user_points]
+                if self.user_qual_point is None:
+                    self.user_qual_point = pg.ScatterPlotItem(
+                        r, t, brush=pg.mkBrush('#00FFFF'), size=12,
+                        symbol='star', pen=pg.mkPen('white', width=2)
+                    )
+                    self.plot.addItem(self.user_qual_point)
+                else:
+                    self.user_qual_point.setData(r, t)
+                    self.user_qual_point.setVisible(True)
+            elif self.user_qual_point is not None:
+                self.user_qual_point.setVisible(False)
+        elif self.user_qual_point is not None:
+            self.user_qual_point.setVisible(False)
         
         # Update legend
         if self.legend is not None:
@@ -710,34 +900,30 @@ class CurveGraphWidget(QWidget):
             self.legend.addItem(self.race_scatter, f'Race Data ({len(race_points)})')
         if self.show_unknown and unknown_points:
             self.legend.addItem(self.unknown_scatter, f'Unknown ({len(unknown_points)})')
+        if self.show_user_points and (self.user_qual_time or self.user_race_time):
+            self.legend.addItem(self.user_qual_point, 'Your Lap Times')
         
-        # Update formula label
         self.formula_label.setText(f"Qual: T={self.qual_a:.3f}/R+{self.qual_b:.3f}  |  Race: T={self.race_a:.3f}/R+{self.race_b:.3f}")
-        
+    
     def on_plot_click(self, event):
-        """Handle click on plot to select points"""
         if self.plot.scene().mouseGrabberItem() is not None:
             return
         
-        # Get mouse position in plot coordinates
         pos = event.scenePos()
         mouse_point = self.plot.vb.mapSceneToView(pos)
         
-        # Find closest data point
         points_data = self.get_selected_data()
         all_points = []
-        for session, color in [('quali', '#FFFF00'), ('race', '#FF6600'), ('unknown', '#FF00FF')]:
-            for ratio, lap_time in points_data.get(session, []):
-                all_points.append((ratio, lap_time, session))
+        for session in [('quali', '#FFFF00'), ('race', '#FF6600'), ('unknown', '#FF00FF')]:
+            for ratio, lap_time in points_data.get(session[0], []):
+                all_points.append((ratio, lap_time, session[0]))
         
         if not all_points:
             return
         
-        # Find closest point
         closest = min(all_points, key=lambda p: ((p[0] - mouse_point.x())**2 + (p[1] - mouse_point.y())**2))
         ratio, lap_time, session = closest
         
-        # Highlight the point
         if self.selected_point_marker:
             self.plot.removeItem(self.selected_point_marker)
         
@@ -747,19 +933,16 @@ class CurveGraphWidget(QWidget):
         )
         self.plot.addItem(self.selected_point_marker)
         
-        # Find and select in table
         for row in range(self.data_table.rowCount()):
-            if (abs(float(self.data_table.item(row, 2).text()) - ratio) < 0.001 and
-                abs(float(self.data_table.item(row, 3).text()) - lap_time) < 0.01):
+            if (abs(float(self.data_table.item(row, 3).text()) - ratio) < 0.001 and
+                abs(float(self.data_table.item(row, 4).text()) - lap_time) < 0.01):
                 self.data_table.selectRow(row)
                 self.data_table.scrollToItem(self.data_table.item(row, 0))
                 break
         
-        # Emit signal
         self.point_selected.emit(self.current_track, session, ratio, lap_time)
-        
+    
     def on_table_selection_changed(self):
-        """Handle table selection change - highlight point on graph"""
         selected = self.data_table.selectedItems()
         if not selected:
             if self.selected_point_marker:
@@ -768,10 +951,9 @@ class CurveGraphWidget(QWidget):
             return
         
         row = selected[0].row()
-        ratio = float(self.data_table.item(row, 2).text())
-        lap_time = float(self.data_table.item(row, 3).text())
+        ratio = float(self.data_table.item(row, 3).text())
+        lap_time = float(self.data_table.item(row, 4).text())
         
-        # Highlight the point
         if self.selected_point_marker:
             self.plot.removeItem(self.selected_point_marker)
         
@@ -780,9 +962,8 @@ class CurveGraphWidget(QWidget):
             symbol='o', pen=pg.mkPen('#FF0000', width=2)
         )
         self.plot.addItem(self.selected_point_marker)
-        
+    
     def delete_selected_points(self):
-        """Delete selected data points"""
         selected_rows = set()
         for item in self.data_table.selectedItems():
             selected_rows.add(item.row())
@@ -807,9 +988,9 @@ class CurveGraphWidget(QWidget):
         for row_idx in sorted(selected_rows, reverse=True):
             track = self.data_table.item(row_idx, 0).text()
             vehicle = self.data_table.item(row_idx, 1).text()
-            ratio = float(self.data_table.item(row_idx, 2).text())
-            lap_time = float(self.data_table.item(row_idx, 3).text())
-            session_type = self.data_table.item(row_idx, 4).text()
+            ratio = float(self.data_table.item(row_idx, 3).text())
+            lap_time = float(self.data_table.item(row_idx, 4).text())
+            session_type = self.data_table.item(row_idx, 5).text()
             
             cursor.execute("""
                 DELETE FROM data_points 
@@ -821,25 +1002,10 @@ class CurveGraphWidget(QWidget):
         conn.commit()
         conn.close()
         
-        self.load_data()
+        self.full_refresh()
         QMessageBox.information(self, "Success", f"Deleted {deleted} data point(s).")
-        
-    def open_multi_track(self):
-        """Open multi-track selection dialog"""
-        if not self.all_tracks:
-            return
-        
-        dialog = MultiTrackSelectionDialog(self.all_tracks, self.current_track, self)
-        if dialog.exec_() == QDialog.Accepted:
-            selected = dialog.get_selected_tracks()
-            if selected:
-                self.selected_tracks = selected
-                self.multi_track_mode = len(selected) > 1
-                self.current_track = selected[0] if selected else ""
-                self.load_data()
-                
+    
     def set_formulas(self, qual_a, qual_b, race_a, race_b):
-        """Set formulas from external source"""
         self.qual_a = qual_a
         self.qual_b = qual_b
         self.race_a = race_a
@@ -848,7 +1014,7 @@ class CurveGraphWidget(QWidget):
 
 
 class AdvancedSettingsDialog(QDialog):
-    """Advanced settings window with graph and data management"""
+    """Advanced settings window with unified tab layout"""
     
     data_updated = pyqtSignal()
     
@@ -857,39 +1023,36 @@ class AdvancedSettingsDialog(QDialog):
         self.parent = parent
         self.db = db
         self.log_window = log_window
-        self.setWindowTitle("Advanced Settings - Curve Editor & Data Management")
+        self.setWindowTitle("Advanced Settings")
         self.setGeometry(100, 100, 1200, 800)
         self.setMinimumWidth(1000)
         self.setMinimumHeight(700)
         
-        # AI Target settings
         self.target_mode = "percentage"
         self.target_percentage = 50
         self.target_offset_seconds = 0.0
         self.ai_error_margin = 0.0
         
         self.setup_ui()
-        self.load_data()
         
     def setup_ui(self):
         layout = QVBoxLayout(self)
         
-        # Main splitter: left side graph, right side settings
-        main_splitter = QSplitter(Qt.Horizontal)
+        self.tab_widget = QTabWidget()
         
-        # Left side: Curve graph
+        # TAB 1: DATA MANAGEMENT
+        data_tab = QWidget()
+        data_layout = QVBoxLayout(data_tab)
+        data_layout.setContentsMargins(0, 0, 0, 0)
+        
         self.curve_graph = CurveGraphWidget(self.db, self)
         self.curve_graph.point_selected.connect(self.on_point_selected)
-        main_splitter.addWidget(self.curve_graph)
+        self.curve_graph.data_updated.connect(self.on_data_updated)
+        data_layout.addWidget(self.curve_graph)
         
-        # Right side: Settings tabs
-        right_panel = QWidget()
-        right_layout = QVBoxLayout(right_panel)
-        right_layout.setContentsMargins(0, 0, 0, 0)
+        self.tab_widget.addTab(data_tab, "Data Management")
         
-        tabs = QTabWidget()
-        
-        # ========== TAB 1: AI TARGET SETTINGS ==========
+        # TAB 2: AI TARGET
         target_tab = QWidget()
         target_layout = QVBoxLayout(target_tab)
         
@@ -904,7 +1067,6 @@ class AdvancedSettingsDialog(QDialog):
         
         target_layout.addSpacing(10)
         
-        # Mode selection
         mode_group = QGroupBox("Target Mode")
         mode_layout = QVBoxLayout(mode_group)
         
@@ -932,7 +1094,6 @@ class AdvancedSettingsDialog(QDialog):
         
         target_layout.addSpacing(10)
         
-        # Percentage controls
         percent_group = QGroupBox("Percentage Setting")
         percent_layout = QVBoxLayout(percent_group)
         
@@ -962,7 +1123,6 @@ class AdvancedSettingsDialog(QDialog):
         
         target_layout.addWidget(percent_group)
         
-        # Absolute offset controls
         absolute_group = QGroupBox("Fixed Offset Setting")
         absolute_layout = QVBoxLayout(absolute_group)
         
@@ -989,7 +1149,6 @@ class AdvancedSettingsDialog(QDialog):
         
         target_layout.addSpacing(10)
         
-        # Error margin
         error_group = QGroupBox("AI Error Margin (Makes AI Slower)")
         error_layout = QVBoxLayout(error_group)
         
@@ -1025,9 +1184,9 @@ class AdvancedSettingsDialog(QDialog):
         target_layout.addWidget(apply_target_btn)
         
         target_layout.addStretch()
-        tabs.addTab(target_tab, "AI Target")
+        self.tab_widget.addTab(target_tab, "AI Target")
         
-        # ========== TAB 2: BACKUP RESTORE ==========
+        # TAB 3: BACKUP RESTORE
         backup_tab = QWidget()
         backup_layout = QVBoxLayout(backup_tab)
         
@@ -1068,9 +1227,9 @@ class AdvancedSettingsDialog(QDialog):
         backup_layout.addLayout(backup_btn_layout)
         
         backup_layout.addStretch()
-        tabs.addTab(backup_tab, "Backup Restore")
+        self.tab_widget.addTab(backup_tab, "Backup Restore")
         
-        # ========== TAB 3: SETTINGS ==========
+        # TAB 4: SETTINGS
         settings_tab = QWidget()
         settings_layout = QVBoxLayout(settings_tab)
         
@@ -1103,15 +1262,10 @@ class AdvancedSettingsDialog(QDialog):
         settings_layout.addWidget(changes_group)
         
         settings_layout.addStretch()
-        tabs.addTab(settings_tab, "Settings")
+        self.tab_widget.addTab(settings_tab, "Settings")
         
-        right_layout.addWidget(tabs)
-        main_splitter.addWidget(right_panel)
+        layout.addWidget(self.tab_widget)
         
-        main_splitter.setSizes([700, 400])
-        layout.addWidget(main_splitter)
-        
-        # Close button
         button_box = QDialogButtonBox(QDialogButtonBox.Close)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
@@ -1157,22 +1311,46 @@ class AdvancedSettingsDialog(QDialog):
         """)
         
         self.update_mode_visibility()
+    
+    def refresh_display(self):
+        """Force refresh of the entire display with current data from parent"""
+        if not self.parent:
+            return
         
-    def load_data(self):
-        """Load initial data"""
-        if self.parent:
-            # Copy formulas from parent
-            self.curve_graph.set_formulas(
-                self.parent.qual_a, self.parent.qual_b,
-                self.parent.race_a, self.parent.race_b
-            )
-        self.curve_graph.load_data()
-        self.refresh_backup_list()
+        current_track = getattr(self.parent, 'current_track', None)
+        current_vehicle = getattr(self.parent, 'current_vehicle', None)
+        user_qual_time = getattr(self.parent, 'user_qualifying_sec', 0.0)
+        user_race_time = getattr(self.parent, 'user_best_lap_sec', 0.0)
+        qual_a = getattr(self.parent, 'qual_a', 30.0)
+        qual_b = getattr(self.parent, 'qual_b', 70.0)
+        race_a = getattr(self.parent, 'race_a', 30.0)
+        race_b = getattr(self.parent, 'race_b', 70.0)
+        last_qual_ratio = getattr(self.parent, 'last_qual_ratio', None)
+        last_race_ratio = getattr(self.parent, 'last_race_ratio', None)
         
+        self.curve_graph.update_current_info(
+            track=current_track,
+            vehicle=current_vehicle,
+            qual_time=user_qual_time if user_qual_time > 0 else None,
+            race_time=user_race_time if user_race_time > 0 else None,
+            qual_ratio=last_qual_ratio,
+            race_ratio=last_race_ratio
+        )
+        
+        self.curve_graph.set_formulas(qual_a, qual_b, race_a, race_b)
+        self.curve_graph.full_refresh()
+    
+    def showEvent(self, event):
+        """Called when dialog is shown - refresh data"""
+        self.refresh_display()
+        super().showEvent(event)
+    
     def on_point_selected(self, track, session, ratio, lap_time):
-        """Handle point selection"""
-        pass  # Already handled by graph
-        
+        pass
+    
+    def on_data_updated(self):
+        self.data_updated.emit()
+    
     def on_target_mode_changed(self):
         if self.percentage_radio.isChecked():
             self.target_mode = "percentage"
@@ -1181,7 +1359,7 @@ class AdvancedSettingsDialog(QDialog):
         else:
             self.target_mode = "slower_than_worst"
         self.update_mode_visibility()
-        
+    
     def update_mode_visibility(self):
         for child in self.findChildren(QGroupBox):
             if "Percentage Setting" in child.title():
@@ -1189,7 +1367,7 @@ class AdvancedSettingsDialog(QDialog):
             elif "Fixed Offset Setting" in child.title():
                 child.setVisible(self.target_mode != "percentage")
         self.update_mode_description()
-        
+    
     def update_mode_description(self):
         if self.target_mode == "percentage":
             pct = self.target_percent_slider.value()
@@ -1220,38 +1398,38 @@ class AdvancedSettingsDialog(QDialog):
             else:
                 desc = f"You will be {abs(offset):.2f} seconds SLOWER than the slowest AI"
             self.offset_description.setText(desc)
-            
+    
     def on_percent_changed(self, value):
         self.target_percent_spin.blockSignals(True)
         self.target_percent_spin.setValue(value)
         self.target_percent_spin.blockSignals(False)
         self.target_percentage = value
         self.update_mode_description()
-        
+    
     def on_percent_spin_changed(self, value):
         self.target_percent_slider.blockSignals(True)
         self.target_percent_slider.setValue(value)
         self.target_percent_slider.blockSignals(False)
         self.target_percentage = value
         self.update_mode_description()
-        
+    
     def on_offset_changed(self, value):
         self.target_offset_seconds = value
         self.update_mode_description()
-        
+    
     def on_error_margin_changed(self, value):
         seconds = value / 100.0
         self.error_margin_spin.blockSignals(True)
         self.error_margin_spin.setValue(seconds)
         self.error_margin_spin.blockSignals(False)
         self.ai_error_margin = seconds
-        
+    
     def on_error_margin_spin_changed(self, value):
         self.error_margin_slider.blockSignals(True)
         self.error_margin_slider.setValue(int(value * 100))
         self.error_margin_slider.blockSignals(False)
         self.ai_error_margin = value
-        
+    
     def apply_target_settings(self):
         settings = {
             "mode": self.target_mode,
@@ -1267,24 +1445,24 @@ class AdvancedSettingsDialog(QDialog):
         QMessageBox.information(self, "Settings Applied", 
             f"AI Target settings have been applied.\n\n"
             f"These settings will be used the next time Autopilot runs.")
-            
+    
     def on_silent_mode_toggled(self, checked):
         if self.parent:
             self.parent.autopilot_silent = checked
             if hasattr(self.parent, 'autopilot_manager'):
                 self.parent.autopilot_manager.set_silent(checked)
             self.add_change_entry("Settings", f"Silent Mode {'ON' if checked else 'OFF'}")
-            
+    
     def show_log_window(self):
         if self.log_window:
             self.log_window.show()
             self.log_window.raise_()
-            
+    
     def add_change_entry(self, category, message):
         timestamp = datetime.now().strftime("%H:%M:%S")
         self.changes_list.addItem(f"[{timestamp}] [{category}] {message}")
         self.changes_list.scrollToBottom()
-        
+    
     def scan_aiw_backups(self):
         backups = []
         
@@ -1308,13 +1486,12 @@ class AdvancedSettingsDialog(QDialog):
                 })
         
         return sorted(backups, key=lambda x: x.get("track", ""))
-        
+    
     def restore_aiw_backup(self, backup_info):
         try:
             backup_path = backup_info["backup_path"]
             original_name = backup_info["original_file"]
             
-            # Try to find the original location
             restore_path = None
             
             if self.parent and hasattr(self.parent, 'daemon') and self.parent.daemon:
@@ -1346,7 +1523,7 @@ class AdvancedSettingsDialog(QDialog):
         except Exception as e:
             print(f"Error restoring backup: {e}")
             return False
-            
+    
     def refresh_backup_list(self):
         self.backup_list.clear()
         backups = self.scan_aiw_backups()
@@ -1360,7 +1537,7 @@ class AdvancedSettingsDialog(QDialog):
             item_text = f"{backup['track']} - {backup['original_file']} (backup: {time_str})"
             self.backup_list.addItem(item_text)
             self.backup_list.item(self.backup_list.count() - 1).setData(Qt.UserRole, backup)
-            
+    
     def restore_selected_backups(self):
         selected_items = self.backup_list.selectedItems()
         if not selected_items:
@@ -1386,7 +1563,7 @@ class AdvancedSettingsDialog(QDialog):
             self.add_change_entry("Backup", f"Restored {restored} AIW file(s)")
             QMessageBox.information(self, "Restore Complete", f"Successfully restored {restored} AIW file(s).")
             self.refresh_backup_list()
-            
+    
     def restore_all_backups(self):
         backups = self.scan_aiw_backups()
         if not backups:
@@ -1414,7 +1591,6 @@ class AdvancedSettingsDialog(QDialog):
 
 
 def setup_dark_theme(app):
-    """Apply dark theme styling to the application"""
     app.setStyle('Fusion')
     app.setStyleSheet("""
         QMainWindow, QWidget {
@@ -1490,6 +1666,9 @@ def setup_dark_theme(app):
         }
         QCheckBox {
             color: white;
+        }
+        QFrame {
+            background-color: transparent;
         }
     """)
 
