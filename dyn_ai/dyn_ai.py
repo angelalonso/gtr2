@@ -1,4 +1,4 @@
-# dyn_ai.py - Complete fixed version with correct title and autopilot button
+# dyn_ai.py - Complete fixed version with improved formula quality indicators
 #!/usr/bin/env python3
 """
 Live AI Tuner - Simplified GUI
@@ -16,7 +16,7 @@ from datetime import datetime
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
     QLabel, QPushButton, QGroupBox, QGridLayout, QCheckBox,
-    QSplitter, QFrame, QSizePolicy
+    QSplitter, QFrame, QSizePolicy, QProgressBar
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QObject
 from PyQt5.QtGui import QFont
@@ -154,9 +154,9 @@ class SimplifiedCurveViewer(QMainWindow):
     def __init__(self, db_path: str = "ai_data.db", config_file: str = "cfg.yml"):
         super().__init__()
         self.setWindowTitle("GTR2 Dynamic AI")
-        self.setGeometry(100, 100, 500, 400)
+        self.setGeometry(100, 100, 500, 480)
         self.setMinimumWidth(400)
-        self.setMinimumHeight(350)
+        self.setMinimumHeight(420)
         
         self.config_file = config_file
         self.config = get_config_with_defaults(config_file)
@@ -192,8 +192,12 @@ class SimplifiedCurveViewer(QMainWindow):
         self.qual_b: float = 70.0
         self.race_a: float = 30.0
         self.race_b: float = 70.0
+        self.qual_ratio_count: int = 0
+        self.race_ratio_count: int = 0
         self.qual_error_pct: float = 0.0
         self.race_error_pct: float = 0.0
+        self.qual_outliers: int = 0
+        self.race_outliers: int = 0
         
         # Current selection
         self.current_track: str = ""
@@ -275,15 +279,31 @@ class SimplifiedCurveViewer(QMainWindow):
         quality_group = QGroupBox("Formula Quality")
         quality_layout = QGridLayout(quality_group)
         
+        # Qualifying quality with progress bar
+        quality_layout.addWidget(QLabel("Qualifying:"), 0, 0)
         self.qual_quality_label = QLabel("-")
         self.qual_quality_label.setStyleSheet("color: #FFFF00;")
-        quality_layout.addWidget(QLabel("Qualifying:"), 0, 0)
         quality_layout.addWidget(self.qual_quality_label, 0, 1)
         
+        self.qual_progress = QProgressBar()
+        self.qual_progress.setRange(0, 100)
+        self.qual_progress.setValue(0)
+        self.qual_progress.setFixedHeight(10)
+        self.qual_progress.setTextVisible(False)
+        quality_layout.addWidget(self.qual_progress, 1, 0, 1, 2)
+        
+        # Race quality with progress bar
+        quality_layout.addWidget(QLabel("Race:"), 2, 0)
         self.race_quality_label = QLabel("-")
         self.race_quality_label.setStyleSheet("color: #FF6600;")
-        quality_layout.addWidget(QLabel("Race:"), 1, 0)
-        quality_layout.addWidget(self.race_quality_label, 1, 1)
+        quality_layout.addWidget(self.race_quality_label, 2, 1)
+        
+        self.race_progress = QProgressBar()
+        self.race_progress.setRange(0, 100)
+        self.race_progress.setValue(0)
+        self.race_progress.setFixedHeight(10)
+        self.race_progress.setTextVisible(False)
+        quality_layout.addWidget(self.race_progress, 3, 0, 1, 2)
         
         layout.addWidget(quality_group)
         
@@ -339,6 +359,109 @@ class SimplifiedCurveViewer(QMainWindow):
         
         # Status bar
         self.statusBar().showMessage("Ready")
+    
+    def _get_formula_quality_text(self, ratio_count: int, error_pct: float, outliers: int) -> Tuple[str, str, int]:
+        """
+        Determine formula quality based on number of distinct ratios, error percentage, and outliers.
+        Returns (quality_text, color_style, progress_percentage)
+        """
+        # Extremely low: 1 distinct ratio
+        if ratio_count == 1:
+            return "Extremely Low (1 ratio)", "#888888", 5
+        
+        # Very low: less than 3 distinct ratios
+        if ratio_count < 3:
+            return f"Very Low ({ratio_count} ratios)", "#888888", 15
+        
+        # Check for outliers (more than 30% of points are outliers with >5% error)
+        if ratio_count > 0:
+            outlier_ratio = outliers / ratio_count
+            if outlier_ratio > 0.3:
+                return f"Low ({outliers} outliers)", "#FF9800", 25
+        
+        # Medium: deviation lower than 5%
+        if error_pct < 5:
+            # High: deviation lower than 2%
+            if error_pct < 2:
+                progress = 90
+                if error_pct < 1:
+                    return f"Excellent (±{error_pct:.1f}%)", "#4CAF50", 95
+                return f"High (±{error_pct:.1f}%)", "#4CAF50", 80
+            return f"Medium (±{error_pct:.1f}%)", "#FFC107", 60
+        
+        # Low: deviation higher than 5%
+        if error_pct < 10:
+            return f"Fair (±{error_pct:.1f}%)", "#FF9800", 40
+        
+        return f"Poor (±{error_pct:.1f}%)", "#F44336", 20
+    
+    def _calculate_formula_stats(self, track: str, vehicle_class: str, session_type: str):
+        """
+        Calculate statistics for a formula including number of distinct ratios and outliers.
+        """
+        if not track or not vehicle_class:
+            return 0, 0.0, 0
+        
+        conn = sqlite3.connect(self.db.db_path)
+        cursor = conn.cursor()
+        
+        session_filter = "qual" if session_type == "qual" else "race"
+        
+        # Get all vehicles in this class for this track
+        cursor.execute("SELECT DISTINCT vehicle FROM data_points WHERE track = ?", (track,))
+        all_vehicles = [row[0] for row in cursor.fetchall()]
+        
+        vehicles_in_class = []
+        for vehicle in all_vehicles:
+            if get_vehicle_class(vehicle, self.class_mapping) == vehicle_class:
+                vehicles_in_class.append(vehicle)
+        
+        if not vehicles_in_class:
+            conn.close()
+            return 0, 0.0, 0
+        
+        placeholders = ','.join('?' * len(vehicles_in_class))
+        
+        # Get distinct ratios and their corresponding lap times
+        # For each distinct ratio, we need to know the lap times to calculate error
+        query = f"""
+            SELECT DISTINCT ratio, lap_time, session_type 
+            FROM data_points 
+            WHERE track = ? AND vehicle IN ({placeholders}) AND session_type = ?
+            ORDER BY ratio
+        """
+        cursor.execute(query, [track] + vehicles_in_class + [session_filter])
+        rows = cursor.fetchall()
+        conn.close()
+        
+        ratio_count = len(rows)
+        
+        if ratio_count < 2:
+            return ratio_count, 0.0, 0
+        
+        # Get formula from autopilot for this track/class/session
+        formula = self.autopilot_manager.formula_manager.get_formula_by_class(track, vehicle_class, session_type)
+        
+        if not formula or not formula.is_valid():
+            return ratio_count, 0.0, 0
+        
+        # Calculate errors for each distinct ratio and count outliers
+        errors = []
+        outliers = 0
+        
+        for ratio, lap_time, _ in rows:
+            if ratio and ratio > 0:
+                predicted = formula.get_time_at_ratio(ratio)
+                if predicted > 0:
+                    error = abs(lap_time - predicted)
+                    error_pct = (error / lap_time) * 100 if lap_time > 0 else 0
+                    errors.append(error_pct)
+                    if error_pct > 5:  # More than 5% error is considered an outlier
+                        outliers += 1
+        
+        avg_error_pct = sum(errors) / len(errors) if errors else 0
+        
+        return ratio_count, avg_error_pct, outliers
     
     def _update_autopilot_ui(self):
         """Update autopilot button appearance based on state"""
@@ -442,15 +565,20 @@ class SimplifiedCurveViewer(QMainWindow):
             self.update_display()
     
     def _update_formulas_from_autopilot(self):
-        """Update current formulas from autopilot"""
-        if not self.current_track or not self.current_vehicle:
-            return
+        """Update current formulas from autopilot and calculate stats"""
+        if not self.current_track or not self.current_vehicle_class:
+            # Try to get vehicle class from current vehicle
+            if self.current_vehicle:
+                self.current_vehicle_class = get_vehicle_class(self.current_vehicle, self.class_mapping)
+            if not self.current_vehicle_class:
+                return
         
         # Get qualifying formula
-        qual_formula = self.autopilot_manager.formula_manager.get_formula(
-            self.current_track, self.current_vehicle, "qual"
+        qual_formula = self.autopilot_manager.formula_manager.get_formula_by_class(
+            self.current_track, self.current_vehicle_class, "qual"
         )
         if not qual_formula:
+            # Try to get from track formulas
             track_formulas = self.autopilot_manager.formula_manager.get_all_formulas_for_track(self.current_track)
             for f in track_formulas:
                 if f.session_type == "qual" and f.is_valid():
@@ -460,11 +588,10 @@ class SimplifiedCurveViewer(QMainWindow):
         if qual_formula and qual_formula.is_valid():
             self.qual_a = qual_formula.a
             self.qual_b = qual_formula.b
-            self.qual_error_pct = qual_formula.avg_error / qual_formula.get_time_at_ratio(1.0) * 100 if qual_formula.avg_error > 0 else 0
         
         # Get race formula
-        race_formula = self.autopilot_manager.formula_manager.get_formula(
-            self.current_track, self.current_vehicle, "race"
+        race_formula = self.autopilot_manager.formula_manager.get_formula_by_class(
+            self.current_track, self.current_vehicle_class, "race"
         )
         if not race_formula:
             track_formulas = self.autopilot_manager.formula_manager.get_all_formulas_for_track(self.current_track)
@@ -476,7 +603,19 @@ class SimplifiedCurveViewer(QMainWindow):
         if race_formula and race_formula.is_valid():
             self.race_a = race_formula.a
             self.race_b = race_formula.b
-            self.race_error_pct = race_formula.avg_error / race_formula.get_time_at_ratio(1.0) * 100 if race_formula.avg_error > 0 else 0
+        
+        # Calculate statistics for qualifying (counts distinct ratios, not data points)
+        self.qual_ratio_count, self.qual_error_pct, self.qual_outliers = self._calculate_formula_stats(
+            self.current_track, self.current_vehicle_class, "qual"
+        )
+        
+        # Calculate statistics for race
+        self.race_ratio_count, self.race_error_pct, self.race_outliers = self._calculate_formula_stats(
+            self.current_track, self.current_vehicle_class, "race"
+        )
+        
+        logger.info(f"Formula stats - Qual: {self.qual_ratio_count} ratios, {self.qual_error_pct:.2f}% error, {self.qual_outliers} outliers")
+        logger.info(f"Formula stats - Race: {self.race_ratio_count} ratios, {self.race_error_pct:.2f}% error, {self.race_outliers} outliers")
     
     def start_daemon(self):
         """Start file monitoring daemon"""
@@ -552,6 +691,12 @@ class SimplifiedCurveViewer(QMainWindow):
             if race_data.user_vehicle:
                 self.current_vehicle = race_data.user_vehicle
                 self.current_vehicle_class = get_vehicle_class(self.current_vehicle, self.class_mapping)
+                
+                # Force update of formulas and stats immediately after new data
+                if self.autopilot_enabled:
+                    self.autopilot_manager.reload_formulas()
+                    self._update_formulas_from_autopilot()
+                
                 self.update_display()
             
             # Run autopilot
@@ -654,18 +799,37 @@ class SimplifiedCurveViewer(QMainWindow):
         self.qual_ratio_label.setText(f"{qual_ratio:.6f}" if qual_ratio else "-")
         self.race_ratio_label.setText(f"{race_ratio:.6f}" if race_ratio else "-")
         
-        # Formula quality
-        if self.qual_error_pct > 0:
-            quality = "Excellent" if self.qual_error_pct < 2 else "Good" if self.qual_error_pct < 5 else "Fair" if self.qual_error_pct < 10 else "Poor"
-            self.qual_quality_label.setText(f"{quality} (±{self.qual_error_pct:.1f}%)")
+        # Update qualifying quality display
+        qual_text, qual_color, qual_progress = self._get_formula_quality_text(
+            self.qual_ratio_count, self.qual_error_pct, self.qual_outliers
+        )
+        self.qual_quality_label.setText(qual_text)
+        self.qual_quality_label.setStyleSheet(f"color: {qual_color};")
+        self.qual_progress.setValue(qual_progress)
+        if qual_progress >= 80:
+            self.qual_progress.setStyleSheet("QProgressBar::chunk { background-color: #4CAF50; }")
+        elif qual_progress >= 50:
+            self.qual_progress.setStyleSheet("QProgressBar::chunk { background-color: #FFC107; }")
+        elif qual_progress >= 20:
+            self.qual_progress.setStyleSheet("QProgressBar::chunk { background-color: #FF9800; }")
         else:
-            self.qual_quality_label.setText("Insufficient data")
+            self.qual_progress.setStyleSheet("QProgressBar::chunk { background-color: #F44336; }")
         
-        if self.race_error_pct > 0:
-            quality = "Excellent" if self.race_error_pct < 2 else "Good" if self.race_error_pct < 5 else "Fair" if self.race_error_pct < 10 else "Poor"
-            self.race_quality_label.setText(f"{quality} (±{self.race_error_pct:.1f}%)")
+        # Update race quality display
+        race_text, race_color, race_progress = self._get_formula_quality_text(
+            self.race_ratio_count, self.race_error_pct, self.race_outliers
+        )
+        self.race_quality_label.setText(race_text)
+        self.race_quality_label.setStyleSheet(f"color: {race_color};")
+        self.race_progress.setValue(race_progress)
+        if race_progress >= 80:
+            self.race_progress.setStyleSheet("QProgressBar::chunk { background-color: #4CAF50; }")
+        elif race_progress >= 50:
+            self.race_progress.setStyleSheet("QProgressBar::chunk { background-color: #FFC107; }")
+        elif race_progress >= 20:
+            self.race_progress.setStyleSheet("QProgressBar::chunk { background-color: #FF9800; }")
         else:
-            self.race_quality_label.setText("Insufficient data")
+            self.race_progress.setStyleSheet("QProgressBar::chunk { background-color: #F44336; }")
         
         # Formulas
         self.qual_formula_label.setText(f"Qualifying: {get_formula_string(self.qual_a, self.qual_b)}")
