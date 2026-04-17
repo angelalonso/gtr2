@@ -1,4 +1,11 @@
 {
+  "GT_0304": {
+    "classes": ["GT_0304"],
+    "vehicles": [
+      "Ferrari 550",
+      "Porsche 996"
+    ]
+  },
   "Formula Cars": {
     "classes": ["Formula", "OpenWheel", "SingleSeater"],
     "vehicles": [
@@ -24,7 +31,6 @@
     "classes": ["GT", "GTE", "GT3", "GT4", "GT2", "GT1"],
     "vehicles": [
       "Porsche 911",
-      "Porsche 996",
       "Porsche 997",
       "Ferrari 550",
       "Ferrari 360",
