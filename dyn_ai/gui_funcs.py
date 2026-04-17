@@ -1,4 +1,4 @@
-# gui_funcs.py - Complete fixed version using vehicle classes
+# gui_funcs.py - Complete fixed version with proper imports
 #!/usr/bin/env python3
 """
 GUI module for curve viewer
@@ -455,7 +455,7 @@ class CurveGraphWidget(QWidget):
         table_layout = QVBoxLayout(table_group)
         
         self.data_table = QTableWidget()
-        self.data_table.setColumnCount(5)
+        self.data_table.setColumnCount(6)
         self.data_table.setHorizontalHeaderLabels(["Track", "Vehicle", "Class", "Ratio", "Lap Time", "Session"])
         self.data_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.data_table.setSelectionBehavior(QAbstractItemView.SelectRows)
