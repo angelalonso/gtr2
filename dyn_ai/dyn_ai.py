@@ -398,6 +398,7 @@ class SimplifiedCurveViewer(QMainWindow):
     def _calculate_formula_stats(self, track: str, vehicle_class: str, session_type: str):
         """
         Calculate statistics for a formula including number of distinct ratios and outliers.
+        Uses vehicle_class column instead of vehicle.
         """
         if not track or not vehicle_class:
             return 0, 0.0, 0
@@ -407,14 +408,9 @@ class SimplifiedCurveViewer(QMainWindow):
         
         session_filter = "qual" if session_type == "qual" else "race"
         
-        # Get all vehicles in this class for this track
-        cursor.execute("SELECT DISTINCT vehicle FROM data_points WHERE track = ?", (track,))
-        all_vehicles = [row[0] for row in cursor.fetchall()]
-        
-        vehicles_in_class = []
-        for vehicle in all_vehicles:
-            if get_vehicle_class(vehicle, self.class_mapping) == vehicle_class:
-                vehicles_in_class.append(vehicle)
+        # Get all distinct vehicle classes for this track
+        cursor.execute("SELECT DISTINCT vehicle_class FROM data_points WHERE track = ? AND vehicle_class = ?", (track, vehicle_class))
+        vehicles_in_class = [row[0] for row in cursor.fetchall()]
         
         if not vehicles_in_class:
             conn.close()
@@ -423,11 +419,10 @@ class SimplifiedCurveViewer(QMainWindow):
         placeholders = ','.join('?' * len(vehicles_in_class))
         
         # Get distinct ratios and their corresponding lap times
-        # For each distinct ratio, we need to know the lap times to calculate error
         query = f"""
             SELECT DISTINCT ratio, lap_time, session_type 
             FROM data_points 
-            WHERE track = ? AND vehicle IN ({placeholders}) AND session_type = ?
+            WHERE track = ? AND vehicle_class IN ({placeholders}) AND session_type = ?
             ORDER BY ratio
         """
         cursor.execute(query, [track] + vehicles_in_class + [session_filter])
@@ -672,17 +667,18 @@ class SimplifiedCurveViewer(QMainWindow):
         race_id = self.db.save_race_session(race_dict)
         
         if race_id:
-            # Add data points with CORRECT vehicle for each AI driver
+            # Add data points with CORRECT vehicle class for each AI driver
             points_added = 0
-            for track, vehicle, ratio, lap_time, session_type in race_data.to_data_points_with_vehicles():
+            for track, vehicle_name, ratio, lap_time, session_type in race_data.to_data_points_with_vehicles():
                 try:
-                    # Ensure ratio and lap_time are floats
+                    # Convert vehicle name to class before storing
+                    vehicle_class = get_vehicle_class(vehicle_name, self.class_mapping)
                     ratio_float = float(ratio)
                     lap_time_float = float(lap_time)
-                    if self.db.add_data_point(track, vehicle, ratio_float, lap_time_float, session_type):
+                    if self.db.add_data_point(track, vehicle_class, ratio_float, lap_time_float, session_type):
                         points_added += 1
                 except (ValueError, TypeError) as e:
-                    logger.error(f"Failed to add data point: {e} - ratio={ratio}, lap_time={lap_time}")
+                    logger.error(f"Failed to add data point: {e} - vehicle={vehicle_name}, ratio={ratio}, lap_time={lap_time}")
             
             if points_added > 0:
                 logger.info(f"📝 Saved {points_added} new data points")
@@ -742,7 +738,7 @@ class SimplifiedCurveViewer(QMainWindow):
             return
         
         self.all_tracks = self.db.get_all_tracks()
-        self.all_vehicles = self.db.get_all_vehicles()
+        self.all_vehicles = self.db.get_all_vehicle_classes()
         
         # Set defaults
         if self.all_tracks and not self.current_track:

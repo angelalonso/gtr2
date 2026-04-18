@@ -345,20 +345,15 @@ class AutopilotEngine:
         session_filter = "qual" if session_type == "qual" else "race"
         
         cursor.execute("""
-            SELECT ratio, lap_time, vehicle 
+            SELECT ratio, lap_time, vehicle_class 
             FROM data_points 
-            WHERE track = ? AND session_type = ?
-        """, (track, session_filter))
+            WHERE track = ? AND session_type = ? AND vehicle_class = ?
+        """, (track, session_filter, vehicle_class))
         
         rows = cursor.fetchall()
-        
-        points = []
-        for ratio, lap_time, vehicle in rows:
-            vehicle_class_of_point = get_vehicle_class(vehicle, self._class_mapping)
-            if vehicle_class_of_point == vehicle_class:
-                points.append((ratio, lap_time))
-        
         conn.close()
+        
+        points = [(ratio, lap_time) for ratio, lap_time, _ in rows]
         logger.debug(f"Found {len(points)} data points for {track}/{vehicle_class} ({session_type})")
         return points
     

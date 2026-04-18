@@ -95,7 +95,8 @@ class RaceData:
     def to_data_points_with_vehicles(self) -> List[Tuple[str, str, float, float, str]]:
         """
         Convert to data points with CORRECT VEHICLE for each AI driver.
-        Returns list of (track, vehicle, ratio, lap_time, session_type)
+        Returns list of (track, vehicle_name, ratio, lap_time, session_type)
+        Note: vehicle_name will be converted to vehicle_class by the database layer
         """
         points = []
         

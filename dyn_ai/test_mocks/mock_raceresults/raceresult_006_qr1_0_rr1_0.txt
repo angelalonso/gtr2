@@ -14,7 +14,7 @@ Track Length=5782.6401
 
 [Slot000]
 Driver=TestPlayer
-Vehicle=Porsche 911
+Vehicle=Porsche 997 GT3 R
 VehicleNumber=6004
 Team=Ajira Racing
 Penalty=0
@@ -26,7 +26,7 @@ RaceTime=0:17:06.061
 
 [Slot001]
 Driver=TestAI1
-Vehicle=Gallardo
+Vehicle=Lamborghini Gallardo LP600+
 VehicleNumber=6002
 Team=Team RaceSim Central
 Penalty=0
@@ -38,7 +38,7 @@ RaceTime=0:15:54.100
 
 [Slot002]
 Driver=TestAI2
-Vehicle=Ferrari 458
+Vehicle=Ferrari F458 Italia
 VehicleNumber=6001
 Team=Team RaceSim Central
 Penalty=0
@@ -50,7 +50,7 @@ RaceTime=0:15:40.165
 
 [Slot003]
 Driver=TestAI3
-Vehicle=BMW M3
+Vehicle=BMW Z4 E89
 VehicleNumber=6009
 Team=Roaring Pipes Maniacs
 Penalty=0
@@ -62,7 +62,7 @@ RaceTime=0:16:15.417
 
 [Slot004]
 Driver=TestAI4
-Vehicle=Mercedes GT
+Vehicle=Mercedes-Benz SLS AMG
 VehicleNumber=6007
 Team=Team Redline
 Penalty=0

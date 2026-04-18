@@ -546,7 +546,7 @@ class CurveGraphWidget(QWidget):
         self.all_tracks = [row[0] for row in cursor.fetchall()]
         
         # Get all distinct vehicle classes from the database by mapping each vehicle to its class
-        cursor.execute("SELECT DISTINCT vehicle FROM data_points")
+        cursor.execute("SELECT DISTINCT vehicle_class FROM data_points")
         all_vehicles = [row[0] for row in cursor.fetchall()]
         
         # Convert to classes using the mapping
@@ -597,64 +597,60 @@ class CurveGraphWidget(QWidget):
         # Load data table for current track and selected classes
         self._load_data_table()
         self.data_updated.emit()
-    
+
     def _get_vehicles_for_classes(self, classes: List[str]) -> List[str]:
-        """Get all vehicle names that belong to the given classes"""
+        """Get all vehicle class names that match the selected classes"""
         if not classes:
             return []
         
         conn = sqlite3.connect(self.db.db_path)
         cursor = conn.cursor()
         
-        cursor.execute("SELECT DISTINCT vehicle FROM data_points")
-        all_vehicles = [row[0] for row in cursor.fetchall()]
+        # Now query data_points.vehicle_class directly
+        cursor.execute("SELECT DISTINCT vehicle_class FROM data_points")
+        all_classes = [row[0] for row in cursor.fetchall()]
         conn.close()
         
-        vehicles = []
-        for vehicle in all_vehicles:
-            vehicle_class = get_vehicle_class(vehicle, self.class_mapping)
-            if vehicle_class in classes:
-                vehicles.append(vehicle)
-        
-        return vehicles
-    
+        # Filter to selected classes
+        return [cls for cls in all_classes if cls in classes]
+
     def _load_data_table(self):
         """Load data points into table for current track and selected classes"""
         if not self.current_track:
             self.data_table.setRowCount(0)
             return
         
-        vehicles = self._get_vehicles_for_classes(self.selected_classes)
-        if not vehicles:
+        vehicle_classes = self._get_vehicles_for_classes(self.selected_classes)
+        if not vehicle_classes:
             self.data_table.setRowCount(0)
             return
         
         conn = sqlite3.connect(self.db.db_path)
         cursor = conn.cursor()
         
-        placeholders = ','.join('?' * len(vehicles))
+        placeholders = ','.join('?' * len(vehicle_classes))
         query = f"""
-            SELECT track, vehicle, ratio, lap_time, session_type 
+            SELECT track, vehicle_class, ratio, lap_time, session_type 
             FROM data_points 
-            WHERE track = ? AND vehicle IN ({placeholders})
+            WHERE track = ? AND vehicle_class IN ({placeholders})
             ORDER BY session_type, ratio
         """
-        cursor.execute(query, [self.current_track] + vehicles)
+        cursor.execute(query, [self.current_track] + vehicle_classes)
         rows = cursor.fetchall()
         conn.close()
         
         self.data_table.setRowCount(len(rows))
         for i, row in enumerate(rows):
-            track, vehicle, ratio, lap_time, session_type = row
-            vehicle_class = get_vehicle_class(vehicle, self.class_mapping)
+            track, vehicle_class, ratio, lap_time, session_type = row
             
             self.data_table.setItem(i, 0, QTableWidgetItem(str(track)))
-            self.data_table.setItem(i, 1, QTableWidgetItem(str(vehicle)))
-            self.data_table.setItem(i, 2, QTableWidgetItem(str(vehicle_class)))
+            self.data_table.setItem(i, 1, QTableWidgetItem(str(vehicle_class)))
+            self.data_table.setItem(i, 2, QTableWidgetItem(str(vehicle_class)))  # Class same as vehicle now
             self.data_table.setItem(i, 3, QTableWidgetItem(f"{ratio:.6f}"))
             self.data_table.setItem(i, 4, QTableWidgetItem(f"{lap_time:.3f}"))
             self.data_table.setItem(i, 5, QTableWidgetItem(str(session_type)))
             
+            # Color coding
             if session_type == 'qual':
                 color = QColor(58, 58, 0)
             elif session_type == 'race':
@@ -670,6 +666,63 @@ class CurveGraphWidget(QWidget):
         self.data_table.resizeRowsToContents()
         
         print(f"[DEBUG] Loaded {len(rows)} data points for track '{self.current_track}' with classes {self.selected_classes}")
+
+    def get_selected_data(self) -> dict:
+        """Get data points from database for current track and selected classes"""
+        if not self.current_track or not self.selected_classes:
+            return {'quali': [], 'race': [], 'unknown': []}
+        
+        vehicle_classes = self._get_vehicles_for_classes(self.selected_classes)
+        if not vehicle_classes:
+            return {'quali': [], 'race': [], 'unknown': []}
+        
+        conn = sqlite3.connect(self.db.db_path)
+        cursor = conn.cursor()
+        
+        placeholders = ','.join('?' * len(vehicle_classes))
+        query = f"""
+            SELECT ratio, lap_time, session_type 
+            FROM data_points 
+            WHERE track = ? AND vehicle_class IN ({placeholders})
+        """
+        cursor.execute(query, [self.current_track] + vehicle_classes)
+        rows = cursor.fetchall()
+        conn.close()
+        
+        result = {'quali': [], 'race': [], 'unknown': []}
+        for ratio, lap_time, session_type in rows:
+            if session_type == 'qual':
+                result['quali'].append((ratio, lap_time))
+            elif session_type == 'race':
+                result['race'].append((ratio, lap_time))
+            else:
+                result['unknown'].append((ratio, lap_time))
+        
+        print(f"[DEBUG] get_selected_data: track={self.current_track}, classes={self.selected_classes}")
+        print(f"[DEBUG]   quali: {len(result['quali'])}, race: {len(result['race'])}, unknown: {len(result['unknown'])}")
+        
+        return result
+    
+    def _get_vehicles_for_classes(self, classes: List[str]) -> List[str]:
+        """Get all vehicle names that belong to the given classes"""
+        if not classes:
+            return []
+        
+        conn = sqlite3.connect(self.db.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT DISTINCT vehicle_class FROM data_points")
+        all_vehicles = [row[0] for row in cursor.fetchall()]
+        conn.close()
+        
+        vehicles = []
+        for vehicle in all_vehicles:
+            vehicle_class = get_vehicle_class(vehicle, self.class_mapping)
+            if vehicle_class in classes:
+                vehicles.append(vehicle)
+        
+        return vehicles
+    
     
     def on_track_changed(self, track):
         """Handle track selection change"""
@@ -740,43 +793,6 @@ class CurveGraphWidget(QWidget):
     def reset_view(self):
         self.plot.setXRange(0.4, 2.0)
         self.plot.setYRange(50, 200)
-    
-    def get_selected_data(self) -> dict:
-        """Get data points from database for current track and selected classes"""
-        if not self.current_track or not self.selected_classes:
-            print(f"[DEBUG] No track or classes: track={self.current_track}, classes={self.selected_classes}")
-            return {'quali': [], 'race': [], 'unknown': []}
-        
-        vehicles = self._get_vehicles_for_classes(self.selected_classes)
-        if not vehicles:
-            return {'quali': [], 'race': [], 'unknown': []}
-        
-        conn = sqlite3.connect(self.db.db_path)
-        cursor = conn.cursor()
-        
-        placeholders = ','.join('?' * len(vehicles))
-        query = f"""
-            SELECT ratio, lap_time, session_type 
-            FROM data_points 
-            WHERE track = ? AND vehicle IN ({placeholders})
-        """
-        cursor.execute(query, [self.current_track] + vehicles)
-        rows = cursor.fetchall()
-        conn.close()
-        
-        result = {'quali': [], 'race': [], 'unknown': []}
-        for ratio, lap_time, session_type in rows:
-            if session_type == 'qual':
-                result['quali'].append((ratio, lap_time))
-            elif session_type == 'race':
-                result['race'].append((ratio, lap_time))
-            else:
-                result['unknown'].append((ratio, lap_time))
-        
-        print(f"[DEBUG] get_selected_data: track={self.current_track}, classes={self.selected_classes}")
-        print(f"[DEBUG]   quali: {len(result['quali'])}, race: {len(result['race'])}, unknown: {len(result['unknown'])}")
-        
-        return result
     
     def update_graph(self):
         ratios = np.linspace(0.4, 2.0, 200)

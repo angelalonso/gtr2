@@ -23,12 +23,12 @@ class CurveDatabase:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
-        # Data points table (existing)
+        # Data points table - using vehicle_class instead of vehicle
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS data_points (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 track TEXT NOT NULL,
-                vehicle TEXT NOT NULL,
+                vehicle_class TEXT NOT NULL,
                 ratio REAL NOT NULL,
                 lap_time REAL NOT NULL,
                 session_type TEXT NOT NULL,
@@ -56,7 +56,7 @@ class CurveDatabase:
             )
         """)
         
-        # AI results table - now stores ALL AI drivers, not just best/worst
+        # AI results table - stores original vehicle names (not classes)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS ai_results (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -76,15 +76,37 @@ class CurveDatabase:
             )
         """)
         
+        # Formulas table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS formulas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                track TEXT NOT NULL,
+                vehicle_class TEXT NOT NULL,
+                a REAL NOT NULL,
+                b REAL NOT NULL,
+                session_type TEXT NOT NULL,
+                confidence REAL DEFAULT 1.0,
+                data_points_used INTEGER DEFAULT 0,
+                avg_error REAL DEFAULT 0.0,
+                max_error REAL DEFAULT 0.0,
+                vehicles_in_class TEXT DEFAULT '',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                last_used TEXT DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(track, vehicle_class, session_type)
+            )
+        """)
+        
         # Create indexes
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_track ON data_points(track)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_vehicle ON data_points(vehicle)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_vehicle_class ON data_points(vehicle_class)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_session ON data_points(session_type)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_track_session ON data_points(track, session_type)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_race_track ON race_sessions(track_name)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_race_timestamp ON race_sessions(timestamp)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_race ON ai_results(race_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_times ON ai_results(qual_time_sec, best_lap_sec)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_formulas_track ON formulas(track)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_formulas_class ON formulas(vehicle_class)")
         
         conn.commit()
         conn.close()
@@ -102,19 +124,23 @@ class CurveDatabase:
         conn.close()
         return tracks
     
-    def get_all_vehicles(self) -> List[str]:
-        """Get all unique vehicle names"""
+    def get_all_vehicle_classes(self) -> List[str]:
+        """Get all unique vehicle class names"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        cursor.execute("SELECT DISTINCT vehicle FROM data_points ORDER BY vehicle")
+        cursor.execute("SELECT DISTINCT vehicle_class FROM data_points ORDER BY vehicle_class")
         vehicles = [row[0] for row in cursor.fetchall()]
         conn.close()
         return vehicles
     
+    def get_all_vehicles(self) -> List[str]:
+        """Deprecated: Use get_all_vehicle_classes instead"""
+        return self.get_all_vehicle_classes()
+    
     def get_data_points(
         self, 
         tracks: List[str], 
-        vehicles: List[str],
+        vehicle_classes: List[str],
         show_qualifying: bool = True,
         show_race: bool = True,
         show_unknown: bool = True
@@ -124,7 +150,7 @@ class CurveDatabase:
         
         Returns list of tuples (ratio, lap_time, session_type)
         """
-        if not tracks or not vehicles:
+        if not tracks or not vehicle_classes:
             return []
         
         conn = sqlite3.connect(self.db_path)
@@ -132,7 +158,7 @@ class CurveDatabase:
         
         # Build query with placeholders
         track_placeholders = ','.join(['?' for _ in tracks])
-        vehicle_placeholders = ','.join(['?' for _ in vehicles])
+        vehicle_placeholders = ','.join(['?' for _ in vehicle_classes])
         
         # Build session type filter
         session_filters = []
@@ -153,12 +179,12 @@ class CurveDatabase:
             SELECT ratio, lap_time, session_type 
             FROM data_points 
             WHERE track IN ({track_placeholders}) 
-            AND vehicle IN ({vehicle_placeholders})
+            AND vehicle_class IN ({vehicle_placeholders})
             AND {session_clause}
             ORDER BY ratio
         """
         
-        params = tracks + vehicles
+        params = tracks + vehicle_classes
         cursor.execute(query, params)
         
         points = [(row[0], row[1], row[2]) for row in cursor.fetchall()]
@@ -167,7 +193,7 @@ class CurveDatabase:
         # Debug output
         print(f"\n[Database] get_data_points called:")
         print(f"  Tracks: {tracks}")
-        print(f"  Vehicles: {vehicles}")
+        print(f"  Vehicle classes: {vehicle_classes}")
         print(f"  Show qualifying: {show_qualifying}")
         print(f"  Show race: {show_race}")
         print(f"  Show unknown: {show_unknown}")
@@ -195,8 +221,8 @@ class CurveDatabase:
         cursor.execute("SELECT COUNT(DISTINCT track) FROM data_points")
         total_tracks = cursor.fetchone()[0]
         
-        cursor.execute("SELECT COUNT(DISTINCT vehicle) FROM data_points")
-        total_vehicles = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(DISTINCT vehicle_class) FROM data_points")
+        total_vehicle_classes = cursor.fetchone()[0]
         
         cursor.execute("SELECT COUNT(*) FROM race_sessions")
         total_races = cursor.fetchone()[0]
@@ -204,15 +230,19 @@ class CurveDatabase:
         cursor.execute("SELECT COUNT(*) FROM ai_results")
         total_ai_results = cursor.fetchone()[0]
         
+        cursor.execute("SELECT COUNT(*) FROM formulas")
+        total_formulas = cursor.fetchone()[0]
+        
         conn.close()
         
         return {
             'total_points': total_points,
             'by_type': by_type,
             'total_tracks': total_tracks,
-            'total_vehicles': total_vehicles,
+            'total_vehicle_classes': total_vehicle_classes,
             'total_races': total_races,
-            'total_ai_results': total_ai_results
+            'total_ai_results': total_ai_results,
+            'total_formulas': total_formulas
         }
     
     def save_race_session(self, race_data: dict) -> Optional[str]:
@@ -265,7 +295,7 @@ class CurveDatabase:
             
             print(f"    ✓ Race session inserted")
             
-            # Insert ALL AI results
+            # Insert ALL AI results (keeping original vehicle names)
             ai_count = 0
             for ai in race_data.get('ai_results', []):
                 cursor.execute("""
@@ -314,19 +344,19 @@ class CurveDatabase:
     def add_data_point(
         self, 
         track: str, 
-        vehicle: str, 
+        vehicle_class: str, 
         ratio: float, 
         lap_time: float, 
         session_type: str
     ) -> bool:
         """Add a new data point to the database"""
         try:
-            conn = sqlite3.connect(self.db_path)  # FIXED: use self.db_path, not self.db
+            conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO data_points (track, vehicle, ratio, lap_time, session_type)
+                INSERT INTO data_points (track, vehicle_class, ratio, lap_time, session_type)
                 VALUES (?, ?, ?, ?, ?)
-            """, (track, vehicle, float(ratio), float(lap_time), session_type))
+            """, (track, vehicle_class, float(ratio), float(lap_time), session_type))
             conn.commit()
             conn.close()
             print(f"  [DB] Added {session_type} point: {track} R={float(ratio):.4f} T={float(lap_time):.2f}s")
@@ -335,9 +365,8 @@ class CurveDatabase:
             print(f"Error adding data point: {e}")
             return False
 
-
     def add_data_points_batch(self, points: List[Tuple[str, str, float, float, str]]) -> int:
-        """Add multiple data points in batch"""
+        """Add multiple data points in batch (track, vehicle_class, ratio, lap_time, session_type)"""
         if not points:
             return 0
         
@@ -345,12 +374,12 @@ class CurveDatabase:
         cursor = conn.cursor()
         
         added = 0
-        for track, vehicle, ratio, lap_time, session_type in points:
+        for track, vehicle_class, ratio, lap_time, session_type in points:
             try:
                 cursor.execute("""
-                    INSERT INTO data_points (track, vehicle, ratio, lap_time, session_type)
+                    INSERT INTO data_points (track, vehicle_class, ratio, lap_time, session_type)
                     VALUES (?, ?, ?, ?, ?)
-                """, (track, vehicle, ratio, lap_time, session_type))
+                """, (track, vehicle_class, ratio, lap_time, session_type))
                 added += 1
             except Exception as e:
                 print(f"Error adding point: {e}")
@@ -418,6 +447,23 @@ class CurveDatabase:
         results = [(row[0], row[1]) for row in cursor.fetchall() if row[0] is not None and row[1] > 0]
         conn.close()
         return results
+    
+    def get_formula(self, track: str, vehicle_class: str, session_type: str) -> Optional[Tuple[float, float]]:
+        """Get formula parameters for a track, vehicle class, and session type"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT a, b FROM formulas 
+            WHERE track = ? AND vehicle_class = ? AND session_type = ?
+        """, (track, vehicle_class, session_type))
+        
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row:
+            return (row[0], row[1])
+        return None
 
 
 class DataImporter:
@@ -479,7 +525,7 @@ class DataImporter:
         imported = 0
         for row in rows:
             track = row["track_name"]
-            vehicle = row["car_class"] if row["car_class"] else "Unknown"
+            vehicle_class = row["car_class"] if row["car_class"] else "Unknown"
             ratio = row["ratio"]
             lap_time = row["midpoint"]
             session_type = row["ratio_type"] if row["ratio_type"] else "unknown"
@@ -491,11 +537,11 @@ class DataImporter:
             else:
                 session_type = 'unknown'
             
-            existing = self.target_db.get_data_points([track], [vehicle], True, True, True)
+            existing = self.target_db.get_data_points([track], [vehicle_class], True, True, True)
             exists = any(abs(r - ratio) < 0.001 and abs(t - lap_time) < 0.01 for r, t, _ in existing)
             
             if not exists:
-                if self.target_db.add_data_point(track, vehicle, ratio, lap_time, session_type):
+                if self.target_db.add_data_point(track, vehicle_class, ratio, lap_time, session_type):
                     imported += 1
         
         return imported
@@ -517,9 +563,9 @@ class DataImporter:
                     if not track:
                         continue
                     
-                    vehicle = row.get('User Vehicle', 'Unknown')
-                    if not vehicle or vehicle == '0':
-                        vehicle = row.get('Car', 'Unknown')
+                    vehicle_class = row.get('User Vehicle', 'Unknown')
+                    if not vehicle_class or vehicle_class == '0':
+                        vehicle_class = row.get('Car', 'Unknown')
                     
                     # Import qualifying data
                     try:
@@ -530,11 +576,11 @@ class DataImporter:
                         if qual_ratio > 0 and qual_best > 0 and qual_worst > 0:
                             midpoint = (qual_best + qual_worst) / 2
                             
-                            existing = self.target_db.get_data_points([track], [vehicle], True, True, True)
+                            existing = self.target_db.get_data_points([track], [vehicle_class], True, True, True)
                             exists = any(abs(r - qual_ratio) < 0.001 and abs(t - midpoint) < 0.01 for r, t, _ in existing)
                             
                             if not exists:
-                                if self.target_db.add_data_point(track, vehicle, qual_ratio, midpoint, "qual"):
+                                if self.target_db.add_data_point(track, vehicle_class, qual_ratio, midpoint, "qual"):
                                     imported += 1
                     except (ValueError, KeyError):
                         pass
@@ -548,11 +594,11 @@ class DataImporter:
                         if race_ratio > 0 and race_best > 0 and race_worst > 0:
                             midpoint = (race_best + race_worst) / 2
                             
-                            existing = self.target_db.get_data_points([track], [vehicle], True, True, True)
+                            existing = self.target_db.get_data_points([track], [vehicle_class], True, True, True)
                             exists = any(abs(r - race_ratio) < 0.001 and abs(t - midpoint) < 0.01 for r, t, _ in existing)
                             
                             if not exists:
-                                if self.target_db.add_data_point(track, vehicle, race_ratio, midpoint, "race"):
+                                if self.target_db.add_data_point(track, vehicle_class, race_ratio, midpoint, "race"):
                                     imported += 1
                     except (ValueError, KeyError):
                         pass
@@ -590,9 +636,10 @@ def run_importer(db_path: str = "ai_data.db"):
         print("=" * 50)
         print(f"Total data points: {stats['total_points']}")
         print(f"Unique tracks: {stats['total_tracks']}")
-        print(f"Unique vehicles: {stats['total_vehicles']}")
+        print(f"Unique vehicle classes: {stats['total_vehicle_classes']}")
         print(f"Total races: {stats['total_races']}")
         print(f"Total AI results: {stats['total_ai_results']}")
+        print(f"Total formulas: {stats['total_formulas']}")
         print("\nBy session type:")
         for session_type, count in stats['by_type'].items():
             print(f"  {session_type}: {count}")
