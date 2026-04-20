@@ -23,7 +23,7 @@ class CurveDatabase:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
-        # Data points table - using vehicle_class instead of vehicle
+        # Data points table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS data_points (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -56,7 +56,7 @@ class CurveDatabase:
             )
         """)
         
-        # AI results table - stores original vehicle names (not classes)
+        # AI results table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS ai_results (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -76,7 +76,7 @@ class CurveDatabase:
             )
         """)
         
-        # Formulas table
+        # Formulas table with a_value column
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS formulas (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -92,9 +92,16 @@ class CurveDatabase:
                 vehicles_in_class TEXT DEFAULT '',
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 last_used TEXT DEFAULT CURRENT_TIMESTAMP,
+                a_value REAL DEFAULT 32.0,
                 UNIQUE(track, vehicle_class, session_type)
             )
         """)
+        
+        # Check if a_value column exists (for existing databases)
+        cursor.execute("PRAGMA table_info(formulas)")
+        columns = [col[1] for col in cursor.fetchall()]
+        if 'a_value' not in columns:
+            cursor.execute("ALTER TABLE formulas ADD COLUMN a_value REAL DEFAULT 32.0")
         
         # Create indexes
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_track ON data_points(track)")
@@ -107,6 +114,8 @@ class CurveDatabase:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_times ON ai_results(qual_time_sec, best_lap_sec)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_formulas_track ON formulas(track)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_formulas_class ON formulas(vehicle_class)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_formulas_track_class ON formulas(track, vehicle_class)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_data_points_track_class ON data_points(track, vehicle_class)")
         
         conn.commit()
         conn.close()
@@ -133,10 +142,6 @@ class CurveDatabase:
         conn.close()
         return vehicles
     
-    def get_all_vehicles(self) -> List[str]:
-        """Deprecated: Use get_all_vehicle_classes instead"""
-        return self.get_all_vehicle_classes()
-    
     def get_data_points(
         self, 
         tracks: List[str], 
@@ -145,22 +150,16 @@ class CurveDatabase:
         show_race: bool = True,
         show_unknown: bool = True
     ) -> List[Tuple[float, float, str]]:
-        """
-        Get filtered data points from database
-        
-        Returns list of tuples (ratio, lap_time, session_type)
-        """
+        """Get filtered data points from database"""
         if not tracks or not vehicle_classes:
             return []
         
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
-        # Build query with placeholders
         track_placeholders = ','.join(['?' for _ in tracks])
         vehicle_placeholders = ','.join(['?' for _ in vehicle_classes])
         
-        # Build session type filter
         session_filters = []
         if show_qualifying:
             session_filters.append("session_type = 'qual'")
@@ -189,21 +188,6 @@ class CurveDatabase:
         
         points = [(row[0], row[1], row[2]) for row in cursor.fetchall()]
         conn.close()
-        
-        # Debug output
-        print(f"\n[Database] get_data_points called:")
-        print(f"  Tracks: {tracks}")
-        print(f"  Vehicle classes: {vehicle_classes}")
-        print(f"  Show qualifying: {show_qualifying}")
-        print(f"  Show race: {show_race}")
-        print(f"  Show unknown: {show_unknown}")
-        print(f"  Returned {len(points)} points")
-        
-        # Group by type for debugging
-        qual_count = sum(1 for p in points if p[2] == 'qual')
-        race_count = sum(1 for p in points if p[2] == 'race')
-        unknown_count = sum(1 for p in points if p[2] == 'unknown')
-        print(f"  Qual points: {qual_count}, Race points: {race_count}, Unknown: {unknown_count}")
         
         return points
     
@@ -251,26 +235,14 @@ class CurveDatabase:
         cursor = conn.cursor()
         
         try:
-            # Print debug info
-            print(f"  Debug: Saving race session with data:")
-            print(f"    race_id: {race_data.get('race_id')}")
-            print(f"    timestamp: {race_data.get('timestamp')}")
-            print(f"    track_name: {race_data.get('track_name')}")
-            print(f"    ai_results count: {len(race_data.get('ai_results', []))}")
-            
-            # Ensure timestamp exists
             timestamp = race_data.get('timestamp')
             if not timestamp:
                 timestamp = datetime.now().isoformat()
-                print(f"    Generated timestamp: {timestamp}")
             
-            # Ensure race_id exists
             race_id = race_data.get('race_id')
             if not race_id:
                 race_id = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-                print(f"    Generated race_id: {race_id}")
             
-            # Insert race session
             cursor.execute("""
                 INSERT OR REPLACE INTO race_sessions (
                     race_id, timestamp, track_name, track_folder, aiw_file,
@@ -293,10 +265,6 @@ class CurveDatabase:
                 race_data.get('user_qualifying_sec', 0.0)
             ))
             
-            print(f"    ✓ Race session inserted")
-            
-            # Insert ALL AI results (keeping original vehicle names)
-            ai_count = 0
             for ai in race_data.get('ai_results', []):
                 cursor.execute("""
                     INSERT INTO ai_results (
@@ -318,24 +286,12 @@ class CurveDatabase:
                     ai.get('race_time_sec'),
                     ai.get('laps')
                 ))
-                ai_count += 1
-            
-            print(f"    ✓ Inserted {ai_count} AI results")
             
             conn.commit()
-            print(f"  ✓ Race session committed to database")
             return race_id
             
-        except sqlite3.IntegrityError as e:
-            print(f"  ✗ SQLite integrity error: {e}")
-            print(f"  Full traceback:")
-            traceback.print_exc()
-            conn.rollback()
-            return None
         except Exception as e:
-            print(f"  ✗ Error saving race session: {e}")
-            print(f"  Full traceback:")
-            traceback.print_exc()
+            print(f"Error saving race session: {e}")
             conn.rollback()
             return None
         finally:
@@ -359,14 +315,13 @@ class CurveDatabase:
             """, (track, vehicle_class, float(ratio), float(lap_time), session_type))
             conn.commit()
             conn.close()
-            print(f"  [DB] Added {session_type} point: {track} R={float(ratio):.4f} T={float(lap_time):.2f}s")
             return True
         except Exception as e:
             print(f"Error adding data point: {e}")
             return False
 
     def add_data_points_batch(self, points: List[Tuple[str, str, float, float, str]]) -> int:
-        """Add multiple data points in batch (track, vehicle_class, ratio, lap_time, session_type)"""
+        """Add multiple data points in batch"""
         if not points:
             return 0
         
@@ -419,10 +374,7 @@ class CurveDatabase:
         return results
     
     def get_all_ai_times_for_track(self, track_name: str, session_type: str = "race") -> List[Tuple[float, float]]:
-        """
-        Get all AI times for a specific track
-        Returns list of (ratio, lap_time) pairs from all AI drivers across all sessions
-        """
+        """Get all AI times for a specific track"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -434,7 +386,7 @@ class CurveDatabase:
                 WHERE rs.track_name = ? AND ar.qual_time_sec IS NOT NULL AND ar.qual_time_sec > 0
                 ORDER BY rs.timestamp
             """
-        else:  # race
+        else:
             query = """
                 SELECT rs.race_ratio, ar.best_lap_sec
                 FROM race_sessions rs
@@ -473,7 +425,7 @@ class DataImporter:
         self.target_db = target_db
     
     def import_from_main_db(self, old_db_path: str = "live_ai_tuner.db") -> int:
-        """Import data points from live_ai_tuner.db (curve_points table)"""
+        """Import data points from live_ai_tuner.db"""
         if not Path(old_db_path).exists():
             return 0
         
@@ -504,7 +456,7 @@ class DataImporter:
         return imported
     
     def import_from_track_db(self, old_db_path: str = "track_formulas.db") -> int:
-        """Import data points from track_formulas.db (track_data_points table)"""
+        """Import data points from track_formulas.db"""
         if not Path(old_db_path).exists():
             return 0
         
@@ -567,7 +519,6 @@ class DataImporter:
                     if not vehicle_class or vehicle_class == '0':
                         vehicle_class = row.get('Car', 'Unknown')
                     
-                    # Import qualifying data
                     try:
                         qual_ratio = float(row.get('Current QualRatio', '0'))
                         qual_best = float(row.get('Qual AI Best (s)', '0'))
@@ -585,7 +536,6 @@ class DataImporter:
                     except (ValueError, KeyError):
                         pass
                     
-                    # Import race data
                     try:
                         race_ratio = float(row.get('Current RaceRatio', '0'))
                         race_best = float(row.get('Race AI Best (s)', '0'))

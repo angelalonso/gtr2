@@ -1,8 +1,6 @@
-# dyn_ai.py - Complete fixed version with improved formula quality indicators
 #!/usr/bin/env python3
 """
-Live AI Tuner - Simplified GUI
-Shows essential info: track, vehicle class, current ratios, formula quality
+Live AI Tuner - Simplified GUI with separate Autosave and Autoratio switches
 """
 
 import sys
@@ -16,13 +14,13 @@ from datetime import datetime
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
     QLabel, QPushButton, QGroupBox, QGridLayout, QCheckBox,
-    QSplitter, QFrame, QSizePolicy, QProgressBar
+    QSplitter, QFrame, QSizePolicy, QProgressBar, QMessageBox
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QObject
 from PyQt5.QtGui import QFont
 
 from db_funcs import CurveDatabase
-from formula_funcs import get_formula_string
+from formula_funcs import get_formula_string, hyperbolic
 from gui_funcs import (
     setup_dark_theme, show_error_dialog, show_info_dialog, show_warning_dialog,
     AdvancedSettingsDialog, LogWindow, SimpleLogHandler
@@ -48,19 +46,17 @@ class SimplifiedLogger:
         return f"📊 New {session_type} data: {track} / {vehicle_class} | Ratio={ratio:.4f} | AI Lap={lap_time:.1f}s"
     
     @staticmethod
-    def formula_adaptation(old_b, new_b, a, target_ratio, target_time):
-        change = new_b - old_b
-        direction = "↑" if change > 0 else "↓"
-        return f"📐 Formula adapted: kept a={a:.2f}, {direction} b by {abs(change):.2f}s → {new_b:.2f}"
-    
-    @staticmethod
     def new_ratio_calculation(old_ratio, new_ratio, ratio_name):
         direction = "↑" if new_ratio > old_ratio else "↓"
         return f"🎮 {ratio_name}: {old_ratio:.4f} → {new_ratio:.4f} ({direction})"
     
     @staticmethod
-    def autopilot_status(enabled):
-        return f"🤖 Autopilot {'ON' if enabled else 'OFF'}"
+    def autosave_status(enabled):
+        return f"💾 Autosave {'ON' if enabled else 'OFF'}"
+    
+    @staticmethod
+    def autoratio_status(enabled):
+        return f"⚙️ Autoratio {'ON' if enabled else 'OFF'}"
 
 
 class FileChangeSignal(QObject):
@@ -149,14 +145,14 @@ class FileMonitorDaemon(QObject):
 
 
 class SimplifiedCurveViewer(QMainWindow):
-    """Simplified main window with essential info only"""
+    """Simplified main window with separate Autosave and Autoratio switches"""
     
     def __init__(self, db_path: str = "ai_data.db", config_file: str = "cfg.yml"):
         super().__init__()
         self.setWindowTitle("GTR2 Dynamic AI")
-        self.setGeometry(100, 100, 500, 480)
+        self.setGeometry(100, 100, 500, 520)
         self.setMinimumWidth(400)
-        self.setMinimumHeight(420)
+        self.setMinimumHeight(460)
         
         self.config_file = config_file
         self.config = get_config_with_defaults(config_file)
@@ -172,12 +168,13 @@ class SimplifiedCurveViewer(QMainWindow):
         self.simplified_logger = SimplifiedLogger()
         self.class_mapping = load_vehicle_classes()
         
-        # Autopilot
+        # Autopilot manager (handles ratio calculations)
         self.autopilot_manager = AutopilotManager(self.db)
-        self.autopilot_enabled = get_autopilot_enabled(config_file)
-        self.autopilot_silent = get_autopilot_silent(config_file)
-        self.autopilot_manager.set_enabled(self.autopilot_enabled)
-        self.autopilot_manager.set_silent(self.autopilot_silent)
+        
+        # Separate switches for Autosave and Autoratio
+        self.autosave_enabled = True  # Default ON
+        self.autoratio_enabled = False  # Default OFF (safer)
+        self.autopilot_manager.set_enabled(self.autoratio_enabled)
         
         # AI Target settings
         self.ai_target_settings = {
@@ -188,23 +185,21 @@ class SimplifiedCurveViewer(QMainWindow):
         }
         
         # Current formulas
-        self.qual_a: float = 30.0
+        self.qual_a: float = 32.0
         self.qual_b: float = 70.0
-        self.race_a: float = 30.0
+        self.race_a: float = 32.0
         self.race_b: float = 70.0
         self.qual_ratio_count: int = 0
         self.race_ratio_count: int = 0
         self.qual_error_pct: float = 0.0
         self.race_error_pct: float = 0.0
-        self.qual_outliers: int = 0
-        self.race_outliers: int = 0
         
         # Current selection
         self.current_track: str = ""
         self.current_vehicle: str = ""
         self.current_vehicle_class: str = ""
         
-        # User lap times (for display in advanced dialog)
+        # User lap times
         self.user_qualifying_sec: float = 0.0
         self.user_best_lap_sec: float = 0.0
         self.last_qual_ratio: Optional[float] = None
@@ -223,7 +218,7 @@ class SimplifiedCurveViewer(QMainWindow):
         self.setup_ui()
         self.load_data()
         self.update_display()
-        self._update_autopilot_ui()
+        self._update_switch_ui()
         
         # Auto-start daemon
         base_path = get_base_path(config_file)
@@ -237,11 +232,22 @@ class SimplifiedCurveViewer(QMainWindow):
         layout.setSpacing(10)
         layout.setContentsMargins(10, 10, 10, 10)
         
-        # Title - just the track name
-        self.title_label = QLabel("No Track")
+        # Title
+        self.title_label = QLabel("GTR2 Dynamic AI")
         self.title_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #FFA500;")
         self.title_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.title_label)
+        
+        # Current track
+        track_frame = QFrame()
+        track_frame.setStyleSheet("background-color: #2b2b2b; border-radius: 5px;")
+        track_layout = QHBoxLayout(track_frame)
+        track_layout.addWidget(QLabel("🏁 Current Track:"))
+        self.track_label = QLabel("-")
+        self.track_label.setStyleSheet("color: #FFA500; font-weight: bold;")
+        track_layout.addWidget(self.track_label)
+        track_layout.addStretch()
+        layout.addWidget(track_frame)
         
         # Vehicle info
         vehicle_group = QGroupBox("Vehicle")
@@ -275,11 +281,93 @@ class SimplifiedCurveViewer(QMainWindow):
         
         layout.addWidget(ratios_group)
         
-        # Formula quality
+        # Formula display
+        formula_group = QGroupBox("Active Formulas")
+        formula_layout = QVBoxLayout(formula_group)
+        
+        self.qual_formula_label = QLabel("Qualifying: T = 32.00 / R + --")
+        self.qual_formula_label.setStyleSheet("color: #FFFF00; font-family: monospace; font-size: 10px;")
+        formula_layout.addWidget(self.qual_formula_label)
+        
+        self.race_formula_label = QLabel("Race: T = 32.00 / R + --")
+        self.race_formula_label.setStyleSheet("color: #FF6600; font-family: monospace; font-size: 10px;")
+        formula_layout.addWidget(self.race_formula_label)
+        
+        layout.addWidget(formula_group)
+        
+        # Control switches
+        controls_group = QGroupBox("Controls")
+        controls_layout = QVBoxLayout(controls_group)
+        
+        # Autosave switch
+        autosave_layout = QHBoxLayout()
+        self.autosave_btn = QPushButton("💾 Autosave is ON")
+        self.autosave_btn.setCheckable(True)
+        self.autosave_btn.setChecked(self.autosave_enabled)
+        self.autosave_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                font-weight: bold;
+                padding: 8px;
+                border: none;
+                border-radius: 4px;
+            }
+            QPushButton:checked {
+                background-color: #4CAF50;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
+        self.autosave_btn.clicked.connect(self.toggle_autosave)
+        autosave_layout.addWidget(self.autosave_btn)
+        
+        autosave_desc = QLabel("Save new race data to database")
+        autosave_desc.setStyleSheet("color: #888; font-size: 10px;")
+        autosave_layout.addWidget(autosave_desc)
+        autosave_layout.addStretch()
+        controls_layout.addLayout(autosave_layout)
+        
+        controls_layout.addSpacing(5)
+        
+        # Autoratio switch
+        autoratio_layout = QHBoxLayout()
+        self.autoratio_btn = QPushButton("⚙️ Autoratio is OFF")
+        self.autoratio_btn.setCheckable(True)
+        self.autoratio_btn.setChecked(self.autoratio_enabled)
+        self.autoratio_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #555;
+                color: #aaa;
+                font-weight: bold;
+                padding: 8px;
+                border: none;
+                border-radius: 4px;
+            }
+            QPushButton:checked {
+                background-color: #FF9800;
+                color: white;
+            }
+            QPushButton:hover {
+                background-color: #666;
+            }
+        """)
+        self.autoratio_btn.clicked.connect(self.toggle_autoratio)
+        autoratio_layout.addWidget(self.autoratio_btn)
+        
+        autoratio_desc = QLabel("Auto-calculate and apply new AI ratios")
+        autoratio_desc.setStyleSheet("color: #888; font-size: 10px;")
+        autoratio_layout.addWidget(autoratio_desc)
+        autoratio_layout.addStretch()
+        controls_layout.addLayout(autoratio_layout)
+        
+        layout.addWidget(controls_group)
+        
+        # Formula quality (simplified)
         quality_group = QGroupBox("Formula Quality")
         quality_layout = QGridLayout(quality_group)
         
-        # Qualifying quality with progress bar
         quality_layout.addWidget(QLabel("Qualifying:"), 0, 0)
         self.qual_quality_label = QLabel("-")
         self.qual_quality_label.setStyleSheet("color: #FFFF00;")
@@ -288,11 +376,10 @@ class SimplifiedCurveViewer(QMainWindow):
         self.qual_progress = QProgressBar()
         self.qual_progress.setRange(0, 100)
         self.qual_progress.setValue(0)
-        self.qual_progress.setFixedHeight(10)
+        self.qual_progress.setFixedHeight(8)
         self.qual_progress.setTextVisible(False)
         quality_layout.addWidget(self.qual_progress, 1, 0, 1, 2)
         
-        # Race quality with progress bar
         quality_layout.addWidget(QLabel("Race:"), 2, 0)
         self.race_quality_label = QLabel("-")
         self.race_quality_label.setStyleSheet("color: #FF6600;")
@@ -301,41 +388,11 @@ class SimplifiedCurveViewer(QMainWindow):
         self.race_progress = QProgressBar()
         self.race_progress.setRange(0, 100)
         self.race_progress.setValue(0)
-        self.race_progress.setFixedHeight(10)
+        self.race_progress.setFixedHeight(8)
         self.race_progress.setTextVisible(False)
         quality_layout.addWidget(self.race_progress, 3, 0, 1, 2)
         
         layout.addWidget(quality_group)
-        
-        # Formula display
-        formula_group = QGroupBox("Active Formulas")
-        formula_layout = QVBoxLayout(formula_group)
-        
-        self.qual_formula_label = QLabel("Qualifying: T = -- / R + --")
-        self.qual_formula_label.setStyleSheet("color: #FFFF00; font-family: monospace; font-size: 10px;")
-        formula_layout.addWidget(self.qual_formula_label)
-        
-        self.race_formula_label = QLabel("Race: T = -- / R + --")
-        self.race_formula_label.setStyleSheet("color: #FF6600; font-family: monospace; font-size: 10px;")
-        formula_layout.addWidget(self.race_formula_label)
-        
-        layout.addWidget(formula_group)
-        
-        # Autopilot controls
-        autopilot_group = QGroupBox("Autopilot")
-        autopilot_layout = QHBoxLayout(autopilot_group)
-        
-        self.autopilot_btn = QPushButton("Autopilot is OFF")
-        self.autopilot_btn.setCheckable(True)
-        self.autopilot_btn.setChecked(self.autopilot_enabled)
-        self.autopilot_btn.clicked.connect(self.toggle_autopilot)
-        autopilot_layout.addWidget(self.autopilot_btn)
-        
-        self.autopilot_status = QLabel("Status: Disabled")
-        self.autopilot_status.setStyleSheet("color: #888; font-size: 10px;")
-        autopilot_layout.addWidget(self.autopilot_status)
-        
-        layout.addWidget(autopilot_group)
         
         # Action buttons
         button_layout = QHBoxLayout()
@@ -360,109 +417,11 @@ class SimplifiedCurveViewer(QMainWindow):
         # Status bar
         self.statusBar().showMessage("Ready")
     
-    def _get_formula_quality_text(self, ratio_count: int, error_pct: float, outliers: int) -> Tuple[str, str, int]:
-        """
-        Determine formula quality based on number of distinct ratios, error percentage, and outliers.
-        Returns (quality_text, color_style, progress_percentage)
-        """
-        # Extremely low: 1 distinct ratio
-        if ratio_count == 1:
-            return "Extremely Low (1 ratio)", "#888888", 5
-        
-        # Very low: less than 3 distinct ratios
-        if ratio_count < 3:
-            return f"Very Low ({ratio_count} ratios)", "#888888", 15
-        
-        # Check for outliers (more than 30% of points are outliers with >5% error)
-        if ratio_count > 0:
-            outlier_ratio = outliers / ratio_count
-            if outlier_ratio > 0.3:
-                return f"Low ({outliers} outliers)", "#FF9800", 25
-        
-        # Medium: deviation lower than 5%
-        if error_pct < 5:
-            # High: deviation lower than 2%
-            if error_pct < 2:
-                progress = 90
-                if error_pct < 1:
-                    return f"Excellent (±{error_pct:.1f}%)", "#4CAF50", 95
-                return f"High (±{error_pct:.1f}%)", "#4CAF50", 80
-            return f"Medium (±{error_pct:.1f}%)", "#FFC107", 60
-        
-        # Low: deviation higher than 5%
-        if error_pct < 10:
-            return f"Fair (±{error_pct:.1f}%)", "#FF9800", 40
-        
-        return f"Poor (±{error_pct:.1f}%)", "#F44336", 20
-    
-    def _calculate_formula_stats(self, track: str, vehicle_class: str, session_type: str):
-        """
-        Calculate statistics for a formula including number of distinct ratios and outliers.
-        Uses vehicle_class column instead of vehicle.
-        """
-        if not track or not vehicle_class:
-            return 0, 0.0, 0
-        
-        conn = sqlite3.connect(self.db.db_path)
-        cursor = conn.cursor()
-        
-        session_filter = "qual" if session_type == "qual" else "race"
-        
-        # Get all distinct vehicle classes for this track
-        cursor.execute("SELECT DISTINCT vehicle_class FROM data_points WHERE track = ? AND vehicle_class = ?", (track, vehicle_class))
-        vehicles_in_class = [row[0] for row in cursor.fetchall()]
-        
-        if not vehicles_in_class:
-            conn.close()
-            return 0, 0.0, 0
-        
-        placeholders = ','.join('?' * len(vehicles_in_class))
-        
-        # Get distinct ratios and their corresponding lap times
-        query = f"""
-            SELECT DISTINCT ratio, lap_time, session_type 
-            FROM data_points 
-            WHERE track = ? AND vehicle_class IN ({placeholders}) AND session_type = ?
-            ORDER BY ratio
-        """
-        cursor.execute(query, [track] + vehicles_in_class + [session_filter])
-        rows = cursor.fetchall()
-        conn.close()
-        
-        ratio_count = len(rows)
-        
-        if ratio_count < 2:
-            return ratio_count, 0.0, 0
-        
-        # Get formula from autopilot for this track/class/session
-        formula = self.autopilot_manager.formula_manager.get_formula_by_class(track, vehicle_class, session_type)
-        
-        if not formula or not formula.is_valid():
-            return ratio_count, 0.0, 0
-        
-        # Calculate errors for each distinct ratio and count outliers
-        errors = []
-        outliers = 0
-        
-        for ratio, lap_time, _ in rows:
-            if ratio and ratio > 0:
-                predicted = formula.get_time_at_ratio(ratio)
-                if predicted > 0:
-                    error = abs(lap_time - predicted)
-                    error_pct = (error / lap_time) * 100 if lap_time > 0 else 0
-                    errors.append(error_pct)
-                    if error_pct > 5:  # More than 5% error is considered an outlier
-                        outliers += 1
-        
-        avg_error_pct = sum(errors) / len(errors) if errors else 0
-        
-        return ratio_count, avg_error_pct, outliers
-    
-    def _update_autopilot_ui(self):
-        """Update autopilot button appearance based on state"""
-        if self.autopilot_enabled:
-            self.autopilot_btn.setText("Autopilot is ON")
-            self.autopilot_btn.setStyleSheet("""
+    def _update_switch_ui(self):
+        """Update switch button appearance"""
+        if self.autosave_enabled:
+            self.autosave_btn.setText("💾 Autosave is ON")
+            self.autosave_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #4CAF50;
                     color: white;
@@ -471,18 +430,13 @@ class SimplifiedCurveViewer(QMainWindow):
                     border: none;
                     border-radius: 4px;
                 }
-                QPushButton:checked {
-                    background-color: #4CAF50;
-                }
                 QPushButton:hover {
                     background-color: #45a049;
                 }
             """)
-            self.autopilot_status.setText("Status: Active")
-            self.autopilot_status.setStyleSheet("color: #4CAF50; font-size: 10px;")
         else:
-            self.autopilot_btn.setText("Autopilot is OFF")
-            self.autopilot_btn.setStyleSheet("""
+            self.autosave_btn.setText("💾 Autosave is OFF")
+            self.autosave_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #555;
                     color: #aaa;
@@ -491,26 +445,168 @@ class SimplifiedCurveViewer(QMainWindow):
                     border: none;
                     border-radius: 4px;
                 }
-                QPushButton:checked {
+                QPushButton:hover {
+                    background-color: #666;
+                }
+            """)
+        
+        if self.autoratio_enabled:
+            self.autoratio_btn.setText("⚙️ Autoratio is ON")
+            self.autoratio_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #FF9800;
+                    color: white;
+                    font-weight: bold;
+                    padding: 8px;
+                    border: none;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background-color: #F57C00;
+                }
+            """)
+        else:
+            self.autoratio_btn.setText("⚙️ Autoratio is OFF")
+            self.autoratio_btn.setStyleSheet("""
+                QPushButton {
                     background-color: #555;
+                    color: #aaa;
+                    font-weight: bold;
+                    padding: 8px;
+                    border: none;
+                    border-radius: 4px;
                 }
                 QPushButton:hover {
                     background-color: #666;
                 }
             """)
-            self.autopilot_status.setText("Status: Disabled")
-            self.autopilot_status.setStyleSheet("color: #888; font-size: 10px;")
+    
+    def toggle_autosave(self):
+        """Toggle autosave mode (save data to database)"""
+        self.autosave_enabled = not self.autosave_enabled
+        self._update_switch_ui()
+        logger.info(self.simplified_logger.autosave_status(self.autosave_enabled))
+        self.statusBar().showMessage(f"Autosave {'ON' if self.autosave_enabled else 'OFF'}", 2000)
+    
+    def toggle_autoratio(self):
+        """Toggle autoratio mode (calculate and apply new ratios)"""
+        self.autoratio_enabled = not self.autoratio_enabled
+        self.autopilot_manager.set_enabled(self.autoratio_enabled)
+        self._update_switch_ui()
+        logger.info(self.simplified_logger.autoratio_status(self.autoratio_enabled))
+        self.statusBar().showMessage(f"Autoratio {'ON' if self.autoratio_enabled else 'OFF'}", 2000)
+        
+        if self.autoratio_enabled:
+            self.autopilot_manager.reload_formulas()
+            self._update_formulas_from_autopilot()
+            self.update_display()
+    
+    def _get_formula_quality_text(self, ratio_count: int, error_pct: float) -> Tuple[str, str, int]:
+        """Determine formula quality based on number of distinct ratios and error percentage"""
+        if ratio_count == 0:
+            return "No data", "#888888", 0
+        if ratio_count == 1:
+            return "Learning (1 ratio)", "#888888", 10
+        if ratio_count < 3:
+            return f"Learning ({ratio_count} ratios)", "#888888", 20
+        if error_pct < 2:
+            return f"Excellent (±{error_pct:.1f}%)", "#4CAF50", 90
+        if error_pct < 5:
+            return f"Good (±{error_pct:.1f}%)", "#4CAF50", 75
+        if error_pct < 10:
+            return f"Fair (±{error_pct:.1f}%)", "#FFC107", 50
+        return f"Poor (±{error_pct:.1f}%)", "#F44336", 25
+    
+    def _calculate_formula_stats(self, track: str, vehicle_class: str, session_type: str):
+        """Calculate statistics for a formula"""
+        if not track or not vehicle_class:
+            return 0, 0.0
+        
+        conn = sqlite3.connect(self.db.db_path)
+        cursor = conn.cursor()
+        
+        session_filter = "qual" if session_type == "qual" else "race"
+        
+        # Get distinct ratios
+        cursor.execute("""
+            SELECT DISTINCT ratio, lap_time 
+            FROM data_points 
+            WHERE track = ? AND vehicle_class = ? AND session_type = ?
+            ORDER BY ratio
+        """, (track, vehicle_class, session_filter))
+        rows = cursor.fetchall()
+        conn.close()
+        
+        ratio_count = len(rows)
+        
+        if ratio_count < 2:
+            return ratio_count, 0.0
+        
+        # Get formula
+        formula = self.autopilot_manager.formula_manager.get_formula_by_class(track, vehicle_class, session_type)
+        
+        if not formula or not formula.is_valid():
+            return ratio_count, 0.0
+        
+        # Calculate errors
+        errors = []
+        for ratio, lap_time in rows:
+            if ratio and ratio > 0:
+                predicted = formula.get_time_at_ratio(ratio)
+                if predicted > 0:
+                    error_pct = abs(lap_time - predicted) / lap_time * 100
+                    errors.append(error_pct)
+        
+        avg_error_pct = sum(errors) / len(errors) if errors else 0
+        return ratio_count, avg_error_pct
+    
+    def _update_formulas_from_autopilot(self):
+        """Update current formulas from autopilot"""
+        if not self.current_track or not self.current_vehicle_class:
+            if self.current_vehicle:
+                self.current_vehicle_class = get_vehicle_class(self.current_vehicle, self.class_mapping)
+            if not self.current_vehicle_class:
+                return
+        
+        # Get qualifying formula
+        qual_formula = self.autopilot_manager.formula_manager.get_formula_by_class(
+            self.current_track, self.current_vehicle_class, "qual"
+        )
+        if qual_formula and qual_formula.is_valid():
+            self.qual_a = qual_formula.a
+            self.qual_b = qual_formula.b
+        else:
+            self.qual_a = 32.0
+            self.qual_b = 70.0
+        
+        # Get race formula
+        race_formula = self.autopilot_manager.formula_manager.get_formula_by_class(
+            self.current_track, self.current_vehicle_class, "race"
+        )
+        if race_formula and race_formula.is_valid():
+            self.race_a = race_formula.a
+            self.race_b = race_formula.b
+        else:
+            self.race_a = 32.0
+            self.race_b = 70.0
+        
+        # Calculate statistics
+        self.qual_ratio_count, self.qual_error_pct = self._calculate_formula_stats(
+            self.current_track, self.current_vehicle_class, "qual"
+        )
+        self.race_ratio_count, self.race_error_pct = self._calculate_formula_stats(
+            self.current_track, self.current_vehicle_class, "race"
+        )
     
     def open_advanced_settings(self):
-        """Open the advanced settings window with graph and data management"""
-        # Create window if it doesn't exist
+        """Open the advanced settings window"""
         if self.advanced_window is None:
             self.advanced_window = AdvancedSettingsDialog(self, self.db, self.log_window)
             self.advanced_window.data_updated.connect(self.on_data_updated)
+            self.advanced_window.formula_updated.connect(self.on_formula_updated)
         
-        # Force refresh the curve graph with current data before showing
+        # Update current info
         if hasattr(self.advanced_window, 'curve_graph'):
-            # Update current info
             self.advanced_window.curve_graph.update_current_info(
                 track=self.current_track,
                 vehicle=self.current_vehicle,
@@ -519,15 +615,11 @@ class SimplifiedCurveViewer(QMainWindow):
                 qual_ratio=self.last_qual_ratio,
                 race_ratio=self.last_race_ratio
             )
-            
-            # Update formulas
             self.advanced_window.curve_graph.set_formulas(
                 self.qual_a, self.qual_b,
                 self.race_a, self.race_b
             )
-            
-            # Force reload all data from database
-            self.advanced_window.curve_graph.load_data()
+            self.advanced_window.curve_graph.full_refresh()
         
         self.advanced_window.show()
         self.advanced_window.raise_()
@@ -538,79 +630,21 @@ class SimplifiedCurveViewer(QMainWindow):
         self.load_data()
         self.update_display()
     
+    def on_formula_updated(self, session_type: str, a: float, b: float):
+        """Handle formula updates from advanced settings"""
+        if session_type == "qual":
+            self.qual_a = a
+            self.qual_b = b
+        else:
+            self.race_a = a
+            self.race_b = b
+        self.update_display()
+    
     def show_log_window(self):
         """Show the log window"""
         if self.log_window:
             self.log_window.show()
             self.log_window.raise_()
-    
-    def toggle_autopilot(self):
-        """Toggle autopilot mode"""
-        self.autopilot_enabled = not self.autopilot_enabled
-        self.autopilot_manager.set_enabled(self.autopilot_enabled)
-        update_autopilot_enabled(self.autopilot_enabled, self.config_file)
-        
-        self._update_autopilot_ui()
-        
-        logger.info(self.simplified_logger.autopilot_status(self.autopilot_enabled))
-        
-        if self.autopilot_enabled:
-            self.autopilot_manager.reload_formulas()
-            self._update_formulas_from_autopilot()
-            self.update_display()
-    
-    def _update_formulas_from_autopilot(self):
-        """Update current formulas from autopilot and calculate stats"""
-        if not self.current_track or not self.current_vehicle_class:
-            # Try to get vehicle class from current vehicle
-            if self.current_vehicle:
-                self.current_vehicle_class = get_vehicle_class(self.current_vehicle, self.class_mapping)
-            if not self.current_vehicle_class:
-                return
-        
-        # Get qualifying formula
-        qual_formula = self.autopilot_manager.formula_manager.get_formula_by_class(
-            self.current_track, self.current_vehicle_class, "qual"
-        )
-        if not qual_formula:
-            # Try to get from track formulas
-            track_formulas = self.autopilot_manager.formula_manager.get_all_formulas_for_track(self.current_track)
-            for f in track_formulas:
-                if f.session_type == "qual" and f.is_valid():
-                    qual_formula = f
-                    break
-        
-        if qual_formula and qual_formula.is_valid():
-            self.qual_a = qual_formula.a
-            self.qual_b = qual_formula.b
-        
-        # Get race formula
-        race_formula = self.autopilot_manager.formula_manager.get_formula_by_class(
-            self.current_track, self.current_vehicle_class, "race"
-        )
-        if not race_formula:
-            track_formulas = self.autopilot_manager.formula_manager.get_all_formulas_for_track(self.current_track)
-            for f in track_formulas:
-                if f.session_type == "race" and f.is_valid():
-                    race_formula = f
-                    break
-        
-        if race_formula and race_formula.is_valid():
-            self.race_a = race_formula.a
-            self.race_b = race_formula.b
-        
-        # Calculate statistics for qualifying (counts distinct ratios, not data points)
-        self.qual_ratio_count, self.qual_error_pct, self.qual_outliers = self._calculate_formula_stats(
-            self.current_track, self.current_vehicle_class, "qual"
-        )
-        
-        # Calculate statistics for race
-        self.race_ratio_count, self.race_error_pct, self.race_outliers = self._calculate_formula_stats(
-            self.current_track, self.current_vehicle_class, "race"
-        )
-        
-        logger.info(f"Formula stats - Qual: {self.qual_ratio_count} ratios, {self.qual_error_pct:.2f}% error, {self.qual_outliers} outliers")
-        logger.info(f"Formula stats - Race: {self.race_ratio_count} ratios, {self.race_error_pct:.2f}% error, {self.race_outliers} outliers")
     
     def start_daemon(self):
         """Start file monitoring daemon"""
@@ -639,13 +673,13 @@ class SimplifiedCurveViewer(QMainWindow):
         if not race_data:
             return
         
-        # Update title with track name only
+        # Update track info
         if race_data.track_name:
             self.current_track = race_data.track_name
-            self.title_label.setText(self.current_track)
+            self.track_label.setText(self.current_track)
             self.setWindowTitle(f"GTR2 Dynamic AI - {self.current_track}")
         
-        # Store user lap times for display in advanced dialog
+        # Store user lap times
         if race_data.user_qualifying_sec:
             self.user_qualifying_sec = race_data.user_qualifying_sec
         if race_data.user_best_lap_sec:
@@ -655,82 +689,82 @@ class SimplifiedCurveViewer(QMainWindow):
         if race_data.race_ratio:
             self.last_race_ratio = race_data.race_ratio
         
+        # Update vehicle info
+        if race_data.user_vehicle:
+            self.current_vehicle = race_data.user_vehicle
+            self.current_vehicle_class = get_vehicle_class(self.current_vehicle, self.class_mapping)
+            self.vehicle_label.setText(self.current_vehicle)
+            self.vehicle_class_label.setText(self.current_vehicle_class)
+        
         # Log simplified message
-        vehicle_class = get_vehicle_class(race_data.user_vehicle or "Unknown", self.class_mapping)
         logger.info(self.simplified_logger.new_data_detected(
-            race_data.track_name, vehicle_class, "race",
+            race_data.track_name, self.current_vehicle_class, "race",
             race_data.race_ratio or 0, race_data.best_ai_lap_sec or 0
         ))
         
-        # Save race session with CORRECT vehicle per AI driver
+        # ALWAYS save race session to database (for data collection)
         race_dict = race_data.to_dict()
         race_id = self.db.save_race_session(race_dict)
         
-        if race_id:
-            # Add data points with CORRECT vehicle class for each AI driver
+        if race_id and self.autosave_enabled:
+            # Add data points with correct vehicle class
             points_added = 0
             for track, vehicle_name, ratio, lap_time, session_type in race_data.to_data_points_with_vehicles():
                 try:
-                    # Convert vehicle name to class before storing
                     vehicle_class = get_vehicle_class(vehicle_name, self.class_mapping)
                     ratio_float = float(ratio)
                     lap_time_float = float(lap_time)
                     if self.db.add_data_point(track, vehicle_class, ratio_float, lap_time_float, session_type):
                         points_added += 1
                 except (ValueError, TypeError) as e:
-                    logger.error(f"Failed to add data point: {e} - vehicle={vehicle_name}, ratio={ratio}, lap_time={lap_time}")
+                    logger.error(f"Failed to add data point: {e}")
             
             if points_added > 0:
                 logger.info(f"📝 Saved {points_added} new data points")
+        
+        # Update formulas from database
+        self.autopilot_manager.reload_formulas()
+        self._update_formulas_from_autopilot()
+        self.update_display()
+        
+        # Run autoratio if enabled
+        if self.autoratio_enabled and race_data.aiw_path:
+            logger.info("⚙️ Running Autoratio...")
+            result = self.autopilot_manager.process_new_data(race_data, race_data.aiw_path, self.ai_target_settings)
             
-            # Update vehicle info
-            if race_data.user_vehicle:
-                self.current_vehicle = race_data.user_vehicle
-                self.current_vehicle_class = get_vehicle_class(self.current_vehicle, self.class_mapping)
+            if result.get("success"):
+                if result.get("qual_updated"):
+                    logger.info(self.simplified_logger.new_ratio_calculation(
+                        result['qual_old_ratio'], result['qual_new_ratio'], "QualRatio"
+                    ))
+                if result.get("race_updated"):
+                    logger.info(self.simplified_logger.new_ratio_calculation(
+                        result['race_old_ratio'], result['race_new_ratio'], "RaceRatio"
+                    ))
                 
-                # Force update of formulas and stats immediately after new data
-                if self.autopilot_enabled:
-                    self.autopilot_manager.reload_formulas()
-                    self._update_formulas_from_autopilot()
-                
-                self.update_display()
-            
-            # Run autopilot
-            if self.autopilot_enabled and race_data.aiw_path:
-                logger.info("🤖 Running Autopilot...")
-                self.autopilot_manager.reload_formulas()
-                result = self.autopilot_manager.process_new_data(race_data, race_data.aiw_path, self.ai_target_settings)
-                
-                if result.get("success"):
-                    if result.get("qual_updated"):
-                        logger.info(self.simplified_logger.new_ratio_calculation(
-                            result['qual_old_ratio'], result['qual_new_ratio'], "QualRatio"
-                        ))
-                    if result.get("race_updated"):
-                        logger.info(self.simplified_logger.new_ratio_calculation(
-                            result['race_old_ratio'], result['race_new_ratio'], "RaceRatio"
-                        ))
-                
+                # Reload formulas after update
                 self.autopilot_manager.reload_formulas()
                 self._update_formulas_from_autopilot()
                 self.update_display()
-            
-            # If advanced window is open, refresh its data
-            if self.advanced_window and self.advanced_window.isVisible():
-                if hasattr(self.advanced_window, 'curve_graph'):
-                    self.advanced_window.curve_graph.update_current_info(
-                        track=self.current_track,
-                        vehicle=self.current_vehicle,
-                        qual_time=self.user_qualifying_sec if self.user_qualifying_sec > 0 else None,
-                        race_time=self.user_best_lap_sec if self.user_best_lap_sec > 0 else None,
-                        qual_ratio=self.last_qual_ratio,
-                        race_ratio=self.last_race_ratio
-                    )
-                    self.advanced_window.curve_graph.set_formulas(
-                        self.qual_a, self.qual_b,
-                        self.race_a, self.race_b
-                    )
-                    self.advanced_window.curve_graph.load_data()
+                self.statusBar().showMessage("AI ratios updated!", 3000)
+            else:
+                if result.get("message"):
+                    logger.warning(f"Autoratio: {result['message']}")
+        elif not self.autoratio_enabled and race_data.aiw_path:
+            logger.info("⚙️ Autoratio is OFF - skipping ratio calculation")
+        
+        # Refresh advanced window if open
+        if self.advanced_window and self.advanced_window.isVisible():
+            if hasattr(self.advanced_window, 'curve_graph'):
+                self.advanced_window.curve_graph.update_current_info(
+                    track=self.current_track,
+                    vehicle=self.current_vehicle,
+                    qual_time=self.user_qualifying_sec if self.user_qualifying_sec > 0 else None,
+                    race_time=self.user_best_lap_sec if self.user_best_lap_sec > 0 else None,
+                    qual_ratio=self.last_qual_ratio,
+                    race_ratio=self.last_race_ratio
+                )
+                self.advanced_window.curve_graph.full_refresh()
     
     def load_data(self):
         """Load tracks and vehicles from database"""
@@ -740,29 +774,22 @@ class SimplifiedCurveViewer(QMainWindow):
         self.all_tracks = self.db.get_all_tracks()
         self.all_vehicles = self.db.get_all_vehicle_classes()
         
-        # Set defaults
         if self.all_tracks and not self.current_track:
             self.current_track = self.all_tracks[0]
-            self.title_label.setText(self.current_track)
+            self.track_label.setText(self.current_track)
             self.setWindowTitle(f"GTR2 Dynamic AI - {self.current_track}")
         if self.all_vehicles and not self.current_vehicle:
             self.current_vehicle = self.all_vehicles[0]
-        
-        # Update vehicle class
-        if self.current_vehicle:
             self.current_vehicle_class = get_vehicle_class(self.current_vehicle, self.class_mapping)
+            self.vehicle_label.setText(self.current_vehicle)
+            self.vehicle_class_label.setText(self.current_vehicle_class)
         
-        # Update formulas from autopilot
-        if self.autopilot_enabled:
+        if self.autopilot_manager:
             self._update_formulas_from_autopilot()
     
     def update_display(self):
         """Update all display elements"""
-        # Vehicle info
-        self.vehicle_class_label.setText(self.current_vehicle_class if self.current_vehicle_class else "-")
-        self.vehicle_label.setText(self.current_vehicle if self.current_vehicle else "-")
-        
-        # Get current ratios from database if possible
+        # Current ratios
         qual_ratio = None
         race_ratio = None
         
@@ -770,7 +797,6 @@ class SimplifiedCurveViewer(QMainWindow):
             conn = sqlite3.connect(self.db.db_path)
             cursor = conn.cursor()
             
-            # Get latest qualifying ratio
             cursor.execute("""
                 SELECT qual_ratio FROM race_sessions 
                 WHERE track_name = ? 
@@ -780,7 +806,6 @@ class SimplifiedCurveViewer(QMainWindow):
             if row and row[0]:
                 qual_ratio = row[0]
             
-            # Get latest race ratio
             cursor.execute("""
                 SELECT race_ratio FROM race_sessions 
                 WHERE track_name = ? 
@@ -795,41 +820,24 @@ class SimplifiedCurveViewer(QMainWindow):
         self.qual_ratio_label.setText(f"{qual_ratio:.6f}" if qual_ratio else "-")
         self.race_ratio_label.setText(f"{race_ratio:.6f}" if race_ratio else "-")
         
-        # Update qualifying quality display
+        # Formulas
+        self.qual_formula_label.setText(f"Qualifying: T = {self.qual_a:.2f} / R + {self.qual_b:.2f}")
+        self.race_formula_label.setText(f"Race: T = {self.race_a:.2f} / R + {self.race_b:.2f}")
+        
+        # Quality
         qual_text, qual_color, qual_progress = self._get_formula_quality_text(
-            self.qual_ratio_count, self.qual_error_pct, self.qual_outliers
+            self.qual_ratio_count, self.qual_error_pct
         )
         self.qual_quality_label.setText(qual_text)
         self.qual_quality_label.setStyleSheet(f"color: {qual_color};")
         self.qual_progress.setValue(qual_progress)
-        if qual_progress >= 80:
-            self.qual_progress.setStyleSheet("QProgressBar::chunk { background-color: #4CAF50; }")
-        elif qual_progress >= 50:
-            self.qual_progress.setStyleSheet("QProgressBar::chunk { background-color: #FFC107; }")
-        elif qual_progress >= 20:
-            self.qual_progress.setStyleSheet("QProgressBar::chunk { background-color: #FF9800; }")
-        else:
-            self.qual_progress.setStyleSheet("QProgressBar::chunk { background-color: #F44336; }")
         
-        # Update race quality display
         race_text, race_color, race_progress = self._get_formula_quality_text(
-            self.race_ratio_count, self.race_error_pct, self.race_outliers
+            self.race_ratio_count, self.race_error_pct
         )
         self.race_quality_label.setText(race_text)
         self.race_quality_label.setStyleSheet(f"color: {race_color};")
         self.race_progress.setValue(race_progress)
-        if race_progress >= 80:
-            self.race_progress.setStyleSheet("QProgressBar::chunk { background-color: #4CAF50; }")
-        elif race_progress >= 50:
-            self.race_progress.setStyleSheet("QProgressBar::chunk { background-color: #FFC107; }")
-        elif race_progress >= 20:
-            self.race_progress.setStyleSheet("QProgressBar::chunk { background-color: #FF9800; }")
-        else:
-            self.race_progress.setStyleSheet("QProgressBar::chunk { background-color: #F44336; }")
-        
-        # Formulas
-        self.qual_formula_label.setText(f"Qualifying: {get_formula_string(self.qual_a, self.qual_b)}")
-        self.race_formula_label.setText(f"Race: {get_formula_string(self.race_a, self.race_b)}")
     
     def closeEvent(self, event):
         """Handle close event"""
