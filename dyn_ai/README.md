@@ -58,7 +58,7 @@ Result: AI that gradually learns your pace and adapts.
 
 ### AI Target Positioning
 
-![AI Target Window](ai_target_window.png)
+![AI Target Window](aitarget_window.png)
 
 Controls where your lap time should fall within the AI range:
 Mode	Effect
