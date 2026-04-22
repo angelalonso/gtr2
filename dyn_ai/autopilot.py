@@ -130,7 +130,7 @@ class Formula:
         b = lap_time - (a_value / ratio)
         b = max(10.0, min(200.0, b))
         
-        logger.info(f"  Created formula from point: a={a_value:.4f}, b={b:.4f}")
+        logger.debug(f"  Created formula from point: a={a_value:.4f}, b={b:.4f}")
         
         return cls(
             track=track,
@@ -153,7 +153,7 @@ class Formula:
         new_b = lap_time - (self.a / ratio)
         new_b = max(10.0, min(200.0, new_b))
         
-        logger.info(f"    Adjusting height: a={self.a:.4f} (unchanged), b={old_b:.4f} -> {new_b:.4f}")
+        logger.debug(f"    Adjusting height: a={self.a:.4f} (unchanged), b={old_b:.4f} -> {new_b:.4f}")
         
         return Formula(
             track=self.track,
@@ -228,7 +228,7 @@ class FormulaManager:
         rows = cursor.fetchall()
         conn.close()
         
-        logger.info(f"Loading formulas from database...")
+        logger.debug(f"Loading formulas from database...")
         
         for row in rows:
             vehicles_str = row[9] if len(row) > 9 else ""
@@ -246,7 +246,7 @@ class FormulaManager:
                     self._formulas[formula.track][formula.vehicle_class] = {}
                 self._formulas[formula.track][formula.vehicle_class][formula.session_type] = formula
         
-        logger.info(f"Loaded {self.get_formula_count()} formulas from database")
+        logger.debug(f"Loaded {self.get_formula_count()} formulas from database")
     
     def get_formula(self, track: str, vehicle_name: str, session_type: str) -> Optional[Formula]:
         vehicle_class = get_vehicle_class(vehicle_name, self._class_mapping)
@@ -311,7 +311,7 @@ class FormulaManager:
             self._formulas[formula.track][formula.vehicle_class] = {}
         self._formulas[formula.track][formula.vehicle_class][formula.session_type] = formula
         
-        logger.info(f"Saved formula for {formula.track}/{formula.vehicle_class}/{formula.session_type}: {formula.get_formula_string()}")
+        logger.debug(f"Saved formula for {formula.track}/{formula.vehicle_class}/{formula.session_type}: {formula.get_formula_string()}")
         return True
     
     def update_formula_a_value(self, track: str, vehicle_class: str, session_type: str, a_value: float) -> bool:
@@ -358,7 +358,7 @@ class AutopilotEngine:
             
             if not backup_path.exists():
                 shutil.copy2(aiw_path, backup_path)
-                logger.info(f"  Created backup: {backup_path}")
+                logger.debug(f"  Created backup: {backup_path}")
             
             _BACKED_UP_AIW_FILES.add(aiw_key)
             return True
@@ -393,9 +393,9 @@ class AutopilotEngine:
         avg_time = sum(p[1] for p in points) / len(points)
         
         if len(points) == 1:
-            logger.info(f"  Single data point: R={avg_ratio:.4f}, T={avg_time:.2f}s")
+            logger.debug(f"  Single data point: R={avg_ratio:.4f}, T={avg_time:.2f}s")
         else:
-            logger.info(f"  Using {len(points)} data points → midpoint: R={avg_ratio:.4f}, T={avg_time:.2f}s")
+            logger.debug(f"  Using {len(points)} data points → midpoint: R={avg_ratio:.4f}, T={avg_time:.2f}s")
         
         return avg_ratio, avg_time
     
@@ -434,15 +434,14 @@ class AutopilotEngine:
         formula = self.formula_manager.get_formula_by_class(track, vehicle_class, session_type)
         
         if formula:
-            logger.info(f"  Using existing formula for {track}/{vehicle_class}/{session_type}")
-            logger.info(f"    Existing: {formula.get_formula_string()}")
-            
+            old_formula_str = formula.get_formula_string()
             # Adapt the formula to the new point
             adapted = formula.adjust_height_to_point(current_ratio, target_time)
+            logger.info(f"Formula for Track {track}, car class {vehicle_class} modified from {old_formula_str} to {adapted.get_formula_string()}")
             return adapted
         else:
             # Create new formula from point with base a=32
-            logger.info(f"  Creating new formula for {track}/{vehicle_class}/{session_type} (base a={DEFAULT_A_VALUE})")
+            logger.debug(f"  Creating new formula for {track}/{vehicle_class}/{session_type} (base a={DEFAULT_A_VALUE})")
             new_formula = Formula.from_point(track, vehicle_class, current_ratio, target_time, session_type, DEFAULT_A_VALUE)
             return new_formula
     
@@ -457,8 +456,8 @@ class AutopilotEngine:
             "formula": None
         }
         
-        logger.info(f"\n{'='*50}")
-        logger.info(f"[{session_type.upper()}] Processing {session_type} session")
+        logger.debug(f"\n{'='*50}")
+        logger.debug(f"[{session_type.upper()}] Processing {session_type} session")
         
         # Get existing data points for this class and session
         existing_points = self._get_data_points(track, vehicle_class, session_type)
@@ -468,22 +467,22 @@ class AutopilotEngine:
             best_ai_time = min(ai_times)
             worst_ai_time = max(ai_times)
             
-            logger.info(f"  AI range: {best_ai_time:.2f}s (best) to {worst_ai_time:.2f}s (worst)")
+            logger.debug(f"  AI range: {best_ai_time:.2f}s (best) to {worst_ai_time:.2f}s (worst)")
             
             target_time = self.calculate_target_time_from_settings(
                 best_ai_time, worst_ai_time, ai_target_settings
             )
-            logger.info(f"  Target AI time from settings: {target_time:.2f}s")
+            logger.debug(f"  Target AI time from settings: {target_time:.2f}s")
         else:
             target_time = midpoint_time
-            logger.info(f"  Using target: {target_time:.2f}s (midpoint)")
+            logger.debug(f"  Using target: {target_time:.2f}s (midpoint)")
         
-        logger.info(f"  New data point: R={current_ratio:.4f}, T={midpoint_time:.2f}s")
-        logger.info(f"  Target point for formula: R={current_ratio:.4f}, T={target_time:.2f}s")
+        logger.debug(f"  New data point: R={current_ratio:.4f}, T={midpoint_time:.2f}s")
+        logger.debug(f"  Target point for formula: R={current_ratio:.4f}, T={target_time:.2f}s")
         
         # Get or create formula
         formula = self._get_or_create_formula(track, vehicle_class, session_type, current_ratio, target_time)
-        logger.info(f"  Formula: {formula.get_formula_string()}")
+        logger.debug(f"  Formula: {formula.get_formula_string()}")
         
         # Save the formula
         self.formula_manager.save_formula(formula)
@@ -493,12 +492,13 @@ class AutopilotEngine:
         new_ratio = formula.get_ratio_for_time(midpoint_time)
         
         if new_ratio and 0.3 < new_ratio < 3.0:
-            logger.info(f"  New {ratio_name} needed: {new_ratio:.4f} (was {current_ratio:.4f})")
+            logger.info(f"New Ratio calculated for {session_type} session: {new_ratio:.6f}")
+            logger.debug(f"  (was {current_ratio:.4f})")
             
             if self._update_aiw_ratio(aiw_path, ratio_name, new_ratio):
                 result["updated"] = True
                 result["new_ratio"] = new_ratio
-                logger.info(f"  Updated {ratio_name} in AIW")
+                logger.debug(f"  Updated {ratio_name} in AIW")
             else:
                 logger.error(f"  Failed to update AIW file")
         else:
@@ -529,14 +529,31 @@ class AutopilotEngine:
         user_vehicle = race_data.user_vehicle or "Unknown"
         vehicle_class = get_vehicle_class(user_vehicle, self._class_mapping)
         
-        logger.info(f"\n{'='*70}")
-        logger.info(f"[AUTO] Processing race data")
-        logger.info(f"{'='*70}")
-        logger.info(f"  Track: '{track}'")
-        logger.info(f"  User Vehicle: '{user_vehicle}' -> Class: '{vehicle_class}'")
+        # Determine which sessions have data
+        has_qual = race_data.qual_ratio and race_data.qual_best_ai_lap_sec > 0 and race_data.qual_worst_ai_lap_sec > 0
+        has_race = race_data.race_ratio and race_data.best_ai_lap_sec > 0 and race_data.worst_ai_lap_sec > 0
+        
+        session_type_str = ""
+        if has_qual and has_race:
+            session_type_str = "both"
+        elif has_qual:
+            session_type_str = "qualifying"
+        elif has_race:
+            session_type_str = "race"
+        else:
+            session_type_str = "none"
+        
+        if session_type_str != "none":
+            logger.info(f"New data received for Track {track}, {session_type_str} session, car class {vehicle_class}")
+        
+        logger.debug(f"\n{'='*70}")
+        logger.debug(f"[AUTO] Processing race data")
+        logger.debug(f"{'='*70}")
+        logger.debug(f"  Track: '{track}'")
+        logger.debug(f"  User Vehicle: '{user_vehicle}' -> Class: '{vehicle_class}'")
         
         # Process qualifying
-        if race_data.qual_ratio and race_data.qual_best_ai_lap_sec > 0 and race_data.qual_worst_ai_lap_sec > 0:
+        if has_qual:
             result["qual_old_ratio"] = race_data.qual_ratio
             qual_midpoint = (race_data.qual_best_ai_lap_sec + race_data.qual_worst_ai_lap_sec) / 2
             
@@ -551,7 +568,7 @@ class AutopilotEngine:
             result["qual_formula"] = qual_result["formula"]
         
         # Process race
-        if race_data.race_ratio and race_data.best_ai_lap_sec > 0 and race_data.worst_ai_lap_sec > 0:
+        if has_race:
             result["race_old_ratio"] = race_data.race_ratio
             race_midpoint = (race_data.best_ai_lap_sec + race_data.worst_ai_lap_sec) / 2
             
@@ -567,20 +584,20 @@ class AutopilotEngine:
         
         result["success"] = result["qual_updated"] or result["race_updated"]
         
-        # Summary
-        logger.info(f"\n{'='*70}")
-        logger.info(f"[AUTO] Summary")
-        logger.info(f"{'='*70}")
+        # Summary - only log details at DEBUG level
+        logger.debug(f"\n{'='*70}")
+        logger.debug(f"[AUTO] Summary")
+        logger.debug(f"{'='*70}")
         if result["qual_updated"]:
-            logger.info(f"  QUALIFYING: {result['qual_old_ratio']:.4f} -> {result['qual_new_ratio']:.4f}")
+            logger.debug(f"  QUALIFYING: {result['qual_old_ratio']:.4f} -> {result['qual_new_ratio']:.4f}")
         else:
-            logger.info(f"  QUALIFYING: No update")
+            logger.debug(f"  QUALIFYING: No update")
         
         if result["race_updated"]:
-            logger.info(f"  RACE: {result['race_old_ratio']:.4f} -> {result['race_new_ratio']:.4f}")
+            logger.debug(f"  RACE: {result['race_old_ratio']:.4f} -> {result['race_new_ratio']:.4f}")
         else:
-            logger.info(f"  RACE: No update")
-        logger.info(f"{'='*70}\n")
+            logger.debug(f"  RACE: No update")
+        logger.debug(f"{'='*70}\n")
         
         return result
     
@@ -630,7 +647,7 @@ class AutopilotManager:
     
     def set_enabled(self, enabled: bool):
         self.enabled = enabled
-        logger.info(f"Autoratio {'ENABLED' if enabled else 'DISABLED'}")
+        logger.debug(f"Autoratio {'ENABLED' if enabled else 'DISABLED'}")
     
     def process_new_data(self, race_data: RaceData, aiw_path: Path, ai_target_settings: Dict = None) -> Dict[str, Any]:
         if not self.enabled:

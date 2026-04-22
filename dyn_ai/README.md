@@ -1,12 +1,16 @@
-# dyn_ai — Live AI Tuner for GTR2 - v0.9.15
+# dyn_ai — Live AI Tuner for GTR2 - v1.0.0
 
-This tool watches your race results and helps you tweak the AI difficulty ratios so they match your pace.
+## What it does
+
+It automatically adjusts AI difficulty(*) to match your driving pace. When you complete a lap, it reads your time, calculates the optimal AI speed ratio, and updates the track's AIW file - making AI opponents race at your level.
+
+(*) This is not the same AI difficulty you can change on GTR2 itself, it is a variable on each Track, that is different for Race and Qualy Sessions.
 
 ---
 
 ## Current State
 
-Buggy, but not unusable.
+Usable, but it needs a bit of babysitting.
 
 Still: USE IT AT YOUR OWN RISK, probably on a SEPARATED DROP and please, ping me with as many bugs as you can.
 
@@ -15,7 +19,7 @@ Still: USE IT AT YOUR OWN RISK, probably on a SEPARATED DROP and please, ping me
 ## Quick Start
 
 **Windows (easy mode):**  
-Open dyn_ai_v0.9.13.zip, grab the `.exe` from the zip, run it, done.
+Open dyn_ai_vX.X.X.zip, grab the `.exe` from the zip, run it, done.
 
 **From source:**
 ```bash
@@ -27,194 +31,145 @@ First launch will ask you to point it at your GTR2 install folder (the one that 
 
 ---
 
-## How to Use It
+## Main Features
+### Auto-harvest Data
 
-1. Launch the tool — GUI pops up
-2. Go race (qual + race)
-3. When the session ends (click on "Continue"), the tool picks up `raceresults.txt` automatically
-4. It shows you the current ratios, your lap times...
-5. Hit on "Save to Historic.csv" to have the data added. The more data the easier it will be to get your curve right.
-6. Click on "Open Global Curve Editor", and play around with the parameters until you make a curve that fits your points.
-7. Hit on "Apply to AI Tuner"
-8. Calculate for Quali and/or Race ratios
-9. When you are ready, choose which one to apply and... hit **Apply Selected Changes**
-10. Repeat after every session (the more data, the more obvious the curve will become, the less you will have to change the formula)
+Saves every race session to the database. Builds a history of lap times vs AI ratios.
+
+### Auto-calculate Ratios
+
+When enabled:
+
+    Detects new race results
+
+    Analyzes all historical data for the track/car combination
+
+    Fits a hyperbolic curve (T = a/R + b) to minimize error
+
+    Updates the AIW file with the new ratio
+
+Result: AI that gradually learns your pace and adapts.
+
+### AI Target Positioning
+
+Controls where your lap time should fall within the AI range:
+Mode	Effect
+Percentage	0% = match fastest AI, 50% = middle, 100% = match slowest AI
+Seconds from fastest	Fixed offset from best AI time (negative = faster than AI)
+Seconds from slowest	Fixed offset from worst AI time
+
+Access this via the Advanced button.
+
+### Manual Controls
+
+Even with auto-calculation off, you can:
+
+    Edit ratios directly - Click the ✎ button on Quali-Ratio or Race-Ratio panels
+
+    Calculate from lap time - Enter your lap time, get the required ratio
+
+    Save formulas manually - Create formulas from any data point
+
 
 ---
 
-## What You Can Do
+## Advanced Features
 
-- **Auto-tune AI ratios** (QualRatio + RaceRatio) per track based on your actual lap times
-- **Autopilot mode** — set it and forget it, ratios update after every session
-- **Backups** — your original AIW file is backed up once before any changes, never overwritten
-- **Restore original** — one click to undo everything and go back to stock
-- **Manual override** — punch in your own ratio values if you know what you're doing
-- **Per-track formulas** — drop custom formula files in `track_formulas/` for specific tracks
-- **Log Viewer** — separate window to see detailed logs without console clutter
+### Data Management (Advanced → Data Management)
 
----
+    Track/Class selection - Filter data by track and vehicle class
 
-## How Autopilot Determines the Formula
+    Curve graph - Visualizes data points and fitted curves
 
-The autopilot uses a **smart template adaptation system**:
+    Session panels - Separate controls for Qualifying and Race:
 
-### Core Principle
+        Show/hide data on graph
 
-- **Keep the slope (`a`)** from similar track/vehicle data
-- **Only adjust the height (`b`)** to fit new data points
-- This preserves the track characteristics learned from other sessions
+        Edit a and b parameters manually
 
-### Formula: T = a / R + b
+        Calculate ratio from your lap time
 
-- `T` = Lap time (seconds)
-- `R` = AI difficulty ratio (QualRatio or RaceRatio)
-- `a` = Steepness (how sensitive the AI is to ratio changes)
-- `b` = Base time (theoretical minimum lap time as ratio → infinity)
+        Auto-fit curve to existing data
 
-### Template Selection Hierarchy
+    Data points table - View, select, and delete individual data points
 
-When autopilot receives a new data point (R, T), it:
+### AIW Backup Restore (Advanced → Backup Restore)
 
-1. **Looks for existing formulas** for this track and vehicle class
-2. **If none exist**, it tries in order:
-   - Same track, same class, opposite session (qual ↔ race)
-   - Same track, any class, same session (averages all formulas)
-   - Any track, same class, same session (global by vehicle class)
-   - Any track, any class, same session (global average)
-   - Default formula (a=30.0, b=70.0)
+Every AIW modification creates a backup (*_ORIGINAL.AIW). Use this to:
 
-3. **Adapts the template** by solving for `b`:
+    Restore individual track AIW files
 
-   `b_new = T_target - a_template / R_target`
+    Restore all backed-up files at once
 
-4. **Saves the adapted formula** for future sessions
+### Log Viewer (Advanced → Logs)
 
-### Example "Train of Thought"
-
-
-[INFO] Processing race data for track 'Monza', vehicle class 'GT Cars'
-[INFO] [Qualifying] New data: R=0.8500, T=95.20s
-[INFO] Single data point: R=0.8500, T=95.20s
-[INFO] Using template: global average for GT Cars class (3 formulas)
-[INFO]   Template: a=28.50, b=68.20
-[DEBUG] Adjusting height: a=28.50 (unchanged), b=68.20 -> 71.67
-[INFO] Adapted formula: T = 28.5000 / R + 71.6670
-[INFO] New ratio needed: 0.9120 (was 0.8500)
-[INFO] ✓ QualRatio updated in AIW
-
-
-This approach means:
-- **First data point** → uses default formula, adapts height
-- **Second+ data points** → builds a more accurate curve
-- **Different vehicle classes** → share knowledge within class
-- **Different tracks** → can transfer learning between similar tracks
+Displays program activity. Filter by level (ERROR/WARNING/INFO/DEBUG/ALL).
 
 ---
 
-## AI Target - Make Races Easier or Harder
+## Understanding the Formula
 
-This setting changes how fast the AI drivers are compared to you.
+T = a / R + b
+Variable	Meaning
+T	Lap time (seconds)
+R	AI speed ratio (QualRatio or RaceRatio)
+a	Curve slope - controls sensitivity
+b	Curve height - base lap time
 
-### What The Numbers Mean
+    Higher R = faster AI
 
-| Setting | What Happens |
-|---------|--------------|
-| 100% | AI is exactly as fast as your best lap |
-| 95% | AI is 5% SLOWER (you win easier) |
-| 105% | AI is 5% FASTER (harder to win) |
+    Lower R = slower AI
 
-### How It Works (Simple Version)
+    Formula fits historical data to predict required R for your lap time
 
-1. The game uses a math formula: `AI Lap Time = a / Ratio + b`
-2. We know `a` and `b` from your past races (the yellow/orange curves)
-3. We know your best lap time from the race
-4. We pick a target AI time (your time × percentage)
-5. We solve the formula backwards to find the new Ratio
-6. The tool writes that Ratio to the AIW file
-
-### Example
-
-Your best lap: 90 seconds
-Target: 95% (easier race)
-
-Target AI time = 90 × 0.95 = 85.5 seconds
-
-Formula says: 85.5 = 28 / Ratio + 68
-So Ratio = 1.46
-
-The tool sets RaceRatio = 1.46 in the AIW file
-text
-
-
-**Lower number = harder AI, Higher number = easier AI** (because Ratio works backwards)
 
 ---
 
-## Graph Features
-
-The graph shows **two curves**:
-- **Yellow line** = Qualifying formula (`T = a_qual / R + b_qual`)
-- **Orange line** = Race formula (`T = a_race / R + b_race`)
-
-**Data points** are shown as:
-- Yellow circles = Qualifying data points
-- Orange squares = Race data points  
-- Magenta triangles = Unknown type
-
-**Filters** (buttons at bottom of control panel):
-- **Quali** toggle → shows/hides the yellow qualifying curve AND qualifying data points
-- **Race** toggle → shows/hides the orange race curve AND race data points
-- **Unkn** toggle → shows/hides unknown data points
+## Files
+File	                Purpose
+cfg.yml	                Configuration (GTR2 path, database, etc.)
+ai_data.db	            SQLite database storing all data points and formulas
+vehicle_classes.json	Maps vehicle names to classes (Formula/GT/Prototype)
+aiw_backups/	        Original AIW backups (created automatically)
 
 ---
 
-## Logging System
+## Tips
 
-Logs are now handled cleanly:
-- **Separate Log Window** (click "Show Log Window" button)
-- **Log levels**: ERROR, WARNING, INFO, DEBUG, ALL
-- **Filter by level** using dropdown
-- **Adjust max lines** (100-10000)
-- **Auto-scroll** option
-- **Clear button** to reset display
+    Let data accumulate - The more laps you complete, the better the curve fit
 
-Console output is minimized by default; use the log window for detailed debugging.
+    Different car classes - Formulas are stored per track AND car class
 
----
+    Error margin - Adding 0.5-1.0 seconds makes AI slightly slower (good for learning tracks)
 
-## Config (`cfg.yml`)
+    Backups are automatic - Never lose original AIW files
 
-| Key | What it does |
-|-----|---------------|
-| `base_path` | Path to your GTR2 install |
-| `auto_apply` | Apply changes without asking |
-| `autopilot_enabled` | Full auto mode |
-| `autopilot_silent` | Suppress autopilot popups |
-| `backup_enabled` | Keep original AIW backups |
-| `logging_enabled` | Write a log file |
-| `formulas_dir` | Where track formula files live |
-| `poll_interval` | How often to check for new results (seconds) |
+    Qualifying vs Race - Separate ratios for each session type
 
 ---
 
-## Known Issues
+## Troubleshooting
 
-- The autofit curve doesn't always work perfectly
-- The cross-compilation (linux to windows) produces a good .exe BUT it does not always run on wine
-- Vehicle class detection relies on substring matching (can be improved)
+"No base path configured" → Set base_path in cfg.yml
+
+AI ratios not updating → Ensure Auto-calculate Ratios is ON (green)
+
+Database errors → Run cleanup_formulas_table.py to fix schema
+
+Can't find AIW file → Verify GTR2 path and that the track folder exists in GameData/Locations
+
+---
 
 ## Wishlist
 
 - Ability to target specific positions (e.g., "make me top-5" instead of midpoint)
   - There is a rough implementation on advanced
-- Better formula sharing across similar tracks
 - Export/import formulas for sharing between users
-- A proper DB for all tracks would be very good to have
+
+---
 
 ## TODO NEXT
 
 - Simplify code A LOT
-- One GUI that is simple and works
-- Improve vehicle class detection with fuzzy matching
-- Add ability to manually edit formulas directly
+- Move on to a better, dynamic, way of doing this on the fly.
 

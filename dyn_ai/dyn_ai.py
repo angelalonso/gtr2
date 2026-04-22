@@ -43,20 +43,19 @@ class SimplifiedLogger:
     
     @staticmethod
     def new_data_detected(track, vehicle_class, session_type, ratio, lap_time):
-        return f"📊 New {session_type} data: {track} / {vehicle_class} | Ratio={ratio:.4f} | AI Lap={lap_time:.1f}s"
+        return f"New data received for Track {track}, {session_type} session, car class {vehicle_class}"
     
     @staticmethod
-    def new_ratio_calculation(old_ratio, new_ratio, ratio_name):
-        direction = "↑" if new_ratio > old_ratio else "↓"
-        return f"🎮 {ratio_name}: {old_ratio:.4f} → {new_ratio:.4f} ({direction})"
+    def new_ratio_calculation(old_ratio, new_ratio, ratio_name, user_lap_time, ratio_value):
+        return f"New Ratio calculated for {ratio_name} session: {new_ratio:.6f} because user laptime was {user_lap_time} at Ratio {ratio_value:.6f}"
     
     @staticmethod
     def autosave_status(enabled):
-        return f"💾 Autosave {'ON' if enabled else 'OFF'}"
+        return f"Auto-harvest Data {'ON' if enabled else 'OFF'}"
     
     @staticmethod
     def autoratio_status(enabled):
-        return f"⚙️ Autoratio {'ON' if enabled else 'OFF'}"
+        return f"Auto-calculate Ratios {'ON' if enabled else 'OFF'}"
 
 
 class FileChangeSignal(QObject):
@@ -78,19 +77,19 @@ class FileMonitorDaemon(QObject):
         
     def start(self):
         if not self.file_path.exists():
-            logger.warning(f"File does not exist yet: {self.file_path}")
+            logger.debug(f"File does not exist yet: {self.file_path}")
             self.file_path.parent.mkdir(parents=True, exist_ok=True)
         
         self._update_file_state()
         self.running = True
         self._schedule_check()
-        logger.info(f"Started monitoring: {self.file_path}")
+        logger.debug(f"Started monitoring: {self.file_path}")
         
     def stop(self):
         self.running = False
         if self.timer:
             self.timer.cancel()
-        logger.info("Stopped monitoring")
+        logger.debug("Stopped monitoring")
     
     def _schedule_check(self):
         if self.running:
@@ -536,6 +535,9 @@ class GTR2Logo(QLabel):
 class RedesignedMainWindow(QMainWindow):
     """Redesigned main window matching the reference image layout exactly"""
     
+    # Class-level signal for data refresh notifications
+    data_refresh_signal = pyqtSignal()
+    
     def __init__(self, db_path: str = "ai_data.db", config_file: str = "cfg.yml"):
         super().__init__()
         self.setWindowTitle("GTR2 Dynamic AI")
@@ -913,7 +915,7 @@ class RedesignedMainWindow(QMainWindow):
                 self.last_race_ratio = new_ratio
                 self.race_panel.update_ratio(new_ratio)
             
-            logger.info(f"✏️ Manually updated {ratio_name} to {new_ratio:.6f}")
+            logger.info(f"Manually updated {ratio_name} to {new_ratio:.6f}")
             self.statusBar().showMessage(f"{ratio_name} updated to {new_ratio:.6f}", 3000)
             
             # Ask if user wants to save this as a formula
@@ -940,7 +942,7 @@ class RedesignedMainWindow(QMainWindow):
                     self._update_formulas_from_autopilot()
                     self.update_display()
                     self.update_formula_accuracy(session_type)
-                    logger.info(f"📐 Saved formula from manual edit: {new_formula.get_formula_string()}")
+                    logger.debug(f"Saved formula from manual edit: {new_formula.get_formula_string()}")
                 else:
                     show_warning_dialog(self, "No Lap Time", 
                         f"No user {session_type} lap time available to create formula.")
@@ -983,6 +985,8 @@ class RedesignedMainWindow(QMainWindow):
             self.advanced_window = AdvancedSettingsDialog(self, self.db, self.log_window)
             self.advanced_window.data_updated.connect(self.on_data_updated)
             self.advanced_window.formula_updated.connect(self.on_formula_updated)
+            # Connect the data refresh signal
+            self.data_refresh_signal.connect(self.advanced_window.on_parent_data_refresh)
         
         # Update current info
         if hasattr(self.advanced_window, 'curve_graph'):
@@ -1034,7 +1038,7 @@ class RedesignedMainWindow(QMainWindow):
         self.daemon = FileMonitorDaemon(file_path, base_path, poll_interval)
         self.daemon.signal.file_changed.connect(self.on_file_changed)
         self.daemon.start()
-        logger.info(f"Monitoring: {file_path}")
+        logger.debug(f"Monitoring: {file_path}")
     
     def stop_daemon(self):
         """Stop file monitoring daemon"""
@@ -1079,11 +1083,23 @@ class RedesignedMainWindow(QMainWindow):
             self.current_vehicle_class = get_vehicle_class(self.current_vehicle, self.class_mapping)
             self.car_class_label.setText(f"Car Class: {self.current_vehicle_class}")
         
-        # Log simplified message
-        logger.info(self.simplified_logger.new_data_detected(
-            race_data.track_name, self.current_vehicle_class, "race",
-            race_data.race_ratio or 0, race_data.best_ai_lap_sec or 0
-        ))
+        # Determine session type string for logging
+        has_qual = race_data.qual_ratio and race_data.qual_best_ai_lap_sec > 0 and race_data.qual_worst_ai_lap_sec > 0
+        has_race = race_data.race_ratio and race_data.best_ai_lap_sec > 0 and race_data.worst_ai_lap_sec > 0
+        
+        session_type_str = ""
+        if has_qual and has_race:
+            session_type_str = "both"
+        elif has_qual:
+            session_type_str = "qualifying"
+        elif has_race:
+            session_type_str = "race"
+        
+        if session_type_str:
+            logger.info(self.simplified_logger.new_data_detected(
+                race_data.track_name, self.current_vehicle_class, session_type_str,
+                race_data.race_ratio or 0, race_data.best_ai_lap_sec or 0
+            ))
         
         # ALWAYS save race session to database (for data collection)
         race_dict = race_data.to_dict()
@@ -1103,7 +1119,7 @@ class RedesignedMainWindow(QMainWindow):
                     logger.error(f"Failed to add data point: {e}")
             
             if points_added > 0:
-                logger.info(f"📝 Saved {points_added} new data points")
+                logger.debug(f"Saved {points_added} new data points")
         
         # Update formulas from database
         self.autopilot_manager.reload_formulas()
@@ -1117,18 +1133,21 @@ class RedesignedMainWindow(QMainWindow):
         
         # Run autoratio if enabled
         if self.autoratio_enabled and race_data.aiw_path:
-            logger.info("⚙️ Running Autoratio...")
+            logger.debug("Running Autoratio...")
             result = self.autopilot_manager.process_new_data(race_data, race_data.aiw_path, self.ai_target_settings)
             
             if result.get("success"):
+                # Log new ratio calculations with user lap time
                 if result.get("qual_updated"):
+                    user_lap_time = format_time(self.user_qualifying_sec) if self.user_qualifying_sec > 0 else "unknown"
                     logger.info(self.simplified_logger.new_ratio_calculation(
-                        result['qual_old_ratio'], result['qual_new_ratio'], "QualRatio"
+                        result['qual_old_ratio'], result['qual_new_ratio'], "qual", user_lap_time, result['qual_old_ratio']
                     ))
                     self.last_qual_ratio = result['qual_new_ratio']
                 if result.get("race_updated"):
+                    user_lap_time = format_time(self.user_best_lap_sec) if self.user_best_lap_sec > 0 else "unknown"
                     logger.info(self.simplified_logger.new_ratio_calculation(
-                        result['race_old_ratio'], result['race_new_ratio'], "RaceRatio"
+                        result['race_old_ratio'], result['race_new_ratio'], "race", user_lap_time, result['race_old_ratio']
                     ))
                     self.last_race_ratio = result['race_new_ratio']
                 
@@ -1147,7 +1166,10 @@ class RedesignedMainWindow(QMainWindow):
                 if result.get("message"):
                     logger.warning(f"Autoratio: {result['message']}")
         elif not self.autoratio_enabled and race_data.aiw_path:
-            logger.info("⚙️ Autoratio is OFF - skipping ratio calculation")
+            logger.debug("Autoratio is OFF - skipping ratio calculation")
+        
+        # Emit signal to notify advanced dialog about data refresh
+        self.data_refresh_signal.emit()
         
         # Refresh advanced window if open
         if self.advanced_window and self.advanced_window.isVisible():

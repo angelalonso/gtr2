@@ -28,6 +28,10 @@ from formula_funcs import fit_curve, get_formula_string, hyperbolic
 from autopilot import load_vehicle_classes, get_vehicle_class, DEFAULT_A_VALUE
 
 
+# Set up logger for this module
+logger = logging.getLogger(__name__)
+
+
 class LogWindow(QDialog):
     """Separate window for displaying logs on demand"""
     
@@ -145,6 +149,177 @@ class SimpleLogHandler(logging.Handler):
             pass
 
 
+class SessionPanel(QWidget):
+    """Panel for a single session (Qualifying or Race) with controls"""
+    
+    formula_changed = pyqtSignal(str, float, float)  # session_type, a, b
+    show_data_toggled = pyqtSignal(str, bool)  # session_type, show
+    calculate_ratio = pyqtSignal(str, float)  # session_type, lap_time
+    save_ratio_to_aiw = pyqtSignal(str, float)  # session_type, ratio
+    auto_fit_requested = pyqtSignal(str)  # session_type
+    
+    def __init__(self, session_type: str, title: str, db, parent=None):
+        super().__init__(parent)
+        self.session_type = session_type  # "qual" or "race"
+        self.title = title
+        self.db = db
+        
+        self.a = DEFAULT_A_VALUE
+        self.b = 70.0
+        self.user_time = None
+        self.user_ratio = None
+        self.current_ratio = None
+        
+        self.setup_ui()
+        
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
+        
+        self.setStyleSheet("""
+            QGroupBox {
+                background-color: #2b2b2b;
+                border-radius: 8px;
+                margin-top: 8px;
+                padding-top: 8px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
+        
+        # Main group box
+        group = QGroupBox(self.title)
+        group_layout = QVBoxLayout(group)
+        
+        # Header with show/hide button
+        header_layout = QHBoxLayout()
+        
+        self.show_checkbox = QCheckBox("Show on graph")
+        self.show_checkbox.setChecked(True)
+        self.show_checkbox.setStyleSheet("color: #4CAF50; font-weight: bold;")
+        self.show_checkbox.toggled.connect(self.on_show_toggled)
+        header_layout.addWidget(self.show_checkbox)
+        
+        header_layout.addStretch()
+        
+        group_layout.addLayout(header_layout)
+        
+        # Formula display
+        formula_layout = QHBoxLayout()
+        formula_layout.addWidget(QLabel("Formula:"))
+        self.formula_label = QLabel(f"T = {self.a:.2f} / R + {self.b:.2f}")
+        self.formula_label.setStyleSheet("color: #FFA500; font-family: monospace;")
+        formula_layout.addWidget(self.formula_label)
+        formula_layout.addStretch()
+        group_layout.addLayout(formula_layout)
+        
+        # User time display
+        user_layout = QHBoxLayout()
+        user_layout.addWidget(QLabel("Your Time:"))
+        self.user_time_label = QLabel("--")
+        self.user_time_label.setStyleSheet("color: #4CAF50; font-weight: bold; font-family: monospace; font-size: 12px;")
+        user_layout.addWidget(self.user_time_label)
+        user_layout.addStretch()
+        group_layout.addLayout(user_layout)
+        
+        # A and B controls
+        params_layout = QHBoxLayout()
+        
+        params_layout.addWidget(QLabel("a:"))
+        self.a_spin = QDoubleSpinBox()
+        self.a_spin.setRange(0.01, 500.0)
+        self.a_spin.setDecimals(3)
+        self.a_spin.setValue(self.a)
+        self.a_spin.valueChanged.connect(self.on_param_changed)
+        params_layout.addWidget(self.a_spin)
+        
+        params_layout.addWidget(QLabel("b:"))
+        self.b_spin = QDoubleSpinBox()
+        self.b_spin.setRange(0.01, 200.0)
+        self.b_spin.setDecimals(3)
+        self.b_spin.setValue(self.b)
+        self.b_spin.valueChanged.connect(self.on_param_changed)
+        params_layout.addWidget(self.b_spin)
+        
+        params_layout.addStretch()
+        group_layout.addLayout(params_layout)
+        
+        # Buttons row
+        buttons_layout = QHBoxLayout()
+        
+        self.calc_btn = QPushButton("Calculate Ratio")
+        self.calc_btn.clicked.connect(self.on_calculate_ratio)
+        buttons_layout.addWidget(self.calc_btn)
+        
+        self.save_btn = QPushButton("Save Ratio to AIW")
+        self.save_btn.setStyleSheet("background-color: #FF9800;")
+        self.save_btn.clicked.connect(self.on_save_ratio)
+        buttons_layout.addWidget(self.save_btn)
+        
+        self.auto_fit_btn = QPushButton("Auto-Fit")
+        self.auto_fit_btn.setStyleSheet("background-color: #2196F3;")
+        self.auto_fit_btn.clicked.connect(lambda: self.auto_fit_requested.emit(self.session_type))
+        buttons_layout.addWidget(self.auto_fit_btn)
+        
+        group_layout.addLayout(buttons_layout)
+        
+        layout.addWidget(group)
+        
+    def on_show_toggled(self, checked):
+        self.show_data_toggled.emit(self.session_type, checked)
+        
+    def on_param_changed(self):
+        self.a = self.a_spin.value()
+        self.b = self.b_spin.value()
+        self.formula_label.setText(f"T = {self.a:.2f} / R + {self.b:.2f}")
+        self.formula_changed.emit(self.session_type, self.a, self.b)
+        
+    def on_calculate_ratio(self):
+        if self.user_time and self.user_time > 0:
+            self.calculate_ratio.emit(self.session_type, self.user_time)
+        else:
+            QMessageBox.warning(self, "No Time", "No user time available for this session.")
+            
+    def on_save_ratio(self):
+        if self.current_ratio:
+            self.save_ratio_to_aiw.emit(self.session_type, self.current_ratio)
+        else:
+            QMessageBox.warning(self, "No Ratio", "No ratio calculated yet.")
+            
+    def update_formula(self, a: float, b: float):
+        self.a = a
+        self.b = b
+        self.a_spin.blockSignals(True)
+        self.b_spin.blockSignals(True)
+        self.a_spin.setValue(a)
+        self.b_spin.setValue(b)
+        self.a_spin.blockSignals(False)
+        self.b_spin.blockSignals(False)
+        self.formula_label.setText(f"T = {a:.2f} / R + {b:.2f}")
+        
+    def update_user_time(self, time_sec: float):
+        self.user_time = time_sec
+        if time_sec and time_sec > 0:
+            # Format as mm:ss.ms
+            minutes = int(time_sec) // 60
+            seconds = time_sec % 60
+            self.user_time_label.setText(f"{minutes}:{seconds:06.3f}")
+        else:
+            self.user_time_label.setText("--")
+            
+    def update_ratio(self, ratio: float):
+        self.current_ratio = ratio
+        
+    def set_show_data(self, show: bool):
+        self.show_checkbox.blockSignals(True)
+        self.show_checkbox.setChecked(show)
+        self.show_checkbox.blockSignals(False)
+
+
 class CurveGraphWidget(QWidget):
     """Widget containing the curve graph and data management"""
     
@@ -164,7 +339,6 @@ class CurveGraphWidget(QWidget):
         self.race_b = 70.0
         self.show_qualifying = True
         self.show_race = True
-        self.show_unknown = True
         self.show_user_points = True
         
         # Data
@@ -198,17 +372,18 @@ class CurveGraphWidget(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         
-        # Current track/vehicle info bar
-        info_frame = QFrame()
-        info_frame.setStyleSheet("""
+        # Top info bar with track/class selection
+        top_frame = QFrame()
+        top_frame.setStyleSheet("""
             QFrame {
                 background-color: #2b2b2b;
                 border-radius: 5px;
-                padding: 5px;
+                padding: 8px;
             }
         """)
-        info_layout = QHBoxLayout(info_frame)
+        top_layout = QHBoxLayout(top_frame)
         
+        # Track selection
         track_group = QFrame()
         track_group.setStyleSheet("background-color: #1e1e1e; border-radius: 3px;")
         track_layout = QHBoxLayout(track_group)
@@ -217,18 +392,15 @@ class CurveGraphWidget(QWidget):
         self.current_track_label = QLabel("-")
         self.current_track_label.setStyleSheet("color: #FFA500; font-weight: bold;")
         track_layout.addWidget(self.current_track_label)
-        info_layout.addWidget(track_group)
         
-        vehicle_group = QFrame()
-        vehicle_group.setStyleSheet("background-color: #1e1e1e; border-radius: 3px;")
-        vehicle_layout = QHBoxLayout(vehicle_group)
-        vehicle_layout.setContentsMargins(8, 4, 8, 4)
-        vehicle_layout.addWidget(QLabel("🚗 Vehicle:"))
-        self.current_vehicle_label = QLabel("-")
-        self.current_vehicle_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
-        vehicle_layout.addWidget(self.current_vehicle_label)
-        info_layout.addWidget(vehicle_group)
+        self.select_track_btn = QPushButton("Change")
+        self.select_track_btn.setFixedWidth(70)
+        self.select_track_btn.setStyleSheet("background-color: #2196F3; padding: 2px 8px;")
+        self.select_track_btn.clicked.connect(self.select_track)
+        track_layout.addWidget(self.select_track_btn)
+        top_layout.addWidget(track_group)
         
+        # Vehicle class selection
         class_group = QFrame()
         class_group.setStyleSheet("background-color: #1e1e1e; border-radius: 3px;")
         class_layout = QHBoxLayout(class_group)
@@ -237,73 +409,25 @@ class CurveGraphWidget(QWidget):
         self.current_class_label = QLabel("-")
         self.current_class_label.setStyleSheet("color: #FF6600; font-weight: bold;")
         class_layout.addWidget(self.current_class_label)
-        info_layout.addWidget(class_group)
         
-        info_layout.addStretch()
+        self.select_class_btn = QPushButton("Change")
+        self.select_class_btn.setFixedWidth(70)
+        self.select_class_btn.setStyleSheet("background-color: #2196F3; padding: 2px 8px;")
+        self.select_class_btn.clicked.connect(self.select_classes)
+        class_layout.addWidget(self.select_class_btn)
+        top_layout.addWidget(class_group)
         
-        user_group = QFrame()
-        user_group.setStyleSheet("background-color: #1e1e1e; border-radius: 3px;")
-        user_layout = QHBoxLayout(user_group)
-        user_layout.setContentsMargins(8, 4, 8, 4)
-        user_layout.addWidget(QLabel("⏱️ Your Times:"))
-        self.user_qual_time_label = QLabel("Qual: -")
-        self.user_qual_time_label.setStyleSheet("color: #FFFF00;")
-        user_layout.addWidget(self.user_qual_time_label)
-        user_layout.addWidget(QLabel("|"))
-        self.user_race_time_label = QLabel("Race: -")
-        self.user_race_time_label.setStyleSheet("color: #FF6600;")
-        user_layout.addWidget(self.user_race_time_label)
-        info_layout.addWidget(user_group)
+        top_layout.addStretch()
         
-        layout.addWidget(info_frame)
+        # Refresh button
+        self.refresh_btn = QPushButton("Refresh Data")
+        self.refresh_btn.setStyleSheet("background-color: #4CAF50;")
+        self.refresh_btn.clicked.connect(self.full_refresh)
+        top_layout.addWidget(self.refresh_btn)
+        
+        layout.addWidget(top_frame)
         
         layout.addSpacing(5)
-        
-        # Filter controls
-        filter_layout = QHBoxLayout()
-        
-        filter_layout.addWidget(QLabel("Track:"))
-        self.track_combo = QComboBox()
-        self.track_combo.currentTextChanged.connect(self.on_track_changed)
-        filter_layout.addWidget(self.track_combo)
-        
-        filter_layout.addSpacing(20)
-        
-        filter_layout.addWidget(QLabel("Vehicle Class:"))
-        self.class_list = QListWidget()
-        self.class_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self.class_list.setMaximumHeight(80)
-        self.class_list.itemSelectionChanged.connect(self.on_classes_changed)
-        filter_layout.addWidget(self.class_list)
-        
-        filter_layout.addSpacing(20)
-        
-        self.qual_check = QCheckBox("Qualifying")
-        self.qual_check.setChecked(True)
-        self.qual_check.setStyleSheet("color: #FFFF00;")
-        self.qual_check.stateChanged.connect(self.on_filter_changed)
-        filter_layout.addWidget(self.qual_check)
-        
-        self.race_check = QCheckBox("Race")
-        self.race_check.setChecked(True)
-        self.race_check.setStyleSheet("color: #FF6600;")
-        self.race_check.stateChanged.connect(self.on_filter_changed)
-        filter_layout.addWidget(self.race_check)
-        
-        self.unknown_check = QCheckBox("Unknown")
-        self.unknown_check.setChecked(True)
-        self.unknown_check.setStyleSheet("color: #FF00FF;")
-        self.unknown_check.stateChanged.connect(self.on_filter_changed)
-        filter_layout.addWidget(self.unknown_check)
-        
-        self.user_check = QCheckBox("Your Times")
-        self.user_check.setChecked(True)
-        self.user_check.setStyleSheet("color: #00FFFF;")
-        self.user_check.stateChanged.connect(self.on_filter_changed)
-        filter_layout.addWidget(self.user_check)
-        
-        filter_layout.addStretch()
-        layout.addLayout(filter_layout)
         
         # Plot widget
         self.plot_widget = pg.GraphicsLayoutWidget()
@@ -325,101 +449,87 @@ class CurveGraphWidget(QWidget):
         
         layout.addWidget(self.plot_widget)
         
-        # Manual curve controls
-        manual_group = QGroupBox("Manual Curve Adjustment")
-        manual_layout = QHBoxLayout(manual_group)
-        
-        manual_layout.addWidget(QLabel("Session:"))
-        self.curve_selector = QComboBox()
-        self.curve_selector.addItem("Qualifying", "qual")
-        self.curve_selector.addItem("Race", "race")
-        self.curve_selector.currentIndexChanged.connect(self.on_curve_selected)
-        manual_layout.addWidget(self.curve_selector)
-        
-        manual_layout.addWidget(QLabel("a:"))
-        self.a_spin = QDoubleSpinBox()
-        self.a_spin.setRange(0.01, 500.0)
-        self.a_spin.setDecimals(3)
-        self.a_spin.setValue(DEFAULT_A_VALUE)
-        manual_layout.addWidget(self.a_spin)
-        
-        manual_layout.addWidget(QLabel("b:"))
-        self.b_spin = QDoubleSpinBox()
-        self.b_spin.setRange(0.01, 200.0)
-        self.b_spin.setDecimals(3)
-        self.b_spin.setValue(70.0)
-        manual_layout.addWidget(self.b_spin)
-        
-        self.apply_btn = QPushButton("Apply & Save")
-        self.apply_btn.clicked.connect(self.apply_and_save_curve)
-        manual_layout.addWidget(self.apply_btn)
-        
-        self.auto_fit_btn = QPushButton("Auto-Fit")
-        self.auto_fit_btn.clicked.connect(self.auto_fit)
-        manual_layout.addWidget(self.auto_fit_btn)
-        
-        self.reset_view_btn = QPushButton("Reset View")
-        self.reset_view_btn.clicked.connect(self.reset_view)
-        manual_layout.addWidget(self.reset_view_btn)
-        
-        layout.addWidget(manual_group)
-        
-        # Calculate Ratio section
-        calc_group = QGroupBox("Calculate Ratio from Lap Time")
-        calc_layout = QHBoxLayout(calc_group)
-        
-        calc_layout.addWidget(QLabel("Lap Time (s):"))
-        self.calc_lap_time = QDoubleSpinBox()
-        self.calc_lap_time.setRange(30, 300)
-        self.calc_lap_time.setDecimals(3)
-        self.calc_lap_time.setValue(90.0)
-        calc_layout.addWidget(self.calc_lap_time)
-        
-        self.calc_ratio_btn = QPushButton("Calculate Ratio")
-        self.calc_ratio_btn.clicked.connect(self.calculate_ratio)
-        calc_layout.addWidget(self.calc_ratio_btn)
-        
-        self.calc_result_label = QLabel("Result: -")
-        self.calc_result_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
-        calc_layout.addWidget(self.calc_result_label)
-        
-        layout.addWidget(calc_group)
-        
-        # Data table
-        table_group = QGroupBox("Data Points")
-        table_layout = QVBoxLayout(table_group)
-        
-        self.data_table = QTableWidget()
-        self.data_table.setColumnCount(6)
-        self.data_table.setHorizontalHeaderLabels(["Track", "Vehicle", "Class", "Ratio", "Lap Time", "Session"])
-        self.data_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.data_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.data_table.setAlternatingRowColors(True)
-        self.data_table.itemSelectionChanged.connect(self.on_table_selection_changed)
-        table_layout.addWidget(self.data_table)
-        
-        table_btn_layout = QHBoxLayout()
-        
-        refresh_btn = QPushButton("Refresh")
-        refresh_btn.clicked.connect(self.full_refresh)
-        table_btn_layout.addWidget(refresh_btn)
-        
-        delete_btn = QPushButton("Delete Selected")
-        delete_btn.setStyleSheet("background-color: #f44336;")
-        delete_btn.clicked.connect(self.delete_selected_points)
-        table_btn_layout.addWidget(delete_btn)
-        
-        table_btn_layout.addStretch()
-        table_layout.addLayout(table_btn_layout)
-        
-        layout.addWidget(table_group)
-        
+        # Formula summary at bottom
         info_layout = QHBoxLayout()
         self.formula_label = QLabel("")
         self.formula_label.setStyleSheet("color: #888; font-size: 10px; font-family: monospace;")
         info_layout.addWidget(self.formula_label)
         info_layout.addStretch()
         layout.addLayout(info_layout)
+        
+    def select_track(self):
+        """Open dialog to select a different track"""
+        if not self.all_tracks:
+            QMessageBox.warning(self, "No Tracks", "No tracks available in database.")
+            return
+            
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Select Track")
+        dialog.setModal(True)
+        layout = QVBoxLayout(dialog)
+        
+        list_widget = QListWidget()
+        for track in self.all_tracks:
+            list_widget.addItem(track)
+        
+        # Select current track
+        items = list_widget.findItems(self.current_track, Qt.MatchExactly)
+        if items:
+            list_widget.setCurrentItem(items[0])
+            
+        layout.addWidget(list_widget)
+        
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        
+        if dialog.exec_() == QDialog.Accepted and list_widget.currentItem():
+            selected = list_widget.currentItem().text()
+            if selected != self.current_track:
+                self.current_track = selected
+                self.current_track_label.setText(selected)
+                self.load_data()
+                self.update_graph()
+                self.data_updated.emit()
+                
+    def select_classes(self):
+        """Open dialog to select vehicle classes"""
+        if not self.all_classes:
+            QMessageBox.warning(self, "No Classes", "No vehicle classes available in database.")
+            return
+            
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Select Vehicle Classes")
+        dialog.setModal(True)
+        layout = QVBoxLayout(dialog)
+        
+        label = QLabel("Select vehicle classes to display:")
+        layout.addWidget(label)
+        
+        list_widget = QListWidget()
+        list_widget.setSelectionMode(QAbstractItemView.MultiSelection)
+        for cls in self.all_classes:
+            item = QListWidgetItem(cls)
+            list_widget.addItem(item)
+            if cls in self.selected_classes:
+                item.setSelected(True)
+                
+        layout.addWidget(list_widget)
+        
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        
+        if dialog.exec_() == QDialog.Accepted:
+            self.selected_classes = [item.text() for item in list_widget.selectedItems()]
+            if not self.selected_classes:
+                self.selected_classes = self.all_classes.copy()
+            self.current_class_label.setText(f"{len(self.selected_classes)} class(es)")
+            self.load_data()
+            self.update_graph()
+            self.data_updated.emit()
     
     def full_refresh(self):
         self.load_data()
@@ -435,7 +545,6 @@ class CurveGraphWidget(QWidget):
         
         if vehicle is not None and vehicle != self.current_vehicle:
             self.current_vehicle = vehicle
-            self.current_vehicle_label.setText(vehicle)
             self.current_vehicle_class = get_vehicle_class(vehicle, self.class_mapping)
             self.current_class_label.setText(self.current_vehicle_class)
             if self.current_vehicle_class not in self.selected_classes:
@@ -444,11 +553,9 @@ class CurveGraphWidget(QWidget):
         
         if qual_time is not None and qual_time > 0:
             self.user_qual_time = qual_time
-            self.user_qual_time_label.setText(f"Qual: {qual_time:.3f}s")
         
         if race_time is not None and race_time > 0:
             self.user_race_time = race_time
-            self.user_race_time_label.setText(f"Race: {race_time:.3f}s")
         
         if qual_ratio is not None:
             self.user_qual_ratio = qual_ratio
@@ -457,6 +564,12 @@ class CurveGraphWidget(QWidget):
             self.user_race_ratio = race_ratio
         
         self.update_graph()
+    
+    def get_user_qual_time(self) -> Optional[float]:
+        return self.user_qual_time
+    
+    def get_user_race_time(self) -> Optional[float]:
+        return self.user_race_time
     
     def load_data(self):
         if not self.db.database_exists():
@@ -477,40 +590,16 @@ class CurveGraphWidget(QWidget):
             class_set.add(vehicle_class)
         self.all_classes = sorted(class_set)
         
-        self.track_combo.blockSignals(True)
-        self.track_combo.clear()
-        for track in self.all_tracks:
-            self.track_combo.addItem(track)
-        
-        if self.current_track and self.current_track in self.all_tracks:
-            self.track_combo.setCurrentText(self.current_track)
-        elif self.all_tracks:
+        if not self.current_track and self.all_tracks:
             self.current_track = self.all_tracks[0]
-            self.track_combo.setCurrentIndex(0)
             self.current_track_label.setText(self.current_track)
-        self.track_combo.blockSignals(False)
         
-        self.class_list.blockSignals(True)
-        self.class_list.clear()
-        for cls in self.all_classes:
-            self.class_list.addItem(cls)
-        
-        if self.current_vehicle_class and self.current_vehicle_class in self.all_classes:
-            items = self.class_list.findItems(self.current_vehicle_class, Qt.MatchExactly)
-            if items:
-                self.class_list.setCurrentItem(items[0])
-                self.selected_classes = [self.current_vehicle_class]
-            else:
-                self.class_list.selectAll()
-                self.selected_classes = self.all_classes.copy()
-        else:
-            self.class_list.selectAll()
+        if not self.selected_classes and self.all_classes:
             self.selected_classes = self.all_classes.copy()
-        self.class_list.blockSignals(False)
+            self.current_class_label.setText(f"{len(self.selected_classes)} class(es)")
         
         conn.close()
         
-        self._load_data_table()
         self.data_updated.emit()
 
     def _get_vehicles_for_classes(self, classes: List[str]) -> List[str]:
@@ -525,55 +614,6 @@ class CurveGraphWidget(QWidget):
         conn.close()
         
         return [cls for cls in all_classes if cls in classes]
-
-    def _load_data_table(self):
-        if not self.current_track:
-            self.data_table.setRowCount(0)
-            return
-        
-        vehicle_classes = self._get_vehicles_for_classes(self.selected_classes)
-        if not vehicle_classes:
-            self.data_table.setRowCount(0)
-            return
-        
-        conn = sqlite3.connect(self.db.db_path)
-        cursor = conn.cursor()
-        
-        placeholders = ','.join('?' * len(vehicle_classes))
-        query = f"""
-            SELECT track, vehicle_class, ratio, lap_time, session_type 
-            FROM data_points 
-            WHERE track = ? AND vehicle_class IN ({placeholders})
-            ORDER BY session_type, ratio
-        """
-        cursor.execute(query, [self.current_track] + vehicle_classes)
-        rows = cursor.fetchall()
-        conn.close()
-        
-        self.data_table.setRowCount(len(rows))
-        for i, row in enumerate(rows):
-            track, vehicle_class, ratio, lap_time, session_type = row
-            
-            self.data_table.setItem(i, 0, QTableWidgetItem(str(track)))
-            self.data_table.setItem(i, 1, QTableWidgetItem(str(vehicle_class)))
-            self.data_table.setItem(i, 2, QTableWidgetItem(str(vehicle_class)))
-            self.data_table.setItem(i, 3, QTableWidgetItem(f"{ratio:.6f}"))
-            self.data_table.setItem(i, 4, QTableWidgetItem(f"{lap_time:.3f}"))
-            self.data_table.setItem(i, 5, QTableWidgetItem(str(session_type)))
-            
-            if session_type == 'qual':
-                color = QColor(58, 58, 0)
-            elif session_type == 'race':
-                color = QColor(58, 26, 0)
-            else:
-                color = QColor(42, 0, 58)
-            
-            for j in range(6):
-                item = self.data_table.item(i, j)
-                if item:
-                    item.setBackground(color)
-        
-        self.data_table.resizeRowsToContents()
 
     def get_selected_data(self) -> dict:
         if not self.current_track or not self.selected_classes:
@@ -606,138 +646,6 @@ class CurveGraphWidget(QWidget):
                 result['unknown'].append((ratio, lap_time))
         
         return result
-    
-    def on_track_changed(self, track):
-        if track != self.current_track:
-            self.current_track = track
-            self.current_track_label.setText(track)
-            self._load_data_table()
-            self.update_graph()
-    
-    def on_classes_changed(self):
-        self.selected_classes = [item.text() for item in self.class_list.selectedItems()]
-        if not self.selected_classes:
-            self.selected_classes = self.all_classes.copy()
-        self._load_data_table()
-        self.update_graph()
-    
-    def on_filter_changed(self):
-        self.show_qualifying = self.qual_check.isChecked()
-        self.show_race = self.race_check.isChecked()
-        self.show_unknown = self.unknown_check.isChecked()
-        self.show_user_points = self.user_check.isChecked()
-        self.update_graph()
-    
-    def on_curve_selected(self):
-        curve = self.curve_selector.currentData()
-        if curve == "qual":
-            self.a_spin.setValue(self.qual_a)
-            self.b_spin.setValue(self.qual_b)
-        else:
-            self.a_spin.setValue(self.race_a)
-            self.b_spin.setValue(self.race_b)
-    
-    def apply_and_save_curve(self):
-        a = self.a_spin.value()
-        b = self.b_spin.value()
-        session_type = self.curve_selector.currentData()
-        
-        if session_type == "qual":
-            self.qual_a = a
-            self.qual_b = b
-        else:
-            self.race_a = a
-            self.race_b = b
-        
-        # Save to database
-        if self.current_track and self.current_vehicle_class:
-            conn = sqlite3.connect(self.db.db_path)
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                INSERT OR REPLACE INTO formulas 
-                (track, vehicle_class, a, b, session_type, data_points_used, a_value)
-                VALUES (?, ?, ?, ?, ?, 1, ?)
-            """, (self.current_track, self.current_vehicle_class, a, b, session_type, a))
-            
-            conn.commit()
-            conn.close()
-            
-            QMessageBox.information(self, "Formula Saved", 
-                f"Formula saved for {self.current_track}/{self.current_vehicle_class}/{session_type}\n"
-                f"T = {a:.3f} / R + {b:.3f}")
-            
-            self.formula_changed.emit(session_type, a, b)
-        
-        self.update_graph()
-    
-    def auto_fit(self):
-        points_data = self.get_selected_data()
-        
-        if points_data['quali'] and len(points_data['quali']) >= 2:
-            ratios = [p[0] for p in points_data['quali']]
-            times = [p[1] for p in points_data['quali']]
-            a, b, avg_err, max_err = fit_curve(ratios, times, verbose=False)
-            if a and b and a > 0 and b > 0:
-                self.qual_a = a
-                self.qual_b = b
-                self.formula_changed.emit("qual", a, b)
-        
-        if points_data['race'] and len(points_data['race']) >= 2:
-            ratios = [p[0] for p in points_data['race']]
-            times = [p[1] for p in points_data['race']]
-            a, b, avg_err, max_err = fit_curve(ratios, times, verbose=False)
-            if a and b and a > 0 and b > 0:
-                self.race_a = a
-                self.race_b = b
-                self.formula_changed.emit("race", a, b)
-        
-        self.update_graph()
-    
-    def calculate_ratio(self):
-        """Calculate ratio for a given lap time using current formula"""
-        lap_time = self.calc_lap_time.value()
-        session_type = self.curve_selector.currentData()
-        
-        if session_type == "qual":
-            a, b = self.qual_a, self.qual_b
-        else:
-            a, b = self.race_a, self.race_b
-        
-        denominator = lap_time - b
-        if denominator <= 0:
-            self.calc_result_label.setText("Result: Invalid (lap time too low)")
-            self.calc_result_label.setStyleSheet("color: #f44336; font-weight: bold;")
-            return
-        
-        ratio = a / denominator
-        
-        if 0.3 < ratio < 3.0:
-            self.calc_result_label.setText(f"Result: Ratio = {ratio:.6f}")
-            self.calc_result_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
-            
-            # Ask if user wants to apply this ratio
-            reply = QMessageBox.question(self, "Apply Ratio", 
-                f"Calculated {session_type.upper()} Ratio = {ratio:.6f}\n\n"
-                f"Do you want to apply this ratio to the AIW file?",
-                QMessageBox.Yes | QMessageBox.No)
-            
-            if reply == QMessageBox.Yes and self.current_track and self.current_vehicle_class:
-                # Find AIW path
-                from cfg_funcs import get_base_path
-                base_path = get_base_path()
-                if base_path:
-                    # This would need the actual AIW path - for now, just inform
-                    QMessageBox.information(self, "Apply Ratio", 
-                        "To apply this ratio, please use the main window's Autoratio feature.\n\n"
-                        "This calculated value can be entered manually in your AIW file.")
-        else:
-            self.calc_result_label.setText(f"Result: {ratio:.6f} (outside valid range)")
-            self.calc_result_label.setStyleSheet("color: #FF9800; font-weight: bold;")
-    
-    def reset_view(self):
-        self.plot.setXRange(0.4, 2.0)
-        self.plot.setYRange(50, 200)
     
     def update_graph(self):
         ratios = np.linspace(0.4, 2.0, 200)
@@ -799,7 +707,7 @@ class CurveGraphWidget(QWidget):
             self.race_scatter.setVisible(False)
         
         unknown_points = points_data.get('unknown', [])
-        if self.show_unknown and unknown_points:
+        if unknown_points:
             r = [p[0] for p in unknown_points]
             t = [p[1] for p in unknown_points]
             if self.unknown_scatter is None:
@@ -814,27 +722,25 @@ class CurveGraphWidget(QWidget):
         elif self.unknown_scatter is not None:
             self.unknown_scatter.setVisible(False)
         
-        if self.show_user_points:
-            user_points = []
-            if self.user_qual_time and self.user_qual_time > 0 and self.user_qual_ratio:
-                user_points.append((self.user_qual_ratio, self.user_qual_time))
-            if self.user_race_time and self.user_race_time > 0 and self.user_race_ratio:
-                user_points.append((self.user_race_ratio, self.user_race_time))
-            
-            if user_points:
-                r = [p[0] for p in user_points]
-                t = [p[1] for p in user_points]
-                if self.user_qual_point is None:
-                    self.user_qual_point = pg.ScatterPlotItem(
-                        r, t, brush=pg.mkBrush('#00FFFF'), size=12,
-                        symbol='star', pen=pg.mkPen('white', width=2)
-                    )
-                    self.plot.addItem(self.user_qual_point)
-                else:
-                    self.user_qual_point.setData(r, t)
-                    self.user_qual_point.setVisible(True)
-            elif self.user_qual_point is not None:
-                self.user_qual_point.setVisible(False)
+        # User points
+        user_points = []
+        if self.user_qual_time and self.user_qual_time > 0 and self.user_qual_ratio:
+            user_points.append((self.user_qual_ratio, self.user_qual_time))
+        if self.user_race_time and self.user_race_time > 0 and self.user_race_ratio:
+            user_points.append((self.user_race_ratio, self.user_race_time))
+        
+        if user_points:
+            r = [p[0] for p in user_points]
+            t = [p[1] for p in user_points]
+            if self.user_qual_point is None:
+                self.user_qual_point = pg.ScatterPlotItem(
+                    r, t, brush=pg.mkBrush('#00FFFF'), size=12,
+                    symbol='star', pen=pg.mkPen('white', width=2)
+                )
+                self.plot.addItem(self.user_qual_point)
+            else:
+                self.user_qual_point.setData(r, t)
+                self.user_qual_point.setVisible(True)
         elif self.user_qual_point is not None:
             self.user_qual_point.setVisible(False)
         
@@ -852,9 +758,9 @@ class CurveGraphWidget(QWidget):
             self.legend.addItem(self.qual_scatter, f'Qual Data ({len(quali_points)})')
         if self.show_race and race_points:
             self.legend.addItem(self.race_scatter, f'Race Data ({len(race_points)})')
-        if self.show_unknown and unknown_points:
+        if unknown_points:
             self.legend.addItem(self.unknown_scatter, f'Unknown ({len(unknown_points)})')
-        if self.show_user_points and (self.user_qual_time or self.user_race_time):
+        if user_points:
             self.legend.addItem(self.user_qual_point, 'Your Lap Times')
         
         self.formula_label.setText(f"Qual: T={self.qual_a:.3f}/R+{self.qual_b:.3f}  |  Race: T={self.race_a:.3f}/R+{self.race_b:.3f}")
@@ -887,86 +793,21 @@ class CurveGraphWidget(QWidget):
         )
         self.plot.addItem(self.selected_point_marker)
         
-        for row in range(self.data_table.rowCount()):
-            if (abs(float(self.data_table.item(row, 3).text()) - ratio) < 0.001 and
-                abs(float(self.data_table.item(row, 4).text()) - lap_time) < 0.01):
-                self.data_table.selectRow(row)
-                self.data_table.scrollToItem(self.data_table.item(row, 0))
-                break
-        
         self.point_selected.emit(self.current_track, session, ratio, lap_time)
-    
-    def on_table_selection_changed(self):
-        selected = self.data_table.selectedItems()
-        if not selected:
-            if self.selected_point_marker:
-                self.plot.removeItem(self.selected_point_marker)
-                self.selected_point_marker = None
-            return
-        
-        row = selected[0].row()
-        ratio = float(self.data_table.item(row, 3).text())
-        lap_time = float(self.data_table.item(row, 4).text())
-        
-        if self.selected_point_marker:
-            self.plot.removeItem(self.selected_point_marker)
-        
-        self.selected_point_marker = pg.ScatterPlotItem(
-            [ratio], [lap_time], brush=pg.mkBrush('#FFFFFF'), size=12,
-            symbol='o', pen=pg.mkPen('#FF0000', width=2)
-        )
-        self.plot.addItem(self.selected_point_marker)
-        
-        # Update calculation fields
-        self.calc_lap_time.setValue(lap_time)
-    
-    def delete_selected_points(self):
-        selected_rows = set()
-        for item in self.data_table.selectedItems():
-            selected_rows.add(item.row())
-        
-        if not selected_rows:
-            QMessageBox.warning(self, "No Selection", "Please select data points to delete.")
-            return
-        
-        reply = QMessageBox.question(
-            self, "Confirm Delete",
-            f"Delete {len(selected_rows)} data point(s)?\nThis cannot be undone.",
-            QMessageBox.Yes | QMessageBox.No
-        )
-        
-        if reply != QMessageBox.Yes:
-            return
-        
-        conn = sqlite3.connect(self.db.db_path)
-        cursor = conn.cursor()
-        
-        deleted = 0
-        for row_idx in sorted(selected_rows, reverse=True):
-            track = self.data_table.item(row_idx, 0).text()
-            vehicle = self.data_table.item(row_idx, 1).text()
-            ratio = float(self.data_table.item(row_idx, 3).text())
-            lap_time = float(self.data_table.item(row_idx, 4).text())
-            session_type = self.data_table.item(row_idx, 5).text()
-            
-            cursor.execute("""
-                DELETE FROM data_points 
-                WHERE track = ? AND vehicle_class = ? AND ratio = ? 
-                AND lap_time = ? AND session_type = ?
-            """, (track, vehicle, ratio, lap_time, session_type))
-            deleted += cursor.rowcount
-        
-        conn.commit()
-        conn.close()
-        
-        self.full_refresh()
-        QMessageBox.information(self, "Success", f"Deleted {deleted} data point(s).")
     
     def set_formulas(self, qual_a, qual_b, race_a, race_b):
         self.qual_a = qual_a
         self.qual_b = qual_b
         self.race_a = race_a
         self.race_b = race_b
+        self.update_graph()
+    
+    def set_show_qualifying(self, show: bool):
+        self.show_qualifying = show
+        self.update_graph()
+        
+    def set_show_race(self, show: bool):
+        self.show_race = show
         self.update_graph()
 
 
@@ -991,6 +832,11 @@ class AdvancedSettingsDialog(QDialog):
         self.target_offset_seconds = 0.0
         self.ai_error_margin = 0.0
         
+        self.qual_panel = None
+        self.race_panel = None
+        self.curve_graph = None
+        self.data_table = None
+        
         self.setup_ui()
         
     def setup_ui(self):
@@ -1003,11 +849,65 @@ class AdvancedSettingsDialog(QDialog):
         data_layout = QVBoxLayout(data_tab)
         data_layout.setContentsMargins(0, 0, 0, 0)
         
+        # Curve graph at top
         self.curve_graph = CurveGraphWidget(self.db, self)
         self.curve_graph.point_selected.connect(self.on_point_selected)
         self.curve_graph.data_updated.connect(self.on_data_updated)
         self.curve_graph.formula_changed.connect(self.on_formula_changed)
         data_layout.addWidget(self.curve_graph)
+        
+        # Middle section: Qualifying and Race panels side by side
+        middle_layout = QHBoxLayout()
+        middle_layout.setSpacing(15)
+        
+        # Qualifying panel
+        self.qual_panel = SessionPanel("qual", "Qualifying Session", self.db, self)
+        self.qual_panel.formula_changed.connect(self.on_session_formula_changed)
+        self.qual_panel.show_data_toggled.connect(self.on_show_data_toggled)
+        self.qual_panel.calculate_ratio.connect(self.on_calculate_ratio)
+        self.qual_panel.save_ratio_to_aiw.connect(self.on_save_ratio_to_aiw)
+        self.qual_panel.auto_fit_requested.connect(self.on_auto_fit_requested)
+        middle_layout.addWidget(self.qual_panel)
+        
+        # Race panel
+        self.race_panel = SessionPanel("race", "Race Session", self.db, self)
+        self.race_panel.formula_changed.connect(self.on_session_formula_changed)
+        self.race_panel.show_data_toggled.connect(self.on_show_data_toggled)
+        self.race_panel.calculate_ratio.connect(self.on_calculate_ratio)
+        self.race_panel.save_ratio_to_aiw.connect(self.on_save_ratio_to_aiw)
+        self.race_panel.auto_fit_requested.connect(self.on_auto_fit_requested)
+        middle_layout.addWidget(self.race_panel)
+        
+        data_layout.addLayout(middle_layout)
+        
+        # Bottom: Data points table
+        table_group = QGroupBox("Data Points")
+        table_layout = QVBoxLayout(table_group)
+        
+        self.data_table = QTableWidget()
+        self.data_table.setColumnCount(6)
+        self.data_table.setHorizontalHeaderLabels(["Track", "Vehicle", "Class", "Ratio", "Lap Time", "Session"])
+        self.data_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.data_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.data_table.setAlternatingRowColors(True)
+        self.data_table.itemSelectionChanged.connect(self.on_table_selection_changed)
+        table_layout.addWidget(self.data_table)
+        
+        table_btn_layout = QHBoxLayout()
+        
+        refresh_btn = QPushButton("Refresh")
+        refresh_btn.clicked.connect(self.refresh_all)
+        table_btn_layout.addWidget(refresh_btn)
+        
+        delete_btn = QPushButton("Delete Selected")
+        delete_btn.setStyleSheet("background-color: #f44336;")
+        delete_btn.clicked.connect(self.delete_selected_points)
+        table_btn_layout.addWidget(delete_btn)
+        
+        table_btn_layout.addStretch()
+        table_layout.addLayout(table_btn_layout)
+        
+        data_layout.addWidget(table_group)
         
         self.tab_widget.addTab(data_tab, "Data Management")
         
@@ -1188,29 +1088,42 @@ class AdvancedSettingsDialog(QDialog):
         backup_layout.addStretch()
         self.tab_widget.addTab(backup_tab, "Backup Restore")
         
-        # TAB 4: SETTINGS
-        settings_tab = QWidget()
-        settings_layout = QVBoxLayout(settings_tab)
+        # TAB 4: LOGS (replaces Settings tab)
+        logs_tab = QWidget()
+        logs_layout = QVBoxLayout(logs_tab)
         
-        show_log_btn = QPushButton("Show Log Window")
-        show_log_btn.setStyleSheet("background-color: #2196F3;")
-        show_log_btn.clicked.connect(self.show_log_window)
-        settings_layout.addWidget(show_log_btn)
+        if self.log_window:
+            # Embed the log window content
+            logs_layout.addWidget(QLabel("Application Logs:"))
+            
+            # Create a text widget to show logs
+            self.log_display = QTextEdit()
+            self.log_display.setReadOnly(True)
+            self.log_display.setFontFamily("Courier New")
+            self.log_display.setStyleSheet("""
+                QTextEdit {
+                    background-color: #1e1e1e;
+                    color: #d4d4d4;
+                    font-size: 10px;
+                }
+            """)
+            logs_layout.addWidget(self.log_display)
+            
+            # Connect to log window to mirror logs
+            self.log_window.log_text.document().contentsChange.connect(self.sync_log_display)
+            self.sync_log_display()
+            
+            # Buttons
+            log_btn_layout = QHBoxLayout()
+            
+            clear_log_btn = QPushButton("Clear Log")
+            clear_log_btn.clicked.connect(self.clear_log_display)
+            log_btn_layout.addWidget(clear_log_btn)
+            
+            log_btn_layout.addStretch()
+            logs_layout.addLayout(log_btn_layout)
         
-        changes_group = QGroupBox("Session Changes History")
-        changes_layout = QVBoxLayout(changes_group)
-        
-        self.changes_list = QListWidget()
-        changes_layout.addWidget(self.changes_list)
-        
-        clear_changes_btn = QPushButton("Clear History")
-        clear_changes_btn.clicked.connect(self.changes_list.clear)
-        changes_layout.addWidget(clear_changes_btn)
-        
-        settings_layout.addWidget(changes_group)
-        
-        settings_layout.addStretch()
-        self.tab_widget.addTab(settings_tab, "Settings")
+        self.tab_widget.addTab(logs_tab, "Logs")
         
         layout.addWidget(self.tab_widget)
         
@@ -1260,7 +1173,146 @@ class AdvancedSettingsDialog(QDialog):
         
         self.update_mode_visibility()
     
+    def on_parent_data_refresh(self):
+        """Called when parent window refreshes data (new race data received)"""
+        logger.debug("AdvancedSettingsDialog: Received data refresh signal from parent")
+        self.refresh_display()
+    
+    def sync_log_display(self):
+        """Sync the log display with the log window content"""
+        if hasattr(self, 'log_display') and self.log_window:
+            self.log_display.setHtml(self.log_window.log_text.toHtml())
+            
+    def clear_log_display(self):
+        """Clear the log display and the log window"""
+        if self.log_window:
+            self.log_window.clear_log()
+        if hasattr(self, 'log_display'):
+            self.log_display.clear()
+    
+    def refresh_all(self):
+        """Refresh all components"""
+        if self.curve_graph:
+            self.curve_graph.full_refresh()
+        self.load_data_table()
+        self.refresh_display()
+        
+    def load_data_table(self):
+        """Load data points into the table"""
+        if not self.curve_graph or not self.curve_graph.current_track:
+            self.data_table.setRowCount(0)
+            return
+        
+        vehicle_classes = self.curve_graph.selected_classes
+        if not vehicle_classes:
+            self.data_table.setRowCount(0)
+            return
+        
+        conn = sqlite3.connect(self.db.db_path)
+        cursor = conn.cursor()
+        
+        placeholders = ','.join('?' * len(vehicle_classes))
+        query = f"""
+            SELECT track, vehicle_class, ratio, lap_time, session_type 
+            FROM data_points 
+            WHERE track = ? AND vehicle_class IN ({placeholders})
+            ORDER BY session_type, ratio
+        """
+        cursor.execute(query, [self.curve_graph.current_track] + vehicle_classes)
+        rows = cursor.fetchall()
+        conn.close()
+        
+        self.data_table.setRowCount(len(rows))
+        for i, row in enumerate(rows):
+            track, vehicle_class, ratio, lap_time, session_type = row
+            
+            self.data_table.setItem(i, 0, QTableWidgetItem(str(track)))
+            self.data_table.setItem(i, 1, QTableWidgetItem(str(vehicle_class)))
+            self.data_table.setItem(i, 2, QTableWidgetItem(str(vehicle_class)))
+            self.data_table.setItem(i, 3, QTableWidgetItem(f"{ratio:.6f}"))
+            self.data_table.setItem(i, 4, QTableWidgetItem(f"{lap_time:.3f}"))
+            self.data_table.setItem(i, 5, QTableWidgetItem(str(session_type)))
+            
+            if session_type == 'qual':
+                color = QColor(58, 58, 0)
+            elif session_type == 'race':
+                color = QColor(58, 26, 0)
+            else:
+                color = QColor(42, 0, 58)
+            
+            for j in range(6):
+                item = self.data_table.item(i, j)
+                if item:
+                    item.setBackground(color)
+        
+        self.data_table.resizeRowsToContents()
+    
+    def on_table_selection_changed(self):
+        """Handle table selection change - highlight point on graph"""
+        selected = self.data_table.selectedItems()
+        if not selected:
+            return
+        
+        row = selected[0].row()
+        ratio = float(self.data_table.item(row, 3).text())
+        lap_time = float(self.data_table.item(row, 4).text())
+        
+        if self.curve_graph:
+            # Highlight the point on the graph
+            if hasattr(self.curve_graph, 'selected_point_marker') and self.curve_graph.selected_point_marker:
+                self.curve_graph.plot.removeItem(self.curve_graph.selected_point_marker)
+            
+            self.curve_graph.selected_point_marker = pg.ScatterPlotItem(
+                [ratio], [lap_time], brush=pg.mkBrush('#FFFFFF'), size=12,
+                symbol='o', pen=pg.mkPen('#FF0000', width=2)
+            )
+            self.curve_graph.plot.addItem(self.curve_graph.selected_point_marker)
+    
+    def delete_selected_points(self):
+        """Delete selected data points from the database"""
+        selected_rows = set()
+        for item in self.data_table.selectedItems():
+            selected_rows.add(item.row())
+        
+        if not selected_rows:
+            QMessageBox.warning(self, "No Selection", "Please select data points to delete.")
+            return
+        
+        reply = QMessageBox.question(
+            self, "Confirm Delete",
+            f"Delete {len(selected_rows)} data point(s)?\nThis cannot be undone.",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        
+        if reply != QMessageBox.Yes:
+            return
+        
+        conn = sqlite3.connect(self.db.db_path)
+        cursor = conn.cursor()
+        
+        deleted = 0
+        for row_idx in sorted(selected_rows, reverse=True):
+            track = self.data_table.item(row_idx, 0).text()
+            vehicle = self.data_table.item(row_idx, 1).text()
+            ratio = float(self.data_table.item(row_idx, 3).text())
+            lap_time = float(self.data_table.item(row_idx, 4).text())
+            session_type = self.data_table.item(row_idx, 5).text()
+            
+            cursor.execute("""
+                DELETE FROM data_points 
+                WHERE track = ? AND vehicle_class = ? AND ratio = ? 
+                AND lap_time = ? AND session_type = ?
+            """, (track, vehicle, ratio, lap_time, session_type))
+            deleted += cursor.rowcount
+        
+        conn.commit()
+        conn.close()
+        
+        self.refresh_all()
+        QMessageBox.information(self, "Success", f"Deleted {deleted} data point(s).")
+    
     def refresh_display(self):
+        """Refresh all displays with latest data from parent"""
         if not self.parent:
             return
         
@@ -1275,30 +1327,157 @@ class AdvancedSettingsDialog(QDialog):
         last_qual_ratio = getattr(self.parent, 'last_qual_ratio', None)
         last_race_ratio = getattr(self.parent, 'last_race_ratio', None)
         
-        self.curve_graph.update_current_info(
-            track=current_track,
-            vehicle=current_vehicle,
-            qual_time=user_qual_time if user_qual_time > 0 else None,
-            race_time=user_race_time if user_race_time > 0 else None,
-            qual_ratio=last_qual_ratio,
-            race_ratio=last_race_ratio
-        )
+        # Update curve graph
+        if self.curve_graph:
+            self.curve_graph.update_current_info(
+                track=current_track,
+                vehicle=current_vehicle,
+                qual_time=user_qual_time if user_qual_time > 0 else None,
+                race_time=user_race_time if user_race_time > 0 else None,
+                qual_ratio=last_qual_ratio,
+                race_ratio=last_race_ratio
+            )
+            self.curve_graph.set_formulas(qual_a, qual_b, race_a, race_b)
+            self.curve_graph.update_graph()
         
-        self.curve_graph.set_formulas(qual_a, qual_b, race_a, race_b)
-        self.curve_graph.full_refresh()
+        # Update session panels
+        if self.qual_panel:
+            self.qual_panel.update_formula(qual_a, qual_b)
+            self.qual_panel.update_user_time(user_qual_time)
+            self.qual_panel.update_ratio(last_qual_ratio)
+        
+        if self.race_panel:
+            self.race_panel.update_formula(race_a, race_b)
+            self.race_panel.update_user_time(user_race_time)
+            self.race_panel.update_ratio(last_race_ratio)
+        
+        # Reload data table
+        self.load_data_table()
     
     def showEvent(self, event):
         self.refresh_display()
         super().showEvent(event)
     
     def on_point_selected(self, track, session, ratio, lap_time):
-        pass
+        """Handle point selection from graph - update table selection"""
+        for row in range(self.data_table.rowCount()):
+            if (abs(float(self.data_table.item(row, 3).text()) - ratio) < 0.001 and
+                abs(float(self.data_table.item(row, 4).text()) - lap_time) < 0.01):
+                self.data_table.selectRow(row)
+                self.data_table.scrollToItem(self.data_table.item(row, 0))
+                break
     
     def on_data_updated(self):
+        self.load_data_table()
         self.data_updated.emit()
     
     def on_formula_changed(self, session_type: str, a: float, b: float):
+        """Handle formula change from graph"""
+        if session_type == "qual" and self.qual_panel:
+            self.qual_panel.update_formula(a, b)
+        elif session_type == "race" and self.race_panel:
+            self.race_panel.update_formula(a, b)
         self.formula_updated.emit(session_type, a, b)
+    
+    def on_session_formula_changed(self, session_type: str, a: float, b: float):
+        """Handle formula change from session panel"""
+        if self.curve_graph:
+            if session_type == "qual":
+                self.curve_graph.qual_a = a
+                self.curve_graph.qual_b = b
+            else:
+                self.curve_graph.race_a = a
+                self.curve_graph.race_b = b
+            self.curve_graph.update_graph()
+        self.formula_updated.emit(session_type, a, b)
+    
+    def on_show_data_toggled(self, session_type: str, show: bool):
+        """Handle show/hide data on graph"""
+        if self.curve_graph:
+            if session_type == "qual":
+                self.curve_graph.set_show_qualifying(show)
+            else:
+                self.curve_graph.set_show_race(show)
+    
+    def on_calculate_ratio(self, session_type: str, lap_time: float):
+        """Calculate ratio from lap time using current formula"""
+        if session_type == "qual":
+            a, b = self.qual_panel.a, self.qual_panel.b
+        else:
+            a, b = self.race_panel.a, self.race_panel.b
+        
+        denominator = lap_time - b
+        if denominator <= 0:
+            QMessageBox.warning(self, "Invalid", "Lap time too low for this formula.")
+            return
+        
+        ratio = a / denominator
+        
+        if 0.3 < ratio < 3.0:
+            QMessageBox.information(self, "Ratio Calculated", 
+                f"Calculated {session_type.upper()} Ratio = {ratio:.6f}\n\n"
+                f"Based on lap time: {lap_time:.3f}s\n"
+                f"Using formula: T = {a:.3f} / R + {b:.3f}")
+            
+            if session_type == "qual":
+                self.qual_panel.update_ratio(ratio)
+            else:
+                self.race_panel.update_ratio(ratio)
+        else:
+            QMessageBox.warning(self, "Out of Range", 
+                f"Calculated ratio {ratio:.6f} is outside valid range (0.3-3.0).")
+    
+    def on_save_ratio_to_aiw(self, session_type: str, ratio: float):
+        """Save ratio to AIW file"""
+        QMessageBox.information(self, "Save to AIW", 
+            f"This would save {session_type.upper()} Ratio = {ratio:.6f} to the AIW file.\n\n"
+            "This feature requires the main window to have the AIW file path.")
+    
+    def on_auto_fit_requested(self, session_type: str):
+        """Auto-fit formula to existing data"""
+        if not self.curve_graph:
+            return
+        
+        points_data = self.curve_graph.get_selected_data()
+        
+        if session_type == "qual":
+            points = points_data.get('quali', [])
+        else:
+            points = points_data.get('race', [])
+        
+        if len(points) < 2:
+            QMessageBox.warning(self, "Insufficient Data", 
+                f"Need at least 2 data points to auto-fit {session_type} formula.\n"
+                f"Found {len(points)} points.")
+            return
+        
+        ratios = [p[0] for p in points]
+        times = [p[1] for p in points]
+        a, b, avg_err, max_err = fit_curve(ratios, times, verbose=False)
+        
+        if a and b and a > 0 and b > 0:
+            if session_type == "qual":
+                self.qual_panel.update_formula(a, b)
+                if self.curve_graph:
+                    self.curve_graph.qual_a = a
+                    self.curve_graph.qual_b = b
+            else:
+                self.race_panel.update_formula(a, b)
+                if self.curve_graph:
+                    self.curve_graph.race_a = a
+                    self.curve_graph.race_b = b
+            
+            if self.curve_graph:
+                self.curve_graph.update_graph()
+            
+            self.formula_updated.emit(session_type, a, b)
+            QMessageBox.information(self, "Auto-Fit Complete", 
+                f"Formula fitted to {len(points)} data points:\n"
+                f"T = {a:.4f} / R + {b:.4f}\n"
+                f"Average error: {avg_err:.3f}s\n"
+                f"Max error: {max_err:.3f}s")
+        else:
+            QMessageBox.warning(self, "Fit Failed", "Could not fit curve to data.")
     
     def on_target_mode_changed(self):
         if self.percentage_radio.isChecked():
@@ -1396,16 +1575,6 @@ class AdvancedSettingsDialog(QDialog):
             f"AI Target settings have been applied.\n\n"
             f"These settings will be used the next time Autoratio runs.")
     
-    def show_log_window(self):
-        if self.log_window:
-            self.log_window.show()
-            self.log_window.raise_()
-    
-    def add_change_entry(self, category, message):
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        self.changes_list.addItem(f"[{timestamp}] [{category}] {message}")
-        self.changes_list.scrollToBottom()
-    
     def scan_aiw_backups(self):
         backups = []
         
@@ -1464,7 +1633,7 @@ class AdvancedSettingsDialog(QDialog):
             return True
             
         except Exception as e:
-            print(f"Error restoring backup: {e}")
+            logger.error(f"Error restoring backup: {e}")
             return False
     
     def refresh_backup_list(self):
@@ -1503,7 +1672,6 @@ class AdvancedSettingsDialog(QDialog):
                 restored += 1
         
         if restored > 0:
-            self.add_change_entry("Backup", f"Restored {restored} AIW file(s)")
             QMessageBox.information(self, "Restore Complete", f"Successfully restored {restored} AIW file(s).")
             self.refresh_backup_list()
     
@@ -1528,7 +1696,6 @@ class AdvancedSettingsDialog(QDialog):
                 restored += 1
         
         if restored > 0:
-            self.add_change_entry("Backup", f"Restored all {restored} AIW file(s)")
             QMessageBox.information(self, "Restore Complete", f"Successfully restored {restored} AIW file(s).")
             self.refresh_backup_list()
 

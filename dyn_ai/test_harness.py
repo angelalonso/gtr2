@@ -35,10 +35,10 @@ from typing import Optional, Dict, List, Tuple
 # Add current directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-# Configure logging
+# Configure logging with TEST_HARNESS tag
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format='[TEST_HARNESS] %(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
@@ -1073,7 +1073,7 @@ class LiveAITunerTestHarness:
 def main():
     """Main entry point - defaults to mode 2"""
     print("\n" + "=" * 60)
-    print("Live AI Tuner Test Harness")
+    print("[TEST_HARNESS] Live AI Tuner Test Harness")
     print("=" * 60)
     print("\nSelect test mode:")
     print("  1. User-interactive test - one change after delay")
