@@ -42,6 +42,8 @@ Saves every race session to the database. Builds a history of lap times vs AI ra
 
 ### Auto-calculate Ratios
 
+![Main Window](main_window_3.png)
+
 When enabled:
 
     Detects new race results
@@ -56,6 +58,8 @@ Result: AI that gradually learns your pace and adapts.
 
 ### AI Target Positioning
 
+![AI Target Window](ai_target_window.png)
+
 Controls where your lap time should fall within the AI range:
 Mode	Effect
 Percentage	0% = match fastest AI, 50% = middle, 100% = match slowest AI
@@ -63,6 +67,8 @@ Seconds from fastest	Fixed offset from best AI time (negative = faster than AI)
 Seconds from slowest	Fixed offset from worst AI time
 
 Access this via the Advanced button.
+
+Last but not least...this has not yet been tested, be the first to do so and win a fantastic troubleshooting with me!
 
 ### Manual Controls
 
@@ -80,6 +86,8 @@ Even with auto-calculation off, you can:
 ## Advanced Features
 
 ### Data Management (Advanced → Data Management)
+
+![Data Window](data_window.png)
 
     Track/Class selection - Filter data by track and vehicle class
 
@@ -99,6 +107,8 @@ Even with auto-calculation off, you can:
 
 ### AIW Backup Restore (Advanced → Backup Restore)
 
+![AIW Restore Window](restore_window.png)
+
 Every AIW modification creates a backup (*_ORIGINAL.AIW). Use this to:
 
     Restore individual track AIW files
@@ -106,6 +116,8 @@ Every AIW modification creates a backup (*_ORIGINAL.AIW). Use this to:
     Restore all backed-up files at once
 
 ### Log Viewer (Advanced → Logs)
+
+![Logs Window](logs_window.png)
 
 Displays program activity. Filter by level (ERROR/WARNING/INFO/DEBUG/ALL).
 
