@@ -1,0 +1,71 @@
+{
+  "GT_0304": {
+    "classes": ["GT_0304"],
+    "vehicles": [
+      "Chrysler Viper GTS-R",
+      "Ferrari 550 Maranello",
+      "Ferrari 550",
+      "Ferrari 575 GTC",
+      "Lamborghini Murcielago R-GT",
+      "Lister Storm",
+      "Porsche 911 GT2",
+      "Saleen S7-R",
+      "Porsche 996"
+    ]
+  },
+  "NGT_0304": {
+    "classes": ["NGT_0304"],
+    "vehicles": [
+      "Ferrari 360 GTC",
+      "Ferrari 360 Modena",
+      "Porsche GT3-RS",
+      "Porsche GT3-RSR",
+      "TVR T400R",
+      "Nissan 350Z"
+    ]
+  },
+  "Spa_0304": {
+    "classes": ["Spa_0304"],
+    "vehicles": [
+      "BMW M3"
+    ]
+  },
+  "GT_2012": {
+    "classes": ["GT_2012"],
+    "vehicles": [
+      "Aston Martin",
+      "Audi R8 LMS Ultra",
+      "Audi R8 LMS",
+      "BMW Alpina B6",
+      "BMW Z4 E89",
+      "Chevrolet Camaro GT",
+      "Chevrolet Corvette Z06.R",
+      "Dodge Viper Competition Coupe",
+      "Ferrari 458",
+      "Ferrari F458 Italia",
+      "Ford Mustang FR500",
+      "Gallardo",
+      "Lambda Performance Ford GT",
+      "Lamborghini Gallardo LP600+",
+      "Maserati MC12",
+      "McLaren GT MP4-12C",
+      "Mclaren",
+      "Mercedes GT",
+      "Mercedes-Benz SLS AMG",
+      "Nissan Nismo GT-R",
+      "Porsche 997 GT3 R",
+      "GT Cars"
+    ]
+  },
+  "Formula_4": {
+    "classes": ["Formula_4"],
+    "vehicles": [
+      "Formula 4",
+      "Formula BMW",
+      "Formula F4",
+      "Formula Senior",
+      "f4",
+      "F4"
+    ]
+  }
+}

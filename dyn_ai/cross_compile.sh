@@ -31,22 +31,25 @@ echo "Building executable with PyInstaller..."
 wine python -m PyInstaller \
     --onefile \
     --windowed \
-    --add-data="aiw_manager.py;." \
-    --add-data="cfg_manage.py;." \
-    --add-data="file_monitor.py;." \
-    --add-data="global_curve_builder.py;." \
-    --add-data="global_curve.py;." \
-    --add-data="gui.py;." \
-    --add-data="ratio_calculator.py;." \
-    --add-data="results_parser.py;." \
-    --hidden-import=aiw_manager \
-    --hidden-import=cfg_manage \
-    --hidden-import=file_monitor \
-    --hidden-import=global_curve_builder \
-    --hidden-import=global_curve \
-    --hidden-import=gui \
-    --hidden-import=ratio_calculator \
-    --hidden-import=results_parser \
+    --add-data="autopilot.py;." \
+    --add-data="cfg_funcs.py;." \
+    --add-data="cleanup_formulas_table.py;." \
+    --add-data="data_daemon.py;." \
+    --add-data="data_extraction.py;." \
+    --add-data="db_funcs.py;." \
+    --add-data="db_importer.py;." \
+    --add-data="dyn_ai.py;." \
+    --add-data="formula_funcs.py;." \
+    --add-data="gui_funcs.py;." \
+    --hidden-import=autopilot \
+    --hidden-import=cfg_funcs \
+    --hidden-import=cleanup_formulas_table \
+    --hidden-import=data_daemon \
+    --hidden-import=data_extraction \
+    --hidden-import=db_funcs \
+    --hidden-import=db_importer \
+    --hidden-import=formula_funcs \
+    --hidden-import=gui_funcs \
     dyn_ai.py
 
 # Check if build succeeded
@@ -59,7 +62,7 @@ if [ -f "dist/dyn_ai.exe" ]; then
     
     # Optional: Test the executable
     echo "Testing executable..."
-    wine dyn_ai.exe --help 2>&1 | head -5 || echo "Test completed"
+    wine dyn_ai.exe wine dyn_ai.exe --config=./cfg.yml | head -5 || echo "Test completed"
     
 else
     echo "ERROR: Build failed - executable not created"

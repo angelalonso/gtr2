@@ -1,0 +1,98 @@
+//[[gMa1.000f (c)2004    ]] [[]]
+[Header]
+Game=GTR2
+Version=1.100
+TimeString=2026/03/13 17:21:37
+Aids=0,0,0,0,0,1,1,0,0
+
+[Race]
+RaceMode=3
+Scene=GAMEDATA\LOCATIONS\Testtrack\Testtrack.TRK
+AIDB=GAMEDATA\LOCATIONS\Testtrack\Testtrack.AIW
+Race Length=0.100
+Track Length=5782.6401
+
+[Slot000]
+Driver=TestPlayer
+Vehicle=Porsche 997 GT3 R
+VehicleNumber=6004
+Team=Ajira Racing
+Penalty=0
+Laps=8
+LapDistanceTravelled=5722.570801
+BestLap=1:55.364
+RaceTime=0:17:06.061
+
+[Slot001]
+Driver=TestAI1
+Vehicle=Lamborghini Gallardo LP600+
+VehicleNumber=6002
+Team=Team RaceSim Central
+Penalty=0
+QualTime=1:55.700
+Laps=8
+LapDistanceTravelled=5714.660645
+BestLap=1:57.234
+RaceTime=0:15:54.100
+
+[Slot002]
+Driver=TestAI2
+Vehicle=Ferrari F458 Italia
+VehicleNumber=6001
+Team=Team RaceSim Central
+Penalty=0
+QualTime=1:57.100
+Laps=8
+LapDistanceTravelled=5703.221680
+BestLap=1:58.789
+RaceTime=0:15:40.165
+
+[Slot003]
+Driver=TestAI3
+Vehicle=BMW Z4 E89
+VehicleNumber=6009
+Team=Roaring Pipes Maniacs
+Penalty=0
+QualTime=1:58.600
+Laps=8
+LapDistanceTravelled=5695.196289
+BestLap=2:00.123
+RaceTime=0:16:15.417
+
+[Slot004]
+Driver=TestAI4
+Vehicle=Mercedes-Benz SLS AMG
+VehicleNumber=6007
+Team=Team Redline
+Penalty=0
+QualTime=2:00.100
+Laps=8
+LapDistanceTravelled=5687.183594
+BestLap=2:01.901
+RaceTime=0:16:10.146
+
+[Slot005]
+Driver=TestAI5
+Vehicle=Mclaren
+VehicleNumber=6006
+Team=Ajira Racing
+Penalty=0
+QualTime=2:01.700
+Laps=8
+LapDistanceTravelled=5682.786133
+BestLap=2:03.456
+RaceTime=0:15:33.000
+
+[Slot006]
+Driver=TestAI6
+Vehicle=Aston Martin
+VehicleNumber=6010
+Team=Roaring Pipes Maniacs
+Penalty=0
+QualTime=2:04.500
+Laps=8
+LapDistanceTravelled=5674.729004
+BestLap=2:06.234
+RaceTime=0:17:21.661
+
+[END]

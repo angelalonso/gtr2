@@ -1,0 +1,355 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="210mm"
+   height="297mm"
+   viewBox="0 0 210 297"
+   version="1.1"
+   id="svg5"
+   inkscape:version="1.2.2 (b0a8486541, 2022-12-01)"
+   sodipodi:docname="gui.svg"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview7"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     showgrid="false"
+     inkscape:zoom="0.95246126"
+     inkscape:cx="693.99148"
+     inkscape:cy="444.6375"
+     inkscape:window-width="1920"
+     inkscape:window-height="1011"
+     inkscape:window-x="0"
+     inkscape:window-y="32"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1" />
+  <defs
+     id="defs2" />
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <rect
+       style="fill:#272727;fill-opacity:1;stroke:none;stroke-width:0.181742"
+       id="rect234"
+       width="96.457001"
+       height="141.18341"
+       x="34.896896"
+       y="36.672459"
+       inkscape:export-filename="mainscreen.png"
+       inkscape:export-xdpi="96"
+       inkscape:export-ydpi="96" />
+    <text
+       xml:space="preserve"
+       style="font-weight:bold;font-size:6.79174px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';text-align:center;text-anchor:middle;fill:#e2e2e2;fill-opacity:1;stroke:none;stroke-width:0.0962608"
+       x="50.339546"
+       y="40.329487"
+       id="text1730"
+       transform="scale(0.86517037,1.1558417)"><tspan
+         sodipodi:role="line"
+         id="tspan1728"
+         style="fill:#e2e2e2;fill-opacity:1;stroke-width:0.0962608"
+         x="50.339546"
+         y="40.329487">GTR</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-weight:bold;font-size:6.79174px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';text-align:center;text-anchor:middle;fill:#ff3939;fill-opacity:1;stroke:none;stroke-width:0.0962608"
+       x="58.290779"
+       y="40.329487"
+       id="text1838"
+       transform="scale(0.86517037,1.1558417)"><tspan
+         sodipodi:role="line"
+         id="tspan1836"
+         style="fill:#ff3939;fill-opacity:1;stroke-width:0.0962608"
+         x="58.290779"
+         y="40.329487">²</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-weight:bold;font-size:6.79174px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';text-align:center;text-anchor:middle;fill:#e2e2e2;fill-opacity:1;stroke:none;stroke-width:0.0962608"
+       x="80.921196"
+       y="40.329487"
+       id="text2148"
+       transform="scale(0.86517037,1.1558417)"><tspan
+         sodipodi:role="line"
+         id="tspan2146"
+         style="fill:#e2e2e2;fill-opacity:1;stroke-width:0.0962608"
+         x="80.921196"
+         y="40.329487">Suzuka</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-weight:bold;font-size:6.79174px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';text-align:start;text-anchor:start;fill:#e2e2e2;fill-opacity:1;stroke:none;stroke-width:0.0962608"
+       x="43.680622"
+       y="49.485874"
+       id="text2878"
+       transform="scale(0.86517037,1.1558417)"><tspan
+         sodipodi:role="line"
+         id="tspan2876"
+         style="text-align:start;text-anchor:start;fill:#59fd00;fill-opacity:1;stroke-width:0.0962608"
+         x="43.680622"
+         y="49.485874">Car Class:    GT_2012</tspan></text>
+    <rect
+       style="fill:#d20000;fill-opacity:1;stroke:none;stroke-width:0.14752"
+       id="rect4340"
+       width="30.778057"
+       height="9.6580667"
+       x="97.735649"
+       y="164.15822" />
+    <text
+       xml:space="preserve"
+       style="font-weight:bold;font-size:5.64444px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';text-align:start;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.2"
+       x="108.93665"
+       y="171.04137"
+       id="text4344"><tspan
+         sodipodi:role="line"
+         id="tspan4342"
+         style="font-size:5.64444px;fill:#ffffff;fill-opacity:1;stroke-width:0.2"
+         x="108.93665"
+         y="171.04137">Exit</tspan></text>
+    <rect
+       style="fill:none;fill-opacity:1;stroke:#faeb00;stroke-width:0.480734;stroke-dasharray:none;stroke-opacity:1"
+       id="rect6104"
+       width="89.522926"
+       height="33.678207"
+       x="38.358536"
+       y="65.043221" />
+    <text
+       xml:space="preserve"
+       style="font-weight:bold;font-size:5.64444px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';text-align:start;text-anchor:start;fill:#faeb00;fill-opacity:1;stroke:none;stroke-width:0.0962608"
+       x="45.515522"
+       y="61.846992"
+       id="text7250"
+       transform="scale(0.86517037,1.1558417)"><tspan
+         sodipodi:role="line"
+         id="tspan7248"
+         style="font-size:5.64444px;text-align:start;text-anchor:start;fill:#faeb00;fill-opacity:1;stroke-width:0.0962608"
+         x="45.515522"
+         y="61.846992">Quali-Ratio</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-weight:bold;font-size:11.4436px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';text-align:start;text-anchor:start;fill:#faeb00;fill-opacity:1;stroke:none;stroke-width:0.19516"
+       x="96.925064"
+       y="65.68998"
+       id="text8546"
+       transform="scale(0.86517037,1.1558417)"><tspan
+         sodipodi:role="line"
+         id="tspan8544"
+         style="font-size:11.4436px;text-align:start;text-anchor:start;fill:#faeb00;fill-opacity:1;stroke-width:0.19516"
+         x="96.925064"
+         y="65.68998">0.9867</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-weight:bold;font-size:5.64444px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';text-align:start;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.0962608"
+       x="45.515522"
+       y="77.870682"
+       id="text9276"
+       transform="scale(0.86517037,1.1558417)"><tspan
+         sodipodi:role="line"
+         id="tspan9274"
+         style="font-size:5.64444px;text-align:start;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke-width:0.0962608"
+         x="45.515522"
+         y="77.870682">AI</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-weight:bold;font-size:5.64444px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';text-align:start;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.0962608"
+       x="45.515522"
+       y="83.822327"
+       id="text9280"
+       transform="scale(0.86517037,1.1558417)"><tspan
+         sodipodi:role="line"
+         id="tspan9278"
+         style="font-size:5.64444px;text-align:start;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke-width:0.0962608"
+         x="45.515522"
+         y="83.822327">User</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-weight:bold;font-size:5.64444px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';text-align:start;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.0962608"
+       x="69.980835"
+       y="77.870682"
+       id="text9284"
+       transform="scale(0.86517037,1.1558417)"><tspan
+         sodipodi:role="line"
+         id="tspan9282"
+         style="font-size:5.64444px;text-align:start;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke-width:0.0962608"
+         x="69.980835"
+         y="77.870682">1:23.876 - 1:27.039</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-weight:bold;font-size:5.64444px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';text-align:start;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.0962608"
+       x="83.436752"
+       y="83.822327"
+       id="text9288"
+       transform="scale(0.86517037,1.1558417)"><tspan
+         sodipodi:role="line"
+         id="tspan9286"
+         style="font-size:5.64444px;text-align:start;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke-width:0.0962608"
+         x="83.436752"
+         y="83.822327">1:25.452</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-weight:bold;font-size:5.64444px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';text-align:start;text-anchor:start;fill:#faeb00;fill-opacity:1;stroke:none;stroke-width:0.0962608"
+       x="45.515522"
+       y="71.919037"
+       id="text10120"
+       transform="scale(0.86517037,1.1558417)"><tspan
+         sodipodi:role="line"
+         id="tspan10118"
+         style="font-size:5.64444px;text-align:start;text-anchor:start;fill:#faeb00;fill-opacity:1;stroke-width:0.0962608"
+         x="45.515522"
+         y="71.919037">Expected Best Laptimes:</tspan></text>
+    <rect
+       style="fill:none;fill-opacity:1;stroke:#faeb00;stroke-width:0.480734;stroke-dasharray:none;stroke-opacity:1"
+       id="rect10169"
+       width="89.522926"
+       height="33.678207"
+       x="38.358536"
+       y="100.49738" />
+    <text
+       xml:space="preserve"
+       style="font-weight:bold;font-size:5.64444px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';text-align:start;text-anchor:start;fill:#faeb00;fill-opacity:1;stroke:none;stroke-width:0.0962608"
+       x="45.515522"
+       y="92.520897"
+       id="text10173"
+       transform="scale(0.86517037,1.1558417)"><tspan
+         sodipodi:role="line"
+         id="tspan10171"
+         style="font-size:5.64444px;text-align:start;text-anchor:start;fill:#faeb00;fill-opacity:1;stroke-width:0.0962608"
+         x="45.515522"
+         y="92.520897">Race-Ratio</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-weight:bold;font-size:11.4436px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';text-align:start;text-anchor:start;fill:#faeb00;fill-opacity:1;stroke:none;stroke-width:0.19516"
+       x="96.925064"
+       y="96.363884"
+       id="text10177"
+       transform="scale(0.86517037,1.1558417)"><tspan
+         sodipodi:role="line"
+         id="tspan10175"
+         style="font-size:11.4436px;text-align:start;text-anchor:start;fill:#faeb00;fill-opacity:1;stroke-width:0.19516"
+         x="96.925064"
+         y="96.363884">1.0030</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-weight:bold;font-size:5.64444px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';text-align:start;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.0962608"
+       x="45.515522"
+       y="108.54459"
+       id="text10181"
+       transform="scale(0.86517037,1.1558417)"><tspan
+         sodipodi:role="line"
+         id="tspan10179"
+         style="font-size:5.64444px;text-align:start;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke-width:0.0962608"
+         x="45.515522"
+         y="108.54459">AI</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-weight:bold;font-size:5.64444px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';text-align:start;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.0962608"
+       x="45.515522"
+       y="114.49622"
+       id="text10185"
+       transform="scale(0.86517037,1.1558417)"><tspan
+         sodipodi:role="line"
+         id="tspan10183"
+         style="font-size:5.64444px;text-align:start;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke-width:0.0962608"
+         x="45.515522"
+         y="114.49622">User</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-weight:bold;font-size:5.64444px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';text-align:start;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.0962608"
+       x="69.980835"
+       y="108.54459"
+       id="text10189"
+       transform="scale(0.86517037,1.1558417)"><tspan
+         sodipodi:role="line"
+         id="tspan10187"
+         style="font-size:5.64444px;text-align:start;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke-width:0.0962608"
+         x="69.980835"
+         y="108.54459">1:24.256 - 1:28.336</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-weight:bold;font-size:5.64444px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';text-align:start;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.0962608"
+       x="83.436752"
+       y="114.49622"
+       id="text10193"
+       transform="scale(0.86517037,1.1558417)"><tspan
+         sodipodi:role="line"
+         id="tspan10191"
+         style="font-size:5.64444px;text-align:start;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke-width:0.0962608"
+         x="83.436752"
+         y="114.49622">1:26.721</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-weight:bold;font-size:5.64444px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';text-align:start;text-anchor:start;fill:#faeb00;fill-opacity:1;stroke:none;stroke-width:0.0962608"
+       x="45.515522"
+       y="102.59296"
+       id="text10197"
+       transform="scale(0.86517037,1.1558417)"><tspan
+         sodipodi:role="line"
+         id="tspan10195"
+         style="font-size:5.64444px;text-align:start;text-anchor:start;fill:#faeb00;fill-opacity:1;stroke-width:0.0962608"
+         x="45.515522"
+         y="102.59296">Expected Best Laptimes:</tspan></text>
+    <rect
+       style="fill:#00a651;fill-opacity:1;stroke:none;stroke-width:0.251818"
+       id="rect12431"
+       width="89.683289"
+       height="9.6580667"
+       x="38.468994"
+       y="137.7244" />
+    <text
+       xml:space="preserve"
+       style="font-weight:bold;font-size:5.64444px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';text-align:start;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.2"
+       x="53.374172"
+       y="144.60754"
+       id="text12435"><tspan
+         sodipodi:role="line"
+         id="tspan12433"
+         style="font-size:5.64444px;fill:#ffffff;fill-opacity:1;stroke-width:0.2"
+         x="53.374172"
+         y="144.60754">Auto-harvest Data</tspan></text>
+    <rect
+       style="fill:#008cd2;fill-opacity:1;stroke:none;stroke-width:0.251818"
+       id="rect12437"
+       width="89.683289"
+       height="9.6580667"
+       x="38.468994"
+       y="150.95354" />
+    <text
+       xml:space="preserve"
+       style="font-weight:bold;font-size:5.64444px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';text-align:start;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.2"
+       x="53.374172"
+       y="157.83669"
+       id="text12441"><tspan
+         sodipodi:role="line"
+         id="tspan12439"
+         style="font-size:5.64444px;fill:#ffffff;fill-opacity:1;stroke-width:0.2"
+         x="53.374172"
+         y="157.83669">Auto-calculate Ratios</tspan></text>
+    <rect
+       style="fill:#7800d2;fill-opacity:1;stroke:none;stroke-width:0.2"
+       id="rect12443"
+       width="56.571556"
+       height="9.6580667"
+       x="38.468994"
+       y="164.18275" />
+    <text
+       xml:space="preserve"
+       style="font-weight:bold;font-size:5.64444px;font-family:Cantarell;-inkscape-font-specification:'Cantarell Bold';text-align:start;text-anchor:start;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.2"
+       x="53.374172"
+       y="171.0659"
+       id="text12447"><tspan
+         sodipodi:role="line"
+         id="tspan12445"
+         style="font-size:5.64444px;fill:#ffffff;fill-opacity:1;stroke-width:0.2"
+         x="53.374172"
+         y="171.0659">Advanced</tspan></text>
+  </g>
+</svg>
