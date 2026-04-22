@@ -18,6 +18,9 @@ Still: USE IT AT YOUR OWN RISK, probably on a SEPARATED DROP and please, ping me
 
 ## Quick Start
 
+- Check and try to adapt cfg.yml
+- Same for vehicle_classes.json
+
 **Windows (easy mode):**  
 Open dyn_ai_vX.X.X.zip, grab the `.exe` from the zip, run it, done.
 
@@ -173,6 +176,8 @@ AI ratios not updating → Ensure Auto-calculate Ratios is ON (green)
 Database errors → Run cleanup_formulas_table.py to fix schema
 
 Can't find AIW file → Verify GTR2 path and that the track folder exists in GameData/Locations
+
+My data does not show classes but individual cars → Create a new class with all the cars you want on vehicle_classes.json. On Advanced>Data you can also select the related entries and delete them.
 
 ---
 
