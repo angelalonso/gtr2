@@ -1,4 +1,4 @@
-# dyn_ai — Live AI Tuner for GTR2 - v1.0.0
+# dyn_ai — Live AI Tuner for GTR2 - v1.0.1
 
 ## What it does
 

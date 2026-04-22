@@ -445,10 +445,31 @@ class AutopilotEngine:
             new_formula = Formula.from_point(track, vehicle_class, current_ratio, target_time, session_type, DEFAULT_A_VALUE)
             return new_formula
     
+    def _calculate_new_ratio_from_user_time(self, formula: Formula, user_lap_time: float) -> Optional[float]:
+        """
+        Calculate what ratio would give the user's lap time using the current formula.
+        This is the key method for adjusting AI difficulty to match user performance.
+        """
+        if user_lap_time <= 0:
+            logger.debug(f"  No valid user lap time provided")
+            return None
+        
+        new_ratio = formula.get_ratio_for_time(user_lap_time)
+        
+        if new_ratio and 0.3 < new_ratio < 3.0:
+            logger.debug(f"  Calculated new ratio from user time {user_lap_time:.3f}s: {new_ratio:.6f}")
+            return new_ratio
+        else:
+            logger.debug(f"  Calculated ratio {new_ratio} is out of valid range (0.3-3.0)")
+            return None
+    
     def _process_session(self, track: str, vehicle_class: str, session_type: str, 
-                         current_ratio: float, midpoint_time: float, aiw_path: Path,
+                         current_ratio: float, user_lap_time: float, midpoint_time: float, aiw_path: Path,
                          ratio_name: str, ai_target_settings: Dict = None) -> Dict[str, Any]:
-        """Process a single session (qualifying or race)"""
+        """
+        Process a single session (qualifying or race).
+        Now properly calculates target ratio based on USER lap time, not AI midpoint.
+        """
         result = {
             "updated": False,
             "old_ratio": current_ratio,
@@ -458,51 +479,74 @@ class AutopilotEngine:
         
         logger.debug(f"\n{'='*50}")
         logger.debug(f"[{session_type.upper()}] Processing {session_type} session")
+        logger.debug(f"  Current ratio from AIW: {current_ratio:.6f}")
+        logger.debug(f"  User lap time: {user_lap_time:.3f}s" if user_lap_time > 0 else "  User lap time: Not available")
         
-        # Get existing data points for this class and session
-        existing_points = self._get_data_points(track, vehicle_class, session_type)
-        
-        if existing_points and ai_target_settings:
-            ai_times = [t for _, t in existing_points]
-            best_ai_time = min(ai_times)
-            worst_ai_time = max(ai_times)
-            
-            logger.debug(f"  AI range: {best_ai_time:.2f}s (best) to {worst_ai_time:.2f}s (worst)")
-            
-            target_time = self.calculate_target_time_from_settings(
-                best_ai_time, worst_ai_time, ai_target_settings
-            )
-            logger.debug(f"  Target AI time from settings: {target_time:.2f}s")
+        # CRITICAL FIX: If we have user lap time, that's what we should target
+        # The goal is to make AI times match the user's performance level
+        if user_lap_time > 0:
+            # Use user's lap time as the target for formula creation/adaptation
+            target_time_for_formula = user_lap_time
+            logger.debug(f"  Using USER lap time as target: {target_time_for_formula:.3f}s")
         else:
-            target_time = midpoint_time
-            logger.debug(f"  Using target: {target_time:.2f}s (midpoint)")
+            # Fallback to AI midpoint if no user time (e.g., first qualifying session)
+            target_time_for_formula = midpoint_time
+            logger.debug(f"  No user time - using AI midpoint as target: {target_time_for_formula:.3f}s")
         
-        logger.debug(f"  New data point: R={current_ratio:.4f}, T={midpoint_time:.2f}s")
-        logger.debug(f"  Target point for formula: R={current_ratio:.4f}, T={target_time:.2f}s")
-        
-        # Get or create formula
-        formula = self._get_or_create_formula(track, vehicle_class, session_type, current_ratio, target_time)
+        # Get or create formula using the target time
+        formula = self._get_or_create_formula(track, vehicle_class, session_type, current_ratio, target_time_for_formula)
         logger.debug(f"  Formula: {formula.get_formula_string()}")
         
         # Save the formula
         self.formula_manager.save_formula(formula)
         result["formula"] = formula
         
-        # Calculate new ratio for the target lap time
-        new_ratio = formula.get_ratio_for_time(midpoint_time)
+        # Calculate what ratio would give the user's lap time (or target time)
+        # This is the NEW ratio we should write to the AIW
+        if user_lap_time > 0:
+            # We have user data - calculate ratio that makes AI match user
+            new_ratio = self._calculate_new_ratio_from_user_time(formula, user_lap_time)
+            logger.debug(f"  Calculated new ratio from user time {user_lap_time:.3f}s: {new_ratio:.6f}" if new_ratio else "  Could not calculate new ratio from user time")
+        else:
+            # No user data - we can't calculate a meaningful new ratio
+            # Keep current ratio, but we've created/updated the formula for future use
+            new_ratio = None
+            logger.debug(f"  No user time available - cannot calculate new ratio")
         
-        if new_ratio and 0.3 < new_ratio < 3.0:
-            logger.info(f"New Ratio calculated for {session_type} session: {new_ratio:.6f}")
-            logger.debug(f"  (was {current_ratio:.4f})")
+        # Apply AI target settings if provided and we have AI range data
+        if ai_target_settings and new_ratio and new_ratio != current_ratio:
+            # Get AI times for this session to apply target positioning
+            existing_points = self._get_data_points(track, vehicle_class, session_type)
+            if existing_points:
+                ai_times = [t for _, t in existing_points]
+                best_ai_time = min(ai_times)
+                worst_ai_time = max(ai_times)
+                
+                target_time = self.calculate_target_time_from_settings(
+                    best_ai_time, worst_ai_time, ai_target_settings
+                )
+                
+                # Recalculate ratio for the target position
+                adjusted_ratio = formula.get_ratio_for_time(target_time)
+                if adjusted_ratio and 0.3 < adjusted_ratio < 3.0:
+                    logger.debug(f"  Adjusted for AI target (position {ai_target_settings.get('percentage', 50)}%): {adjusted_ratio:.6f}")
+                    new_ratio = adjusted_ratio
+        
+        # Apply the new ratio to the AIW file if we have one and it's different
+        if new_ratio and abs(new_ratio - current_ratio) > 0.000001:
+            logger.info(f"  Updating {ratio_name} from {current_ratio:.6f} to {new_ratio:.6f}")
             
             if self._update_aiw_ratio(aiw_path, ratio_name, new_ratio):
                 result["updated"] = True
                 result["new_ratio"] = new_ratio
-                logger.debug(f"  Updated {ratio_name} in AIW")
+                logger.debug(f"  Successfully updated {ratio_name} in AIW")
             else:
                 logger.error(f"  Failed to update AIW file")
         else:
-            logger.warning(f"  Invalid ratio calculated: {new_ratio}")
+            if new_ratio:
+                logger.debug(f"  New ratio {new_ratio:.6f} is essentially same as current {current_ratio:.6f} - no update needed")
+            else:
+                logger.debug(f"  No new ratio calculated - keeping current value")
         
         return result
     
@@ -551,6 +595,8 @@ class AutopilotEngine:
         logger.debug(f"{'='*70}")
         logger.debug(f"  Track: '{track}'")
         logger.debug(f"  User Vehicle: '{user_vehicle}' -> Class: '{vehicle_class}'")
+        logger.debug(f"  User Qualifying Time: {race_data.user_qualifying_sec:.3f}s" if race_data.user_qualifying_sec > 0 else "  User Qualifying Time: Not available")
+        logger.debug(f"  User Best Race Time: {race_data.user_best_lap_sec:.3f}s" if race_data.user_best_lap_sec > 0 else "  User Best Race Time: Not available")
         
         # Process qualifying
         if has_qual:
@@ -559,7 +605,11 @@ class AutopilotEngine:
             
             qual_result = self._process_session(
                 track, vehicle_class, "qual",
-                race_data.qual_ratio, qual_midpoint, aiw_path, "QualRatio",
+                race_data.qual_ratio, 
+                race_data.user_qualifying_sec,  # Pass user qualifying time
+                qual_midpoint, 
+                aiw_path, 
+                "QualRatio",
                 ai_target_settings
             )
             
@@ -574,7 +624,11 @@ class AutopilotEngine:
             
             race_result = self._process_session(
                 track, vehicle_class, "race",
-                race_data.race_ratio, race_midpoint, aiw_path, "RaceRatio",
+                race_data.race_ratio,
+                race_data.user_best_lap_sec,  # Pass user best race time
+                race_midpoint,
+                aiw_path,
+                "RaceRatio",
                 ai_target_settings
             )
             
@@ -589,12 +643,12 @@ class AutopilotEngine:
         logger.debug(f"[AUTO] Summary")
         logger.debug(f"{'='*70}")
         if result["qual_updated"]:
-            logger.debug(f"  QUALIFYING: {result['qual_old_ratio']:.4f} -> {result['qual_new_ratio']:.4f}")
+            logger.debug(f"  QUALIFYING: {result['qual_old_ratio']:.6f} -> {result['qual_new_ratio']:.6f}")
         else:
             logger.debug(f"  QUALIFYING: No update")
         
         if result["race_updated"]:
-            logger.debug(f"  RACE: {result['race_old_ratio']:.4f} -> {result['race_new_ratio']:.4f}")
+            logger.debug(f"  RACE: {result['race_old_ratio']:.6f} -> {result['race_new_ratio']:.6f}")
         else:
             logger.debug(f"  RACE: No update")
         logger.debug(f"{'='*70}\n")

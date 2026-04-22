@@ -383,6 +383,7 @@ class RatioPanel(QFrame):
         super().__init__(parent)
         self.title = title
         self.current_ratio = None
+        self.last_read_ratio = None  # Store the ratio read from AIW file
         self.setup_ui()
         
     def setup_ui(self):
@@ -414,7 +415,7 @@ class RatioPanel(QFrame):
         """)
         
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.setMinimumHeight(370)
+        self.setMinimumHeight(420)  # Increased to accommodate last ratio read
         
         layout = QVBoxLayout(self)
         layout.setSpacing(15)
@@ -439,11 +440,21 @@ class RatioPanel(QFrame):
         
         layout.addSpacing(10)
         
-        # Ratio value
+        # Current ratio value (calculated/active)
+        ratio_label = QLabel("Current Ratio:")
+        ratio_label.setStyleSheet("font-size: 11px; color: #888;")
+        layout.addWidget(ratio_label)
+        
         self.ratio_label = QLabel("-")
         self.ratio_label.setStyleSheet("font-size: 38px; font-weight: bold; font-family: monospace; color: #FFA500;")
         self.ratio_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.ratio_label)
+        
+        # Last read ratio (smaller, below)
+        self.last_read_label = QLabel("last ratio read: --")
+        self.last_read_label.setStyleSheet("font-size: 10px; color: #666; font-family: monospace; margin-top: -5px;")
+        self.last_read_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.last_read_label)
         
         layout.addSpacing(15)
         
@@ -483,6 +494,16 @@ class RatioPanel(QFrame):
             self.ratio_label.setText(f"{ratio:.6f}")
         else:
             self.ratio_label.setText("-")
+    
+    def update_last_read_ratio(self, ratio: Optional[float]):
+        """Update the 'last ratio read' display - shows what was read from AIW"""
+        self.last_read_ratio = ratio
+        if ratio is not None:
+            self.last_read_label.setText(f"last ratio read: {ratio:.6f}")
+            self.last_read_label.setStyleSheet("font-size: 10px; color: #FFA500; font-family: monospace; margin-top: -5px;")
+        else:
+            self.last_read_label.setText("last ratio read: --")
+            self.last_read_label.setStyleSheet("font-size: 10px; color: #666; font-family: monospace; margin-top: -5px;")
     
     def update_ai_range(self, best: Optional[float], worst: Optional[float]):
         if best is not None and worst is not None:
@@ -597,6 +618,10 @@ class RedesignedMainWindow(QMainWindow):
         self.user_best_lap_sec: float = 0.0
         self.last_qual_ratio: Optional[float] = None
         self.last_race_ratio: Optional[float] = None
+        
+        # Store the original ratios read from AIW (for display)
+        self.qual_read_ratio: Optional[float] = None
+        self.race_read_ratio: Optional[float] = None
         
         # Advanced settings window
         self.advanced_window = None
@@ -1062,6 +1087,18 @@ class RedesignedMainWindow(QMainWindow):
             self.user_qualifying_sec = race_data.user_qualifying_sec
         if race_data.user_best_lap_sec:
             self.user_best_lap_sec = race_data.user_best_lap_sec
+        
+        # Store the ORIGINAL ratios read from AIW (before any modification)
+        if race_data.qual_ratio:
+            self.qual_read_ratio = race_data.qual_ratio
+            # Update the "last ratio read" display
+            self.qual_panel.update_last_read_ratio(self.qual_read_ratio)
+        if race_data.race_ratio:
+            self.race_read_ratio = race_data.race_ratio
+            # Update the "last ratio read" display
+            self.race_panel.update_last_read_ratio(self.race_read_ratio)
+        
+        # Store the current active ratios (will be updated if modified)
         if race_data.qual_ratio:
             self.last_qual_ratio = race_data.qual_ratio
         if race_data.race_ratio:
@@ -1144,12 +1181,18 @@ class RedesignedMainWindow(QMainWindow):
                         result['qual_old_ratio'], result['qual_new_ratio'], "qual", user_lap_time, result['qual_old_ratio']
                     ))
                     self.last_qual_ratio = result['qual_new_ratio']
+                    # Update the displayed ratio (the calculated one)
+                    self.qual_panel.update_ratio(self.last_qual_ratio)
+                    # The "last ratio read" stays showing the original AIW value
                 if result.get("race_updated"):
                     user_lap_time = format_time(self.user_best_lap_sec) if self.user_best_lap_sec > 0 else "unknown"
                     logger.info(self.simplified_logger.new_ratio_calculation(
                         result['race_old_ratio'], result['race_new_ratio'], "race", user_lap_time, result['race_old_ratio']
                     ))
                     self.last_race_ratio = result['race_new_ratio']
+                    # Update the displayed ratio (the calculated one)
+                    self.race_panel.update_ratio(self.last_race_ratio)
+                    # The "last ratio read" stays showing the original AIW value
                 
                 # Reload formulas after update
                 self.autopilot_manager.reload_formulas()
@@ -1167,6 +1210,9 @@ class RedesignedMainWindow(QMainWindow):
                     logger.warning(f"Autoratio: {result['message']}")
         elif not self.autoratio_enabled and race_data.aiw_path:
             logger.debug("Autoratio is OFF - skipping ratio calculation")
+            # Still update the displayed ratio to show what was read from AIW
+            self.qual_panel.update_ratio(self.last_qual_ratio)
+            self.race_panel.update_ratio(self.last_race_ratio)
         
         # Emit signal to notify advanced dialog about data refresh
         self.data_refresh_signal.emit()
@@ -1215,12 +1261,18 @@ class RedesignedMainWindow(QMainWindow):
         self.qual_panel.update_ai_range(self.qual_best_ai, self.qual_worst_ai)
         self.qual_panel.update_user_time(self.user_qualifying_sec if self.user_qualifying_sec > 0 else None)
         self.qual_panel.update_formula(self.qual_a, self.qual_b)
+        # Ensure last read ratio is still shown if available
+        if self.qual_read_ratio is not None:
+            self.qual_panel.update_last_read_ratio(self.qual_read_ratio)
         
         # Update Race panel
         self.race_panel.update_ratio(self.last_race_ratio)
         self.race_panel.update_ai_range(self.race_best_ai, self.race_worst_ai)
         self.race_panel.update_user_time(self.user_best_lap_sec if self.user_best_lap_sec > 0 else None)
         self.race_panel.update_formula(self.race_a, self.race_b)
+        # Ensure last read ratio is still shown if available
+        if self.race_read_ratio is not None:
+            self.race_panel.update_last_read_ratio(self.race_read_ratio)
     
     def closeEvent(self, event):
         """Handle close event"""
