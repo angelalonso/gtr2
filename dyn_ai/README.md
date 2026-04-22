@@ -32,6 +32,10 @@ First launch will ask you to point it at your GTR2 install folder (the one that 
 ---
 
 ## Main Features
+
+![Main Window](main_window_1.png)
+![Main Window](main_window_2.png)
+
 ### Auto-harvest Data
 
 Saves every race session to the database. Builds a history of lap times vs AI ratios.
