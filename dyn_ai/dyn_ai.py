@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Live AI Tuner - Simplified GUI with separate Autosave and Autoratio switches
+Live AI Tuner - Redesigned GUI matching the reference image layout
 """
 
 import sys
@@ -13,8 +13,8 @@ from datetime import datetime
 
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
-    QLabel, QPushButton, QGroupBox, QGridLayout, QCheckBox,
-    QSplitter, QFrame, QSizePolicy, QProgressBar, QMessageBox
+    QLabel, QPushButton, QFrame, QMessageBox, QSizePolicy, QDialog,
+    QDoubleSpinBox, QFileDialog
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QObject
 from PyQt5.QtGui import QFont
@@ -31,8 +31,8 @@ from cfg_funcs import (
     get_autopilot_enabled, get_autopilot_silent,
     update_autopilot_enabled, update_autopilot_silent
 )
-from data_extraction import DataExtractor, RaceData
-from autopilot import AutopilotManager, Formula, get_vehicle_class, load_vehicle_classes
+from data_extraction import DataExtractor, RaceData, format_time
+from autopilot import AutopilotManager, Formula, get_vehicle_class, load_vehicle_classes, DEFAULT_A_VALUE
 
 
 logger = logging.getLogger(__name__)
@@ -144,15 +144,404 @@ class FileMonitorDaemon(QObject):
             self._schedule_check()
 
 
-class SimplifiedCurveViewer(QMainWindow):
-    """Simplified main window with separate Autosave and Autoratio switches"""
+class AccuracyIndicator(QLabel):
+    """Visual indicator for formula accuracy with color coding"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAlignment(Qt.AlignCenter)
+        self.setMinimumWidth(150)
+        self.setMinimumHeight(50)
+        self.current_accuracy = 0
+        self.confidence = 0
+        self.data_points = 0
+        self.outliers = 0
+        self.setStyleSheet("""
+            QLabel {
+                background-color: #3c3c3c;
+                border-radius: 8px;
+                padding: 5px;
+                font-family: monospace;
+                font-size: 11px;
+            }
+        """)
+        self.update_display()
+    
+    def set_accuracy(self, confidence: float, data_points_used: int, 
+                     avg_error: float = None, max_error: float = None,
+                     outliers: int = 0):
+        """Set accuracy based on formula confidence and data points."""
+        self.data_points = data_points_used
+        self.outliers = outliers
+        
+        # Base accuracy from data points count
+        if data_points_used == 0:
+            base_accuracy = 0
+            confidence_text = "No Data"
+        elif data_points_used == 1:
+            base_accuracy = 25
+            confidence_text = "Single Point"
+        elif data_points_used <= 3:
+            base_accuracy = 50
+            confidence_text = "Low Data"
+        elif data_points_used <= 5:
+            base_accuracy = 65
+            confidence_text = "Fair"
+        elif data_points_used <= 9:
+            base_accuracy = 80
+            confidence_text = "Good"
+        else:
+            base_accuracy = 90
+            confidence_text = "High Data"
+        
+        # Adjust based on confidence parameter
+        if confidence > 0:
+            confidence_bonus = min(10, int(confidence * 10))
+        else:
+            confidence_bonus = 0
+        
+        # Error-based adjustment
+        error_penalty = 0
+        if avg_error is not None and avg_error > 0:
+            error_penalty = min(10, int(avg_error * 10))
+        
+        # Outlier penalty
+        outlier_penalty = min(20, outliers * 5)
+        
+        # Calculate final accuracy
+        self.current_accuracy = base_accuracy + confidence_bonus - error_penalty - outlier_penalty
+        self.current_accuracy = max(0, min(100, self.current_accuracy))
+        
+        # Store values for display
+        self.confidence = confidence
+        self.confidence_text = confidence_text
+        
+        # Determine color based on accuracy
+        if self.current_accuracy >= 80:
+            color = "#4CAF50"
+            bg_color = "#1a3a1a"
+            bar_color = "#4CAF50"
+        elif self.current_accuracy >= 60:
+            color = "#FFC107"
+            bg_color = "#3a3a1a"
+            bar_color = "#FFC107"
+        elif self.current_accuracy >= 40:
+            color = "#FF9800"
+            bg_color = "#3a2a1a"
+            bar_color = "#FF9800"
+        else:
+            color = "#f44336"
+            bg_color = "#3a1a1a"
+            bar_color = "#f44336"
+        
+        outlier_text = f"⚠️ {outliers} outlier{'s' if outliers != 1 else ''}" if outliers > 0 else ""
+        
+        html = f"""
+        <div style="text-align: center;">
+            <div style="color: {color}; font-weight: bold; font-size: 12px;">
+                ACCURACY: {self.current_accuracy}%
+            </div>
+            <div style="background-color: #2b2b2b; border-radius: 4px; height: 8px; margin: 4px 0;">
+                <div style="background-color: {bar_color}; width: {self.current_accuracy}%; height: 8px; border-radius: 4px;"></div>
+            </div>
+            <div style="color: #aaa; font-size: 9px;">
+                {confidence_text} ({data_points_used} point{'s' if data_points_used != 1 else ''})
+                {outlier_text}
+            </div>
+        </div>
+        """
+        
+        self.setStyleSheet(f"""
+            QLabel {{
+                background-color: {bg_color};
+                border-radius: 8px;
+                padding: 8px;
+                font-family: monospace;
+                font-size: 11px;
+            }}
+        """)
+        self.setText(html)
+    
+    def update_display(self):
+        self.set_accuracy(self.confidence, self.data_points, None, None, self.outliers)
+
+
+class ManualEditDialog(QDialog):
+    """Dialog for manually editing a ratio in the AIW file"""
+    
+    def __init__(self, parent, ratio_name: str, current_ratio: float, aiw_path: Path = None):
+        super().__init__(parent)
+        self.ratio_name = ratio_name
+        self.current_ratio = current_ratio
+        self.aiw_path = aiw_path
+        self.new_ratio = None
+        self.setup_ui()
+    
+    def setup_ui(self):
+        self.setWindowTitle(f"Manual Edit - {self.ratio_name}")
+        self.setFixedSize(400, 250)
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #2b2b2b;
+            }
+            QLabel {
+                color: white;
+            }
+            QDoubleSpinBox {
+                background-color: #3c3c3c;
+                color: white;
+                border: 1px solid #4CAF50;
+                border-radius: 4px;
+                padding: 4px;
+                font-size: 14px;
+            }
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 16px;
+                font-weight: bold;
+            }
+            QPushButton#cancel {
+                background-color: #555;
+            }
+            QPushButton#cancel:hover {
+                background-color: #666;
+            }
+        """)
+        
+        layout = QVBoxLayout(self)
+        
+        # Title
+        title = QLabel(f"Edit {self.ratio_name}")
+        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #FFA500;")
+        title.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title)
+        
+        layout.addSpacing(10)
+        
+        # Current value display
+        current_label = QLabel(f"Current {self.ratio_name}:")
+        current_label.setStyleSheet("color: #888;")
+        layout.addWidget(current_label)
+        
+        current_value = QLabel(f"{self.current_ratio:.6f}")
+        current_value.setStyleSheet("font-size: 14px; font-family: monospace; color: #4CAF50;")
+        layout.addWidget(current_value)
+        
+        layout.addSpacing(15)
+        
+        # New value input
+        new_label = QLabel(f"New {self.ratio_name}:")
+        new_label.setStyleSheet("color: #888;")
+        layout.addWidget(new_label)
+        
+        self.ratio_spin = QDoubleSpinBox()
+        self.ratio_spin.setRange(0.3, 3.0)
+        self.ratio_spin.setDecimals(6)
+        self.ratio_spin.setSingleStep(0.01)
+        self.ratio_spin.setValue(self.current_ratio)
+        self.ratio_spin.setStyleSheet("font-size: 14px;")
+        layout.addWidget(self.ratio_spin)
+        
+        layout.addSpacing(10)
+        
+        # Info about AIW path
+        if self.aiw_path:
+            info = QLabel(f"AIW: {self.aiw_path.name}")
+            info.setStyleSheet("color: #666; font-size: 9px;")
+            info.setWordWrap(True)
+            layout.addWidget(info)
+        
+        layout.addSpacing(20)
+        
+        # Buttons
+        btn_layout = QHBoxLayout()
+        
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setObjectName("cancel")
+        cancel_btn.clicked.connect(self.reject)
+        btn_layout.addWidget(cancel_btn)
+        
+        apply_btn = QPushButton("Apply")
+        apply_btn.clicked.connect(self.accept)
+        btn_layout.addWidget(apply_btn)
+        
+        layout.addLayout(btn_layout)
+    
+    def accept(self):
+        self.new_ratio = self.ratio_spin.value()
+        super().accept()
+
+
+class RatioPanel(QFrame):
+    """Panel for displaying Qualifying or Race ratio information with accuracy indicator and edit button"""
+    
+    edit_complete = pyqtSignal(float)
+    
+    def __init__(self, title: str, parent=None):
+        super().__init__(parent)
+        self.title = title
+        self.current_ratio = None
+        self.setup_ui()
+        
+    def setup_ui(self):
+        self.setFrameStyle(QFrame.NoFrame)
+        self.setStyleSheet("""
+            QFrame {
+                background-color: #2b2b2b;
+                border-radius: 10px;
+            }
+            QLabel {
+                color: white;
+            }
+            QPushButton#edit_btn {
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 12px;
+                font-size: 11px;
+                font-weight: bold;
+            }
+            QPushButton#edit_btn:hover {
+                background-color: #1976D2;
+            }
+            QPushButton#edit_btn:disabled {
+                background-color: #555;
+                color: #888;
+            }
+        """)
+        
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setMinimumHeight(370)
+        
+        layout = QVBoxLayout(self)
+        layout.setSpacing(15)
+        layout.setContentsMargins(25, 25, 25, 25)
+        
+        # Title row with edit button
+        title_layout = QHBoxLayout()
+        
+        self.title_label = QLabel(self.title)
+        self.title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #aaa;")
+        self.title_label.setAlignment(Qt.AlignCenter)
+        title_layout.addWidget(self.title_label, stretch=1)
+        
+        # Edit button
+        self.edit_btn = QPushButton("✎ Edit")
+        self.edit_btn.setObjectName("edit_btn")
+        self.edit_btn.setFixedSize(70, 28)
+        self.edit_btn.clicked.connect(self.on_edit_clicked)
+        title_layout.addWidget(self.edit_btn)
+        
+        layout.addLayout(title_layout)
+        
+        layout.addSpacing(10)
+        
+        # Ratio value
+        self.ratio_label = QLabel("-")
+        self.ratio_label.setStyleSheet("font-size: 38px; font-weight: bold; font-family: monospace; color: #FFA500;")
+        self.ratio_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.ratio_label)
+        
+        layout.addSpacing(15)
+        
+        # Expected Best Laptimes label
+        expected_label = QLabel("Expected Best Laptimes:")
+        expected_label.setStyleSheet("font-size: 12px; color: #888;")
+        layout.addWidget(expected_label)
+        
+        # AI range
+        self.ai_range_label = QLabel("AI: -- - --")
+        self.ai_range_label.setStyleSheet("font-size: 15px; font-family: monospace; color: #FFA500;")
+        layout.addWidget(self.ai_range_label)
+        
+        layout.addSpacing(10)
+        
+        # User time
+        self.user_time_label = QLabel("User: --")
+        self.user_time_label.setStyleSheet("font-size: 15px; font-family: monospace; color: #4CAF50; font-weight: bold;")
+        layout.addWidget(self.user_time_label)
+        
+        layout.addStretch()
+        
+        # Formula - lighter color
+        self.formula_label = QLabel("")
+        self.formula_label.setStyleSheet("color: #777777; font-size: 10px; font-family: monospace; margin-top: 10px;")
+        self.formula_label.setWordWrap(True)
+        self.formula_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.formula_label)
+        
+        # Accuracy indicator
+        self.accuracy_indicator = AccuracyIndicator()
+        layout.addWidget(self.accuracy_indicator)
+    
+    def update_ratio(self, ratio: Optional[float]):
+        self.current_ratio = ratio
+        if ratio is not None:
+            self.ratio_label.setText(f"{ratio:.6f}")
+        else:
+            self.ratio_label.setText("-")
+    
+    def update_ai_range(self, best: Optional[float], worst: Optional[float]):
+        if best is not None and worst is not None:
+            self.ai_range_label.setText(f"AI: {format_time(best)} - {format_time(worst)}")
+        else:
+            self.ai_range_label.setText("AI: -- - --")
+    
+    def update_user_time(self, time_sec: Optional[float]):
+        if time_sec is not None and time_sec > 0:
+            self.user_time_label.setText(f"User: {format_time(time_sec)}")
+        else:
+            self.user_time_label.setText("User: --")
+    
+    def update_formula(self, a: float, b: float):
+        self.formula_label.setText(f"T = {a:.2f} / R + {b:.2f}")
+    
+    def update_accuracy(self, confidence: float, data_points_used: int, 
+                        avg_error: float = None, max_error: float = None,
+                        outliers: int = 0):
+        self.accuracy_indicator.set_accuracy(confidence, data_points_used, 
+                                             avg_error, max_error, outliers)
+    
+    def set_edit_enabled(self, enabled: bool):
+        self.edit_btn.setEnabled(enabled)
+    
+    def on_edit_clicked(self):
+        if self.current_ratio is None:
+            return
+        dialog = ManualEditDialog(self, self.title, self.current_ratio)
+        if dialog.exec_() == QDialog.Accepted and dialog.new_ratio is not None:
+            self.edit_complete.emit(dialog.new_ratio)
+
+
+class GTR2Logo(QLabel):
+    """Custom GTR² logo with gray GTR and red ²"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setText("GTR²")
+        self.setStyleSheet("""
+            QLabel {
+                font-size: 40px;
+                font-weight: bold;
+            }
+        """)
+        self.setTextFormat(Qt.RichText)
+        self.setText('<span style="color: #888888;">GTR</span><span style="color: #FF4444;">²</span>')
+
+
+class RedesignedMainWindow(QMainWindow):
+    """Redesigned main window matching the reference image layout exactly"""
     
     def __init__(self, db_path: str = "ai_data.db", config_file: str = "cfg.yml"):
         super().__init__()
         self.setWindowTitle("GTR2 Dynamic AI")
-        self.setGeometry(100, 100, 500, 520)
-        self.setMinimumWidth(400)
-        self.setMinimumHeight(460)
+        self.setGeometry(100, 100, 950, 700)
+        self.setMinimumWidth(850)
+        self.setMinimumHeight(600)
         
         self.config_file = config_file
         self.config = get_config_with_defaults(config_file)
@@ -168,12 +557,12 @@ class SimplifiedCurveViewer(QMainWindow):
         self.simplified_logger = SimplifiedLogger()
         self.class_mapping = load_vehicle_classes()
         
-        # Autopilot manager (handles ratio calculations)
+        # Autopilot manager
         self.autopilot_manager = AutopilotManager(self.db)
         
-        # Separate switches for Autosave and Autoratio
-        self.autosave_enabled = True  # Default ON
-        self.autoratio_enabled = False  # Default OFF (safer)
+        # State
+        self.autosave_enabled = True
+        self.autoratio_enabled = False
         self.autopilot_manager.set_enabled(self.autoratio_enabled)
         
         # AI Target settings
@@ -185,29 +574,27 @@ class SimplifiedCurveViewer(QMainWindow):
         }
         
         # Current formulas
-        self.qual_a: float = 32.0
+        self.qual_a: float = DEFAULT_A_VALUE
         self.qual_b: float = 70.0
-        self.race_a: float = 32.0
+        self.race_a: float = DEFAULT_A_VALUE
         self.race_b: float = 70.0
-        self.qual_ratio_count: int = 0
-        self.race_ratio_count: int = 0
-        self.qual_error_pct: float = 0.0
-        self.race_error_pct: float = 0.0
         
-        # Current selection
+        # Current data
         self.current_track: str = ""
         self.current_vehicle: str = ""
         self.current_vehicle_class: str = ""
+        
+        # AI lap times
+        self.qual_best_ai = None
+        self.qual_worst_ai = None
+        self.race_best_ai = None
+        self.race_worst_ai = None
         
         # User lap times
         self.user_qualifying_sec: float = 0.0
         self.user_best_lap_sec: float = 0.0
         self.last_qual_ratio: Optional[float] = None
         self.last_race_ratio: Optional[float] = None
-        
-        # Cache
-        self.all_tracks: List[str] = []
-        self.all_vehicles: List[str] = []
         
         # Advanced settings window
         self.advanced_window = None
@@ -218,7 +605,6 @@ class SimplifiedCurveViewer(QMainWindow):
         self.setup_ui()
         self.load_data()
         self.update_display()
-        self._update_switch_ui()
         
         # Auto-start daemon
         base_path = get_base_path(config_file)
@@ -228,337 +614,338 @@ class SimplifiedCurveViewer(QMainWindow):
     def setup_ui(self):
         central = QWidget()
         self.setCentralWidget(central)
-        layout = QVBoxLayout(central)
-        layout.setSpacing(10)
-        layout.setContentsMargins(10, 10, 10, 10)
+        main_layout = QVBoxLayout(central)
+        main_layout.setSpacing(25)
+        main_layout.setContentsMargins(30, 30, 30, 30)
         
-        # Title
-        self.title_label = QLabel("GTR2 Dynamic AI")
-        self.title_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #FFA500;")
-        self.title_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(self.title_label)
+        # === Header section ===
+        header_layout = QHBoxLayout()
         
-        # Current track
-        track_frame = QFrame()
-        track_frame.setStyleSheet("background-color: #2b2b2b; border-radius: 5px;")
-        track_layout = QHBoxLayout(track_frame)
-        track_layout.addWidget(QLabel("🏁 Current Track:"))
+        # GTR² logo
+        logo_label = GTR2Logo()
+        header_layout.addWidget(logo_label)
+        
+        header_layout.addStretch()
+        
+        # Track name
         self.track_label = QLabel("-")
-        self.track_label.setStyleSheet("color: #FFA500; font-weight: bold;")
-        track_layout.addWidget(self.track_label)
-        track_layout.addStretch()
-        layout.addWidget(track_frame)
+        self.track_label.setStyleSheet("font-size: 28px; font-weight: bold; color: white;")
+        header_layout.addWidget(self.track_label)
         
-        # Vehicle info
-        vehicle_group = QGroupBox("Vehicle")
-        vehicle_layout = QGridLayout(vehicle_group)
+        header_layout.addStretch()
         
-        self.vehicle_class_label = QLabel("-")
-        self.vehicle_class_label.setStyleSheet("color: #4CAF50;")
-        vehicle_layout.addWidget(QLabel("Class:"), 0, 0)
-        vehicle_layout.addWidget(self.vehicle_class_label, 0, 1)
+        # Empty spacer for balance
+        header_layout.addSpacing(80)
         
-        self.vehicle_label = QLabel("-")
-        self.vehicle_label.setStyleSheet("color: #888; font-size: 10px;")
-        vehicle_layout.addWidget(QLabel("Model:"), 1, 0)
-        vehicle_layout.addWidget(self.vehicle_label, 1, 1)
+        main_layout.addLayout(header_layout)
         
-        layout.addWidget(vehicle_group)
+        # Car class (below track)
+        self.car_class_label = QLabel("Car Class: -")
+        self.car_class_label.setStyleSheet("font-size: 14px; color: #4CAF50; margin-bottom: 10px;")
+        main_layout.addWidget(self.car_class_label)
         
-        # Current ratios
-        ratios_group = QGroupBox("Current AI Ratios")
-        ratios_layout = QGridLayout(ratios_group)
+        main_layout.addSpacing(20)
         
-        self.qual_ratio_label = QLabel("-")
-        self.qual_ratio_label.setStyleSheet("color: #FFFF00; font-family: monospace; font-weight: bold;")
-        ratios_layout.addWidget(QLabel("Qualifying:"), 0, 0)
-        ratios_layout.addWidget(self.qual_ratio_label, 0, 1)
+        # === Two-column layout for Quali and Race panels ===
+        panels_layout = QHBoxLayout()
+        panels_layout.setSpacing(30)
         
-        self.race_ratio_label = QLabel("-")
-        self.race_ratio_label.setStyleSheet("color: #FF6600; font-family: monospace; font-weight: bold;")
-        ratios_layout.addWidget(QLabel("Race:"), 1, 0)
-        ratios_layout.addWidget(self.race_ratio_label, 1, 1)
+        # Qualifying panel
+        self.qual_panel = RatioPanel("Quali-Ratio")
+        self.qual_panel.edit_complete.connect(lambda ratio: self.on_manual_edit("qual", ratio))
+        panels_layout.addWidget(self.qual_panel)
         
-        layout.addWidget(ratios_group)
+        # Race panel
+        self.race_panel = RatioPanel("Race-Ratio")
+        self.race_panel.edit_complete.connect(lambda ratio: self.on_manual_edit("race", ratio))
+        panels_layout.addWidget(self.race_panel)
         
-        # Formula display
-        formula_group = QGroupBox("Active Formulas")
-        formula_layout = QVBoxLayout(formula_group)
+        main_layout.addLayout(panels_layout)
         
-        self.qual_formula_label = QLabel("Qualifying: T = 32.00 / R + --")
-        self.qual_formula_label.setStyleSheet("color: #FFFF00; font-family: monospace; font-size: 10px;")
-        formula_layout.addWidget(self.qual_formula_label)
+        main_layout.addSpacing(30)
         
-        self.race_formula_label = QLabel("Race: T = 32.00 / R + --")
-        self.race_formula_label.setStyleSheet("color: #FF6600; font-family: monospace; font-size: 10px;")
-        formula_layout.addWidget(self.race_formula_label)
+        # === Control buttons row ===
+        buttons_layout = QHBoxLayout()
+        buttons_layout.setSpacing(20)
         
-        layout.addWidget(formula_group)
+        # Auto-harvest Data toggle
+        self.autosave_switch = ToggleSwitch("Auto-harvest Data (ON)", "Auto-harvest Data (OFF)")
+        self.autosave_switch.set_checked(self.autosave_enabled)
+        self.autosave_switch.clicked.connect(self.toggle_autosave)
+        buttons_layout.addWidget(self.autosave_switch)
         
-        # Control switches
-        controls_group = QGroupBox("Controls")
-        controls_layout = QVBoxLayout(controls_group)
+        # Auto-calculate Ratios toggle
+        self.autoratio_switch = ToggleSwitch("Auto-calculate Ratios (ON)", "Auto-calculate Ratios (OFF)")
+        self.autoratio_switch.set_checked(self.autoratio_enabled)
+        self.autoratio_switch.clicked.connect(self.toggle_autoratio)
+        buttons_layout.addWidget(self.autoratio_switch)
         
-        # Autosave switch
-        autosave_layout = QHBoxLayout()
-        self.autosave_btn = QPushButton("💾 Autosave is ON")
-        self.autosave_btn.setCheckable(True)
-        self.autosave_btn.setChecked(self.autosave_enabled)
-        self.autosave_btn.setStyleSheet("""
+        buttons_layout.addStretch()
+        
+        # Advanced button
+        self.advanced_btn = QPushButton("Advanced")
+        self.advanced_btn.setMinimumHeight(36)
+        self.advanced_btn.setMinimumWidth(100)
+        self.advanced_btn.setStyleSheet("""
             QPushButton {
-                background-color: #4CAF50;
+                background-color: #9C27B0;
                 color: white;
-                font-weight: bold;
-                padding: 8px;
+                padding: 8px 24px;
                 border: none;
                 border-radius: 4px;
-            }
-            QPushButton:checked {
-                background-color: #4CAF50;
+                font-size: 13px;
+                font-weight: bold;
             }
             QPushButton:hover {
-                background-color: #45a049;
+                background-color: #7B1FA2;
             }
         """)
-        self.autosave_btn.clicked.connect(self.toggle_autosave)
-        autosave_layout.addWidget(self.autosave_btn)
+        self.advanced_btn.clicked.connect(self.open_advanced_settings)
+        buttons_layout.addWidget(self.advanced_btn)
         
-        autosave_desc = QLabel("Save new race data to database")
-        autosave_desc.setStyleSheet("color: #888; font-size: 10px;")
-        autosave_layout.addWidget(autosave_desc)
-        autosave_layout.addStretch()
-        controls_layout.addLayout(autosave_layout)
-        
-        controls_layout.addSpacing(5)
-        
-        # Autoratio switch
-        autoratio_layout = QHBoxLayout()
-        self.autoratio_btn = QPushButton("⚙️ Autoratio is OFF")
-        self.autoratio_btn.setCheckable(True)
-        self.autoratio_btn.setChecked(self.autoratio_enabled)
-        self.autoratio_btn.setStyleSheet("""
+        # Exit button
+        self.exit_btn = QPushButton("Exit")
+        self.exit_btn.setMinimumHeight(36)
+        self.exit_btn.setMinimumWidth(100)
+        self.exit_btn.setStyleSheet("""
             QPushButton {
                 background-color: #555;
-                color: #aaa;
-                font-weight: bold;
-                padding: 8px;
+                color: white;
+                padding: 8px 24px;
                 border: none;
                 border-radius: 4px;
-            }
-            QPushButton:checked {
-                background-color: #FF9800;
-                color: white;
+                font-size: 13px;
+                font-weight: bold;
             }
             QPushButton:hover {
                 background-color: #666;
             }
         """)
-        self.autoratio_btn.clicked.connect(self.toggle_autoratio)
-        autoratio_layout.addWidget(self.autoratio_btn)
-        
-        autoratio_desc = QLabel("Auto-calculate and apply new AI ratios")
-        autoratio_desc.setStyleSheet("color: #888; font-size: 10px;")
-        autoratio_layout.addWidget(autoratio_desc)
-        autoratio_layout.addStretch()
-        controls_layout.addLayout(autoratio_layout)
-        
-        layout.addWidget(controls_group)
-        
-        # Formula quality (simplified)
-        quality_group = QGroupBox("Formula Quality")
-        quality_layout = QGridLayout(quality_group)
-        
-        quality_layout.addWidget(QLabel("Qualifying:"), 0, 0)
-        self.qual_quality_label = QLabel("-")
-        self.qual_quality_label.setStyleSheet("color: #FFFF00;")
-        quality_layout.addWidget(self.qual_quality_label, 0, 1)
-        
-        self.qual_progress = QProgressBar()
-        self.qual_progress.setRange(0, 100)
-        self.qual_progress.setValue(0)
-        self.qual_progress.setFixedHeight(8)
-        self.qual_progress.setTextVisible(False)
-        quality_layout.addWidget(self.qual_progress, 1, 0, 1, 2)
-        
-        quality_layout.addWidget(QLabel("Race:"), 2, 0)
-        self.race_quality_label = QLabel("-")
-        self.race_quality_label.setStyleSheet("color: #FF6600;")
-        quality_layout.addWidget(self.race_quality_label, 2, 1)
-        
-        self.race_progress = QProgressBar()
-        self.race_progress.setRange(0, 100)
-        self.race_progress.setValue(0)
-        self.race_progress.setFixedHeight(8)
-        self.race_progress.setTextVisible(False)
-        quality_layout.addWidget(self.race_progress, 3, 0, 1, 2)
-        
-        layout.addWidget(quality_group)
-        
-        # Action buttons
-        button_layout = QHBoxLayout()
-        
-        self.advanced_btn = QPushButton("Advanced Settings")
-        self.advanced_btn.setStyleSheet("background-color: #9C27B0;")
-        self.advanced_btn.clicked.connect(self.open_advanced_settings)
-        button_layout.addWidget(self.advanced_btn)
-        
-        self.log_btn = QPushButton("Show Log")
-        self.log_btn.setStyleSheet("background-color: #2196F3;")
-        self.log_btn.clicked.connect(self.show_log_window)
-        button_layout.addWidget(self.log_btn)
-        
-        self.exit_btn = QPushButton("Exit")
-        self.exit_btn.setStyleSheet("background-color: #f44336;")
         self.exit_btn.clicked.connect(self.close)
-        button_layout.addWidget(self.exit_btn)
+        buttons_layout.addWidget(self.exit_btn)
         
-        layout.addLayout(button_layout)
+        main_layout.addLayout(buttons_layout)
         
         # Status bar
         self.statusBar().showMessage("Ready")
-    
-    def _update_switch_ui(self):
-        """Update switch button appearance"""
-        if self.autosave_enabled:
-            self.autosave_btn.setText("💾 Autosave is ON")
-            self.autosave_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #4CAF50;
-                    color: white;
-                    font-weight: bold;
-                    padding: 8px;
-                    border: none;
-                    border-radius: 4px;
-                }
-                QPushButton:hover {
-                    background-color: #45a049;
-                }
-            """)
-        else:
-            self.autosave_btn.setText("💾 Autosave is OFF")
-            self.autosave_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #555;
-                    color: #aaa;
-                    font-weight: bold;
-                    padding: 8px;
-                    border: none;
-                    border-radius: 4px;
-                }
-                QPushButton:hover {
-                    background-color: #666;
-                }
-            """)
+        self.statusBar().setStyleSheet("QStatusBar { color: #888; }")
         
-        if self.autoratio_enabled:
-            self.autoratio_btn.setText("⚙️ Autoratio is ON")
-            self.autoratio_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #FF9800;
-                    color: white;
-                    font-weight: bold;
-                    padding: 8px;
-                    border: none;
-                    border-radius: 4px;
-                }
-                QPushButton:hover {
-                    background-color: #F57C00;
-                }
-            """)
-        else:
-            self.autoratio_btn.setText("⚙️ Autoratio is OFF")
-            self.autoratio_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #555;
-                    color: #aaa;
-                    font-weight: bold;
-                    padding: 8px;
-                    border: none;
-                    border-radius: 4px;
-                }
-                QPushButton:hover {
-                    background-color: #666;
-                }
-            """)
+        # Set dark background
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #1e1e1e;
+            }
+            QLabel {
+                color: white;
+            }
+        """)
     
     def toggle_autosave(self):
-        """Toggle autosave mode (save data to database)"""
-        self.autosave_enabled = not self.autosave_enabled
-        self._update_switch_ui()
+        """Toggle autosave mode"""
+        self.autosave_enabled = self.autosave_switch.is_checked()
         logger.info(self.simplified_logger.autosave_status(self.autosave_enabled))
-        self.statusBar().showMessage(f"Autosave {'ON' if self.autosave_enabled else 'OFF'}", 2000)
+        self.statusBar().showMessage(f"Auto-harvest Data {'ON' if self.autosave_enabled else 'OFF'}", 2000)
     
     def toggle_autoratio(self):
-        """Toggle autoratio mode (calculate and apply new ratios)"""
-        self.autoratio_enabled = not self.autoratio_enabled
+        """Toggle autoratio mode"""
+        self.autoratio_enabled = self.autoratio_switch.is_checked()
         self.autopilot_manager.set_enabled(self.autoratio_enabled)
-        self._update_switch_ui()
+        
+        # Enable/disable manual edit buttons
+        self.qual_panel.set_edit_enabled(not self.autoratio_enabled)
+        self.race_panel.set_edit_enabled(not self.autoratio_enabled)
+        
         logger.info(self.simplified_logger.autoratio_status(self.autoratio_enabled))
-        self.statusBar().showMessage(f"Autoratio {'ON' if self.autoratio_enabled else 'OFF'}", 2000)
+        self.statusBar().showMessage(f"Auto-calculate Ratios {'ON' if self.autoratio_enabled else 'OFF'}", 2000)
         
         if self.autoratio_enabled:
             self.autopilot_manager.reload_formulas()
             self._update_formulas_from_autopilot()
             self.update_display()
+            # Update accuracy after reload
+            if self.current_track and self.current_vehicle_class:
+                self.update_formula_accuracy("qual")
+                self.update_formula_accuracy("race")
     
-    def _get_formula_quality_text(self, ratio_count: int, error_pct: float) -> Tuple[str, str, int]:
-        """Determine formula quality based on number of distinct ratios and error percentage"""
-        if ratio_count == 0:
-            return "No data", "#888888", 0
-        if ratio_count == 1:
-            return "Learning (1 ratio)", "#888888", 10
-        if ratio_count < 3:
-            return f"Learning ({ratio_count} ratios)", "#888888", 20
-        if error_pct < 2:
-            return f"Excellent (±{error_pct:.1f}%)", "#4CAF50", 90
-        if error_pct < 5:
-            return f"Good (±{error_pct:.1f}%)", "#4CAF50", 75
-        if error_pct < 10:
-            return f"Fair (±{error_pct:.1f}%)", "#FFC107", 50
-        return f"Poor (±{error_pct:.1f}%)", "#F44336", 25
-    
-    def _calculate_formula_stats(self, track: str, vehicle_class: str, session_type: str):
-        """Calculate statistics for a formula"""
-        if not track or not vehicle_class:
-            return 0, 0.0
-        
+    def _get_ai_times_for_track(self, track: str, session_type: str) -> Tuple[Optional[float], Optional[float]]:
+        """Get best and worst AI lap times for a track from the database"""
         conn = sqlite3.connect(self.db.db_path)
         cursor = conn.cursor()
         
-        session_filter = "qual" if session_type == "qual" else "race"
+        if session_type == "qual":
+            cursor.execute("""
+                SELECT qual_time_sec FROM ai_results ar
+                JOIN race_sessions rs ON ar.race_id = rs.race_id
+                WHERE rs.track_name = ? AND ar.qual_time_sec > 0
+                ORDER BY ar.qual_time_sec
+                LIMIT 1
+            """, (track,))
+            best_row = cursor.fetchone()
+            
+            cursor.execute("""
+                SELECT qual_time_sec FROM ai_results ar
+                JOIN race_sessions rs ON ar.race_id = rs.race_id
+                WHERE rs.track_name = ? AND ar.qual_time_sec > 0
+                ORDER BY ar.qual_time_sec DESC
+                LIMIT 1
+            """, (track,))
+            worst_row = cursor.fetchone()
+        else:
+            cursor.execute("""
+                SELECT best_lap_sec FROM ai_results ar
+                JOIN race_sessions rs ON ar.race_id = rs.race_id
+                WHERE rs.track_name = ? AND ar.best_lap_sec > 0
+                ORDER BY ar.best_lap_sec
+                LIMIT 1
+            """, (track,))
+            best_row = cursor.fetchone()
+            
+            cursor.execute("""
+                SELECT best_lap_sec FROM ai_results ar
+                JOIN race_sessions rs ON ar.race_id = rs.race_id
+                WHERE rs.track_name = ? AND ar.best_lap_sec > 0
+                ORDER BY ar.best_lap_sec DESC
+                LIMIT 1
+            """, (track,))
+            worst_row = cursor.fetchone()
         
-        # Get distinct ratios
-        cursor.execute("""
-            SELECT DISTINCT ratio, lap_time 
-            FROM data_points 
-            WHERE track = ? AND vehicle_class = ? AND session_type = ?
-            ORDER BY ratio
-        """, (track, vehicle_class, session_filter))
-        rows = cursor.fetchall()
         conn.close()
         
-        ratio_count = len(rows)
+        best = best_row[0] if best_row else None
+        worst = worst_row[0] if worst_row else None
+        return best, worst
+    
+    def update_formula_accuracy(self, session_type: str):
+        """Update the accuracy indicator for a session type"""
+        if not self.current_track or not self.current_vehicle_class:
+            return
+            
+        formula = self.autopilot_manager.formula_manager.get_formula_by_class(
+            self.current_track, self.current_vehicle_class, session_type
+        )
         
-        if ratio_count < 2:
-            return ratio_count, 0.0
+        if formula and formula.is_valid():
+            # Get data points for this track/class/session to calculate outliers
+            data_points = self.autopilot_manager.engine._get_data_points(
+                self.current_track, self.current_vehicle_class, session_type
+            )
+            
+            # Calculate outliers (points where error > 0.5 seconds)
+            outliers = 0
+            avg_error = None
+            if data_points and len(data_points) > 1:
+                total_error = 0
+                for ratio, lap_time in data_points:
+                    predicted = formula.get_time_at_ratio(ratio)
+                    error = abs(predicted - lap_time)
+                    total_error += error
+                    if error > 0.5:
+                        outliers += 1
+                avg_error = total_error / len(data_points)
+            
+            panel = self.qual_panel if session_type == "qual" else self.race_panel
+            panel.update_accuracy(
+                confidence=formula.confidence,
+                data_points_used=formula.data_points_used,
+                avg_error=avg_error,
+                max_error=formula.max_error if formula.max_error > 0 else None,
+                outliers=outliers
+            )
+        else:
+            # No formula exists - show 0 accuracy
+            panel = self.qual_panel if session_type == "qual" else self.race_panel
+            panel.update_accuracy(0, 0, None, None, 0)
+    
+    def on_manual_edit(self, session_type: str, new_ratio: float):
+        """Handle manual ratio edit from panel button"""
+        if self.autoratio_enabled:
+            show_warning_dialog(self, "Auto-Ratio Enabled", 
+                "Manual editing is disabled while Auto-calculate Ratios is ON.\n"
+                "Please turn off Auto-calculate Ratios to manually edit.")
+            # Re-disable the button if it somehow got enabled
+            if session_type == "qual":
+                self.qual_panel.set_edit_enabled(False)
+            else:
+                self.race_panel.set_edit_enabled(False)
+            return
         
-        # Get formula
-        formula = self.autopilot_manager.formula_manager.get_formula_by_class(track, vehicle_class, session_type)
+        # Find the AIW path
+        if not self.current_track:
+            show_warning_dialog(self, "No Track", "No track data available.")
+            return
         
-        if not formula or not formula.is_valid():
-            return ratio_count, 0.0
+        # Try to get AIW path
+        aiw_path = None
+        if hasattr(self, 'daemon') and self.daemon and self.daemon.base_path:
+            locations_dir = self.daemon.base_path / "GameData" / "Locations"
+            if locations_dir.exists():
+                for track_dir in locations_dir.iterdir():
+                    if track_dir.is_dir() and track_dir.name.lower() == self.current_track.lower():
+                        for ext in ["*.AIW", "*.aiw"]:
+                            aiw_files = list(track_dir.glob(ext))
+                            if aiw_files:
+                                aiw_path = aiw_files[0]
+                                break
+                        break
         
-        # Calculate errors
-        errors = []
-        for ratio, lap_time in rows:
-            if ratio and ratio > 0:
-                predicted = formula.get_time_at_ratio(ratio)
-                if predicted > 0:
-                    error_pct = abs(lap_time - predicted) / lap_time * 100
-                    errors.append(error_pct)
+        if not aiw_path or not aiw_path.exists():
+            # Ask user to locate AIW file
+            aiw_path_str, _ = QFileDialog.getOpenFileName(
+                self, f"Select AIW file for {self.current_track}",
+                str(Path.cwd()), "AIW Files (*.AIW *.aiw)"
+            )
+            if aiw_path_str:
+                aiw_path = Path(aiw_path_str)
+            else:
+                show_warning_dialog(self, "AIW Not Found", 
+                    f"Could not find AIW file for {self.current_track}.\n"
+                    f"Please locate the AIW file manually.")
+                return
         
-        avg_error_pct = sum(errors) / len(errors) if errors else 0
-        return ratio_count, avg_error_pct
+        # Update the AIW file
+        ratio_name = "QualRatio" if session_type == "qual" else "RaceRatio"
+        if self.autopilot_manager.engine._update_aiw_ratio(aiw_path, ratio_name, new_ratio):
+            # Update stored ratio
+            if session_type == "qual":
+                self.last_qual_ratio = new_ratio
+                self.qual_panel.update_ratio(new_ratio)
+            else:
+                self.last_race_ratio = new_ratio
+                self.race_panel.update_ratio(new_ratio)
+            
+            logger.info(f"✏️ Manually updated {ratio_name} to {new_ratio:.6f}")
+            self.statusBar().showMessage(f"{ratio_name} updated to {new_ratio:.6f}", 3000)
+            
+            # Ask if user wants to save this as a formula
+            reply = QMessageBox.question(self, "Save Formula", 
+                f"Do you want to save this {session_type.upper()} ratio as a formula?\n\n"
+                f"This will create/update the formula for {self.current_track}/{self.current_vehicle_class}.",
+                QMessageBox.Yes | QMessageBox.No)
+            
+            if reply == QMessageBox.Yes:
+                # Create/update formula with new ratio at current user time
+                target_time = None
+                if session_type == "qual" and self.user_qualifying_sec > 0:
+                    target_time = self.user_qualifying_sec
+                elif session_type == "race" and self.user_best_lap_sec > 0:
+                    target_time = self.user_best_lap_sec
+                
+                if target_time and target_time > 0:
+                    new_formula = Formula.from_point(
+                        self.current_track, self.current_vehicle_class, 
+                        new_ratio, target_time, session_type, DEFAULT_A_VALUE
+                    )
+                    self.autopilot_manager.formula_manager.save_formula(new_formula)
+                    self.autopilot_manager.reload_formulas()
+                    self._update_formulas_from_autopilot()
+                    self.update_display()
+                    self.update_formula_accuracy(session_type)
+                    logger.info(f"📐 Saved formula from manual edit: {new_formula.get_formula_string()}")
+                else:
+                    show_warning_dialog(self, "No Lap Time", 
+                        f"No user {session_type} lap time available to create formula.")
+        else:
+            show_error_dialog(self, "Update Failed", f"Failed to update {ratio_name} in AIW file.")
     
     def _update_formulas_from_autopilot(self):
         """Update current formulas from autopilot"""
@@ -576,7 +963,7 @@ class SimplifiedCurveViewer(QMainWindow):
             self.qual_a = qual_formula.a
             self.qual_b = qual_formula.b
         else:
-            self.qual_a = 32.0
+            self.qual_a = DEFAULT_A_VALUE
             self.qual_b = 70.0
         
         # Get race formula
@@ -587,16 +974,8 @@ class SimplifiedCurveViewer(QMainWindow):
             self.race_a = race_formula.a
             self.race_b = race_formula.b
         else:
-            self.race_a = 32.0
+            self.race_a = DEFAULT_A_VALUE
             self.race_b = 70.0
-        
-        # Calculate statistics
-        self.qual_ratio_count, self.qual_error_pct = self._calculate_formula_stats(
-            self.current_track, self.current_vehicle_class, "qual"
-        )
-        self.race_ratio_count, self.race_error_pct = self._calculate_formula_stats(
-            self.current_track, self.current_vehicle_class, "race"
-        )
     
     def open_advanced_settings(self):
         """Open the advanced settings window"""
@@ -639,12 +1018,7 @@ class SimplifiedCurveViewer(QMainWindow):
             self.race_a = a
             self.race_b = b
         self.update_display()
-    
-    def show_log_window(self):
-        """Show the log window"""
-        if self.log_window:
-            self.log_window.show()
-            self.log_window.raise_()
+        self.update_formula_accuracy(session_type)
     
     def start_daemon(self):
         """Start file monitoring daemon"""
@@ -689,12 +1063,21 @@ class SimplifiedCurveViewer(QMainWindow):
         if race_data.race_ratio:
             self.last_race_ratio = race_data.race_ratio
         
+        # Store AI lap times from the race data
+        if race_data.qual_best_ai_lap_sec:
+            self.qual_best_ai = race_data.qual_best_ai_lap_sec
+        if race_data.qual_worst_ai_lap_sec:
+            self.qual_worst_ai = race_data.qual_worst_ai_lap_sec
+        if race_data.best_ai_lap_sec:
+            self.race_best_ai = race_data.best_ai_lap_sec
+        if race_data.worst_ai_lap_sec:
+            self.race_worst_ai = race_data.worst_ai_lap_sec
+        
         # Update vehicle info
         if race_data.user_vehicle:
             self.current_vehicle = race_data.user_vehicle
             self.current_vehicle_class = get_vehicle_class(self.current_vehicle, self.class_mapping)
-            self.vehicle_label.setText(self.current_vehicle)
-            self.vehicle_class_label.setText(self.current_vehicle_class)
+            self.car_class_label.setText(f"Car Class: {self.current_vehicle_class}")
         
         # Log simplified message
         logger.info(self.simplified_logger.new_data_detected(
@@ -727,6 +1110,11 @@ class SimplifiedCurveViewer(QMainWindow):
         self._update_formulas_from_autopilot()
         self.update_display()
         
+        # Update accuracy indicators
+        if self.current_track and self.current_vehicle_class:
+            self.update_formula_accuracy("qual")
+            self.update_formula_accuracy("race")
+        
         # Run autoratio if enabled
         if self.autoratio_enabled and race_data.aiw_path:
             logger.info("⚙️ Running Autoratio...")
@@ -737,15 +1125,23 @@ class SimplifiedCurveViewer(QMainWindow):
                     logger.info(self.simplified_logger.new_ratio_calculation(
                         result['qual_old_ratio'], result['qual_new_ratio'], "QualRatio"
                     ))
+                    self.last_qual_ratio = result['qual_new_ratio']
                 if result.get("race_updated"):
                     logger.info(self.simplified_logger.new_ratio_calculation(
                         result['race_old_ratio'], result['race_new_ratio'], "RaceRatio"
                     ))
+                    self.last_race_ratio = result['race_new_ratio']
                 
                 # Reload formulas after update
                 self.autopilot_manager.reload_formulas()
                 self._update_formulas_from_autopilot()
                 self.update_display()
+                
+                # Update accuracy after autoratio
+                if self.current_track and self.current_vehicle_class:
+                    self.update_formula_accuracy("qual")
+                    self.update_formula_accuracy("race")
+                
                 self.statusBar().showMessage("AI ratios updated!", 3000)
             else:
                 if result.get("message"):
@@ -767,77 +1163,42 @@ class SimplifiedCurveViewer(QMainWindow):
                 self.advanced_window.curve_graph.full_refresh()
     
     def load_data(self):
-        """Load tracks and vehicles from database"""
+        """Load tracks from database"""
         if not self.db.database_exists():
             return
         
         self.all_tracks = self.db.get_all_tracks()
-        self.all_vehicles = self.db.get_all_vehicle_classes()
         
         if self.all_tracks and not self.current_track:
             self.current_track = self.all_tracks[0]
             self.track_label.setText(self.current_track)
             self.setWindowTitle(f"GTR2 Dynamic AI - {self.current_track}")
-        if self.all_vehicles and not self.current_vehicle:
-            self.current_vehicle = self.all_vehicles[0]
-            self.current_vehicle_class = get_vehicle_class(self.current_vehicle, self.class_mapping)
-            self.vehicle_label.setText(self.current_vehicle)
-            self.vehicle_class_label.setText(self.current_vehicle_class)
+            
+            # Load AI times for this track
+            self.qual_best_ai, self.qual_worst_ai = self._get_ai_times_for_track(self.current_track, "qual")
+            self.race_best_ai, self.race_worst_ai = self._get_ai_times_for_track(self.current_track, "race")
         
         if self.autopilot_manager:
             self._update_formulas_from_autopilot()
+        
+        # Update accuracy after loading data
+        if self.current_track and self.current_vehicle_class:
+            self.update_formula_accuracy("qual")
+            self.update_formula_accuracy("race")
     
     def update_display(self):
         """Update all display elements"""
-        # Current ratios
-        qual_ratio = None
-        race_ratio = None
+        # Update Qualifying panel
+        self.qual_panel.update_ratio(self.last_qual_ratio)
+        self.qual_panel.update_ai_range(self.qual_best_ai, self.qual_worst_ai)
+        self.qual_panel.update_user_time(self.user_qualifying_sec if self.user_qualifying_sec > 0 else None)
+        self.qual_panel.update_formula(self.qual_a, self.qual_b)
         
-        if self.current_track:
-            conn = sqlite3.connect(self.db.db_path)
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                SELECT qual_ratio FROM race_sessions 
-                WHERE track_name = ? 
-                ORDER BY timestamp DESC LIMIT 1
-            """, (self.current_track,))
-            row = cursor.fetchone()
-            if row and row[0]:
-                qual_ratio = row[0]
-            
-            cursor.execute("""
-                SELECT race_ratio FROM race_sessions 
-                WHERE track_name = ? 
-                ORDER BY timestamp DESC LIMIT 1
-            """, (self.current_track,))
-            row = cursor.fetchone()
-            if row and row[0]:
-                race_ratio = row[0]
-            
-            conn.close()
-        
-        self.qual_ratio_label.setText(f"{qual_ratio:.6f}" if qual_ratio else "-")
-        self.race_ratio_label.setText(f"{race_ratio:.6f}" if race_ratio else "-")
-        
-        # Formulas
-        self.qual_formula_label.setText(f"Qualifying: T = {self.qual_a:.2f} / R + {self.qual_b:.2f}")
-        self.race_formula_label.setText(f"Race: T = {self.race_a:.2f} / R + {self.race_b:.2f}")
-        
-        # Quality
-        qual_text, qual_color, qual_progress = self._get_formula_quality_text(
-            self.qual_ratio_count, self.qual_error_pct
-        )
-        self.qual_quality_label.setText(qual_text)
-        self.qual_quality_label.setStyleSheet(f"color: {qual_color};")
-        self.qual_progress.setValue(qual_progress)
-        
-        race_text, race_color, race_progress = self._get_formula_quality_text(
-            self.race_ratio_count, self.race_error_pct
-        )
-        self.race_quality_label.setText(race_text)
-        self.race_quality_label.setStyleSheet(f"color: {race_color};")
-        self.race_progress.setValue(race_progress)
+        # Update Race panel
+        self.race_panel.update_ratio(self.last_race_ratio)
+        self.race_panel.update_ai_range(self.race_best_ai, self.race_worst_ai)
+        self.race_panel.update_user_time(self.user_best_lap_sec if self.user_best_lap_sec > 0 else None)
+        self.race_panel.update_formula(self.race_a, self.race_b)
     
     def closeEvent(self, event):
         """Handle close event"""
@@ -845,6 +1206,67 @@ class SimplifiedCurveViewer(QMainWindow):
         if self.advanced_window:
             self.advanced_window.close()
         event.accept()
+
+
+class ToggleSwitch(QPushButton):
+    """A toggle switch button that changes appearance based on state"""
+    
+    def __init__(self, text_on: str, text_off: str, parent=None):
+        super().__init__(parent)
+        self.text_on = text_on
+        self.text_off = text_off
+        self._checked = False
+        self.setCheckable(True)
+        self.clicked.connect(self._on_click)
+        self._update_style()
+        self.setMinimumHeight(36)
+        self.setMinimumWidth(180)
+    
+    def _on_click(self):
+        self._checked = not self._checked
+        self._update_style()
+    
+    def _update_style(self):
+        if self._checked:
+            self.setText(self.text_on)
+            self.setStyleSheet("""
+                QPushButton {
+                    background-color: #4CAF50;
+                    color: white;
+                    font-weight: bold;
+                    padding: 8px 18px;
+                    border: none;
+                    border-radius: 4px;
+                    font-size: 13px;
+                }
+                QPushButton:hover {
+                    background-color: #45a049;
+                }
+            """)
+        else:
+            self.setText(self.text_off)
+            self.setStyleSheet("""
+                QPushButton {
+                    background-color: #3c3c3c;
+                    color: #aaa;
+                    font-weight: bold;
+                    padding: 8px 18px;
+                    border: none;
+                    border-radius: 4px;
+                    font-size: 13px;
+                }
+                QPushButton:hover {
+                    background-color: #4a4a4a;
+                }
+            """)
+    
+    def is_checked(self) -> bool:
+        return self._checked
+    
+    def set_checked(self, checked: bool):
+        self._checked = checked
+        self.setChecked(checked)
+        self._update_style()
 
 
 def main():
@@ -864,7 +1286,7 @@ def main():
     app = QApplication(sys.argv)
     setup_dark_theme(app)
     
-    window = SimplifiedCurveViewer(db_path)
+    window = RedesignedMainWindow(db_path)
     window.show()
     
     sys.exit(app.exec_())
