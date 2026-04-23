@@ -1,6 +1,8 @@
 {
   "GT_0304": {
-    "classes": ["GT_0304"],
+    "classes": [
+      "GT_0304"
+    ],
     "vehicles": [
       "Chrysler Viper GTS-R",
       "Ferrari 550 Maranello",
@@ -14,7 +16,9 @@
     ]
   },
   "NGT_0304": {
-    "classes": ["NGT_0304"],
+    "classes": [
+      "NGT_0304"
+    ],
     "vehicles": [
       "Ferrari 360 GTC",
       "Ferrari 360 Modena",
@@ -25,13 +29,28 @@
     ]
   },
   "Spa_0304": {
-    "classes": ["Spa_0304"],
+    "classes": [
+      "Spa_0304"
+    ],
     "vehicles": [
-      "BMW M3"
+      "BMW M3",
+      "BMW M3 GTR",
+      "BMW Z3 M",
+      "Chevrolet Corvette C5-R",
+      "Gillet Vertigo Streiff",
+      "Lotus Elise",
+      "Morgan Aero 8",
+      "Mosler MT900R",
+      "Porsche 911 Biturbo",
+      "Porsche 911 GT3 Cup",
+      "Seat Toledo GT",
+      "Viper Competition Coupe"
     ]
   },
   "GT_2012": {
-    "classes": ["GT_2012"],
+    "classes": [
+      "GT_2012"
+    ],
     "vehicles": [
       "Aston Martin",
       "Audi R8 LMS Ultra",
@@ -58,7 +77,9 @@
     ]
   },
   "Formula_4": {
-    "classes": ["Formula_4"],
+    "classes": [
+      "Formula_4"
+    ],
     "vehicles": [
       "Formula 4",
       "Formula BMW",
@@ -66,6 +87,14 @@
       "Formula Senior",
       "f4",
       "F4"
+    ]
+  },
+  "OTHER": {
+    "classes": [
+      "OTHER"
+    ],
+    "vehicles": [
+      "2003 SafetyCar"
     ]
   }
 }
