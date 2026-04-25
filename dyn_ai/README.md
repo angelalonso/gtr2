@@ -1,4 +1,4 @@
-# dyn_ai — Live AI Tuner for GTR2 - v1.0.1
+# dyn_ai — Live AI Tuner for GTR2 - v1.0.4
 
 ## What it does
 
@@ -191,6 +191,9 @@ My data does not show classes but individual cars → Create a new class with al
 
 ## TODO NEXT
 
+- Solve errors:
+  - ask for base path when not defined
+  - test full process from no data to more and more
 - Simplify code A LOT
 - Move on to a better, dynamic, way of doing this on the fly.
 
