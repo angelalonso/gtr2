@@ -24,7 +24,7 @@ from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QColor, QFont
 import pyqtgraph as pg
 
-from formula_funcs import fit_curve, get_formula_string, hyperbolic
+from formula_funcs import fit_curve, get_formula_string, hyperbolic, ratio_from_time
 from autopilot import load_vehicle_classes, get_vehicle_class, DEFAULT_A_VALUE
 
 
@@ -155,7 +155,6 @@ class SessionPanel(QWidget):
     formula_changed = pyqtSignal(str, float, float)  # session_type, a, b
     show_data_toggled = pyqtSignal(str, bool)  # session_type, show
     calculate_ratio = pyqtSignal(str, float)  # session_type, lap_time
-    save_ratio_to_aiw = pyqtSignal(str, float)  # session_type, ratio
     auto_fit_requested = pyqtSignal(str)  # session_type
     
     def __init__(self, session_type: str, title: str, db, parent=None):
@@ -248,17 +247,12 @@ class SessionPanel(QWidget):
         params_layout.addStretch()
         group_layout.addLayout(params_layout)
         
-        # Buttons row
+        # Buttons row - removed Save button, only Calculate and Auto-Fit
         buttons_layout = QHBoxLayout()
         
         self.calc_btn = QPushButton("Calculate Ratio")
         self.calc_btn.clicked.connect(self.on_calculate_ratio)
         buttons_layout.addWidget(self.calc_btn)
-        
-        self.save_btn = QPushButton("Save Ratio to AIW")
-        self.save_btn.setStyleSheet("background-color: #FF9800;")
-        self.save_btn.clicked.connect(self.on_save_ratio)
-        buttons_layout.addWidget(self.save_btn)
         
         self.auto_fit_btn = QPushButton("Auto-Fit")
         self.auto_fit_btn.setStyleSheet("background-color: #2196F3;")
@@ -277,18 +271,41 @@ class SessionPanel(QWidget):
         self.b = self.b_spin.value()
         self.formula_label.setText(f"T = {self.a:.2f} / R + {self.b:.2f}")
         self.formula_changed.emit(self.session_type, self.a, self.b)
+        # Recalculate ratio if we have user time
+        if self.user_time and self.user_time > 0:
+            self._calculate_and_confirm_ratio(self.user_time)
+        
+    def _calculate_and_confirm_ratio(self, lap_time: float):
+        """Calculate ratio and ask user to confirm saving to AIW"""
+        denominator = lap_time - self.b
+        if denominator <= 0:
+            return
+        
+        ratio = self.a / denominator
+        if 0.3 < ratio < 3.0:
+            self.current_ratio = ratio
+            
+            # Ask user to confirm saving to AIW
+            reply = QMessageBox.question(
+                self, "Save Ratio to AIW?",
+                f"Calculated {self.session_type.upper()} Ratio = {ratio:.6f}\n\n"
+                f"Based on lap time: {lap_time:.3f}s\n"
+                f"Using formula: T = {self.a:.3f} / R + {self.b:.3f}\n\n"
+                f"Save this ratio to the AIW file?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            
+            if reply == QMessageBox.Yes:
+                # Emit signal to save ratio to AIW
+                self.calculate_ratio.emit(self.session_type, lap_time)
+            else:
+                QMessageBox.information(self, "Cancelled", "Ratio not saved to AIW.")
         
     def on_calculate_ratio(self):
         if self.user_time and self.user_time > 0:
-            self.calculate_ratio.emit(self.session_type, self.user_time)
+            self._calculate_and_confirm_ratio(self.user_time)
         else:
             QMessageBox.warning(self, "No Time", "No user time available for this session.")
-            
-    def on_save_ratio(self):
-        if self.current_ratio:
-            self.save_ratio_to_aiw.emit(self.session_type, self.current_ratio)
-        else:
-            QMessageBox.warning(self, "No Ratio", "No ratio calculated yet.")
             
     def update_formula(self, a: float, b: float):
         self.a = a
@@ -304,7 +321,6 @@ class SessionPanel(QWidget):
     def update_user_time(self, time_sec: float):
         self.user_time = time_sec
         if time_sec and time_sec > 0:
-            # Format as mm:ss.ms
             minutes = int(time_sec) // 60
             seconds = time_sec % 60
             self.user_time_label.setText(f"{minutes}:{seconds:06.3f}")
@@ -349,7 +365,7 @@ class CurveGraphWidget(QWidget):
         self.current_vehicle_class = ""
         self.selected_classes = []
         
-        # Current user times
+        # Current user times and calculated ratios
         self.user_qual_time = None
         self.user_race_time = None
         self.user_qual_ratio = None
@@ -457,6 +473,22 @@ class CurveGraphWidget(QWidget):
         info_layout.addStretch()
         layout.addLayout(info_layout)
         
+    def _calculate_ratio_for_user_time(self, time_sec: float, session_type: str) -> Optional[float]:
+        """Calculate the ratio that would produce the given lap time using the current formula"""
+        if session_type == "qual":
+            a, b = self.qual_a, self.qual_b
+        else:
+            a, b = self.race_a, self.race_b
+        
+        denominator = time_sec - b
+        if denominator <= 0:
+            return None
+        
+        ratio = a / denominator
+        if 0.3 < ratio < 3.0:
+            return ratio
+        return None
+    
     def select_track(self):
         """Open dialog to select a different track"""
         if not self.all_tracks:
@@ -472,7 +504,6 @@ class CurveGraphWidget(QWidget):
         for track in self.all_tracks:
             list_widget.addItem(track)
         
-        # Select current track
         items = list_widget.findItems(self.current_track, Qt.MatchExactly)
         if items:
             list_widget.setCurrentItem(items[0])
@@ -553,13 +584,14 @@ class CurveGraphWidget(QWidget):
         
         if qual_time is not None and qual_time > 0:
             self.user_qual_time = qual_time
+            self.user_qual_ratio = self._calculate_ratio_for_user_time(qual_time, "qual")
         
         if race_time is not None and race_time > 0:
             self.user_race_time = race_time
+            self.user_race_ratio = self._calculate_ratio_for_user_time(race_time, "race")
         
         if qual_ratio is not None:
             self.user_qual_ratio = qual_ratio
-        
         if race_ratio is not None:
             self.user_race_ratio = race_ratio
         
@@ -724,25 +756,67 @@ class CurveGraphWidget(QWidget):
         
         # User points
         user_points = []
+        user_labels = []
+        
         if self.user_qual_time and self.user_qual_time > 0 and self.user_qual_ratio:
             user_points.append((self.user_qual_ratio, self.user_qual_time))
+            user_labels.append(("Qualifying", self.user_qual_ratio, self.user_qual_time))
+        
         if self.user_race_time and self.user_race_time > 0 and self.user_race_ratio:
             user_points.append((self.user_race_ratio, self.user_race_time))
+            user_labels.append(("Race", self.user_race_ratio, self.user_race_time))
         
         if user_points:
             r = [p[0] for p in user_points]
             t = [p[1] for p in user_points]
+            
             if self.user_qual_point is None:
                 self.user_qual_point = pg.ScatterPlotItem(
-                    r, t, brush=pg.mkBrush('#00FFFF'), size=12,
+                    r, t, brush=pg.mkBrush('#00FFFF'), size=14,
                     symbol='star', pen=pg.mkPen('white', width=2)
                 )
                 self.plot.addItem(self.user_qual_point)
+                
+                self.user_point_labels = []
+                for i, (label, ratio_val, time_val) in enumerate(user_labels):
+                    text_item = pg.TextItem(text=f"  {label}", color='#00FFFF', anchor=(0, 0.5))
+                    text_item.setPos(ratio_val, time_val)
+                    self.plot.addItem(text_item)
+                    self.user_point_labels.append(text_item)
             else:
                 self.user_qual_point.setData(r, t)
                 self.user_qual_point.setVisible(True)
+                
+                for i, (label, ratio_val, time_val) in enumerate(user_labels):
+                    if i < len(self.user_point_labels):
+                        self.user_point_labels[i].setPos(ratio_val, time_val)
+                        self.user_point_labels[i].setHtml(f'  <span style="color:#00FFFF;">{label}</span>')
+                    else:
+                        text_item = pg.TextItem(text=f"  {label}", color='#00FFFF', anchor=(0, 0.5))
+                        text_item.setPos(ratio_val, time_val)
+                        self.plot.addItem(text_item)
+                        self.user_point_labels.append(text_item)
         elif self.user_qual_point is not None:
             self.user_qual_point.setVisible(False)
+            if hasattr(self, 'user_point_labels'):
+                for label in self.user_point_labels:
+                    label.setVisible(False)
+        
+        # Draw dashed lines from user point to axes
+        if user_points and self.show_user_points:
+            if hasattr(self, 'user_v_lines'):
+                for line in self.user_v_lines:
+                    self.plot.removeItem(line)
+            
+            self.user_v_lines = []
+            for ratio_val, time_val in user_points:
+                v_line = pg.InfiniteLine(pos=ratio_val, angle=90, pen=pg.mkPen(color='#00FFFF', width=1, style=Qt.DashLine))
+                self.plot.addItem(v_line)
+                self.user_v_lines.append(v_line)
+                
+                h_line = pg.InfiniteLine(pos=time_val, angle=0, pen=pg.mkPen(color='#00FFFF', width=1, style=Qt.DashLine))
+                self.plot.addItem(h_line)
+                self.user_v_lines.append(h_line)
         
         if self.legend is not None:
             self.plot.scene().removeItem(self.legend)
@@ -763,7 +837,15 @@ class CurveGraphWidget(QWidget):
         if user_points:
             self.legend.addItem(self.user_qual_point, 'Your Lap Times')
         
-        self.formula_label.setText(f"Qual: T={self.qual_a:.3f}/R+{self.qual_b:.3f}  |  Race: T={self.race_a:.3f}/R+{self.race_b:.3f}")
+        qual_info = ""
+        race_info = ""
+        if self.user_qual_time and self.user_qual_ratio:
+            qual_info = f"Qual: T={self.user_qual_time:.2f}s → R={self.user_qual_ratio:.4f}"
+        if self.user_race_time and self.user_race_ratio:
+            race_info = f"Race: T={self.user_race_time:.2f}s → R={self.user_race_ratio:.4f}"
+        
+        separator = "  |  " if qual_info and race_info else ""
+        self.formula_label.setText(f"{qual_info}{separator}{race_info}")
     
     def on_plot_click(self, event):
         if self.plot.scene().mouseGrabberItem() is not None:
@@ -800,6 +882,10 @@ class CurveGraphWidget(QWidget):
         self.qual_b = qual_b
         self.race_a = race_a
         self.race_b = race_b
+        if self.user_qual_time:
+            self.user_qual_ratio = self._calculate_ratio_for_user_time(self.user_qual_time, "qual")
+        if self.user_race_time:
+            self.user_race_ratio = self._calculate_ratio_for_user_time(self.user_race_time, "race")
         self.update_graph()
     
     def set_show_qualifying(self, show: bool):
@@ -816,6 +902,7 @@ class AdvancedSettingsDialog(QDialog):
     
     data_updated = pyqtSignal()
     formula_updated = pyqtSignal(str, float, float)  # session_type, a, b
+    ratio_saved = pyqtSignal(str, float)  # session_type, ratio
     
     def __init__(self, parent=None, db=None, log_window=None):
         super().__init__(parent)
@@ -864,8 +951,7 @@ class AdvancedSettingsDialog(QDialog):
         self.qual_panel = SessionPanel("qual", "Qualifying Session", self.db, self)
         self.qual_panel.formula_changed.connect(self.on_session_formula_changed)
         self.qual_panel.show_data_toggled.connect(self.on_show_data_toggled)
-        self.qual_panel.calculate_ratio.connect(self.on_calculate_ratio)
-        self.qual_panel.save_ratio_to_aiw.connect(self.on_save_ratio_to_aiw)
+        self.qual_panel.calculate_ratio.connect(self.on_calculate_and_save_ratio)
         self.qual_panel.auto_fit_requested.connect(self.on_auto_fit_requested)
         middle_layout.addWidget(self.qual_panel)
         
@@ -873,8 +959,7 @@ class AdvancedSettingsDialog(QDialog):
         self.race_panel = SessionPanel("race", "Race Session", self.db, self)
         self.race_panel.formula_changed.connect(self.on_session_formula_changed)
         self.race_panel.show_data_toggled.connect(self.on_show_data_toggled)
-        self.race_panel.calculate_ratio.connect(self.on_calculate_ratio)
-        self.race_panel.save_ratio_to_aiw.connect(self.on_save_ratio_to_aiw)
+        self.race_panel.calculate_ratio.connect(self.on_calculate_and_save_ratio)
         self.race_panel.auto_fit_requested.connect(self.on_auto_fit_requested)
         middle_layout.addWidget(self.race_panel)
         
@@ -1088,15 +1173,13 @@ class AdvancedSettingsDialog(QDialog):
         backup_layout.addStretch()
         self.tab_widget.addTab(backup_tab, "Backup Restore")
         
-        # TAB 4: LOGS (replaces Settings tab)
+        # TAB 4: LOGS
         logs_tab = QWidget()
         logs_layout = QVBoxLayout(logs_tab)
         
         if self.log_window:
-            # Embed the log window content
             logs_layout.addWidget(QLabel("Application Logs:"))
             
-            # Create a text widget to show logs
             self.log_display = QTextEdit()
             self.log_display.setReadOnly(True)
             self.log_display.setFontFamily("Courier New")
@@ -1109,11 +1192,9 @@ class AdvancedSettingsDialog(QDialog):
             """)
             logs_layout.addWidget(self.log_display)
             
-            # Connect to log window to mirror logs
             self.log_window.log_text.document().contentsChange.connect(self.sync_log_display)
             self.sync_log_display()
             
-            # Buttons
             log_btn_layout = QHBoxLayout()
             
             clear_log_btn = QPushButton("Clear Log")
@@ -1174,31 +1255,26 @@ class AdvancedSettingsDialog(QDialog):
         self.update_mode_visibility()
     
     def on_parent_data_refresh(self):
-        """Called when parent window refreshes data (new race data received)"""
         logger.debug("AdvancedSettingsDialog: Received data refresh signal from parent")
         self.refresh_display()
     
     def sync_log_display(self):
-        """Sync the log display with the log window content"""
         if hasattr(self, 'log_display') and self.log_window:
             self.log_display.setHtml(self.log_window.log_text.toHtml())
             
     def clear_log_display(self):
-        """Clear the log display and the log window"""
         if self.log_window:
             self.log_window.clear_log()
         if hasattr(self, 'log_display'):
             self.log_display.clear()
     
     def refresh_all(self):
-        """Refresh all components"""
         if self.curve_graph:
             self.curve_graph.full_refresh()
         self.load_data_table()
         self.refresh_display()
         
     def load_data_table(self):
-        """Load data points into the table"""
         if not self.curve_graph or not self.curve_graph.current_track:
             self.data_table.setRowCount(0)
             return
@@ -1248,7 +1324,6 @@ class AdvancedSettingsDialog(QDialog):
         self.data_table.resizeRowsToContents()
     
     def on_table_selection_changed(self):
-        """Handle table selection change - highlight point on graph"""
         selected = self.data_table.selectedItems()
         if not selected:
             return
@@ -1258,7 +1333,6 @@ class AdvancedSettingsDialog(QDialog):
         lap_time = float(self.data_table.item(row, 4).text())
         
         if self.curve_graph:
-            # Highlight the point on the graph
             if hasattr(self.curve_graph, 'selected_point_marker') and self.curve_graph.selected_point_marker:
                 self.curve_graph.plot.removeItem(self.curve_graph.selected_point_marker)
             
@@ -1269,7 +1343,6 @@ class AdvancedSettingsDialog(QDialog):
             self.curve_graph.plot.addItem(self.curve_graph.selected_point_marker)
     
     def delete_selected_points(self):
-        """Delete selected data points from the database"""
         selected_rows = set()
         for item in self.data_table.selectedItems():
             selected_rows.add(item.row())
@@ -1312,7 +1385,6 @@ class AdvancedSettingsDialog(QDialog):
         QMessageBox.information(self, "Success", f"Deleted {deleted} data point(s).")
     
     def refresh_display(self):
-        """Refresh all displays with latest data from parent"""
         if not self.parent:
             return
         
@@ -1327,7 +1399,6 @@ class AdvancedSettingsDialog(QDialog):
         last_qual_ratio = getattr(self.parent, 'last_qual_ratio', None)
         last_race_ratio = getattr(self.parent, 'last_race_ratio', None)
         
-        # Update curve graph
         if self.curve_graph:
             self.curve_graph.update_current_info(
                 track=current_track,
@@ -1340,7 +1411,6 @@ class AdvancedSettingsDialog(QDialog):
             self.curve_graph.set_formulas(qual_a, qual_b, race_a, race_b)
             self.curve_graph.update_graph()
         
-        # Update session panels
         if self.qual_panel:
             self.qual_panel.update_formula(qual_a, qual_b)
             self.qual_panel.update_user_time(user_qual_time)
@@ -1351,7 +1421,6 @@ class AdvancedSettingsDialog(QDialog):
             self.race_panel.update_user_time(user_race_time)
             self.race_panel.update_ratio(last_race_ratio)
         
-        # Reload data table
         self.load_data_table()
     
     def showEvent(self, event):
@@ -1359,7 +1428,6 @@ class AdvancedSettingsDialog(QDialog):
         super().showEvent(event)
     
     def on_point_selected(self, track, session, ratio, lap_time):
-        """Handle point selection from graph - update table selection"""
         for row in range(self.data_table.rowCount()):
             if (abs(float(self.data_table.item(row, 3).text()) - ratio) < 0.001 and
                 abs(float(self.data_table.item(row, 4).text()) - lap_time) < 0.01):
@@ -1372,7 +1440,6 @@ class AdvancedSettingsDialog(QDialog):
         self.data_updated.emit()
     
     def on_formula_changed(self, session_type: str, a: float, b: float):
-        """Handle formula change from graph"""
         if session_type == "qual" and self.qual_panel:
             self.qual_panel.update_formula(a, b)
         elif session_type == "race" and self.race_panel:
@@ -1380,7 +1447,6 @@ class AdvancedSettingsDialog(QDialog):
         self.formula_updated.emit(session_type, a, b)
     
     def on_session_formula_changed(self, session_type: str, a: float, b: float):
-        """Handle formula change from session panel"""
         if self.curve_graph:
             if session_type == "qual":
                 self.curve_graph.qual_a = a
@@ -1388,19 +1454,24 @@ class AdvancedSettingsDialog(QDialog):
             else:
                 self.curve_graph.race_a = a
                 self.curve_graph.race_b = b
+            if self.curve_graph.user_qual_time and session_type == "qual":
+                self.curve_graph.user_qual_ratio = self.curve_graph._calculate_ratio_for_user_time(
+                    self.curve_graph.user_qual_time, "qual")
+            if self.curve_graph.user_race_time and session_type == "race":
+                self.curve_graph.user_race_ratio = self.curve_graph._calculate_ratio_for_user_time(
+                    self.curve_graph.user_race_time, "race")
             self.curve_graph.update_graph()
         self.formula_updated.emit(session_type, a, b)
     
     def on_show_data_toggled(self, session_type: str, show: bool):
-        """Handle show/hide data on graph"""
         if self.curve_graph:
             if session_type == "qual":
                 self.curve_graph.set_show_qualifying(show)
             else:
                 self.curve_graph.set_show_race(show)
     
-    def on_calculate_ratio(self, session_type: str, lap_time: float):
-        """Calculate ratio from lap time using current formula"""
+    def on_calculate_and_save_ratio(self, session_type: str, lap_time: float):
+        """Calculate ratio and save directly to AIW (the confirmation already happened in the panel)"""
         if session_type == "qual":
             a, b = self.qual_panel.a, self.qual_panel.b
         else:
@@ -1408,33 +1479,26 @@ class AdvancedSettingsDialog(QDialog):
         
         denominator = lap_time - b
         if denominator <= 0:
-            QMessageBox.warning(self, "Invalid", "Lap time too low for this formula.")
             return
         
         ratio = a / denominator
         
         if 0.3 < ratio < 3.0:
-            QMessageBox.information(self, "Ratio Calculated", 
-                f"Calculated {session_type.upper()} Ratio = {ratio:.6f}\n\n"
-                f"Based on lap time: {lap_time:.3f}s\n"
-                f"Using formula: T = {a:.3f} / R + {b:.3f}")
+            # Emit signal to parent to save to AIW
+            self.ratio_saved.emit(session_type, ratio)
             
-            if session_type == "qual":
-                self.qual_panel.update_ratio(ratio)
-            else:
-                self.race_panel.update_ratio(ratio)
-        else:
-            QMessageBox.warning(self, "Out of Range", 
-                f"Calculated ratio {ratio:.6f} is outside valid range (0.3-3.0).")
-    
-    def on_save_ratio_to_aiw(self, session_type: str, ratio: float):
-        """Save ratio to AIW file"""
-        QMessageBox.information(self, "Save to AIW", 
-            f"This would save {session_type.upper()} Ratio = {ratio:.6f} to the AIW file.\n\n"
-            "This feature requires the main window to have the AIW file path.")
+            # Update the graph to show the saved ratio
+            if self.curve_graph:
+                if session_type == "qual":
+                    self.curve_graph.user_qual_ratio = ratio
+                else:
+                    self.curve_graph.user_race_ratio = ratio
+                self.curve_graph.update_graph()
+            
+            QMessageBox.information(self, "Ratio Saved", 
+                f"{session_type.upper()} Ratio = {ratio:.6f} has been saved to the AIW file.")
     
     def on_auto_fit_requested(self, session_type: str):
-        """Auto-fit formula to existing data"""
         if not self.curve_graph:
             return
         
@@ -1456,6 +1520,9 @@ class AdvancedSettingsDialog(QDialog):
         a, b, avg_err, max_err = fit_curve(ratios, times, verbose=False)
         
         if a and b and a > 0 and b > 0:
+            b = b
+            a = DEFAULT_A_VALUE
+            
             if session_type == "qual":
                 self.qual_panel.update_formula(a, b)
                 if self.curve_graph:
@@ -1468,6 +1535,12 @@ class AdvancedSettingsDialog(QDialog):
                     self.curve_graph.race_b = b
             
             if self.curve_graph:
+                if self.curve_graph.user_qual_time:
+                    self.curve_graph.user_qual_ratio = self.curve_graph._calculate_ratio_for_user_time(
+                        self.curve_graph.user_qual_time, "qual")
+                if self.curve_graph.user_race_time:
+                    self.curve_graph.user_race_ratio = self.curve_graph._calculate_ratio_for_user_time(
+                        self.curve_graph.user_race_time, "race")
                 self.curve_graph.update_graph()
             
             self.formula_updated.emit(session_type, a, b)
@@ -1475,7 +1548,8 @@ class AdvancedSettingsDialog(QDialog):
                 f"Formula fitted to {len(points)} data points:\n"
                 f"T = {a:.4f} / R + {b:.4f}\n"
                 f"Average error: {avg_err:.3f}s\n"
-                f"Max error: {max_err:.3f}s")
+                f"Max error: {max_err:.3f}s\n\n"
+                f"Note: The 'a' value has been kept at {DEFAULT_A_VALUE}.")
         else:
             QMessageBox.warning(self, "Fit Failed", "Could not fit curve to data.")
     

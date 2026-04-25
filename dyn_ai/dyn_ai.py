@@ -14,13 +14,13 @@ from datetime import datetime
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
     QLabel, QPushButton, QFrame, QMessageBox, QSizePolicy, QDialog,
-    QDoubleSpinBox, QFileDialog
+    QDoubleSpinBox, QFileDialog, QLineEdit
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QObject
 from PyQt5.QtGui import QFont
 
 from db_funcs import CurveDatabase
-from formula_funcs import get_formula_string, hyperbolic
+from formula_funcs import get_formula_string, hyperbolic, fit_curve
 from gui_funcs import (
     setup_dark_theme, show_error_dialog, show_info_dialog, show_warning_dialog,
     AdvancedSettingsDialog, LogWindow, SimpleLogHandler
@@ -29,7 +29,7 @@ from cfg_funcs import (
     get_config_with_defaults, get_results_file_path, get_poll_interval,
     get_db_path, create_default_config_if_missing, get_base_path,
     get_autopilot_enabled, get_autopilot_silent,
-    update_autopilot_enabled, update_autopilot_silent
+    update_autopilot_enabled, update_autopilot_silent, update_base_path
 )
 from data_extraction import DataExtractor, RaceData, format_time
 from autopilot import AutopilotManager, Formula, get_vehicle_class, load_vehicle_classes, DEFAULT_A_VALUE
@@ -141,6 +141,182 @@ class FileMonitorDaemon(QObject):
             logger.error(f"Error checking file: {e}")
         finally:
             self._schedule_check()
+
+
+class BasePathSelectionDialog(QDialog):
+    """Dialog to select GTR2 installation base path"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.selected_path = None
+        self.setup_ui()
+    
+    def setup_ui(self):
+        self.setWindowTitle("Select GTR2 Installation Path")
+        self.setFixedSize(600, 300)
+        self.setModal(True)
+        
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #2b2b2b;
+            }
+            QLabel {
+                color: white;
+            }
+            QLineEdit {
+                background-color: #3c3c3c;
+                color: white;
+                border: 1px solid #4CAF50;
+                border-radius: 4px;
+                padding: 8px;
+                font-size: 12px;
+            }
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+            QPushButton#cancel {
+                background-color: #f44336;
+            }
+            QPushButton#cancel:hover {
+                background-color: #d32f2f;
+            }
+        """)
+        
+        layout = QVBoxLayout(self)
+        layout.setSpacing(15)
+        layout.setContentsMargins(25, 25, 25, 25)
+        
+        # Title
+        title = QLabel("GTR2 Installation Path")
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #FFA500;")
+        title.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title)
+        
+        layout.addSpacing(10)
+        
+        # Description
+        desc = QLabel(
+            "Please select the root folder of your GTR2 installation.\n\n"
+            "This folder should contain the 'GameData' and 'UserData' directories.\n"
+            "Example: C:\\GTR2 or /home/user/GTR2"
+        )
+        desc.setWordWrap(True)
+        desc.setStyleSheet("color: #aaa; font-size: 12px;")
+        desc.setAlignment(Qt.AlignCenter)
+        layout.addWidget(desc)
+        
+        layout.addSpacing(10)
+        
+        # Path input row
+        path_layout = QHBoxLayout()
+        path_layout.addWidget(QLabel("Path:"))
+        
+        self.path_edit = QLineEdit()
+        self.path_edit.setPlaceholderText("Select or enter GTR2 installation path...")
+        path_layout.addWidget(self.path_edit)
+        
+        self.browse_btn = QPushButton("Browse...")
+        self.browse_btn.clicked.connect(self.browse_path)
+        path_layout.addWidget(self.browse_btn)
+        
+        layout.addLayout(path_layout)
+        
+        # Validation message
+        self.validation_label = QLabel("")
+        self.validation_label.setStyleSheet("color: #FFA500; font-size: 10px;")
+        layout.addWidget(self.validation_label)
+        
+        layout.addSpacing(20)
+        
+        # Buttons
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        
+        self.cancel_btn = QPushButton("Cancel")
+        self.cancel_btn.setObjectName("cancel")
+        self.cancel_btn.clicked.connect(self.reject)
+        btn_layout.addWidget(self.cancel_btn)
+        
+        self.ok_btn = QPushButton("OK")
+        self.ok_btn.clicked.connect(self.accept_path)
+        btn_layout.addWidget(self.ok_btn)
+        
+        layout.addLayout(btn_layout)
+    
+    def browse_path(self):
+        """Open directory browser dialog"""
+        directory = QFileDialog.getExistingDirectory(
+            self, "Select GTR2 Installation Directory",
+            str(Path.home()), QFileDialog.ShowDirsOnly
+        )
+        
+        if directory:
+            self.path_edit.setText(directory)
+            self.validate_path(directory)
+    
+    def validate_path(self, path_str: str) -> bool:
+        """Validate that the path contains GameData and UserData directories"""
+        path = Path(path_str)
+        
+        if not path.exists():
+            self.validation_label.setText("❌ Path does not exist")
+            self.validation_label.setStyleSheet("color: #f44336; font-size: 10px;")
+            return False
+        
+        game_data = path / "GameData"
+        user_data = path / "UserData"
+        
+        if not game_data.exists():
+            self.validation_label.setText("❌ GameData directory not found in this path")
+            self.validation_label.setStyleSheet("color: #f44336; font-size: 10px;")
+            return False
+        
+        if not user_data.exists():
+            self.validation_label.setText("❌ UserData directory not found in this path")
+            self.validation_label.setStyleSheet("color: #f44336; font-size: 10px;")
+            return False
+        
+        log_results = user_data / "Log" / "Results"
+        if not log_results.exists():
+            self.validation_label.setText("⚠️ Log/Results directory not found (may be created later)")
+            self.validation_label.setStyleSheet("color: #FFA500; font-size: 10px;")
+        else:
+            self.validation_label.setText("✓ Valid GTR2 installation path")
+            self.validation_label.setStyleSheet("color: #4CAF50; font-size: 10px;")
+        
+        return True
+    
+    def accept_path(self):
+        """Accept the selected path if valid"""
+        path_str = self.path_edit.text().strip()
+        
+        if not path_str:
+            self.validation_label.setText("❌ Please select a path")
+            return
+        
+        if self.validate_path(path_str):
+            self.selected_path = Path(path_str)
+            self.accept()
+        else:
+            # Still allow if user insists? Let's require valid
+            reply = QMessageBox.question(
+                self, "Continue Anyway?",
+                "The selected path does not appear to be a valid GTR2 installation.\n"
+                "The application may not work correctly.\n\n"
+                "Continue anyway?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if reply == QMessageBox.Yes:
+                self.selected_path = Path(path_str)
+                self.accept()
 
 
 class AccuracyIndicator(QLabel):
@@ -479,7 +655,7 @@ class RatioPanel(QFrame):
         
         # Formula - lighter color
         self.formula_label = QLabel("")
-        self.formula_label.setStyleSheet("color: #777777; font-size: 10px; font-family: monospace; margin-top: 10px;")
+        self.formula_label.setStyleSheet("color: #888; font-size: 10px; font-family: monospace; margin-top: 10px;")
         self.formula_label.setWordWrap(True)
         self.formula_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.formula_label)
@@ -596,7 +772,7 @@ class RedesignedMainWindow(QMainWindow):
             "error_margin": 0.0
         }
         
-        # Current formulas
+        # Current formulas - ALWAYS use fixed a=32, only b changes
         self.qual_a: float = DEFAULT_A_VALUE
         self.qual_b: float = 70.0
         self.race_a: float = DEFAULT_A_VALUE
@@ -630,6 +806,16 @@ class RedesignedMainWindow(QMainWindow):
         self.daemon = None
         
         self.setup_ui()
+        
+        # Check and set base path before loading data
+        if not self.ensure_base_path():
+            # User canceled or no path selected - exit?
+            QMessageBox.critical(self, "No Path Selected",
+                "GTR2 installation path is required for the application to work.\n\n"
+                "Please run the application again and select the correct path.")
+            self.close()
+            return
+        
         self.load_data()
         self.update_display()
         
@@ -637,6 +823,44 @@ class RedesignedMainWindow(QMainWindow):
         base_path = get_base_path(config_file)
         if base_path:
             self.start_daemon()
+    
+    def ensure_base_path(self) -> bool:
+        """Ensure that a valid base path is configured. Returns True if path is set."""
+        config = get_config_with_defaults(self.config_file)
+        base_path = config.get('base_path', '')
+        
+        # Check if base_path exists and is valid
+        if not base_path or not Path(base_path).exists():
+            # Check if the path contains GameData directory
+            path = Path(base_path) if base_path else None
+            if not path or not (path / "GameData").exists() or not (path / "UserData").exists():
+                # Ask user for base path
+                dialog = BasePathSelectionDialog(self)
+                if dialog.exec_() == QDialog.Accepted and dialog.selected_path:
+                    update_base_path(dialog.selected_path, self.config_file)
+                    logger.info(f"Base path set to: {dialog.selected_path}")
+                    return True
+                else:
+                    return False
+        
+        # Validate the existing path
+        path = Path(base_path)
+        if (path / "GameData").exists() and (path / "UserData").exists():
+            return True
+        else:
+            # Path exists but doesn't contain required directories
+            reply = QMessageBox.question(self, "Invalid Path",
+                f"The configured path '{base_path}' does not appear to be a valid GTR2 installation.\n\n"
+                "Would you like to select a different path?",
+                QMessageBox.Yes | QMessageBox.No)
+            
+            if reply == QMessageBox.Yes:
+                dialog = BasePathSelectionDialog(self)
+                if dialog.exec_() == QDialog.Accepted and dialog.selected_path:
+                    update_base_path(dialog.selected_path, self.config_file)
+                    logger.info(f"Base path updated to: {dialog.selected_path}")
+                    return True
+            return False
     
     def setup_ui(self):
         central = QWidget()
@@ -975,34 +1199,156 @@ class RedesignedMainWindow(QMainWindow):
             show_error_dialog(self, "Update Failed", f"Failed to update {ratio_name} in AIW file.")
     
     def _update_formulas_from_autopilot(self):
-        """Update current formulas from autopilot"""
+        """Update current formulas from autopilot - keeps a fixed, only b changes"""
         if not self.current_track or not self.current_vehicle_class:
             if self.current_vehicle:
                 self.current_vehicle_class = get_vehicle_class(self.current_vehicle, self.class_mapping)
             if not self.current_vehicle_class:
                 return
         
-        # Get qualifying formula
+        # Get qualifying formula - a should always be DEFAULT_A_VALUE (32)
         qual_formula = self.autopilot_manager.formula_manager.get_formula_by_class(
             self.current_track, self.current_vehicle_class, "qual"
         )
         if qual_formula and qual_formula.is_valid():
-            self.qual_a = qual_formula.a
-            self.qual_b = qual_formula.b
+            self.qual_a = DEFAULT_A_VALUE  # Force a to be default
+            self.qual_b = qual_formula.b   # Only take b from stored formula
         else:
             self.qual_a = DEFAULT_A_VALUE
             self.qual_b = 70.0
         
-        # Get race formula
+        # Get race formula - a should always be DEFAULT_A_VALUE (32)
         race_formula = self.autopilot_manager.formula_manager.get_formula_by_class(
             self.current_track, self.current_vehicle_class, "race"
         )
         if race_formula and race_formula.is_valid():
-            self.race_a = race_formula.a
-            self.race_b = race_formula.b
+            self.race_a = DEFAULT_A_VALUE  # Force a to be default
+            self.race_b = race_formula.b   # Only take b from stored formula
         else:
             self.race_a = DEFAULT_A_VALUE
             self.race_b = 70.0
+    
+    def _fit_b_from_data_points(self, session_type: str, ratio: float, ai_times: List[float]) -> Optional[float]:
+        """
+        Calculate b value from AI data points.
+        Using T = a/R + b, we solve for b: b = T - a/R
+        For multiple points, use the average of the calculated b values.
+        """
+        if not ai_times:
+            return None
+        
+        # Calculate b for each AI time at the given ratio
+        b_values = []
+        for ai_time in ai_times:
+            b = ai_time - (DEFAULT_A_VALUE / ratio)
+            b_values.append(b)
+        
+        # Use the average b value
+        avg_b = sum(b_values) / len(b_values)
+        # Clamp b to reasonable range
+        avg_b = max(10.0, min(200.0, avg_b))
+        
+        logger.debug(f"  Fitted b from {len(ai_times)} points at ratio {ratio:.4f}: b={avg_b:.4f}")
+        return avg_b
+    
+    def _update_formula_from_new_data(self, race_data: RaceData, session_type: str) -> bool:
+        """
+        Update formula based on new AI data.
+        Keeps a fixed at DEFAULT_A_VALUE (32), only calculates a new b value.
+        Returns True if formula was updated.
+        """
+        if not self.current_track or not self.current_vehicle_class:
+            return False
+        
+        # Get the ratio and AI times for this session type
+        if session_type == "qual":
+            current_ratio = race_data.qual_ratio
+            best_ai = race_data.qual_best_ai_lap_sec
+            worst_ai = race_data.qual_worst_ai_lap_sec
+        else:
+            current_ratio = race_data.race_ratio
+            best_ai = race_data.best_ai_lap_sec
+            worst_ai = race_data.worst_ai_lap_sec
+        
+        if not current_ratio or current_ratio <= 0:
+            logger.debug(f"  No ratio available for {session_type}")
+            return False
+        
+        # Collect all AI times at this ratio
+        ai_times = []
+        
+        # Add best and worst as the range
+        if best_ai and best_ai > 0:
+            ai_times.append(best_ai)
+        if worst_ai and worst_ai > 0:
+            ai_times.append(worst_ai)
+        
+        # Also get all AI results from the race data for more points
+        for ai in race_data.ai_results:
+            if session_type == "qual" and ai.get('qual_time_sec', 0) > 0:
+                ai_times.append(ai['qual_time_sec'])
+            elif session_type == "race" and ai.get('best_lap_sec', 0) > 0:
+                ai_times.append(ai['best_lap_sec'])
+        
+        if not ai_times:
+            logger.debug(f"  No AI times available for {session_type}")
+            return False
+        
+        # Fit b from the AI data points
+        new_b = self._fit_b_from_data_points(session_type, current_ratio, ai_times)
+        
+        if new_b is None:
+            return False
+        
+        # Update the formula in the database (with fixed a=32, new b)
+        formula = Formula(
+            track=self.current_track,
+            vehicle_class=self.current_vehicle_class,
+            a=DEFAULT_A_VALUE,
+            b=new_b,
+            session_type=session_type,
+            data_points_used=len(ai_times),
+            confidence=0.7 if len(ai_times) >= 2 else 0.5
+        )
+        
+        if formula.is_valid():
+            self.autopilot_manager.formula_manager.save_formula(formula)
+            
+            # Update local variables
+            if session_type == "qual":
+                self.qual_b = new_b
+            else:
+                self.race_b = new_b
+            
+            logger.info(f"  Updated {session_type} formula: T = {DEFAULT_A_VALUE:.0f} / R + {new_b:.4f} (from {len(ai_times)} AI times at ratio {current_ratio:.4f})")
+            return True
+        
+        return False
+    
+    def _calculate_ratio_for_user_time(self, user_time: float, session_type: str) -> Optional[float]:
+        """
+        Calculate the ratio that would give the user's lap time using the current formula.
+        Formula: R = a / (T - b)
+        """
+        if session_type == "qual":
+            a = DEFAULT_A_VALUE
+            b = self.qual_b
+        else:
+            a = DEFAULT_A_VALUE
+            b = self.race_b
+        
+        denominator = user_time - b
+        if denominator <= 0:
+            logger.debug(f"  Denominator <= 0: {user_time} - {b} = {denominator}")
+            return None
+        
+        ratio = a / denominator
+        
+        if 0.3 < ratio < 3.0:
+            return ratio
+        else:
+            logger.debug(f"  Calculated ratio {ratio:.6f} out of range (0.3-3.0)")
+            return None
     
     def open_advanced_settings(self):
         """Open the advanced settings window"""
@@ -1039,13 +1385,14 @@ class RedesignedMainWindow(QMainWindow):
         self.update_display()
     
     def on_formula_updated(self, session_type: str, a: float, b: float):
-        """Handle formula updates from advanced settings"""
+        """
+        Handle formula updates from advanced settings.
+        Note: We ignore the 'a' value from the dialog and keep DEFAULT_A_VALUE.
+        """
         if session_type == "qual":
-            self.qual_a = a
-            self.qual_b = b
+            self.qual_b = b  # Only take b, keep a fixed
         else:
-            self.race_a = a
-            self.race_b = b
+            self.race_b = b  # Only take b, keep a fixed
         self.update_display()
         self.update_formula_accuracy(session_type)
     
@@ -1158,7 +1505,16 @@ class RedesignedMainWindow(QMainWindow):
             if points_added > 0:
                 logger.debug(f"Saved {points_added} new data points")
         
-        # Update formulas from database
+        # Update formula from AI data ONLY (keep a fixed at 32, update b)
+        if self.current_track and self.current_vehicle_class:
+            # Update qualifying formula from AI data
+            if has_qual:
+                self._update_formula_from_new_data(race_data, "qual")
+            # Update race formula from AI data
+            if has_race:
+                self._update_formula_from_new_data(race_data, "race")
+        
+        # Reload formulas from database
         self.autopilot_manager.reload_formulas()
         self._update_formulas_from_autopilot()
         self.update_display()
@@ -1168,51 +1524,47 @@ class RedesignedMainWindow(QMainWindow):
             self.update_formula_accuracy("qual")
             self.update_formula_accuracy("race")
         
-        # Run autoratio if enabled
+        # Run autoratio if enabled - this calculates the new ratio for the AIW file
         if self.autoratio_enabled and race_data.aiw_path:
             logger.debug("Running Autoratio...")
-            result = self.autopilot_manager.process_new_data(race_data, race_data.aiw_path, self.ai_target_settings)
             
-            if result.get("success"):
-                # Log new ratio calculations with user lap time
-                if result.get("qual_updated"):
-                    user_lap_time = format_time(self.user_qualifying_sec) if self.user_qualifying_sec > 0 else "unknown"
+            # Calculate the ratio that would give the user's time with the current formula
+            # This is the NEW ratio to write to the AIW file
+            if self.user_qualifying_sec > 0 and self.last_qual_ratio:
+                new_qual_ratio = self._calculate_ratio_for_user_time(self.user_qualifying_sec, "qual")
+                if new_qual_ratio and abs(new_qual_ratio - self.last_qual_ratio) > 0.000001:
                     logger.info(self.simplified_logger.new_ratio_calculation(
-                        result['qual_old_ratio'], result['qual_new_ratio'], "qual", user_lap_time, result['qual_old_ratio']
+                        self.last_qual_ratio, new_qual_ratio, "qual", 
+                        format_time(self.user_qualifying_sec), self.last_qual_ratio
                     ))
-                    self.last_qual_ratio = result['qual_new_ratio']
-                    # Update the displayed ratio (the calculated one)
-                    self.qual_panel.update_ratio(self.last_qual_ratio)
-                    # The "last ratio read" stays showing the original AIW value
-                if result.get("race_updated"):
-                    user_lap_time = format_time(self.user_best_lap_sec) if self.user_best_lap_sec > 0 else "unknown"
+                    # Update the AIW file with the new ratio
+                    if self.autopilot_manager.engine._update_aiw_ratio(race_data.aiw_path, "QualRatio", new_qual_ratio):
+                        self.last_qual_ratio = new_qual_ratio
+                        self.qual_panel.update_ratio(new_qual_ratio)
+                        logger.info(f"  Updated QualRatio in AIW to {new_qual_ratio:.6f}")
+            
+            if self.user_best_lap_sec > 0 and self.last_race_ratio:
+                new_race_ratio = self._calculate_ratio_for_user_time(self.user_best_lap_sec, "race")
+                if new_race_ratio and abs(new_race_ratio - self.last_race_ratio) > 0.000001:
                     logger.info(self.simplified_logger.new_ratio_calculation(
-                        result['race_old_ratio'], result['race_new_ratio'], "race", user_lap_time, result['race_old_ratio']
+                        self.last_race_ratio, new_race_ratio, "race",
+                        format_time(self.user_best_lap_sec), self.last_race_ratio
                     ))
-                    self.last_race_ratio = result['race_new_ratio']
-                    # Update the displayed ratio (the calculated one)
-                    self.race_panel.update_ratio(self.last_race_ratio)
-                    # The "last ratio read" stays showing the original AIW value
-                
-                # Reload formulas after update
-                self.autopilot_manager.reload_formulas()
-                self._update_formulas_from_autopilot()
-                self.update_display()
-                
-                # Update accuracy after autoratio
-                if self.current_track and self.current_vehicle_class:
-                    self.update_formula_accuracy("qual")
-                    self.update_formula_accuracy("race")
-                
-                self.statusBar().showMessage("AI ratios updated!", 3000)
-            else:
-                if result.get("message"):
-                    logger.warning(f"Autoratio: {result['message']}")
-        elif not self.autoratio_enabled and race_data.aiw_path:
-            logger.debug("Autoratio is OFF - skipping ratio calculation")
-            # Still update the displayed ratio to show what was read from AIW
-            self.qual_panel.update_ratio(self.last_qual_ratio)
-            self.race_panel.update_ratio(self.last_race_ratio)
+                    # Update the AIW file with the new ratio
+                    if self.autopilot_manager.engine._update_aiw_ratio(race_data.aiw_path, "RaceRatio", new_race_ratio):
+                        self.last_race_ratio = new_race_ratio
+                        self.race_panel.update_ratio(new_race_ratio)
+                        logger.info(f"  Updated RaceRatio in AIW to {new_race_ratio:.6f}")
+        
+        # Reload formulas after any changes
+        self.autopilot_manager.reload_formulas()
+        self._update_formulas_from_autopilot()
+        self.update_display()
+        
+        # Update accuracy after all updates
+        if self.current_track and self.current_vehicle_class:
+            self.update_formula_accuracy("qual")
+            self.update_formula_accuracy("race")
         
         # Emit signal to notify advanced dialog about data refresh
         self.data_refresh_signal.emit()
@@ -1344,7 +1696,14 @@ class ToggleSwitch(QPushButton):
 
 
 def main():
+    # Check if config file exists and base_path is set
+    config = get_config_with_defaults()
+    base_path = config.get('base_path', '')
+    
+    # If no config file or base_path is empty, we'll handle it in the main window
+    # But we still need to create default config if missing
     create_default_config_if_missing()
+    
     db_path = get_db_path()
     
     if not Path(db_path).exists():
