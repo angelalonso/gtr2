@@ -66,5 +66,3 @@ else
 fi
 
 echo "=== Build process completed ==="
-
-# zip -s 49m -r dyn_ai.zip dyn_ai.exe

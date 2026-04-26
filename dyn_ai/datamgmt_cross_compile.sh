@@ -29,7 +29,7 @@ wine python -m PyInstaller --onefile --windowed --name="datamgmt_dyn_ai" datamgm
 if [ -f "dist/datamgmt_dyn_ai.exe" ]; then
     cp dist/datamgmt_dyn_ai.exe ${CWD}/
     echo "✓ Success! Executable: ${CWD}/datamgmt_dyn_ai.exe"
-    wine datamgmt_dyn_ai
+    wine datamgmt_dyn_ai.exe
 else
     echo "✗ Build failed"
     exit 1
