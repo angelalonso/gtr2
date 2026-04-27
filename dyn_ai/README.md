@@ -1,199 +1,131 @@
-# dyn_ai — Live AI Tuner for GTR2 - v1.0.3
+# dyn_ai — Live AI Tuner for GTR2 - v1.0.4
 
 ## What it does
 
-It automatically adjusts AI difficulty(*) to match your driving pace. When you complete a lap, it reads your time, calculates the optimal AI speed ratio, and updates the track's AIW file - making AI opponents race at your level.
-
-(*) This is not the same AI difficulty you can change on GTR2 itself, it is a variable on each Track, that is different for Race and Qualy Sessions.
+Automatically adjusts AI difficulty to match your driving pace. Reads your lap times, calculates optimal AI speed ratio, and updates the track's AIW file.
 
 ---
 
 ## Current State
 
-Usable, but it needs a bit of babysitting.
+Usable, but needs some babysitting.
 
-Still: USE IT AT YOUR OWN RISK, probably on a SEPARATED DROP and please, ping me with as many bugs as you can.
+**USE AT YOUR OWN RISK.** Test on a separate install.
 
 ---
 
 ## Quick Start
 
-- Check and try to adapt cfg.yml
-- Same for vehicle_classes.json
+1. Edit `cfg.yml` and `vehicle_classes.json` if needed
+2. Run the application
+3. Point it to your GTR2 install folder (with `GameData/`) - saved to `cfg.yml`
 
-**Windows (easy mode):**  
-Open dyn_ai_vX.X.X.zip, grab the `.exe` from the zip, run it, done.
-
+**Windows (easy):** Run the `.exe` from the zip  
 **From source:**
 ```bash
 pipenv install
 pipenv run python3 dyn_ai.py
 ```
 
-First launch will ask you to point it at your GTR2 install folder (the one that has `GameData/` in it). It saves that to `cfg.yml` so you only do this once.
-
 ---
 
 ## Main Features
 
-![Main Window](main_window_1.png)
-![Main Window](main_window_2.png)
-
 ### Auto-harvest Data
-
-Saves every race session to the database. Builds a history of lap times vs AI ratios.
+Saves every race session to the database. Builds history of lap times vs AI ratios.
 
 ### Auto-calculate Ratios
-
-![Main Window](main_window_3.png)
-
-When enabled:
-
-    Detects new race results
-
-    Analyzes all historical data for the track/car combination
-
-    Fits a hyperbolic curve (T = a/R + b) to minimize error
-
-    Updates the AIW file with the new ratio
-
-Result: AI that gradually learns your pace and adapts.
+When enabled: detects race results → analyzes historical data → fits curve `T = a/R + b` → updates AIW file.
 
 ### AI Target Positioning
 
-![AI Target Window](aitarget_window.png)
+Controls where your lap time falls within AI range:
 
-Controls where your lap time should fall within the AI range:
-Mode	Effect
-Percentage	0% = match fastest AI, 50% = middle, 100% = match slowest AI
-Seconds from fastest	Fixed offset from best AI time (negative = faster than AI)
-Seconds from slowest	Fixed offset from worst AI time
+| Mode | Effect |
+|------|--------|
+| Percentage | 0% = fastest AI, 50% = middle, 100% = slowest AI |
+| Seconds from fastest | Fixed offset from best AI time |
+| Seconds from slowest | Fixed offset from worst AI time |
 
-Access this via the Advanced button.
-
-Last but not least...this has not yet been tested, be the first to do so and win a fantastic troubleshooting with me!
+**Applied to ALL ratio calculations** (Auto-ratio, Manual edits, Advanced dialog)
 
 ### Manual Controls
-
-Even with auto-calculation off, you can:
-
-    Edit ratios directly - Click the ✎ button on Quali-Ratio or Race-Ratio panels
-
-    Calculate from lap time - Enter your lap time, get the required ratio
-
-    Save formulas manually - Create formulas from any data point
-
+- Edit ratios directly (✎ button)
+- Calculate ratio from lap time
+- Save formulas manually
 
 ---
 
 ## Advanced Features
 
-### Data Management (Advanced → Data Management)
+### Data Management
+- Filter by track/vehicle class
+- Visualize curves and data points
+- Edit a/b parameters
+- Auto-fit curve to data
+- Delete individual data points
 
-![Data Window](data_window.png)
+### AIW Backup Restore
+Automatic backups (`*_ORIGINAL.AIW`). Restore individual or all tracks.
 
-    Track/Class selection - Filter data by track and vehicle class
-
-    Curve graph - Visualizes data points and fitted curves
-
-    Session panels - Separate controls for Qualifying and Race:
-
-        Show/hide data on graph
-
-        Edit a and b parameters manually
-
-        Calculate ratio from your lap time
-
-        Auto-fit curve to existing data
-
-    Data points table - View, select, and delete individual data points
-
-### AIW Backup Restore (Advanced → Backup Restore)
-
-![AIW Restore Window](restore_window.png)
-
-Every AIW modification creates a backup (*_ORIGINAL.AIW). Use this to:
-
-    Restore individual track AIW files
-
-    Restore all backed-up files at once
-
-### Log Viewer (Advanced → Logs)
-
-![Logs Window](logs_window.png)
-
-Displays program activity. Filter by level (ERROR/WARNING/INFO/DEBUG/ALL).
+### Log Viewer
+Filter by ERROR/WARNING/INFO/DEBUG/ALL levels.
 
 ---
 
 ## Understanding the Formula
 
-T = a / R + b
-Variable	Meaning
-T	Lap time (seconds)
-R	AI speed ratio (QualRatio or RaceRatio)
-a	Curve slope - controls sensitivity
-b	Curve height - base lap time
+**T = a / R + b**
 
-    Higher R = faster AI
+| Variable | Meaning |
+|----------|---------|
+| T | Lap time (seconds) |
+| R | AI speed ratio (QualRatio/RaceRatio) |
+| a | Curve slope (fixed at 32) |
+| b | Curve height (base lap time) |
 
-    Lower R = slower AI
-
-    Formula fits historical data to predict required R for your lap time
-
+Higher R = faster AI | Lower R = slower AI
 
 ---
 
 ## Files
-File	                Purpose
-cfg.yml	                Configuration (GTR2 path, database, etc.)
-ai_data.db	            SQLite database storing all data points and formulas
-vehicle_classes.json	Maps vehicle names to classes (Formula/GT/Prototype)
-aiw_backups/	        Original AIW backups (created automatically)
+
+| File | Purpose |
+|------|---------|
+| cfg.yml | Configuration (GTR2 path, min/max ratio limits, etc.) |
+| ai_data.db | SQLite database (data points, formulas) |
+| vehicle_classes.json | Maps vehicle names to classes |
+| aiw_backups/ | Original AIW backups |
 
 ---
 
 ## Tips
 
-    Let data accumulate - The more laps you complete, the better the curve fit
-
-    Different car classes - Formulas are stored per track AND car class
-
-    Error margin - Adding 0.5-1.0 seconds makes AI slightly slower (good for learning tracks)
-
-    Backups are automatic - Never lose original AIW files
-
-    Qualifying vs Race - Separate ratios for each session type
+- More laps = better curve fit
+- Formulas stored per track AND car class
+- Error margin (0.5-1.0s) makes AI slightly slower
+- Auto-calculate Ratios must be ON for automatic updates
 
 ---
 
 ## Troubleshooting
 
-"No base path configured" → Set base_path in cfg.yml
-
-AI ratios not updating → Ensure Auto-calculate Ratios is ON (green)
-
-Database errors → Run cleanup_formulas_table.py to fix schema
-
-Can't find AIW file → Verify GTR2 path and that the track folder exists in GameData/Locations
-
-My data does not show classes but individual cars → Create a new class with all the cars you want on vehicle_classes.json. On Advanced>Data you can also select the related entries and delete them.
+| Problem | Solution |
+|---------|----------|
+| "No base path configured" | Set `base_path` in cfg.yml |
+| AI ratios not updating | Enable Auto-calculate Ratios (green) |
+| Can't find AIW file | Verify GTR2 path and track folder exists |
+| Ratio outside limits | Adjust `min_ratio`/`max_ratio` in cfg.yml |
 
 ---
 
-## Wishlist
+## Changelog v1.0.4
 
-- Ability to target specific positions (e.g., "make me top-5" instead of midpoint)
-  - There is a rough implementation on advanced
-- Export/import formulas for sharing between users
-
----
-
-## TODO NEXT
-
-- Solve errors:
-  - ask for base path when not defined
-  - test full process from no data to more and more
-- Simplify code A LOT
-- Move on to a better, dynamic, way of doing this on the fly.
-
+- AI Target settings now apply to **ALL** ratio calculations (auto-ratio, manual edits, advanced dialog)
+- Added ratio limits (`min_ratio`/`max_ratio` in cfg.yml) with warning popups
+- Fixed TypeError when AI times are None
+- AIW not found now shows GUI error popup
+- Auto-Fit no longer auto-calculates ratio (button turns orange until clicked)
+- Added Revert buttons to main screen panels
+- Added manual lap time editing in Advanced → Data Management
+- Target indicator moved to status bar with quick-configure button

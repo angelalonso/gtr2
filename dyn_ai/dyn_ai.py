@@ -816,7 +816,7 @@ class RedesignedMainWindow(QMainWindow):
         self.autoratio_enabled = False
         self.autopilot_manager.set_enabled(self.autoratio_enabled)
         
-        # AI Target settings
+        # AI Target settings - will be applied to ALL ratio calculations
         self.ai_target_settings = {
             "mode": "percentage",
             "percentage": 50,
@@ -869,7 +869,6 @@ class RedesignedMainWindow(QMainWindow):
         
         # Check and set base path before loading data
         if not self.ensure_base_path():
-            # User canceled or no path selected - exit?
             QMessageBox.critical(self, "No Path Selected",
                 "GTR2 installation path is required for the application to work.\n\n"
                 "Please run the application again and select the correct path.")
@@ -889,13 +888,11 @@ class RedesignedMainWindow(QMainWindow):
     
     def add_target_indicator(self):
         """Add target indicator to status bar instead of main layout"""
-        # Create a permanent widget for the status bar
         target_widget = QWidget()
         target_layout = QHBoxLayout(target_widget)
         target_layout.setContentsMargins(5, 0, 10, 0)
         target_layout.setSpacing(8)
         
-        # Target icon and label
         target_icon = QLabel("🎯")
         target_icon.setStyleSheet("font-size: 12px;")
         target_layout.addWidget(target_icon)
@@ -904,18 +901,15 @@ class RedesignedMainWindow(QMainWindow):
         target_label.setStyleSheet("color: #FFA500; font-weight: bold; font-size: 11px;")
         target_layout.addWidget(target_label)
         
-        # Target value display
         self.target_display = QLabel("Not set")
         self.target_display.setStyleSheet("color: #4CAF50; font-family: monospace; font-size: 11px;")
         target_layout.addWidget(self.target_display)
         
-        # Separator line
         sep = QFrame()
         sep.setFrameShape(QFrame.VLine)
         sep.setStyleSheet("color: #555;")
         target_layout.addWidget(sep)
         
-        # Quick-open button
         target_btn = QPushButton("Configure")
         target_btn.setStyleSheet("""
             QPushButton {
@@ -934,18 +928,14 @@ class RedesignedMainWindow(QMainWindow):
         target_layout.addWidget(target_btn)
         
         target_layout.addStretch()
-        
-        # Add to status bar
         self.statusBar().addPermanentWidget(target_widget)
-        
-        # Update the display
         self.update_target_display()
     
     def open_advanced_settings_to_target(self):
         """Open advanced settings and switch to AI Target tab"""
         self.open_advanced_settings()
         if self.advanced_window:
-            self.advanced_window.tab_widget.setCurrentIndex(1)  # AI Target tab is index 1
+            self.advanced_window.tab_widget.setCurrentIndex(1)
     
     def update_target_display(self):
         """Update the target display on status bar"""
@@ -971,17 +961,87 @@ class RedesignedMainWindow(QMainWindow):
                 else:
                     self.target_display.setText(f"{offset:+.2f}s")
     
+    def calculate_target_lap_time(self, best_ai: float, worst_ai: float) -> float:
+        """Calculate target lap time based on current AI Target settings"""
+        mode = self.ai_target_settings.get("mode", "percentage")
+        error_margin = self.ai_target_settings.get("error_margin", 0.0)
+        
+        if mode == "percentage":
+            pct = self.ai_target_settings.get("percentage", 50) / 100.0
+            target = best_ai + (worst_ai - best_ai) * pct
+        elif mode == "faster_than_best":
+            offset = self.ai_target_settings.get("offset_seconds", 0.0)
+            target = best_ai + offset
+        else:
+            offset = self.ai_target_settings.get("offset_seconds", 0.0)
+            target = worst_ai - offset
+        
+        # Apply error margin
+        target = target + error_margin
+        # Clamp to valid range
+        target = max(best_ai, min(worst_ai + error_margin, target))
+        
+        return target
+    
+    def calculate_ratio_from_target(self, session_type: str) -> Optional[float]:
+        """
+        Calculate what ratio would achieve the AI Target lap time.
+        This should be called when we want to apply AI Target settings.
+        """
+        logger.info(f"[AI TARGET] calculate_ratio_from_target called for {session_type}")
+        
+        # Get AI range
+        if session_type == "qual":
+            best_ai = self.qual_best_ai
+            worst_ai = self.qual_worst_ai
+            b = self.qual_b
+        else:
+            best_ai = self.race_best_ai
+            worst_ai = self.race_worst_ai
+            b = self.race_b
+        
+        if best_ai is None or worst_ai is None or best_ai <= 0 or worst_ai <= 0:
+            logger.warning(f"[AI TARGET] No AI range data for {session_type}")
+            return None
+        
+        # Calculate target lap time from settings
+        target_time = self.calculate_target_lap_time(best_ai, worst_ai)
+        logger.info(f"[AI TARGET] Target lap time: {target_time:.3f}s")
+        
+        # Calculate ratio from target time using formula T = a/R + b -> R = a/(T-b)
+        a = DEFAULT_A_VALUE
+        denominator = target_time - b
+        
+        if denominator <= 0:
+            logger.warning(f"[AI TARGET] Denominator <= 0: {target_time:.3f} - {b:.2f} = {denominator:.3f}")
+            return None
+        
+        ratio = a / denominator
+        logger.info(f"[AI TARGET] Calculated ratio from target: {ratio:.6f}")
+        
+        # Check ratio limits
+        if ratio < self.min_ratio or ratio > self.max_ratio:
+            logger.warning(f"[AI TARGET] Ratio {ratio:.6f} outside limits ({self.min_ratio}-{self.max_ratio})")
+            # Ask user if they want to proceed
+            reply = QMessageBox.question(self, "Ratio Out of Range",
+                f"The calculated {session_type.upper()} Ratio = {ratio:.6f} is outside the allowed range "
+                f"({self.min_ratio} - {self.max_ratio}).\n\n"
+                f"Values outside this range can make AI behavior unpredictable.\n\n"
+                f"Do you still want to apply this ratio?",
+                QMessageBox.Yes | QMessageBox.No)
+            if reply != QMessageBox.Yes:
+                return None
+        
+        return ratio
+    
     def ensure_base_path(self) -> bool:
         """Ensure that a valid base path is configured. Returns True if path is set."""
         config = get_config_with_defaults(self.config_file)
         base_path = config.get('base_path', '')
         
-        # Check if base_path exists and is valid
         if not base_path or not Path(base_path).exists():
-            # Check if the path contains GameData directory
             path = Path(base_path) if base_path else None
             if not path or not (path / "GameData").exists() or not (path / "UserData").exists():
-                # Ask user for base path
                 dialog = BasePathSelectionDialog(self)
                 if dialog.exec_() == QDialog.Accepted and dialog.selected_path:
                     update_base_path(dialog.selected_path, self.config_file)
@@ -990,17 +1050,14 @@ class RedesignedMainWindow(QMainWindow):
                 else:
                     return False
         
-        # Validate the existing path
         path = Path(base_path)
         if (path / "GameData").exists() and (path / "UserData").exists():
             return True
         else:
-            # Path exists but doesn't contain required directories
             reply = QMessageBox.question(self, "Invalid Path",
                 f"The configured path '{base_path}' does not appear to be a valid GTR2 installation.\n\n"
                 "Would you like to select a different path?",
                 QMessageBox.Yes | QMessageBox.No)
-            
             if reply == QMessageBox.Yes:
                 dialog = BasePathSelectionDialog(self)
                 if dialog.exec_() == QDialog.Accepted and dialog.selected_path:
@@ -1016,63 +1073,48 @@ class RedesignedMainWindow(QMainWindow):
         main_layout.setSpacing(25)
         main_layout.setContentsMargins(30, 30, 30, 30)
         
-        # === Header section ===
+        # Header section
         header_layout = QHBoxLayout()
-        
-        # GTR² logo
         logo_label = GTR2Logo()
         header_layout.addWidget(logo_label)
-        
         header_layout.addStretch()
-        
-        # Track name
         self.track_label = QLabel("-")
         self.track_label.setStyleSheet("font-size: 28px; font-weight: bold; color: white;")
         header_layout.addWidget(self.track_label)
-        
         header_layout.addStretch()
-        
-        # Empty spacer for balance
         header_layout.addSpacing(80)
-        
         main_layout.addLayout(header_layout)
         
-        # Car class (below track)
+        # Car class
         self.car_class_label = QLabel("Car Class: -")
         self.car_class_label.setStyleSheet("font-size: 14px; color: #4CAF50; margin-bottom: 10px;")
         main_layout.addWidget(self.car_class_label)
-        
         main_layout.addSpacing(20)
         
-        # === Two-column layout for Quali and Race panels ===
+        # Two-column layout for Quali and Race panels
         panels_layout = QHBoxLayout()
         panels_layout.setSpacing(30)
         
-        # Qualifying panel
         self.qual_panel = RatioPanel("Quali-Ratio")
         self.qual_panel.edit_complete.connect(lambda ratio: self.on_manual_edit("qual", ratio))
         panels_layout.addWidget(self.qual_panel)
         
-        # Race panel
         self.race_panel = RatioPanel("Race-Ratio")
         self.race_panel.edit_complete.connect(lambda ratio: self.on_manual_edit("race", ratio))
         panels_layout.addWidget(self.race_panel)
         
         main_layout.addLayout(panels_layout)
-        
         main_layout.addSpacing(30)
         
-        # === Control buttons row ===
+        # Control buttons row
         buttons_layout = QHBoxLayout()
         buttons_layout.setSpacing(20)
         
-        # Auto-harvest Data toggle
         self.autosave_switch = ToggleSwitch("Auto-harvest Data (ON)", "Auto-harvest Data (OFF)")
         self.autosave_switch.set_checked(self.autosave_enabled)
         self.autosave_switch.clicked.connect(self.toggle_autosave)
         buttons_layout.addWidget(self.autosave_switch)
         
-        # Auto-calculate Ratios toggle
         self.autoratio_switch = ToggleSwitch("Auto-calculate Ratios (ON)", "Auto-calculate Ratios (OFF)")
         self.autoratio_switch.set_checked(self.autoratio_enabled)
         self.autoratio_switch.clicked.connect(self.toggle_autoratio)
@@ -1080,7 +1122,6 @@ class RedesignedMainWindow(QMainWindow):
         
         buttons_layout.addStretch()
         
-        # Advanced button
         self.advanced_btn = QPushButton("Advanced")
         self.advanced_btn.setMinimumHeight(36)
         self.advanced_btn.setMinimumWidth(100)
@@ -1101,7 +1142,6 @@ class RedesignedMainWindow(QMainWindow):
         self.advanced_btn.clicked.connect(self.open_advanced_settings)
         buttons_layout.addWidget(self.advanced_btn)
         
-        # Exit button
         self.exit_btn = QPushButton("Exit")
         self.exit_btn.setMinimumHeight(36)
         self.exit_btn.setMinimumWidth(100)
@@ -1124,35 +1164,24 @@ class RedesignedMainWindow(QMainWindow):
         
         main_layout.addLayout(buttons_layout)
         
-        # Status bar - target indicator will be added here later
         self.statusBar().showMessage("Ready")
         self.statusBar().setStyleSheet("QStatusBar { color: #888; }")
         
-        # Set dark background
         self.setStyleSheet("""
-            QMainWindow {
-                background-color: #1e1e1e;
-            }
-            QLabel {
-                color: white;
-            }
+            QMainWindow { background-color: #1e1e1e; }
+            QLabel { color: white; }
         """)
     
     def toggle_autosave(self):
-        """Toggle autosave mode"""
         self.autosave_enabled = self.autosave_switch.is_checked()
         logger.info(self.simplified_logger.autosave_status(self.autosave_enabled))
         self.statusBar().showMessage(f"Auto-harvest Data {'ON' if self.autosave_enabled else 'OFF'}", 2000)
     
     def toggle_autoratio(self):
-        """Toggle autoratio mode"""
         self.autoratio_enabled = self.autoratio_switch.is_checked()
         self.autopilot_manager.set_enabled(self.autoratio_enabled)
-        
-        # Enable/disable manual edit buttons
         self.qual_panel.set_edit_enabled(not self.autoratio_enabled)
         self.race_panel.set_edit_enabled(not self.autoratio_enabled)
-        
         logger.info(self.simplified_logger.autoratio_status(self.autoratio_enabled))
         self.statusBar().showMessage(f"Auto-calculate Ratios {'ON' if self.autoratio_enabled else 'OFF'}", 2000)
         
@@ -1160,13 +1189,11 @@ class RedesignedMainWindow(QMainWindow):
             self.autopilot_manager.reload_formulas()
             self._update_formulas_from_autopilot()
             self.update_display()
-            # Update accuracy after reload
             if self.current_track and self.current_vehicle_class:
                 self.update_formula_accuracy("qual")
                 self.update_formula_accuracy("race")
     
     def _get_ai_times_for_track(self, track: str, session_type: str) -> Tuple[Optional[float], Optional[float]]:
-        """Get best and worst AI lap times for a track from the database"""
         conn = sqlite3.connect(self.db.db_path)
         cursor = conn.cursor()
         
@@ -1175,17 +1202,14 @@ class RedesignedMainWindow(QMainWindow):
                 SELECT qual_time_sec FROM ai_results ar
                 JOIN race_sessions rs ON ar.race_id = rs.race_id
                 WHERE rs.track_name = ? AND ar.qual_time_sec > 0
-                ORDER BY ar.qual_time_sec
-                LIMIT 1
+                ORDER BY ar.qual_time_sec LIMIT 1
             """, (track,))
             best_row = cursor.fetchone()
-            
             cursor.execute("""
                 SELECT qual_time_sec FROM ai_results ar
                 JOIN race_sessions rs ON ar.race_id = rs.race_id
                 WHERE rs.track_name = ? AND ar.qual_time_sec > 0
-                ORDER BY ar.qual_time_sec DESC
-                LIMIT 1
+                ORDER BY ar.qual_time_sec DESC LIMIT 1
             """, (track,))
             worst_row = cursor.fetchone()
         else:
@@ -1193,42 +1217,31 @@ class RedesignedMainWindow(QMainWindow):
                 SELECT best_lap_sec FROM ai_results ar
                 JOIN race_sessions rs ON ar.race_id = rs.race_id
                 WHERE rs.track_name = ? AND ar.best_lap_sec > 0
-                ORDER BY ar.best_lap_sec
-                LIMIT 1
+                ORDER BY ar.best_lap_sec LIMIT 1
             """, (track,))
             best_row = cursor.fetchone()
-            
             cursor.execute("""
                 SELECT best_lap_sec FROM ai_results ar
                 JOIN race_sessions rs ON ar.race_id = rs.race_id
                 WHERE rs.track_name = ? AND ar.best_lap_sec > 0
-                ORDER BY ar.best_lap_sec DESC
-                LIMIT 1
+                ORDER BY ar.best_lap_sec DESC LIMIT 1
             """, (track,))
             worst_row = cursor.fetchone()
         
         conn.close()
-        
         best = best_row[0] if best_row else None
         worst = worst_row[0] if worst_row else None
         return best, worst
     
     def update_formula_accuracy(self, session_type: str):
-        """Update the accuracy indicator for a session type"""
         if not self.current_track or not self.current_vehicle_class:
             return
-            
         formula = self.autopilot_manager.formula_manager.get_formula_by_class(
-            self.current_track, self.current_vehicle_class, session_type
-        )
+            self.current_track, self.current_vehicle_class, session_type)
         
         if formula and formula.is_valid():
-            # Get data points for this track/class/session to calculate outliers
             data_points = self.autopilot_manager.engine._get_data_points(
-                self.current_track, self.current_vehicle_class, session_type
-            )
-            
-            # Calculate outliers (points where error > 0.5 seconds)
+                self.current_track, self.current_vehicle_class, session_type)
             outliers = 0
             avg_error = None
             if data_points and len(data_points) > 1:
@@ -1240,43 +1253,30 @@ class RedesignedMainWindow(QMainWindow):
                     if error > 0.5:
                         outliers += 1
                 avg_error = total_error / len(data_points)
-            
             panel = self.qual_panel if session_type == "qual" else self.race_panel
-            panel.update_accuracy(
-                confidence=formula.confidence,
-                data_points_used=formula.data_points_used,
-                avg_error=avg_error,
-                max_error=formula.max_error if formula.max_error > 0 else None,
-                outliers=outliers
-            )
+            panel.update_accuracy(formula.confidence, formula.data_points_used, avg_error, formula.max_error if formula.max_error > 0 else None, outliers)
         else:
-            # No formula exists - show 0 accuracy
             panel = self.qual_panel if session_type == "qual" else self.race_panel
             panel.update_accuracy(0, 0, None, None, 0)
     
     def _validate_ratio(self, ratio: float, ratio_name: str) -> bool:
-        """Validate ratio against min/max limits. Returns True if valid."""
         if ratio < self.min_ratio:
             show_warning_dialog(self, f"{ratio_name} Below Minimum",
                 f"The calculated {ratio_name} = {ratio:.6f} is below the minimum allowed value ({self.min_ratio}).\n\n"
-                f"Values below this can cause AI behavior to become unpredictable.\n"
                 f"The ratio will NOT be changed.\n\n"
                 f"To allow lower values, adjust 'min_ratio' in cfg.yml.")
             return False
         elif ratio > self.max_ratio:
             show_warning_dialog(self, f"{ratio_name} Above Maximum",
                 f"The calculated {ratio_name} = {ratio:.6f} is above the maximum allowed value ({self.max_ratio}).\n\n"
-                f"Values above this can cause AI behavior to become unpredictable.\n"
                 f"The ratio will NOT be changed.\n\n"
                 f"To allow higher values, adjust 'max_ratio' in cfg.yml.")
             return False
         return True
     
     def _get_aiw_path(self) -> Optional[Path]:
-        """Helper to get AIW path for current track"""
         if not self.current_track:
             return None
-        
         if hasattr(self, 'daemon') and self.daemon and self.daemon.base_path:
             locations_dir = self.daemon.base_path / "GameData" / "Locations"
             if locations_dir.exists():
@@ -1287,224 +1287,204 @@ class RedesignedMainWindow(QMainWindow):
                             if aiw_files:
                                 return aiw_files[0]
                         break
-        
         return None
     
     def on_revert_ratio(self, session_type: str):
-        """Revert ratio to previous value"""
         if session_type == "qual":
             old_ratio = self.qual_panel.previous_ratio
             if old_ratio is None:
                 return
-            
             aiw_path = self._get_aiw_path()
             if not aiw_path:
                 show_warning_dialog(self, "AIW Not Found", "Could not find AIW file to revert.")
                 return
-            
-            ratio_name = "QualRatio"
-            if self.autopilot_manager.engine._update_aiw_ratio(aiw_path, ratio_name, old_ratio):
+            if self.autopilot_manager.engine._update_aiw_ratio(aiw_path, "QualRatio", old_ratio):
                 self.last_qual_ratio = old_ratio
                 self.qual_panel.update_ratio(old_ratio)
                 self.qual_panel.revert_success()
                 self.statusBar().showMessage(f"QualRatio reverted to {old_ratio:.6f}", 3000)
                 logger.info(f"Reverted QualRatio to {old_ratio:.6f}")
             else:
-                show_error_dialog(self, "Revert Failed", f"Failed to revert {ratio_name} in AIW file.")
+                show_error_dialog(self, "Revert Failed", "Failed to revert QualRatio in AIW file.")
         else:
             old_ratio = self.race_panel.previous_ratio
             if old_ratio is None:
                 return
-            
             aiw_path = self._get_aiw_path()
             if not aiw_path:
                 show_warning_dialog(self, "AIW Not Found", "Could not find AIW file to revert.")
                 return
-            
-            ratio_name = "RaceRatio"
-            if self.autopilot_manager.engine._update_aiw_ratio(aiw_path, ratio_name, old_ratio):
+            if self.autopilot_manager.engine._update_aiw_ratio(aiw_path, "RaceRatio", old_ratio):
                 self.last_race_ratio = old_ratio
                 self.race_panel.update_ratio(old_ratio)
                 self.race_panel.revert_success()
                 self.statusBar().showMessage(f"RaceRatio reverted to {old_ratio:.6f}", 3000)
                 logger.info(f"Reverted RaceRatio to {old_ratio:.6f}")
             else:
-                show_error_dialog(self, "Revert Failed", f"Failed to revert {ratio_name} in AIW file.")
+                show_error_dialog(self, "Revert Failed", "Failed to revert RaceRatio in AIW file.")
     
-    def on_ratio_saved_from_advanced(self, session_type: str, ratio: float):
-        """Handle ratio saved from advanced dialog"""
-        if session_type == "qual":
-            self.last_qual_ratio = ratio
-            self.qual_panel.update_ratio(ratio)
-            self.statusBar().showMessage(f"QualRatio updated to {ratio:.6f} from Advanced", 3000)
-            logger.info(f"QualRatio updated from Advanced dialog: {ratio:.6f}")
-        else:
-            self.last_race_ratio = ratio
-            self.race_panel.update_ratio(ratio)
-            self.statusBar().showMessage(f"RaceRatio updated to {ratio:.6f} from Advanced", 3000)
-            logger.info(f"RaceRatio updated from Advanced dialog: {ratio:.6f}")
-    
-    def on_lap_time_updated_from_advanced(self, session_type: str, lap_time: float):
-        """Handle lap time updated from advanced dialog"""
-        if session_type == "qual":
-            self.user_qualifying_sec = lap_time
-            self.qual_panel.update_user_time(lap_time)
-            logger.info(f"Qualifying lap time updated from Advanced dialog: {lap_time:.3f}s")
-        else:
-            self.user_best_lap_sec = lap_time
-            self.race_panel.update_user_time(lap_time)
-            logger.info(f"Race lap time updated from Advanced dialog: {lap_time:.3f}s")
-    
-    def on_manual_edit(self, session_type: str, new_ratio: float):
-        """Handle manual ratio edit from panel button"""
-        if self.autoratio_enabled:
-            show_warning_dialog(self, "Auto-Ratio Enabled", 
-                "Manual editing is disabled while Auto-calculate Ratios is ON.\n"
-                "Please turn off Auto-calculate Ratios to manually edit.")
-            # Re-disable the button if it somehow got enabled
-            if session_type == "qual":
-                self.qual_panel.set_edit_enabled(False)
-            else:
-                self.race_panel.set_edit_enabled(False)
-            return
+    def apply_ai_target_to_ratio(self, session_type: str, aiw_path: Path) -> Optional[float]:
+        """
+        Apply current AI Target settings to calculate and write a new ratio.
+        Returns the new ratio if successful, None otherwise.
+        """
+        logger.info(f"[AI TARGET] apply_ai_target_to_ratio called for {session_type}")
         
-        # Validate ratio against limits
+        new_ratio = self.calculate_ratio_from_target(session_type)
+        
+        if new_ratio is None:
+            logger.warning(f"[AI TARGET] Could not calculate ratio from target for {session_type}")
+            return None
+        
         ratio_name = "QualRatio" if session_type == "qual" else "RaceRatio"
-        if not self._validate_ratio(new_ratio, ratio_name):
-            return
         
-        # Find the AIW path
-        if not self.current_track:
-            show_warning_dialog(self, "No Track", "No track data available.")
-            return
-        
-        aiw_path = self._get_aiw_path()
-        
-        if not aiw_path or not aiw_path.exists():
-            # Ask user to locate AIW file
-            aiw_path_str, _ = QFileDialog.getOpenFileName(
-                self, f"Select AIW file for {self.current_track}",
-                str(Path.cwd()), "AIW Files (*.AIW *.aiw)"
-            )
-            if aiw_path_str:
-                aiw_path = Path(aiw_path_str)
-            else:
-                show_warning_dialog(self, "AIW Not Found", 
-                    f"Could not find AIW file for {self.current_track}.\n"
-                    f"Please locate the AIW file manually.")
-                return
-        
-        # Update the AIW file
         if self.autopilot_manager.engine._update_aiw_ratio(aiw_path, ratio_name, new_ratio):
-            # Update stored ratio
             if session_type == "qual":
                 self.last_qual_ratio = new_ratio
                 self.qual_panel.update_ratio(new_ratio)
             else:
                 self.last_race_ratio = new_ratio
                 self.race_panel.update_ratio(new_ratio)
-            
-            logger.info(f"Manually updated {ratio_name} to {new_ratio:.6f}")
-            self.statusBar().showMessage(f"{ratio_name} updated to {new_ratio:.6f}", 3000)
-            
-            # Ask if user wants to save this as a formula
-            reply = QMessageBox.question(self, "Save Formula", 
-                f"Do you want to save this {session_type.upper()} ratio as a formula?\n\n"
-                f"This will create/update the formula for {self.current_track}/{self.current_vehicle_class}.",
-                QMessageBox.Yes | QMessageBox.No)
-            
-            if reply == QMessageBox.Yes:
-                # Create/update formula with new ratio at current user time
-                target_time = None
-                if session_type == "qual" and self.user_qualifying_sec > 0:
-                    target_time = self.user_qualifying_sec
-                elif session_type == "race" and self.user_best_lap_sec > 0:
-                    target_time = self.user_best_lap_sec
-                
-                if target_time and target_time > 0:
-                    new_formula = Formula.from_point(
-                        self.current_track, self.current_vehicle_class, 
-                        new_ratio, target_time, session_type, DEFAULT_A_VALUE
-                    )
-                    self.autopilot_manager.formula_manager.save_formula(new_formula)
-                    self.autopilot_manager.reload_formulas()
-                    self._update_formulas_from_autopilot()
-                    self.update_display()
-                    self.update_formula_accuracy(session_type)
-                    logger.debug(f"Saved formula from manual edit: {new_formula.get_formula_string()}")
-                else:
-                    show_warning_dialog(self, "No Lap Time", 
-                        f"No user {session_type} lap time available to create formula.")
+            logger.info(f"[AI TARGET] Successfully applied AI Target: {ratio_name} = {new_ratio:.6f}")
+            self.statusBar().showMessage(f"AI Target applied: {ratio_name} = {new_ratio:.6f}", 3000)
+            return new_ratio
         else:
-            show_error_dialog(self, "Update Failed", f"Failed to update {ratio_name} in AIW file.")
+            logger.error(f"[AI TARGET] Failed to update AIW with {ratio_name}={new_ratio:.6f}")
+            return None
+    
+    def on_ratio_saved_from_advanced(self, session_type: str, ratio: float):
+        """Handle ratio saved from advanced dialog - apply AI Target if needed"""
+        aiw_path = self._get_aiw_path()
+        if not aiw_path:
+            show_warning_dialog(self, "AIW Not Found", "Could not find AIW file to save ratio.")
+            return
+        
+        # Check if we should apply AI Target adjustment
+        if self.ai_target_settings.get("mode") != "percentage" or self.ai_target_settings.get("percentage") != 50:
+            # User has non-default AI Target, recalculate based on target
+            logger.info(f"[AI TARGET] Applying AI Target to manually saved ratio for {session_type}")
+            new_ratio = self.calculate_ratio_from_target(session_type)
+            if new_ratio and new_ratio != ratio:
+                reply = QMessageBox.question(self, "Apply AI Target?",
+                    f"You have AI Target settings active.\n\n"
+                    f"Manual ratio: {ratio:.6f}\n"
+                    f"AI Target ratio: {new_ratio:.6f}\n\n"
+                    f"Which ratio would you like to use?",
+                    QMessageBox.Yes | QMessageBox.No)
+                if reply == QMessageBox.Yes:
+                    ratio = new_ratio
+        
+        ratio_name = "QualRatio" if session_type == "qual" else "RaceRatio"
+        if self._validate_ratio(ratio, ratio_name):
+            if self.autopilot_manager.engine._update_aiw_ratio(aiw_path, ratio_name, ratio):
+                if session_type == "qual":
+                    self.last_qual_ratio = ratio
+                    self.qual_panel.update_ratio(ratio)
+                else:
+                    self.last_race_ratio = ratio
+                    self.race_panel.update_ratio(ratio)
+                logger.info(f"Saved ratio from Advanced dialog: {ratio_name}={ratio:.6f}")
+    
+    def on_lap_time_updated_from_advanced(self, session_type: str, lap_time: float):
+        if session_type == "qual":
+            self.user_qualifying_sec = lap_time
+            self.qual_panel.update_user_time(lap_time)
+        else:
+            self.user_best_lap_sec = lap_time
+            self.race_panel.update_user_time(lap_time)
+    
+    def on_manual_edit(self, session_type: str, new_ratio: float):
+        if self.autoratio_enabled:
+            show_warning_dialog(self, "Auto-Ratio Enabled", 
+                "Manual editing is disabled while Auto-calculate Ratios is ON.")
+            if session_type == "qual":
+                self.qual_panel.set_edit_enabled(False)
+            else:
+                self.race_panel.set_edit_enabled(False)
+            return
+        
+        ratio_name = "QualRatio" if session_type == "qual" else "RaceRatio"
+        if not self._validate_ratio(new_ratio, ratio_name):
+            return
+        
+        aiw_path = self._get_aiw_path()
+        if not aiw_path or not aiw_path.exists():
+            aiw_path_str, _ = QFileDialog.getOpenFileName(
+                self, f"Select AIW file for {self.current_track}",
+                str(Path.cwd()), "AIW Files (*.AIW *.aiw)")
+            if aiw_path_str:
+                aiw_path = Path(aiw_path_str)
+            else:
+                show_warning_dialog(self, "AIW Not Found", f"Could not find AIW file.")
+                return
+        
+        # Apply AI Target if non-default settings
+        final_ratio = new_ratio
+        if self.ai_target_settings.get("mode") != "percentage" or self.ai_target_settings.get("percentage") != 50:
+            target_ratio = self.calculate_ratio_from_target(session_type)
+            if target_ratio and abs(target_ratio - new_ratio) > 0.0001:
+                reply = QMessageBox.question(self, "Apply AI Target?",
+                    f"You have AI Target settings active.\n\n"
+                    f"Manual ratio: {new_ratio:.6f}\n"
+                    f"AI Target ratio: {target_ratio:.6f}\n\n"
+                    f"Which ratio would you like to use?",
+                    QMessageBox.Yes | QMessageBox.No)
+                if reply == QMessageBox.Yes:
+                    final_ratio = target_ratio
+        
+        if self.autopilot_manager.engine._update_aiw_ratio(aiw_path, ratio_name, final_ratio):
+            if session_type == "qual":
+                self.last_qual_ratio = final_ratio
+                self.qual_panel.update_ratio(final_ratio)
+            else:
+                self.last_race_ratio = final_ratio
+                self.race_panel.update_ratio(final_ratio)
+            logger.info(f"Manually updated {ratio_name} to {final_ratio:.6f}")
+            self.statusBar().showMessage(f"{ratio_name} updated to {final_ratio:.6f}", 3000)
     
     def _update_formulas_from_autopilot(self):
-        """Update current formulas from autopilot - keeps a fixed, only b changes"""
         if not self.current_track or not self.current_vehicle_class:
             if self.current_vehicle:
                 self.current_vehicle_class = get_vehicle_class(self.current_vehicle, self.class_mapping)
             if not self.current_vehicle_class:
                 return
         
-        # Get qualifying formula - a should always be DEFAULT_A_VALUE (32)
         qual_formula = self.autopilot_manager.formula_manager.get_formula_by_class(
-            self.current_track, self.current_vehicle_class, "qual"
-        )
+            self.current_track, self.current_vehicle_class, "qual")
         if qual_formula and qual_formula.is_valid():
-            self.qual_a = DEFAULT_A_VALUE  # Force a to be default
-            self.qual_b = qual_formula.b   # Only take b from stored formula
+            self.qual_a = DEFAULT_A_VALUE
+            self.qual_b = qual_formula.b
         else:
             self.qual_a = DEFAULT_A_VALUE
             self.qual_b = 70.0
         
-        # Get race formula - a should always be DEFAULT_A_VALUE (32)
         race_formula = self.autopilot_manager.formula_manager.get_formula_by_class(
-            self.current_track, self.current_vehicle_class, "race"
-        )
+            self.current_track, self.current_vehicle_class, "race")
         if race_formula and race_formula.is_valid():
-            self.race_a = DEFAULT_A_VALUE  # Force a to be default
-            self.race_b = race_formula.b   # Only take b from stored formula
+            self.race_a = DEFAULT_A_VALUE
+            self.race_b = race_formula.b
         else:
             self.race_a = DEFAULT_A_VALUE
             self.race_b = 70.0
     
     def _fit_b_from_data_points(self, session_type: str, ratio: float, ai_times: List[float]) -> Optional[float]:
-        """
-        Calculate b value from AI data points.
-        Using T = a/R + b, we solve for b: b = T - a/R
-        For multiple points, use the average of the calculated b values.
-        """
         if not ai_times:
             return None
-        
-        # Calculate b for each AI time at the given ratio (filter out None values)
         b_values = []
         for ai_time in ai_times:
             if ai_time is not None and ai_time > 0:
                 b = ai_time - (DEFAULT_A_VALUE / ratio)
                 b_values.append(b)
-        
         if not b_values:
             return None
-        
-        # Use the average b value
         avg_b = sum(b_values) / len(b_values)
-        # Clamp b to reasonable range
         avg_b = max(10.0, min(200.0, avg_b))
-        
-        logger.debug(f"  Fitted b from {len(b_values)} points at ratio {ratio:.4f}: b={avg_b:.4f}")
         return avg_b
     
     def _update_formula_from_new_data(self, race_data: RaceData, session_type: str) -> bool:
-        """
-        Update formula based on new AI data.
-        Keeps a fixed at DEFAULT_A_VALUE (32), only calculates a new b value.
-        Returns True if formula was updated.
-        """
         if not self.current_track or not self.current_vehicle_class:
             return False
         
-        # Get the ratio and AI times for this session type
         if session_type == "qual":
             current_ratio = race_data.qual_ratio
             best_ai = race_data.qual_best_ai_lap_sec
@@ -1515,40 +1495,31 @@ class RedesignedMainWindow(QMainWindow):
             worst_ai = race_data.worst_ai_lap_sec
         
         if not current_ratio or current_ratio <= 0:
-            logger.debug(f"  No ratio available for {session_type}")
             return False
         
-        # Collect all AI times at this ratio (filter out None/0 values)
         ai_times = []
-        
-        # Add best and worst as the range
         if best_ai and best_ai > 0:
             ai_times.append(best_ai)
         if worst_ai and worst_ai > 0:
             ai_times.append(worst_ai)
         
-        # Also get all AI results from the race data for more points
         for ai in race_data.ai_results:
             if session_type == "qual":
                 qual_time = ai.get('qual_time_sec')
                 if qual_time is not None and qual_time > 0:
                     ai_times.append(qual_time)
-            else:  # race
+            else:
                 best_lap = ai.get('best_lap_sec')
                 if best_lap is not None and best_lap > 0:
                     ai_times.append(best_lap)
         
         if not ai_times:
-            logger.debug(f"  No AI times available for {session_type}")
             return False
         
-        # Fit b from the AI data points
         new_b = self._fit_b_from_data_points(session_type, current_ratio, ai_times)
-        
         if new_b is None:
             return False
         
-        # Update the formula in the database (with fixed a=32, new b)
         formula = Formula(
             track=self.current_track,
             vehicle_class=self.current_vehicle_class,
@@ -1561,23 +1532,14 @@ class RedesignedMainWindow(QMainWindow):
         
         if formula.is_valid():
             self.autopilot_manager.formula_manager.save_formula(formula)
-            
-            # Update local variables
             if session_type == "qual":
                 self.qual_b = new_b
             else:
                 self.race_b = new_b
-            
-            logger.info(f"  Updated {session_type} formula: T = {DEFAULT_A_VALUE:.0f} / R + {new_b:.4f} (from {len(ai_times)} AI times at ratio {current_ratio:.4f})")
             return True
-        
         return False
     
     def _calculate_ratio_for_user_time(self, user_time: float, session_type: str) -> Optional[float]:
-        """
-        Calculate the ratio that would give the user's lap time using the current formula.
-        Formula: R = a / (T - b)
-        """
         if session_type == "qual":
             a = DEFAULT_A_VALUE
             b = self.qual_b
@@ -1587,42 +1549,26 @@ class RedesignedMainWindow(QMainWindow):
         
         denominator = user_time - b
         if denominator <= 0:
-            logger.debug(f"  Denominator <= 0: {user_time} - {b} = {denominator}")
             return None
-        
         ratio = a / denominator
-        
-        if 0.3 < ratio < 3.0:
-            return ratio
-        else:
-            logger.debug(f"  Calculated ratio {ratio:.6f} out of range (0.3-3.0)")
-            return None
+        return ratio if 0.3 < ratio < 3.0 else None
     
     def open_advanced_settings(self):
-        """Open the advanced settings window"""
         if self.advanced_window is None:
             self.advanced_window = AdvancedSettingsDialog(self, self.db, self.log_window)
             self.advanced_window.data_updated.connect(self.on_data_updated)
             self.advanced_window.formula_updated.connect(self.on_formula_updated)
             self.advanced_window.ratio_saved.connect(self.on_ratio_saved_from_advanced)
             self.advanced_window.lap_time_updated.connect(self.on_lap_time_updated_from_advanced)
-            # Connect the data refresh signal
             self.data_refresh_signal.connect(self.advanced_window.on_parent_data_refresh)
         
-        # Update current info
         if hasattr(self.advanced_window, 'curve_graph'):
             self.advanced_window.curve_graph.update_current_info(
-                track=self.current_track,
-                vehicle=self.current_vehicle,
+                track=self.current_track, vehicle=self.current_vehicle,
                 qual_time=self.user_qualifying_sec if self.user_qualifying_sec > 0 else None,
                 race_time=self.user_best_lap_sec if self.user_best_lap_sec > 0 else None,
-                qual_ratio=self.last_qual_ratio,
-                race_ratio=self.last_race_ratio
-            )
-            self.advanced_window.curve_graph.set_formulas(
-                self.qual_a, self.qual_b,
-                self.race_a, self.race_b
-            )
+                qual_ratio=self.last_qual_ratio, race_ratio=self.last_race_ratio)
+            self.advanced_window.curve_graph.set_formulas(self.qual_a, self.qual_b, self.race_a, self.race_b)
             self.advanced_window.curve_graph.full_refresh()
         
         self.advanced_window.show()
@@ -1630,84 +1576,64 @@ class RedesignedMainWindow(QMainWindow):
         self.advanced_window.activateWindow()
     
     def on_data_updated(self):
-        """Handle data updates from advanced settings"""
         self.load_data()
         self.update_display()
     
     def on_formula_updated(self, session_type: str, a: float, b: float):
-        """
-        Handle formula updates from advanced settings.
-        Note: We ignore the 'a' value from the dialog and keep DEFAULT_A_VALUE.
-        """
         if session_type == "qual":
-            self.qual_b = b  # Only take b, keep a fixed
+            self.qual_b = b
             self.qual_ab_modified = True
         else:
-            self.race_b = b  # Only take b, keep a fixed
+            self.race_b = b
             self.race_ab_modified = True
         self.update_display()
         self.update_formula_accuracy(session_type)
     
     def start_daemon(self):
-        """Start file monitoring daemon"""
         file_path = get_results_file_path(self.config_file)
         base_path = get_base_path(self.config_file)
-        
         if not file_path or not base_path:
             logger.warning("Base path not configured - daemon not started")
             return
-        
         poll_interval = get_poll_interval(self.config_file)
-        
         self.daemon = FileMonitorDaemon(file_path, base_path, poll_interval)
         self.daemon.signal.file_changed.connect(self.on_file_changed)
         self.daemon.start()
-        logger.debug(f"Monitoring: {file_path}")
     
     def stop_daemon(self):
-        """Stop file monitoring daemon"""
         if self.daemon:
             self.daemon.stop()
             self.daemon = None
     
     def on_file_changed(self, race_data: RaceData):
-        """Handle file change event"""
         if not race_data:
             return
         
-        # Check for AIW error and show popup
         if hasattr(race_data, 'aiw_error') and race_data.aiw_error:
             show_error_dialog(self, "AIW File Not Found", race_data.aiw_error)
         
-        # Update track info
         if race_data.track_name:
             self.current_track = race_data.track_name
             self.track_label.setText(self.current_track)
             self.setWindowTitle(f"GTR2 Dynamic AI - {self.current_track}")
         
-        # Store user lap times
         if race_data.user_qualifying_sec:
             self.user_qualifying_sec = race_data.user_qualifying_sec
         if race_data.user_best_lap_sec:
             self.user_best_lap_sec = race_data.user_best_lap_sec
         
-        # Store the ORIGINAL ratios read from AIW (before any modification)
         if race_data.qual_ratio:
             self.qual_read_ratio = race_data.qual_ratio
-            # Update the "last ratio read" display
             self.qual_panel.update_last_read_ratio(self.qual_read_ratio)
         if race_data.race_ratio:
             self.race_read_ratio = race_data.race_ratio
-            # Update the "last ratio read" display
             self.race_panel.update_last_read_ratio(self.race_read_ratio)
         
-        # Store the current active ratios (will be updated if modified)
         if race_data.qual_ratio:
             self.last_qual_ratio = race_data.qual_ratio
         if race_data.race_ratio:
             self.last_race_ratio = race_data.race_ratio
         
-        # Store AI lap times from the race data
         if race_data.qual_best_ai_lap_sec:
             self.qual_best_ai = race_data.qual_best_ai_lap_sec
         if race_data.qual_worst_ai_lap_sec:
@@ -1717,184 +1643,119 @@ class RedesignedMainWindow(QMainWindow):
         if race_data.worst_ai_lap_sec:
             self.race_worst_ai = race_data.worst_ai_lap_sec
         
-        # Update vehicle info
         if race_data.user_vehicle:
             self.current_vehicle = race_data.user_vehicle
             self.current_vehicle_class = get_vehicle_class(self.current_vehicle, self.class_mapping)
             self.car_class_label.setText(f"Car Class: {self.current_vehicle_class}")
         
-        # Determine session type string for logging
         has_qual = race_data.qual_ratio and race_data.qual_best_ai_lap_sec > 0 and race_data.qual_worst_ai_lap_sec > 0
         has_race = race_data.race_ratio and race_data.best_ai_lap_sec > 0 and race_data.worst_ai_lap_sec > 0
         
-        session_type_str = ""
-        if has_qual and has_race:
-            session_type_str = "both"
-        elif has_qual:
-            session_type_str = "qualifying"
-        elif has_race:
-            session_type_str = "race"
-        
-        if session_type_str:
-            logger.info(self.simplified_logger.new_data_detected(
-                race_data.track_name, self.current_vehicle_class, session_type_str,
-                race_data.race_ratio or 0, race_data.best_ai_lap_sec or 0
-            ))
-        
-        # ALWAYS save race session to database (for data collection)
         race_dict = race_data.to_dict()
         race_id = self.db.save_race_session(race_dict)
         
         if race_id and self.autosave_enabled:
-            # Add data points with correct vehicle class
             points_added = 0
             for track, vehicle_name, ratio, lap_time, session_type in race_data.to_data_points_with_vehicles():
                 try:
                     vehicle_class = get_vehicle_class(vehicle_name, self.class_mapping)
-                    ratio_float = float(ratio)
-                    lap_time_float = float(lap_time)
-                    if self.db.add_data_point(track, vehicle_class, ratio_float, lap_time_float, session_type):
+                    if self.db.add_data_point(track, vehicle_class, float(ratio), float(lap_time), session_type):
                         points_added += 1
                 except (ValueError, TypeError) as e:
                     logger.error(f"Failed to add data point: {e}")
-            
             if points_added > 0:
                 logger.debug(f"Saved {points_added} new data points")
         
-        # Update formula from AI data ONLY (keep a fixed at 32, update b)
         if self.current_track and self.current_vehicle_class:
-            # Update qualifying formula from AI data
             if has_qual:
                 self._update_formula_from_new_data(race_data, "qual")
-            # Update race formula from AI data
             if has_race:
                 self._update_formula_from_new_data(race_data, "race")
         
-        # Reload formulas from database
         self.autopilot_manager.reload_formulas()
         self._update_formulas_from_autopilot()
         self.update_display()
         
-        # Update accuracy indicators
         if self.current_track and self.current_vehicle_class:
             self.update_formula_accuracy("qual")
             self.update_formula_accuracy("race")
         
-        # Run autoratio if enabled - this calculates the new ratio for the AIW file
+        # Apply AI Target to autoratio if enabled
         if self.autoratio_enabled and race_data.aiw_path:
-            logger.debug("Running Autoratio...")
+            logger.info("[AI TARGET] Running Autoratio with AI Target settings")
             
-            # Calculate the ratio that would give the user's time with the current formula
-            # This is the NEW ratio to write to the AIW file
-            if self.user_qualifying_sec > 0 and self.last_qual_ratio:
-                new_qual_ratio = self._calculate_ratio_for_user_time(self.user_qualifying_sec, "qual")
+            # Apply AI Target for qualifying if we have user time
+            if self.user_qualifying_sec > 0 and self.qual_best_ai and self.qual_worst_ai:
+                new_qual_ratio = self.calculate_ratio_from_target("qual")
                 if new_qual_ratio and abs(new_qual_ratio - self.last_qual_ratio) > 0.000001:
-                    # Validate ratio against limits
-                    if not self._validate_ratio(new_qual_ratio, "QualRatio"):
-                        logger.warning(f"QualRatio {new_qual_ratio:.6f} outside limits, not updating")
-                    else:
-                        logger.info(self.simplified_logger.new_ratio_calculation(
-                            self.last_qual_ratio, new_qual_ratio, "qual", 
-                            format_time(self.user_qualifying_sec), self.last_qual_ratio
-                        ))
-                        # Update the AIW file with the new ratio
+                    if self._validate_ratio(new_qual_ratio, "QualRatio"):
                         if self.autopilot_manager.engine._update_aiw_ratio(race_data.aiw_path, "QualRatio", new_qual_ratio):
                             self.last_qual_ratio = new_qual_ratio
                             self.qual_panel.update_ratio(new_qual_ratio)
-                            logger.info(f"  Updated QualRatio in AIW to {new_qual_ratio:.6f}")
+                            logger.info(f"[AI TARGET] Updated QualRatio to {new_qual_ratio:.6f}")
             
-            if self.user_best_lap_sec > 0 and self.last_race_ratio:
-                new_race_ratio = self._calculate_ratio_for_user_time(self.user_best_lap_sec, "race")
+            # Apply AI Target for race if we have user time
+            if self.user_best_lap_sec > 0 and self.race_best_ai and self.race_worst_ai:
+                new_race_ratio = self.calculate_ratio_from_target("race")
                 if new_race_ratio and abs(new_race_ratio - self.last_race_ratio) > 0.000001:
-                    # Validate ratio against limits
-                    if not self._validate_ratio(new_race_ratio, "RaceRatio"):
-                        logger.warning(f"RaceRatio {new_race_ratio:.6f} outside limits, not updating")
-                    else:
-                        logger.info(self.simplified_logger.new_ratio_calculation(
-                            self.last_race_ratio, new_race_ratio, "race",
-                            format_time(self.user_best_lap_sec), self.last_race_ratio
-                        ))
-                        # Update the AIW file with the new ratio
+                    if self._validate_ratio(new_race_ratio, "RaceRatio"):
                         if self.autopilot_manager.engine._update_aiw_ratio(race_data.aiw_path, "RaceRatio", new_race_ratio):
                             self.last_race_ratio = new_race_ratio
                             self.race_panel.update_ratio(new_race_ratio)
-                            logger.info(f"  Updated RaceRatio in AIW to {new_race_ratio:.6f}")
+                            logger.info(f"[AI TARGET] Updated RaceRatio to {new_race_ratio:.6f}")
         
-        # Reload formulas after any changes
         self.autopilot_manager.reload_formulas()
         self._update_formulas_from_autopilot()
         self.update_display()
         
-        # Update accuracy after all updates
         if self.current_track and self.current_vehicle_class:
             self.update_formula_accuracy("qual")
             self.update_formula_accuracy("race")
         
-        # Emit signal to notify advanced dialog about data refresh
         self.data_refresh_signal.emit()
         
-        # Refresh advanced window if open
-        if self.advanced_window and self.advanced_window.isVisible():
-            if hasattr(self.advanced_window, 'curve_graph'):
-                self.advanced_window.curve_graph.update_current_info(
-                    track=self.current_track,
-                    vehicle=self.current_vehicle,
-                    qual_time=self.user_qualifying_sec if self.user_qualifying_sec > 0 else None,
-                    race_time=self.user_best_lap_sec if self.user_best_lap_sec > 0 else None,
-                    qual_ratio=self.last_qual_ratio,
-                    race_ratio=self.last_race_ratio
-                )
-                self.advanced_window.curve_graph.full_refresh()
+        if self.advanced_window and self.advanced_window.isVisible() and hasattr(self.advanced_window, 'curve_graph'):
+            self.advanced_window.curve_graph.update_current_info(
+                track=self.current_track, vehicle=self.current_vehicle,
+                qual_time=self.user_qualifying_sec if self.user_qualifying_sec > 0 else None,
+                race_time=self.user_best_lap_sec if self.user_best_lap_sec > 0 else None,
+                qual_ratio=self.last_qual_ratio, race_ratio=self.last_race_ratio)
+            self.advanced_window.curve_graph.full_refresh()
     
     def load_data(self):
-        """Load tracks from database"""
         if not self.db.database_exists():
             return
-        
         self.all_tracks = self.db.get_all_tracks()
-        
         if self.all_tracks and not self.current_track:
             self.current_track = self.all_tracks[0]
             self.track_label.setText(self.current_track)
             self.setWindowTitle(f"GTR2 Dynamic AI - {self.current_track}")
-            
-            # Load AI times for this track
             self.qual_best_ai, self.qual_worst_ai = self._get_ai_times_for_track(self.current_track, "qual")
             self.race_best_ai, self.race_worst_ai = self._get_ai_times_for_track(self.current_track, "race")
-        
         if self.autopilot_manager:
             self._update_formulas_from_autopilot()
-        
-        # Update accuracy after loading data
         if self.current_track and self.current_vehicle_class:
             self.update_formula_accuracy("qual")
             self.update_formula_accuracy("race")
     
     def update_display(self):
-        """Update all display elements"""
-        # Update Qualifying panel
         self.qual_panel.update_ratio(self.last_qual_ratio)
         self.qual_panel.update_ai_range(self.qual_best_ai, self.qual_worst_ai)
         self.qual_panel.update_user_time(self.user_qualifying_sec if self.user_qualifying_sec > 0 else None)
         self.qual_panel.update_formula(self.qual_a, self.qual_b)
-        # Ensure last read ratio is still shown if available
         if self.qual_read_ratio is not None:
             self.qual_panel.update_last_read_ratio(self.qual_read_ratio)
         
-        # Update Race panel
         self.race_panel.update_ratio(self.last_race_ratio)
         self.race_panel.update_ai_range(self.race_best_ai, self.race_worst_ai)
         self.race_panel.update_user_time(self.user_best_lap_sec if self.user_best_lap_sec > 0 else None)
         self.race_panel.update_formula(self.race_a, self.race_b)
-        # Ensure last read ratio is still shown if available
         if self.race_read_ratio is not None:
             self.race_panel.update_last_read_ratio(self.race_read_ratio)
         
-        # Update target display in status bar
         self.update_target_display()
     
     def closeEvent(self, event):
-        """Handle close event"""
         self.stop_daemon()
         if self.advanced_window:
             self.advanced_window.close()
@@ -1963,14 +1824,9 @@ class ToggleSwitch(QPushButton):
 
 
 def main():
-    # Check if config file exists and base_path is set
     config = get_config_with_defaults()
     base_path = config.get('base_path', '')
-    
-    # If no config file or base_path is empty, we'll handle it in the main window
-    # But we still need to create default config if missing
     create_default_config_if_missing()
-    
     db_path = get_db_path()
     
     if not Path(db_path).exists():
@@ -1985,10 +1841,8 @@ def main():
     
     app = QApplication(sys.argv)
     setup_dark_theme(app)
-    
     window = RedesignedMainWindow(db_path)
     window.show()
-    
     sys.exit(app.exec_())
 
 
