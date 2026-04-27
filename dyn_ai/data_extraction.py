@@ -8,10 +8,13 @@ Extracts track info, AIW ratios, and lap times from raceresults.txt
 import re
 import os
 import traceback
+import logging
 from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -23,6 +26,7 @@ class RaceData:
     track_folder: Optional[str] = None
     aiw_file: Optional[str] = None
     aiw_path: Optional[Path] = None
+    aiw_error: Optional[str] = None  # Store AIW error messages
     qual_ratio: Optional[float] = None
     race_ratio: Optional[float] = None
     user_name: Optional[str] = None
@@ -296,7 +300,10 @@ class DataExtractor:
         aiw_path = self._find_aiw_file(data.aiw_file, data.track_folder)
         
         if not aiw_path or not aiw_path.exists():
-            print(f"AIW file not found: {data.aiw_file}")
+            # This should be an ERROR and shown to the user via GUI
+            error_msg = f"AIW file not found for track '{data.track_folder or 'Unknown'}' / '{data.aiw_file}' — skipping AIW patch"
+            logger.error(error_msg)
+            data.aiw_error = error_msg
             return
         
         data.aiw_path = aiw_path

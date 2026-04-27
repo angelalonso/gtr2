@@ -26,6 +26,7 @@ import pyqtgraph as pg
 
 from formula_funcs import fit_curve, get_formula_string, hyperbolic, ratio_from_time
 from autopilot import load_vehicle_classes, get_vehicle_class, DEFAULT_A_VALUE
+from cfg_funcs import get_ratio_limits
 
 
 # Set up logger for this module
@@ -149,6 +150,107 @@ class SimpleLogHandler(logging.Handler):
             pass
 
 
+class ManualLapTimeDialog(QDialog):
+    """Dialog for manually editing user lap time"""
+    
+    def __init__(self, parent, session_type: str, current_time: float):
+        super().__init__(parent)
+        self.session_type = session_type
+        self.current_time = current_time
+        self.new_time = None
+        self.setup_ui()
+    
+    def setup_ui(self):
+        self.setWindowTitle(f"Edit {self.session_type.upper()} Lap Time")
+        self.setFixedSize(350, 200)
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #2b2b2b;
+            }
+            QLabel {
+                color: white;
+            }
+            QDoubleSpinBox {
+                background-color: #3c3c3c;
+                color: white;
+                border: 1px solid #4CAF50;
+                border-radius: 4px;
+                padding: 4px;
+                font-size: 14px;
+            }
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 16px;
+                font-weight: bold;
+            }
+            QPushButton#cancel {
+                background-color: #555;
+            }
+            QPushButton#cancel:hover {
+                background-color: #666;
+            }
+        """)
+        
+        layout = QVBoxLayout(self)
+        
+        # Title
+        title = QLabel(f"Edit {self.session_type.upper()} Lap Time")
+        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #FFA500;")
+        title.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title)
+        
+        layout.addSpacing(10)
+        
+        # Current value display
+        current_label = QLabel(f"Current {self.session_type.upper()} Time:")
+        current_label.setStyleSheet("color: #888;")
+        layout.addWidget(current_label)
+        
+        minutes = int(self.current_time) // 60
+        seconds = self.current_time % 60
+        current_value = QLabel(f"{minutes}:{seconds:06.3f} ({self.current_time:.3f}s)")
+        current_value.setStyleSheet("font-size: 14px; font-family: monospace; color: #4CAF50;")
+        layout.addWidget(current_value)
+        
+        layout.addSpacing(15)
+        
+        # New time input
+        new_label = QLabel(f"New {self.session_type.upper()} Time (seconds):")
+        new_label.setStyleSheet("color: #888;")
+        layout.addWidget(new_label)
+        
+        self.time_spin = QDoubleSpinBox()
+        self.time_spin.setRange(10.0, 500.0)
+        self.time_spin.setDecimals(3)
+        self.time_spin.setSingleStep(0.5)
+        self.time_spin.setValue(self.current_time)
+        self.time_spin.setStyleSheet("font-size: 14px;")
+        layout.addWidget(self.time_spin)
+        
+        layout.addSpacing(20)
+        
+        # Buttons
+        btn_layout = QHBoxLayout()
+        
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setObjectName("cancel")
+        cancel_btn.clicked.connect(self.reject)
+        btn_layout.addWidget(cancel_btn)
+        
+        apply_btn = QPushButton("Apply")
+        apply_btn.clicked.connect(self.accept)
+        btn_layout.addWidget(apply_btn)
+        
+        layout.addLayout(btn_layout)
+    
+    def accept(self):
+        self.new_time = self.time_spin.value()
+        super().accept()
+
+
 class SessionPanel(QWidget):
     """Panel for a single session (Qualifying or Race) with controls"""
     
@@ -156,6 +258,7 @@ class SessionPanel(QWidget):
     show_data_toggled = pyqtSignal(str, bool)  # session_type, show
     calculate_ratio = pyqtSignal(str, float)  # session_type, lap_time
     auto_fit_requested = pyqtSignal(str)  # session_type
+    lap_time_edited = pyqtSignal(str, float)  # session_type, new_lap_time
     
     def __init__(self, session_type: str, title: str, db, parent=None):
         super().__init__(parent)
@@ -168,6 +271,7 @@ class SessionPanel(QWidget):
         self.user_time = None
         self.user_ratio = None
         self.current_ratio = None
+        self.calc_button_modified = False  # Track if button should be orange
         
         self.setup_ui()
         
@@ -187,6 +291,17 @@ class SessionPanel(QWidget):
                 subcontrol-origin: margin;
                 left: 10px;
                 padding: 0 5px 0 5px;
+            }
+            QPushButton#edit_time_btn {
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 2px 8px;
+                font-size: 10px;
+            }
+            QPushButton#edit_time_btn:hover {
+                background-color: #1976D2;
             }
         """)
         
@@ -216,12 +331,19 @@ class SessionPanel(QWidget):
         formula_layout.addStretch()
         group_layout.addLayout(formula_layout)
         
-        # User time display
+        # User time display with edit button
         user_layout = QHBoxLayout()
         user_layout.addWidget(QLabel("Your Time:"))
         self.user_time_label = QLabel("--")
         self.user_time_label.setStyleSheet("color: #4CAF50; font-weight: bold; font-family: monospace; font-size: 12px;")
         user_layout.addWidget(self.user_time_label)
+        
+        self.edit_time_btn = QPushButton("✎ Edit")
+        self.edit_time_btn.setObjectName("edit_time_btn")
+        self.edit_time_btn.setFixedSize(50, 20)
+        self.edit_time_btn.clicked.connect(self.on_edit_time_clicked)
+        user_layout.addWidget(self.edit_time_btn)
+        
         user_layout.addStretch()
         group_layout.addLayout(user_layout)
         
@@ -247,7 +369,7 @@ class SessionPanel(QWidget):
         params_layout.addStretch()
         group_layout.addLayout(params_layout)
         
-        # Buttons row - removed Save button, only Calculate and Auto-Fit
+        # Buttons row
         buttons_layout = QHBoxLayout()
         
         self.calc_btn = QPushButton("Calculate Ratio")
@@ -262,7 +384,21 @@ class SessionPanel(QWidget):
         group_layout.addLayout(buttons_layout)
         
         layout.addWidget(group)
+    
+    def on_edit_time_clicked(self):
+        """Open dialog to edit user lap time"""
+        if self.user_time is None or self.user_time <= 0:
+            QMessageBox.warning(self, "No Time", "No lap time available to edit.")
+            return
         
+        dialog = ManualLapTimeDialog(self, self.session_type, self.user_time)
+        if dialog.exec_() == QDialog.Accepted and dialog.new_time is not None:
+            self.user_time = dialog.new_time
+            minutes = int(self.user_time) // 60
+            seconds = self.user_time % 60
+            self.user_time_label.setText(f"{minutes}:{seconds:06.3f}")
+            self.lap_time_edited.emit(self.session_type, self.user_time)
+    
     def on_show_toggled(self, checked):
         self.show_data_toggled.emit(self.session_type, checked)
         
@@ -271,10 +407,17 @@ class SessionPanel(QWidget):
         self.b = self.b_spin.value()
         self.formula_label.setText(f"T = {self.a:.2f} / R + {self.b:.2f}")
         self.formula_changed.emit(self.session_type, self.a, self.b)
-        # Recalculate ratio if we have user time
-        if self.user_time and self.user_time > 0:
-            self._calculate_and_confirm_ratio(self.user_time)
-        
+        # Mark button as needing calculation (turn orange)
+        self.set_calc_button_modified(True)
+    
+    def set_calc_button_modified(self, modified: bool):
+        """Set whether the calculate button should be orange"""
+        self.calc_button_modified = modified
+        if modified:
+            self.calc_btn.setStyleSheet("background-color: #FF9800;")
+        else:
+            self.calc_btn.setStyleSheet("")  # Reset to default
+    
     def _calculate_and_confirm_ratio(self, lap_time: float):
         """Calculate ratio and ask user to confirm saving to AIW"""
         denominator = lap_time - self.b
@@ -284,6 +427,20 @@ class SessionPanel(QWidget):
         ratio = self.a / denominator
         if 0.3 < ratio < 3.0:
             self.current_ratio = ratio
+            
+            # Check ratio limits
+            min_ratio, max_ratio = get_ratio_limits()
+            if ratio < min_ratio or ratio > max_ratio:
+                reply = QMessageBox.question(
+                    self, "Ratio Out of Range",
+                    f"The calculated {self.session_type.upper()} Ratio = {ratio:.6f} is outside the allowed range "
+                    f"({min_ratio} - {max_ratio}).\n\n"
+                    f"Values outside this range can make AI behavior unpredictable.\n\n"
+                    f"Do you still want to save this ratio?",
+                    QMessageBox.Yes | QMessageBox.No
+                )
+                if reply != QMessageBox.Yes:
+                    return
             
             # Ask user to confirm saving to AIW
             reply = QMessageBox.question(
@@ -298,6 +455,8 @@ class SessionPanel(QWidget):
             if reply == QMessageBox.Yes:
                 # Emit signal to save ratio to AIW
                 self.calculate_ratio.emit(self.session_type, lap_time)
+                # Reset button color after saving
+                self.set_calc_button_modified(False)
             else:
                 QMessageBox.information(self, "Cancelled", "Ratio not saved to AIW.")
         
@@ -317,6 +476,8 @@ class SessionPanel(QWidget):
         self.a_spin.blockSignals(False)
         self.b_spin.blockSignals(False)
         self.formula_label.setText(f"T = {a:.2f} / R + {b:.2f}")
+        # Reset the modified flag since formula was updated externally
+        self.set_calc_button_modified(False)
         
     def update_user_time(self, time_sec: float):
         self.user_time = time_sec
@@ -897,12 +1058,68 @@ class CurveGraphWidget(QWidget):
         self.update_graph()
 
 
+def calculate_accuracy_rating(data_points: List[Tuple[float, float]], formula, max_allowed_error: float = 0.5) -> str:
+    """
+    Calculate accuracy rating based on data points and error rate.
+    
+    Returns: "very_low", "low", "medium", "high"
+    
+    Criteria:
+    - less than 4 different ratios OR more than 4 different ratios, less than 4 datapoints per ratio -> very low
+    - more than that, error rate too big -> low
+    - more than that, error rate not too big -> medium
+    - more than 10 ratios, error rate too big -> also medium
+    - anything better than that -> high
+    """
+    if not data_points or len(data_points) < 2:
+        return "very_low"
+    
+    # Count unique ratios
+    unique_ratios = set()
+    ratio_counts = {}
+    for ratio, _ in data_points:
+        unique_ratios.add(ratio)
+        ratio_counts[ratio] = ratio_counts.get(ratio, 0) + 1
+    
+    unique_ratio_count = len(unique_ratios)
+    
+    # Check if less than 4 different ratios
+    if unique_ratio_count < 4:
+        return "very_low"
+    
+    # Check if any ratio has less than 4 data points
+    min_points_per_ratio = min(ratio_counts.values()) if ratio_counts else 0
+    if min_points_per_ratio < 4:
+        return "very_low"
+    
+    # Calculate error rate
+    total_error = 0
+    for ratio, lap_time in data_points:
+        predicted = formula.get_time_at_ratio(ratio) if hasattr(formula, 'get_time_at_ratio') else (formula.a / ratio + formula.b)
+        error = abs(predicted - lap_time)
+        total_error += error
+    
+    avg_error = total_error / len(data_points)
+    error_too_big = avg_error > max_allowed_error
+    
+    # More than 10 ratios with error too big -> medium
+    if unique_ratio_count > 10 and error_too_big:
+        return "medium"
+    
+    # More than 4 different ratios with 4+ points per ratio
+    if error_too_big:
+        return "low"
+    else:
+        return "medium" if 4 <= unique_ratio_count <= 10 else "high"
+
+
 class AdvancedSettingsDialog(QDialog):
     """Advanced settings window with unified tab layout"""
     
     data_updated = pyqtSignal()
     formula_updated = pyqtSignal(str, float, float)  # session_type, a, b
     ratio_saved = pyqtSignal(str, float)  # session_type, ratio
+    lap_time_updated = pyqtSignal(str, float)  # session_type, lap_time
     
     def __init__(self, parent=None, db=None, log_window=None):
         super().__init__(parent)
@@ -953,6 +1170,7 @@ class AdvancedSettingsDialog(QDialog):
         self.qual_panel.show_data_toggled.connect(self.on_show_data_toggled)
         self.qual_panel.calculate_ratio.connect(self.on_calculate_and_save_ratio)
         self.qual_panel.auto_fit_requested.connect(self.on_auto_fit_requested)
+        self.qual_panel.lap_time_edited.connect(self.on_lap_time_edited)
         middle_layout.addWidget(self.qual_panel)
         
         # Race panel
@@ -961,6 +1179,7 @@ class AdvancedSettingsDialog(QDialog):
         self.race_panel.show_data_toggled.connect(self.on_show_data_toggled)
         self.race_panel.calculate_ratio.connect(self.on_calculate_and_save_ratio)
         self.race_panel.auto_fit_requested.connect(self.on_auto_fit_requested)
+        self.race_panel.lap_time_edited.connect(self.on_lap_time_edited)
         middle_layout.addWidget(self.race_panel)
         
         data_layout.addLayout(middle_layout)
@@ -1003,7 +1222,13 @@ class AdvancedSettingsDialog(QDialog):
         target_info = QLabel(
             "AI Target Positioning\n\n"
             "This controls where your lap time should fall within the AI's lap time range.\n\n"
-            "The AI's best and worst lap times create a range. You choose where you want to be."
+            "The AI's best and worst lap times create a range. You choose where you want to be.\n\n"
+            "⚡ These settings will be applied to BOTH Qualifying and Race sessions.\n\n"
+            "How it works:\n"
+            "1. The AI range is defined by the fastest and slowest AI lap times from your data\n"
+            "2. Your target position determines what lap time the AI should aim for\n"
+            "3. The program calculates a new AI Ratio that will make AI lap times match your target\n"
+            "4. This ratio is written to the AIW file and used in your next session"
         )
         target_info.setStyleSheet("color: #FFA500; background-color: #2b2b2b; padding: 10px; border-radius: 5px;")
         target_info.setWordWrap(True)
@@ -1014,7 +1239,7 @@ class AdvancedSettingsDialog(QDialog):
         mode_group = QGroupBox("Target Mode")
         mode_layout = QVBoxLayout(mode_group)
         
-        self.percentage_radio = QRadioButton("Percentage within AI range")
+        self.percentage_radio = QRadioButton("Percentage within AI range (Recommended)")
         self.percentage_radio.setChecked(True)
         self.percentage_radio.toggled.connect(self.on_target_mode_changed)
         mode_layout.addWidget(self.percentage_radio)
@@ -1254,6 +1479,19 @@ class AdvancedSettingsDialog(QDialog):
         
         self.update_mode_visibility()
     
+    def on_lap_time_edited(self, session_type: str, new_time: float):
+        """Handle lap time edit from panel"""
+        self.lap_time_updated.emit(session_type, new_time)
+        # Refresh the graph with new lap time
+        if self.curve_graph:
+            if session_type == "qual":
+                self.curve_graph.user_qual_time = new_time
+                self.curve_graph.user_qual_ratio = self.curve_graph._calculate_ratio_for_user_time(new_time, "qual")
+            else:
+                self.curve_graph.user_race_time = new_time
+                self.curve_graph.user_race_ratio = self.curve_graph._calculate_ratio_for_user_time(new_time, "race")
+            self.curve_graph.update_graph()
+    
     def on_parent_data_refresh(self):
         logger.debug("AdvancedSettingsDialog: Received data refresh signal from parent")
         self.refresh_display()
@@ -1471,7 +1709,7 @@ class AdvancedSettingsDialog(QDialog):
                 self.curve_graph.set_show_race(show)
     
     def on_calculate_and_save_ratio(self, session_type: str, lap_time: float):
-        """Calculate ratio and save directly to AIW (the confirmation already happened in the panel)"""
+        """Calculate ratio and save directly to AIW"""
         if session_type == "qual":
             a, b = self.qual_panel.a, self.qual_panel.b
         else:
@@ -1484,6 +1722,18 @@ class AdvancedSettingsDialog(QDialog):
         ratio = a / denominator
         
         if 0.3 < ratio < 3.0:
+            # Check ratio limits before saving
+            min_ratio, max_ratio = get_ratio_limits()
+            if ratio < min_ratio or ratio > max_ratio:
+                reply = QMessageBox.question(self, "Ratio Out of Range",
+                    f"The calculated {session_type.upper()} Ratio = {ratio:.6f} is outside the allowed range "
+                    f"({min_ratio} - {max_ratio}).\n\n"
+                    f"Values outside this range can make AI behavior unpredictable.\n\n"
+                    f"Do you still want to save this ratio?",
+                    QMessageBox.Yes | QMessageBox.No)
+                if reply != QMessageBox.Yes:
+                    return
+            
             # Emit signal to parent to save to AIW
             self.ratio_saved.emit(session_type, ratio)
             
@@ -1494,6 +1744,15 @@ class AdvancedSettingsDialog(QDialog):
                 else:
                     self.curve_graph.user_race_ratio = ratio
                 self.curve_graph.update_graph()
+            
+            # Also update the main window's display through the parent
+            if self.parent:
+                if session_type == "qual":
+                    self.parent.last_qual_ratio = ratio
+                    self.parent.qual_panel.update_ratio(ratio)
+                else:
+                    self.parent.last_race_ratio = ratio
+                    self.parent.race_panel.update_ratio(ratio)
             
             QMessageBox.information(self, "Ratio Saved", 
                 f"{session_type.upper()} Ratio = {ratio:.6f} has been saved to the AIW file.")
@@ -1523,6 +1782,38 @@ class AdvancedSettingsDialog(QDialog):
             b = b
             a = DEFAULT_A_VALUE
             
+            # Check if the fitted b produces valid ratios within limits
+            min_ratio, max_ratio = get_ratio_limits()
+            
+            # Test a typical user time to see what ratio would be produced
+            test_time = None
+            if session_type == "qual" and self.curve_graph.user_qual_time:
+                test_time = self.curve_graph.user_qual_time
+            elif session_type == "race" and self.curve_graph.user_race_time:
+                test_time = self.curve_graph.user_race_time
+            
+            ratio_warning = None
+            if test_time and test_time > 0:
+                denominator = test_time - b
+                if denominator > 0:
+                    test_ratio = a / denominator
+                    if test_ratio < min_ratio:
+                        ratio_warning = f"WARNING: This formula would produce a ratio of {test_ratio:.6f}, which is BELOW the minimum allowed ({min_ratio})."
+                    elif test_ratio > max_ratio:
+                        ratio_warning = f"WARNING: This formula would produce a ratio of {test_ratio:.6f}, which is ABOVE the maximum allowed ({max_ratio})."
+            
+            if ratio_warning:
+                reply = QMessageBox.question(self, "Ratio Limit Warning",
+                    f"{ratio_warning}\n\n"
+                    f"Formula: T = {a:.4f} / R + {b:.4f}\n"
+                    f"Average error: {avg_err:.3f}s\n"
+                    f"Max error: {max_err:.3f}s\n\n"
+                    f"Do you still want to apply this formula?",
+                    QMessageBox.Yes | QMessageBox.No)
+                
+                if reply != QMessageBox.Yes:
+                    return
+            
             if session_type == "qual":
                 self.qual_panel.update_formula(a, b)
                 if self.curve_graph:
@@ -1544,6 +1835,15 @@ class AdvancedSettingsDialog(QDialog):
                 self.curve_graph.update_graph()
             
             self.formula_updated.emit(session_type, a, b)
+            
+            # Also update the main window's formulas
+            if self.parent:
+                if session_type == "qual":
+                    self.parent.qual_b = b
+                else:
+                    self.parent.race_b = b
+                self.parent.update_display()
+            
             QMessageBox.information(self, "Auto-Fit Complete", 
                 f"Formula fitted to {len(points)} data points:\n"
                 f"T = {a:.4f} / R + {b:.4f}\n"
@@ -1633,6 +1933,7 @@ class AdvancedSettingsDialog(QDialog):
         self.ai_error_margin = value
     
     def apply_target_settings(self):
+        """Apply AI Target settings - calculates new target lap time based on settings"""
         settings = {
             "mode": self.target_mode,
             "percentage": self.target_percentage,
@@ -1644,10 +1945,54 @@ class AdvancedSettingsDialog(QDialog):
             self.parent.ai_target_settings = settings
             if hasattr(self.parent, 'statusBar'):
                 self.parent.statusBar().showMessage(f"AI Target settings applied", 3000)
-        
-        QMessageBox.information(self, "Settings Applied", 
-            f"AI Target settings have been applied.\n\n"
-            f"These settings will be used the next time Autoratio runs.")
+            
+            # Update the target display on the main window
+            if hasattr(self.parent, 'update_target_display'):
+                self.parent.update_target_display()
+            
+            # Calculate and show the target position using the autopilot engine
+            if hasattr(self.parent, 'autopilot_manager') and self.parent.autopilot_manager:
+                engine = self.parent.autopilot_manager.engine
+                if engine:
+                    qual_best = getattr(self.parent, 'qual_best_ai', None)
+                    qual_worst = getattr(self.parent, 'qual_worst_ai', None)
+                    race_best = getattr(self.parent, 'race_best_ai', None)
+                    race_worst = getattr(self.parent, 'race_worst_ai', None)
+                    
+                    target_text = ""
+                    if qual_best and qual_worst:
+                        target_time = engine.calculate_target_time_from_settings(
+                            qual_best, qual_worst, settings
+                        )
+                        target_text += f"Qual: {target_time:.3f}s"
+                    
+                    if race_best and race_worst:
+                        target_time = engine.calculate_target_time_from_settings(
+                            race_best, race_worst, settings
+                        )
+                        if target_text:
+                            target_text += f" | Race: {target_time:.3f}s"
+                        else:
+                            target_text = f"Race: {target_time:.3f}s"
+                    
+                    if target_text:
+                        QMessageBox.information(self, "Target Applied",
+                            f"AI Target settings applied!\n\n"
+                            f"Your target lap times:\n{target_text}\n\n"
+                            f"These settings will affect BOTH Qualifying and Race sessions.\n"
+                            f"The AI will aim to produce lap times around your target position.")
+                    else:
+                        QMessageBox.information(self, "Target Applied",
+                            f"AI Target settings have been applied.\n\n"
+                            f"These settings will affect BOTH Qualifying and Race sessions.")
+                else:
+                    QMessageBox.information(self, "Target Applied",
+                        f"AI Target settings have been applied.\n\n"
+                        f"These settings will affect BOTH Qualifying and Race sessions.")
+            else:
+                QMessageBox.information(self, "Target Applied",
+                    f"AI Target settings have been applied.\n\n"
+                    f"These settings will affect BOTH Qualifying and Race sessions.")
     
     def scan_aiw_backups(self):
         backups = []

@@ -20,6 +20,8 @@ DEFAULT_CONFIG = {
     'autopilot_enabled': False,
     'autopilot_silent': False,
     'poll_interval': 5.0,  # seconds
+    'min_ratio': 0.5,
+    'max_ratio': 1.5,
 }
 
 
@@ -165,6 +167,22 @@ def create_default_config_if_missing(config_file: str = "cfg.yml") -> bool:
     if not Path(config_file).exists():
         return save_config(DEFAULT_CONFIG, config_file)
     return True
+
+
+def get_ratio_limits(config_file: str = "cfg.yml") -> tuple:
+    """Get min and max ratio limits from config"""
+    config = get_config_with_defaults(config_file)
+    min_ratio = config.get('min_ratio', DEFAULT_CONFIG['min_ratio'])
+    max_ratio = config.get('max_ratio', DEFAULT_CONFIG['max_ratio'])
+    return min_ratio, max_ratio
+
+
+def update_ratio_limits(min_ratio: float, max_ratio: float, config_file: str = "cfg.yml") -> bool:
+    """Update ratio limits in config"""
+    config = get_config_with_defaults(config_file)
+    config['min_ratio'] = min_ratio
+    config['max_ratio'] = max_ratio
+    return save_config(config, config_file)
 
 
 if __name__ == "__main__":

@@ -28,7 +28,7 @@ from gui_funcs import (
 from cfg_funcs import (
     get_config_with_defaults, get_results_file_path, get_poll_interval,
     get_db_path, create_default_config_if_missing, get_base_path,
-    get_autopilot_enabled, get_autopilot_silent,
+    get_autopilot_enabled, get_autopilot_silent, get_ratio_limits,
     update_autopilot_enabled, update_autopilot_silent, update_base_path
 )
 from data_extraction import DataExtractor, RaceData, format_time
@@ -444,11 +444,13 @@ class AccuracyIndicator(QLabel):
 class ManualEditDialog(QDialog):
     """Dialog for manually editing a ratio in the AIW file"""
     
-    def __init__(self, parent, ratio_name: str, current_ratio: float, aiw_path: Path = None):
+    def __init__(self, parent, ratio_name: str, current_ratio: float, aiw_path: Path = None, min_ratio: float = 0.5, max_ratio: float = 1.5):
         super().__init__(parent)
         self.ratio_name = ratio_name
         self.current_ratio = current_ratio
         self.aiw_path = aiw_path
+        self.min_ratio = min_ratio
+        self.max_ratio = max_ratio
         self.new_ratio = None
         self.setup_ui()
     
@@ -508,12 +510,12 @@ class ManualEditDialog(QDialog):
         layout.addSpacing(15)
         
         # New value input
-        new_label = QLabel(f"New {self.ratio_name}:")
+        new_label = QLabel(f"New {self.ratio_name} (min: {self.min_ratio}, max: {self.max_ratio}):")
         new_label.setStyleSheet("color: #888;")
         layout.addWidget(new_label)
         
         self.ratio_spin = QDoubleSpinBox()
-        self.ratio_spin.setRange(0.3, 3.0)
+        self.ratio_spin.setRange(self.min_ratio, self.max_ratio)
         self.ratio_spin.setDecimals(6)
         self.ratio_spin.setSingleStep(0.01)
         self.ratio_spin.setValue(self.current_ratio)
@@ -554,12 +556,15 @@ class RatioPanel(QFrame):
     """Panel for displaying Qualifying or Race ratio information with accuracy indicator and edit button"""
     
     edit_complete = pyqtSignal(float)
+    revert_requested = pyqtSignal()
     
     def __init__(self, title: str, parent=None):
         super().__init__(parent)
         self.title = title
         self.current_ratio = None
-        self.last_read_ratio = None  # Store the ratio read from AIW file
+        self.last_read_ratio = None
+        self.previous_ratio = None
+        self.calc_button_modified = False
         self.setup_ui()
         
     def setup_ui(self):
@@ -588,22 +593,46 @@ class RatioPanel(QFrame):
                 background-color: #555;
                 color: #888;
             }
+            QPushButton#revert_btn {
+                background-color: #FF9800;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 12px;
+                font-size: 11px;
+                font-weight: bold;
+            }
+            QPushButton#revert_btn:hover {
+                background-color: #F57C00;
+            }
+            QPushButton#revert_btn:disabled {
+                background-color: #555;
+                color: #888;
+            }
         """)
         
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.setMinimumHeight(420)  # Increased to accommodate last ratio read
+        self.setMinimumHeight(420)
         
         layout = QVBoxLayout(self)
         layout.setSpacing(15)
         layout.setContentsMargins(25, 25, 25, 25)
         
-        # Title row with edit button
+        # Title row with edit and revert buttons
         title_layout = QHBoxLayout()
         
         self.title_label = QLabel(self.title)
         self.title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #aaa;")
         self.title_label.setAlignment(Qt.AlignCenter)
         title_layout.addWidget(self.title_label, stretch=1)
+        
+        # Revert button
+        self.revert_btn = QPushButton("↺ Revert")
+        self.revert_btn.setObjectName("revert_btn")
+        self.revert_btn.setFixedSize(70, 28)
+        self.revert_btn.setEnabled(False)
+        self.revert_btn.clicked.connect(self.on_revert_clicked)
+        title_layout.addWidget(self.revert_btn)
         
         # Edit button
         self.edit_btn = QPushButton("✎ Edit")
@@ -665,6 +694,11 @@ class RatioPanel(QFrame):
         layout.addWidget(self.accuracy_indicator)
     
     def update_ratio(self, ratio: Optional[float]):
+        """Update the current ratio and store previous for revert"""
+        if ratio is not None and self.current_ratio is not None and ratio != self.current_ratio:
+            # Store previous ratio before updating
+            self.previous_ratio = self.current_ratio
+            self.revert_btn.setEnabled(True)
         self.current_ratio = ratio
         if ratio is not None:
             self.ratio_label.setText(f"{ratio:.6f}")
@@ -708,9 +742,24 @@ class RatioPanel(QFrame):
     def on_edit_clicked(self):
         if self.current_ratio is None:
             return
-        dialog = ManualEditDialog(self, self.title, self.current_ratio)
+        min_ratio, max_ratio = get_ratio_limits()
+        dialog = ManualEditDialog(self, self.title, self.current_ratio, None, min_ratio, max_ratio)
         if dialog.exec_() == QDialog.Accepted and dialog.new_ratio is not None:
             self.edit_complete.emit(dialog.new_ratio)
+    
+    def on_revert_clicked(self):
+        """Revert to previous ratio"""
+        if self.previous_ratio is not None:
+            self.revert_requested.emit()
+    
+    def revert_success(self):
+        """Called after successful revert to clear previous ratio"""
+        self.previous_ratio = None
+        self.revert_btn.setEnabled(False)
+    
+    def set_calc_button_orange(self, is_orange: bool):
+        """Set the calculate button color (called from parent)"""
+        self.calc_button_modified = is_orange
 
 
 class GTR2Logo(QLabel):
@@ -745,6 +794,9 @@ class RedesignedMainWindow(QMainWindow):
         self.config_file = config_file
         self.config = get_config_with_defaults(config_file)
         self.db = CurveDatabase(db_path)
+        
+        # Get ratio limits from config
+        self.min_ratio, self.max_ratio = get_ratio_limits(config_file)
         
         # Setup simplified logging
         self.log_window = LogWindow(self)
@@ -799,6 +851,10 @@ class RedesignedMainWindow(QMainWindow):
         self.qual_read_ratio: Optional[float] = None
         self.race_read_ratio: Optional[float] = None
         
+        # Track if a/b have been modified (for button color)
+        self.qual_ab_modified = False
+        self.race_ab_modified = False
+        
         # Advanced settings window
         self.advanced_window = None
         
@@ -806,6 +862,10 @@ class RedesignedMainWindow(QMainWindow):
         self.daemon = None
         
         self.setup_ui()
+        
+        # Connect revert signals
+        self.qual_panel.revert_requested.connect(lambda: self.on_revert_ratio("qual"))
+        self.race_panel.revert_requested.connect(lambda: self.on_revert_ratio("race"))
         
         # Check and set base path before loading data
         if not self.ensure_base_path():
@@ -823,6 +883,93 @@ class RedesignedMainWindow(QMainWindow):
         base_path = get_base_path(config_file)
         if base_path:
             self.start_daemon()
+        
+        # Add target indicator to status bar
+        self.add_target_indicator()
+    
+    def add_target_indicator(self):
+        """Add target indicator to status bar instead of main layout"""
+        # Create a permanent widget for the status bar
+        target_widget = QWidget()
+        target_layout = QHBoxLayout(target_widget)
+        target_layout.setContentsMargins(5, 0, 10, 0)
+        target_layout.setSpacing(8)
+        
+        # Target icon and label
+        target_icon = QLabel("🎯")
+        target_icon.setStyleSheet("font-size: 12px;")
+        target_layout.addWidget(target_icon)
+        
+        target_label = QLabel("AI Target:")
+        target_label.setStyleSheet("color: #FFA500; font-weight: bold; font-size: 11px;")
+        target_layout.addWidget(target_label)
+        
+        # Target value display
+        self.target_display = QLabel("Not set")
+        self.target_display.setStyleSheet("color: #4CAF50; font-family: monospace; font-size: 11px;")
+        target_layout.addWidget(self.target_display)
+        
+        # Separator line
+        sep = QFrame()
+        sep.setFrameShape(QFrame.VLine)
+        sep.setStyleSheet("color: #555;")
+        target_layout.addWidget(sep)
+        
+        # Quick-open button
+        target_btn = QPushButton("Configure")
+        target_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #FF9800;
+                color: white;
+                padding: 2px 8px;
+                font-size: 10px;
+                border-radius: 3px;
+            }
+            QPushButton:hover {
+                background-color: #F57C00;
+            }
+        """)
+        target_btn.clicked.connect(self.open_advanced_settings_to_target)
+        target_btn.setFixedWidth(70)
+        target_layout.addWidget(target_btn)
+        
+        target_layout.addStretch()
+        
+        # Add to status bar
+        self.statusBar().addPermanentWidget(target_widget)
+        
+        # Update the display
+        self.update_target_display()
+    
+    def open_advanced_settings_to_target(self):
+        """Open advanced settings and switch to AI Target tab"""
+        self.open_advanced_settings()
+        if self.advanced_window:
+            self.advanced_window.tab_widget.setCurrentIndex(1)  # AI Target tab is index 1
+    
+    def update_target_display(self):
+        """Update the target display on status bar"""
+        if hasattr(self, 'target_display'):
+            mode = self.ai_target_settings.get("mode", "percentage")
+            error_margin = self.ai_target_settings.get("error_margin", 0)
+            if mode == "percentage":
+                pct = self.ai_target_settings.get("percentage", 50)
+                if error_margin > 0:
+                    self.target_display.setText(f"{pct}% (+{error_margin:.2f}s)")
+                else:
+                    self.target_display.setText(f"{pct}%")
+            elif mode == "faster_than_best":
+                offset = self.ai_target_settings.get("offset_seconds", 0)
+                if error_margin > 0:
+                    self.target_display.setText(f"{offset:+.2f}s (+{error_margin:.2f}s)")
+                else:
+                    self.target_display.setText(f"{offset:+.2f}s")
+            else:
+                offset = self.ai_target_settings.get("offset_seconds", 0)
+                if error_margin > 0:
+                    self.target_display.setText(f"{offset:+.2f}s (+{error_margin:.2f}s)")
+                else:
+                    self.target_display.setText(f"{offset:+.2f}s")
     
     def ensure_base_path(self) -> bool:
         """Ensure that a valid base path is configured. Returns True if path is set."""
@@ -977,7 +1124,7 @@ class RedesignedMainWindow(QMainWindow):
         
         main_layout.addLayout(buttons_layout)
         
-        # Status bar
+        # Status bar - target indicator will be added here later
         self.statusBar().showMessage("Ready")
         self.statusBar().setStyleSheet("QStatusBar { color: #888; }")
         
@@ -1107,6 +1254,107 @@ class RedesignedMainWindow(QMainWindow):
             panel = self.qual_panel if session_type == "qual" else self.race_panel
             panel.update_accuracy(0, 0, None, None, 0)
     
+    def _validate_ratio(self, ratio: float, ratio_name: str) -> bool:
+        """Validate ratio against min/max limits. Returns True if valid."""
+        if ratio < self.min_ratio:
+            show_warning_dialog(self, f"{ratio_name} Below Minimum",
+                f"The calculated {ratio_name} = {ratio:.6f} is below the minimum allowed value ({self.min_ratio}).\n\n"
+                f"Values below this can cause AI behavior to become unpredictable.\n"
+                f"The ratio will NOT be changed.\n\n"
+                f"To allow lower values, adjust 'min_ratio' in cfg.yml.")
+            return False
+        elif ratio > self.max_ratio:
+            show_warning_dialog(self, f"{ratio_name} Above Maximum",
+                f"The calculated {ratio_name} = {ratio:.6f} is above the maximum allowed value ({self.max_ratio}).\n\n"
+                f"Values above this can cause AI behavior to become unpredictable.\n"
+                f"The ratio will NOT be changed.\n\n"
+                f"To allow higher values, adjust 'max_ratio' in cfg.yml.")
+            return False
+        return True
+    
+    def _get_aiw_path(self) -> Optional[Path]:
+        """Helper to get AIW path for current track"""
+        if not self.current_track:
+            return None
+        
+        if hasattr(self, 'daemon') and self.daemon and self.daemon.base_path:
+            locations_dir = self.daemon.base_path / "GameData" / "Locations"
+            if locations_dir.exists():
+                for track_dir in locations_dir.iterdir():
+                    if track_dir.is_dir() and track_dir.name.lower() == self.current_track.lower():
+                        for ext in ["*.AIW", "*.aiw"]:
+                            aiw_files = list(track_dir.glob(ext))
+                            if aiw_files:
+                                return aiw_files[0]
+                        break
+        
+        return None
+    
+    def on_revert_ratio(self, session_type: str):
+        """Revert ratio to previous value"""
+        if session_type == "qual":
+            old_ratio = self.qual_panel.previous_ratio
+            if old_ratio is None:
+                return
+            
+            aiw_path = self._get_aiw_path()
+            if not aiw_path:
+                show_warning_dialog(self, "AIW Not Found", "Could not find AIW file to revert.")
+                return
+            
+            ratio_name = "QualRatio"
+            if self.autopilot_manager.engine._update_aiw_ratio(aiw_path, ratio_name, old_ratio):
+                self.last_qual_ratio = old_ratio
+                self.qual_panel.update_ratio(old_ratio)
+                self.qual_panel.revert_success()
+                self.statusBar().showMessage(f"QualRatio reverted to {old_ratio:.6f}", 3000)
+                logger.info(f"Reverted QualRatio to {old_ratio:.6f}")
+            else:
+                show_error_dialog(self, "Revert Failed", f"Failed to revert {ratio_name} in AIW file.")
+        else:
+            old_ratio = self.race_panel.previous_ratio
+            if old_ratio is None:
+                return
+            
+            aiw_path = self._get_aiw_path()
+            if not aiw_path:
+                show_warning_dialog(self, "AIW Not Found", "Could not find AIW file to revert.")
+                return
+            
+            ratio_name = "RaceRatio"
+            if self.autopilot_manager.engine._update_aiw_ratio(aiw_path, ratio_name, old_ratio):
+                self.last_race_ratio = old_ratio
+                self.race_panel.update_ratio(old_ratio)
+                self.race_panel.revert_success()
+                self.statusBar().showMessage(f"RaceRatio reverted to {old_ratio:.6f}", 3000)
+                logger.info(f"Reverted RaceRatio to {old_ratio:.6f}")
+            else:
+                show_error_dialog(self, "Revert Failed", f"Failed to revert {ratio_name} in AIW file.")
+    
+    def on_ratio_saved_from_advanced(self, session_type: str, ratio: float):
+        """Handle ratio saved from advanced dialog"""
+        if session_type == "qual":
+            self.last_qual_ratio = ratio
+            self.qual_panel.update_ratio(ratio)
+            self.statusBar().showMessage(f"QualRatio updated to {ratio:.6f} from Advanced", 3000)
+            logger.info(f"QualRatio updated from Advanced dialog: {ratio:.6f}")
+        else:
+            self.last_race_ratio = ratio
+            self.race_panel.update_ratio(ratio)
+            self.statusBar().showMessage(f"RaceRatio updated to {ratio:.6f} from Advanced", 3000)
+            logger.info(f"RaceRatio updated from Advanced dialog: {ratio:.6f}")
+    
+    def on_lap_time_updated_from_advanced(self, session_type: str, lap_time: float):
+        """Handle lap time updated from advanced dialog"""
+        if session_type == "qual":
+            self.user_qualifying_sec = lap_time
+            self.qual_panel.update_user_time(lap_time)
+            logger.info(f"Qualifying lap time updated from Advanced dialog: {lap_time:.3f}s")
+        else:
+            self.user_best_lap_sec = lap_time
+            self.race_panel.update_user_time(lap_time)
+            logger.info(f"Race lap time updated from Advanced dialog: {lap_time:.3f}s")
+    
     def on_manual_edit(self, session_type: str, new_ratio: float):
         """Handle manual ratio edit from panel button"""
         if self.autoratio_enabled:
@@ -1120,24 +1368,17 @@ class RedesignedMainWindow(QMainWindow):
                 self.race_panel.set_edit_enabled(False)
             return
         
+        # Validate ratio against limits
+        ratio_name = "QualRatio" if session_type == "qual" else "RaceRatio"
+        if not self._validate_ratio(new_ratio, ratio_name):
+            return
+        
         # Find the AIW path
         if not self.current_track:
             show_warning_dialog(self, "No Track", "No track data available.")
             return
         
-        # Try to get AIW path
-        aiw_path = None
-        if hasattr(self, 'daemon') and self.daemon and self.daemon.base_path:
-            locations_dir = self.daemon.base_path / "GameData" / "Locations"
-            if locations_dir.exists():
-                for track_dir in locations_dir.iterdir():
-                    if track_dir.is_dir() and track_dir.name.lower() == self.current_track.lower():
-                        for ext in ["*.AIW", "*.aiw"]:
-                            aiw_files = list(track_dir.glob(ext))
-                            if aiw_files:
-                                aiw_path = aiw_files[0]
-                                break
-                        break
+        aiw_path = self._get_aiw_path()
         
         if not aiw_path or not aiw_path.exists():
             # Ask user to locate AIW file
@@ -1154,7 +1395,6 @@ class RedesignedMainWindow(QMainWindow):
                 return
         
         # Update the AIW file
-        ratio_name = "QualRatio" if session_type == "qual" else "RaceRatio"
         if self.autopilot_manager.engine._update_aiw_ratio(aiw_path, ratio_name, new_ratio):
             # Update stored ratio
             if session_type == "qual":
@@ -1237,18 +1477,22 @@ class RedesignedMainWindow(QMainWindow):
         if not ai_times:
             return None
         
-        # Calculate b for each AI time at the given ratio
+        # Calculate b for each AI time at the given ratio (filter out None values)
         b_values = []
         for ai_time in ai_times:
-            b = ai_time - (DEFAULT_A_VALUE / ratio)
-            b_values.append(b)
+            if ai_time is not None and ai_time > 0:
+                b = ai_time - (DEFAULT_A_VALUE / ratio)
+                b_values.append(b)
+        
+        if not b_values:
+            return None
         
         # Use the average b value
         avg_b = sum(b_values) / len(b_values)
         # Clamp b to reasonable range
         avg_b = max(10.0, min(200.0, avg_b))
         
-        logger.debug(f"  Fitted b from {len(ai_times)} points at ratio {ratio:.4f}: b={avg_b:.4f}")
+        logger.debug(f"  Fitted b from {len(b_values)} points at ratio {ratio:.4f}: b={avg_b:.4f}")
         return avg_b
     
     def _update_formula_from_new_data(self, race_data: RaceData, session_type: str) -> bool:
@@ -1274,7 +1518,7 @@ class RedesignedMainWindow(QMainWindow):
             logger.debug(f"  No ratio available for {session_type}")
             return False
         
-        # Collect all AI times at this ratio
+        # Collect all AI times at this ratio (filter out None/0 values)
         ai_times = []
         
         # Add best and worst as the range
@@ -1285,10 +1529,14 @@ class RedesignedMainWindow(QMainWindow):
         
         # Also get all AI results from the race data for more points
         for ai in race_data.ai_results:
-            if session_type == "qual" and ai.get('qual_time_sec', 0) > 0:
-                ai_times.append(ai['qual_time_sec'])
-            elif session_type == "race" and ai.get('best_lap_sec', 0) > 0:
-                ai_times.append(ai['best_lap_sec'])
+            if session_type == "qual":
+                qual_time = ai.get('qual_time_sec')
+                if qual_time is not None and qual_time > 0:
+                    ai_times.append(qual_time)
+            else:  # race
+                best_lap = ai.get('best_lap_sec')
+                if best_lap is not None and best_lap > 0:
+                    ai_times.append(best_lap)
         
         if not ai_times:
             logger.debug(f"  No AI times available for {session_type}")
@@ -1356,6 +1604,8 @@ class RedesignedMainWindow(QMainWindow):
             self.advanced_window = AdvancedSettingsDialog(self, self.db, self.log_window)
             self.advanced_window.data_updated.connect(self.on_data_updated)
             self.advanced_window.formula_updated.connect(self.on_formula_updated)
+            self.advanced_window.ratio_saved.connect(self.on_ratio_saved_from_advanced)
+            self.advanced_window.lap_time_updated.connect(self.on_lap_time_updated_from_advanced)
             # Connect the data refresh signal
             self.data_refresh_signal.connect(self.advanced_window.on_parent_data_refresh)
         
@@ -1391,8 +1641,10 @@ class RedesignedMainWindow(QMainWindow):
         """
         if session_type == "qual":
             self.qual_b = b  # Only take b, keep a fixed
+            self.qual_ab_modified = True
         else:
             self.race_b = b  # Only take b, keep a fixed
+            self.race_ab_modified = True
         self.update_display()
         self.update_formula_accuracy(session_type)
     
@@ -1422,6 +1674,10 @@ class RedesignedMainWindow(QMainWindow):
         """Handle file change event"""
         if not race_data:
             return
+        
+        # Check for AIW error and show popup
+        if hasattr(race_data, 'aiw_error') and race_data.aiw_error:
+            show_error_dialog(self, "AIW File Not Found", race_data.aiw_error)
         
         # Update track info
         if race_data.track_name:
@@ -1533,28 +1789,36 @@ class RedesignedMainWindow(QMainWindow):
             if self.user_qualifying_sec > 0 and self.last_qual_ratio:
                 new_qual_ratio = self._calculate_ratio_for_user_time(self.user_qualifying_sec, "qual")
                 if new_qual_ratio and abs(new_qual_ratio - self.last_qual_ratio) > 0.000001:
-                    logger.info(self.simplified_logger.new_ratio_calculation(
-                        self.last_qual_ratio, new_qual_ratio, "qual", 
-                        format_time(self.user_qualifying_sec), self.last_qual_ratio
-                    ))
-                    # Update the AIW file with the new ratio
-                    if self.autopilot_manager.engine._update_aiw_ratio(race_data.aiw_path, "QualRatio", new_qual_ratio):
-                        self.last_qual_ratio = new_qual_ratio
-                        self.qual_panel.update_ratio(new_qual_ratio)
-                        logger.info(f"  Updated QualRatio in AIW to {new_qual_ratio:.6f}")
+                    # Validate ratio against limits
+                    if not self._validate_ratio(new_qual_ratio, "QualRatio"):
+                        logger.warning(f"QualRatio {new_qual_ratio:.6f} outside limits, not updating")
+                    else:
+                        logger.info(self.simplified_logger.new_ratio_calculation(
+                            self.last_qual_ratio, new_qual_ratio, "qual", 
+                            format_time(self.user_qualifying_sec), self.last_qual_ratio
+                        ))
+                        # Update the AIW file with the new ratio
+                        if self.autopilot_manager.engine._update_aiw_ratio(race_data.aiw_path, "QualRatio", new_qual_ratio):
+                            self.last_qual_ratio = new_qual_ratio
+                            self.qual_panel.update_ratio(new_qual_ratio)
+                            logger.info(f"  Updated QualRatio in AIW to {new_qual_ratio:.6f}")
             
             if self.user_best_lap_sec > 0 and self.last_race_ratio:
                 new_race_ratio = self._calculate_ratio_for_user_time(self.user_best_lap_sec, "race")
                 if new_race_ratio and abs(new_race_ratio - self.last_race_ratio) > 0.000001:
-                    logger.info(self.simplified_logger.new_ratio_calculation(
-                        self.last_race_ratio, new_race_ratio, "race",
-                        format_time(self.user_best_lap_sec), self.last_race_ratio
-                    ))
-                    # Update the AIW file with the new ratio
-                    if self.autopilot_manager.engine._update_aiw_ratio(race_data.aiw_path, "RaceRatio", new_race_ratio):
-                        self.last_race_ratio = new_race_ratio
-                        self.race_panel.update_ratio(new_race_ratio)
-                        logger.info(f"  Updated RaceRatio in AIW to {new_race_ratio:.6f}")
+                    # Validate ratio against limits
+                    if not self._validate_ratio(new_race_ratio, "RaceRatio"):
+                        logger.warning(f"RaceRatio {new_race_ratio:.6f} outside limits, not updating")
+                    else:
+                        logger.info(self.simplified_logger.new_ratio_calculation(
+                            self.last_race_ratio, new_race_ratio, "race",
+                            format_time(self.user_best_lap_sec), self.last_race_ratio
+                        ))
+                        # Update the AIW file with the new ratio
+                        if self.autopilot_manager.engine._update_aiw_ratio(race_data.aiw_path, "RaceRatio", new_race_ratio):
+                            self.last_race_ratio = new_race_ratio
+                            self.race_panel.update_ratio(new_race_ratio)
+                            logger.info(f"  Updated RaceRatio in AIW to {new_race_ratio:.6f}")
         
         # Reload formulas after any changes
         self.autopilot_manager.reload_formulas()
@@ -1625,6 +1889,9 @@ class RedesignedMainWindow(QMainWindow):
         # Ensure last read ratio is still shown if available
         if self.race_read_ratio is not None:
             self.race_panel.update_last_read_ratio(self.race_read_ratio)
+        
+        # Update target display in status bar
+        self.update_target_display()
     
     def closeEvent(self, event):
         """Handle close event"""
