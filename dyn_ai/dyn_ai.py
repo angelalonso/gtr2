@@ -33,6 +33,7 @@ from cfg_funcs import (
 )
 from data_extraction import DataExtractor, RaceData, format_time
 from autopilot import AutopilotManager, Formula, get_vehicle_class, load_vehicle_classes, DEFAULT_A_VALUE
+from ai_target_analyzer import DataDumpButton, AITargetAnalyzer
 
 
 logger = logging.getLogger(__name__)
@@ -565,6 +566,7 @@ class RatioPanel(QFrame):
         self.last_read_ratio = None
         self.previous_ratio = None
         self.calc_button_modified = False
+        self.parent_window = parent
         self.setup_ui()
         
     def setup_ui(self):
@@ -609,6 +611,18 @@ class RatioPanel(QFrame):
                 background-color: #555;
                 color: #888;
             }
+            QPushButton#dump_btn {
+                background-color: #9C27B0;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 12px;
+                font-size: 11px;
+                font-weight: bold;
+            }
+            QPushButton#dump_btn:hover {
+                background-color: #7B1FA2;
+            }
         """)
         
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -618,13 +632,13 @@ class RatioPanel(QFrame):
         layout.setSpacing(15)
         layout.setContentsMargins(25, 25, 25, 25)
         
-        # Title row with edit and revert buttons
-        title_layout = QHBoxLayout()
+        # Title row with edit, revert, and dump buttons
+        self.title_layout = QHBoxLayout()
         
         self.title_label = QLabel(self.title)
         self.title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #aaa;")
         self.title_label.setAlignment(Qt.AlignCenter)
-        title_layout.addWidget(self.title_label, stretch=1)
+        self.title_layout.addWidget(self.title_label, stretch=1)
         
         # Revert button
         self.revert_btn = QPushButton("↺ Revert")
@@ -632,16 +646,19 @@ class RatioPanel(QFrame):
         self.revert_btn.setFixedSize(70, 28)
         self.revert_btn.setEnabled(False)
         self.revert_btn.clicked.connect(self.on_revert_clicked)
-        title_layout.addWidget(self.revert_btn)
+        self.title_layout.addWidget(self.revert_btn)
         
         # Edit button
         self.edit_btn = QPushButton("✎ Edit")
         self.edit_btn.setObjectName("edit_btn")
         self.edit_btn.setFixedSize(70, 28)
         self.edit_btn.clicked.connect(self.on_edit_clicked)
-        title_layout.addWidget(self.edit_btn)
+        self.title_layout.addWidget(self.edit_btn)
         
-        layout.addLayout(title_layout)
+        # Dump button - will be populated by parent
+        self.dump_btn = None
+        
+        layout.addLayout(self.title_layout)
         
         layout.addSpacing(10)
         
@@ -692,6 +709,12 @@ class RatioPanel(QFrame):
         # Accuracy indicator
         self.accuracy_indicator = AccuracyIndicator()
         layout.addWidget(self.accuracy_indicator)
+    
+    def set_dump_button(self, button):
+        """Set the dump button for this panel"""
+        self.dump_btn = button
+        self.dump_btn.setParent(self)
+        self.title_layout.addWidget(self.dump_btn)
     
     def update_ratio(self, ratio: Optional[float]):
         """Update the current ratio and store previous for revert"""
@@ -861,11 +884,22 @@ class RedesignedMainWindow(QMainWindow):
         # Daemon
         self.daemon = None
         
+        # AI Target Analyzer
+        self.analyzer = AITargetAnalyzer()
+        
         self.setup_ui()
         
         # Connect revert signals
         self.qual_panel.revert_requested.connect(lambda: self.on_revert_ratio("qual"))
         self.race_panel.revert_requested.connect(lambda: self.on_revert_ratio("race"))
+        
+        # Create dump buttons
+        qual_dump_btn = DataDumpButton(self, self.analyzer).create_button("qual")
+        race_dump_btn = DataDumpButton(self, self.analyzer).create_button("race")
+        
+        # Add dump buttons to panels
+        self.qual_panel.set_dump_button(qual_dump_btn)
+        self.race_panel.set_dump_button(race_dump_btn)
         
         # Check and set base path before loading data
         if not self.ensure_base_path():
@@ -966,20 +1000,54 @@ class RedesignedMainWindow(QMainWindow):
         mode = self.ai_target_settings.get("mode", "percentage")
         error_margin = self.ai_target_settings.get("error_margin", 0.0)
         
+        # Log to analyzer if available
+        if hasattr(self, 'analyzer') and self.analyzer.current_analysis:
+            self.analyzer.add_calculation_step(
+                f"Calculating target lap time with mode={mode}, error_margin={error_margin:.2f}s",
+                {"best_ai": best_ai, "worst_ai": worst_ai, "mode": mode, "error_margin": error_margin}
+            )
+        
         if mode == "percentage":
             pct = self.ai_target_settings.get("percentage", 50) / 100.0
             target = best_ai + (worst_ai - best_ai) * pct
+            if hasattr(self, 'analyzer') and self.analyzer.current_analysis:
+                self.analyzer.add_calculation_step(
+                    f"Percentage mode: {pct*100:.0f}% -> target = {best_ai:.3f} + ({worst_ai:.3f} - {best_ai:.3f}) * {pct:.2f} = {target:.3f}s",
+                    {"percentage": pct*100, "target": target}
+                )
         elif mode == "faster_than_best":
             offset = self.ai_target_settings.get("offset_seconds", 0.0)
             target = best_ai + offset
+            if hasattr(self, 'analyzer') and self.analyzer.current_analysis:
+                self.analyzer.add_calculation_step(
+                    f"Faster than best mode: offset={offset:+.2f}s -> target = {best_ai:.3f} + {offset:+.2f} = {target:.3f}s",
+                    {"offset": offset, "target": target}
+                )
         else:
             offset = self.ai_target_settings.get("offset_seconds", 0.0)
             target = worst_ai - offset
+            if hasattr(self, 'analyzer') and self.analyzer.current_analysis:
+                self.analyzer.add_calculation_step(
+                    f"Slower than worst mode: offset={offset:+.2f}s -> target = {worst_ai:.3f} - {offset:+.2f} = {target:.3f}s",
+                    {"offset": offset, "target": target}
+                )
         
-        # Apply error margin
-        target = target + error_margin
-        # Clamp to valid range
+        if error_margin > 0:
+            old_target = target
+            target = target + error_margin
+            if hasattr(self, 'analyzer') and self.analyzer.current_analysis:
+                self.analyzer.add_calculation_step(
+                    f"Applied error margin: +{error_margin:.2f}s -> {old_target:.3f}s → {target:.3f}s",
+                    {"error_margin": error_margin, "old_target": old_target, "new_target": target}
+                )
+        
         target = max(best_ai, min(worst_ai + error_margin, target))
+        
+        if hasattr(self, 'analyzer') and self.analyzer.current_analysis:
+            self.analyzer.add_calculation_step(
+                f"Final target clamped to AI range: {target:.3f}s",
+                {"final_target": target}
+            )
         
         return target
     
@@ -990,18 +1058,47 @@ class RedesignedMainWindow(QMainWindow):
         """
         logger.info(f"[AI TARGET] calculate_ratio_from_target called for {session_type}")
         
+        # Start analysis if not already started
+        if hasattr(self, 'analyzer') and not self.analyzer.current_analysis:
+            self.analyzer.start_analysis(session_type, self.current_track, self.current_vehicle_class)
+        
         # Get AI range
         if session_type == "qual":
             best_ai = self.qual_best_ai
             worst_ai = self.qual_worst_ai
             b = self.qual_b
+            current_ratio = self.last_qual_ratio
+            user_time = self.user_qualifying_sec
         else:
             best_ai = self.race_best_ai
             worst_ai = self.race_worst_ai
             b = self.race_b
+            current_ratio = self.last_race_ratio
+            user_time = self.user_best_lap_sec
+        
+        if hasattr(self, 'analyzer') and self.analyzer.current_analysis:
+            self.analyzer.add_input_data(
+                best_ai=best_ai,
+                worst_ai=worst_ai,
+                user_lap_time=user_time if user_time > 0 else None,
+                current_ratio=current_ratio,
+                formula_a=32.0,
+                formula_b=b
+            )
+            self.analyzer.add_target_settings(
+                mode=self.ai_target_settings.get("mode", "percentage"),
+                settings=self.ai_target_settings
+            )
         
         if best_ai is None or worst_ai is None or best_ai <= 0 or worst_ai <= 0:
             logger.warning(f"[AI TARGET] No AI range data for {session_type}")
+            if hasattr(self, 'analyzer') and self.analyzer.current_analysis:
+                self.analyzer.add_error(
+                    f"No AI range data for {session_type}: best={best_ai}, worst={worst_ai}",
+                    {}
+                )
+                self.analyzer.set_result(None, None, None, False, "No AI range data")
+                self.analyzer.finalize_and_dump()
             return None
         
         # Calculate target lap time from settings
@@ -1014,14 +1111,34 @@ class RedesignedMainWindow(QMainWindow):
         
         if denominator <= 0:
             logger.warning(f"[AI TARGET] Denominator <= 0: {target_time:.3f} - {b:.2f} = {denominator:.3f}")
+            if hasattr(self, 'analyzer') and self.analyzer.current_analysis:
+                self.analyzer.add_error(
+                    f"Denominator <= 0: T-b = {target_time:.3f} - {b:.2f} = {denominator:.3f}",
+                    {}
+                )
+                self.analyzer.set_result(target_time, None, None, False, "Cannot calculate ratio: T-b must be positive")
+                self.analyzer.finalize_and_dump()
             return None
         
         ratio = a / denominator
         logger.info(f"[AI TARGET] Calculated ratio from target: {ratio:.6f}")
         
+        if hasattr(self, 'analyzer') and self.analyzer.current_analysis:
+            self.analyzer.add_calculation_step(
+                f"Calculated ratio: R = a/(T-b) = {a:.2f}/({target_time:.3f} - {b:.2f}) = {ratio:.6f}",
+                {"a": a, "b": b, "target_time": target_time, "calculated_ratio": ratio}
+            )
+        
         # Check ratio limits
         if ratio < self.min_ratio or ratio > self.max_ratio:
             logger.warning(f"[AI TARGET] Ratio {ratio:.6f} outside limits ({self.min_ratio}-{self.max_ratio})")
+            
+            if hasattr(self, 'analyzer') and self.analyzer.current_analysis:
+                self.analyzer.add_range_check(
+                    f"Ratio {ratio:.6f} is OUTSIDE allowed range ({self.min_ratio} - {self.max_ratio})",
+                    {"min_ratio": self.min_ratio, "max_ratio": self.max_ratio, "calculated_ratio": ratio}
+                )
+            
             # Ask user if they want to proceed
             reply = QMessageBox.question(self, "Ratio Out of Range",
                 f"The calculated {session_type.upper()} Ratio = {ratio:.6f} is outside the allowed range "
@@ -1029,11 +1146,31 @@ class RedesignedMainWindow(QMainWindow):
                 f"Values outside this range can make AI behavior unpredictable.\n\n"
                 f"Do you still want to apply this ratio?",
                 QMessageBox.Yes | QMessageBox.No)
+            
+            if hasattr(self, 'analyzer') and self.analyzer.current_analysis:
+                self.analyzer.add_decision(
+                    f"User chose to {'apply' if reply == QMessageBox.Yes else 'reject'} ratio outside limits",
+                    {"user_choice": "apply" if reply == QMessageBox.Yes else "reject"}
+                )
+            
             if reply != QMessageBox.Yes:
+                if hasattr(self, 'analyzer') and self.analyzer.current_analysis:
+                    self.analyzer.set_result(target_time, ratio, None, False, "User rejected ratio outside limits")
+                    self.analyzer.finalize_and_dump()
                 return None
+        else:
+            if hasattr(self, 'analyzer') and self.analyzer.current_analysis:
+                self.analyzer.add_range_check(
+                    f"Ratio {ratio:.6f} is within allowed range ({self.min_ratio} - {self.max_ratio})",
+                    {"in_range": True, "min_ratio": self.min_ratio, "max_ratio": self.max_ratio}
+                )
+        
+        if hasattr(self, 'analyzer') and self.analyzer.current_analysis:
+            self.analyzer.set_result(target_time, ratio, ratio, True, "Ratio calculated successfully")
+            self.analyzer.finalize_and_dump()
         
         return ratio
-    
+
     def ensure_base_path(self) -> bool:
         """Ensure that a valid base path is configured. Returns True if path is set."""
         config = get_config_with_defaults(self.config_file)
@@ -1095,11 +1232,11 @@ class RedesignedMainWindow(QMainWindow):
         panels_layout = QHBoxLayout()
         panels_layout.setSpacing(30)
         
-        self.qual_panel = RatioPanel("Quali-Ratio")
+        self.qual_panel = RatioPanel("Quali-Ratio", self)
         self.qual_panel.edit_complete.connect(lambda ratio: self.on_manual_edit("qual", ratio))
         panels_layout.addWidget(self.qual_panel)
         
-        self.race_panel = RatioPanel("Race-Ratio")
+        self.race_panel = RatioPanel("Race-Ratio", self)
         self.race_panel.edit_complete.connect(lambda ratio: self.on_manual_edit("race", ratio))
         panels_layout.addWidget(self.race_panel)
         

@@ -1,0 +1,133 @@
+{
+  "analysis_id": "20260428_145737_244829",
+  "timestamp": "2026-04-28T14:57:37.244836",
+  "session_type": "qual",
+  "track_name": "Testtrack2",
+  "vehicle_class": "Formula_4",
+  "ai_range": {
+    "best": 99.78399999999999,
+    "worst": 103.536,
+    "range": 3.7520000000000095
+  },
+  "user_lap_time": 110.56700000000001,
+  "current_ratio": 1.1,
+  "formula": {
+    "a": 32.0,
+    "b": 72.24470995670995
+  },
+  "target_mode": "percentage",
+  "target_settings": {
+    "mode": "percentage",
+    "percentage": 10,
+    "offset_seconds": 0.0,
+    "error_margin": 0.0
+  },
+  "target_lap_time": 100.1592,
+  "calculated_ratio": 1.1463580366459896,
+  "final_ratio": 1.1463580366459896,
+  "steps": [
+    {
+      "type": "INPUT_DATA",
+      "timestamp": "2026-04-28T14:57:37.244865",
+      "description": "AI lap time range: 99.784s (fastest) to 103.536s (slowest), range width = 3.752s",
+      "data": {
+        "best_ai": 99.78399999999999,
+        "worst_ai": 103.536,
+        "range_width": 3.7520000000000095
+      }
+    },
+    {
+      "type": "INPUT_DATA",
+      "timestamp": "2026-04-28T14:57:37.244869",
+      "description": "User lap time: 110.567s",
+      "data": {
+        "user_lap_time": 110.56700000000001
+      }
+    },
+    {
+      "type": "INPUT_DATA",
+      "timestamp": "2026-04-28T14:57:37.244872",
+      "description": "Current ratio in AIW: 1.100000",
+      "data": {
+        "current_ratio": 1.1
+      }
+    },
+    {
+      "type": "FORMULA_USED",
+      "timestamp": "2026-04-28T14:57:37.244876",
+      "description": "Using formula: T = 32.00 / R + 72.24",
+      "data": {
+        "a": 32.0,
+        "b": 72.24470995670995
+      }
+    },
+    {
+      "type": "TARGET_SETTINGS",
+      "timestamp": "2026-04-28T14:57:37.244881",
+      "description": "Target mode: Percentage within AI range (10% from fastest to slowest AI)",
+      "data": {
+        "percentage": 10
+      }
+    },
+    {
+      "type": "CALCULATION",
+      "timestamp": "2026-04-28T14:57:37.244887",
+      "description": "Calculating target lap time with mode=percentage, error_margin=0.00s",
+      "data": {
+        "best_ai": 99.78399999999999,
+        "worst_ai": 103.536,
+        "mode": "percentage",
+        "error_margin": 0.0
+      }
+    },
+    {
+      "type": "CALCULATION",
+      "timestamp": "2026-04-28T14:57:37.244893",
+      "description": "Percentage mode: 10% -> target = 99.784 + (103.536 - 99.784) * 0.10 = 100.159s",
+      "data": {
+        "percentage": 10.0,
+        "target": 100.1592
+      }
+    },
+    {
+      "type": "CALCULATION",
+      "timestamp": "2026-04-28T14:57:37.244898",
+      "description": "Final target clamped to AI range: 100.159s",
+      "data": {
+        "final_target": 100.1592
+      }
+    },
+    {
+      "type": "CALCULATION",
+      "timestamp": "2026-04-28T14:57:37.246080",
+      "description": "Calculated ratio: R = a/(T-b) = 32.00/(100.159 - 72.24) = 1.146358",
+      "data": {
+        "a": 32.0,
+        "b": 72.24470995670995,
+        "target_time": 100.1592,
+        "calculated_ratio": 1.1463580366459896
+      }
+    },
+    {
+      "type": "RANGE_CHECK",
+      "timestamp": "2026-04-28T14:57:37.246090",
+      "description": "Ratio 1.146358 is within allowed range (0.5 - 1.5)",
+      "data": {
+        "in_range": true,
+        "min_ratio": 0.5,
+        "max_ratio": 1.5
+      }
+    },
+    {
+      "type": "RESULT",
+      "timestamp": "2026-04-28T14:57:37.246094",
+      "description": "Calculation successful: New ratio = 1.146358 (target lap time: 100.159s)",
+      "data": {
+        "new_ratio": 1.1463580366459896,
+        "target_lap_time": 100.1592
+      }
+    }
+  ],
+  "success": true,
+  "message": "Ratio calculated successfully"
+}

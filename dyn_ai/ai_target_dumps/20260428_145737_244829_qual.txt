@@ -1,0 +1,75 @@
+================================================================================
+AI TARGET ANALYSIS - 20260428_145737_244829
+Timestamp: 2026-04-28T14:57:37.244836
+Session Type: QUAL
+Track: Testtrack2
+Vehicle Class: Formula_4
+================================================================================
+
+📊 INPUT DATA
+----------------------------------------
+  AI Best Lap: 99.784s
+  AI Worst Lap: 103.536s
+  AI Range Width: 3.752s
+  User Lap Time: 110.567s
+  Current Ratio: 1.100000
+
+📐 FORMULA
+----------------------------------------
+  Formula: T = 32.00 / R + 72.24
+  'a' (slope/steepness): 32.00 (fixed at 32)
+  'b' (baseline time): 72.24s
+
+🎯 TARGET SETTINGS
+----------------------------------------
+  Mode: Percentage within AI range
+  Target Position: 10% from fastest to slowest AI
+  Goal: Be 10% from fastest to slowest AI
+
+🔢 CALCULATION STEPS
+----------------------------------------
+  1. 📊 AI lap time range: 99.784s (fastest) to 103.536s (slowest), range width = 3.752s
+       best_ai: 99.784
+       worst_ai: 103.536
+       range_width: 3.752
+  2. 📊 User lap time: 110.567s
+       user_lap_time: 110.567000
+  3. 📊 Current ratio in AIW: 1.100000
+       current_ratio: 1.100000
+  4. 📐 Using formula: T = 32.00 / R + 72.24
+       a: 32.000
+       b: 72.245
+  5. 🎯 Target mode: Percentage within AI range (10% from fastest to slowest AI)
+       percentage: 10
+  6. 🔢 Calculating target lap time with mode=percentage, error_margin=0.00s
+       best_ai: 99.784
+       worst_ai: 103.536
+       mode: percentage
+       error_margin: 0.000
+  7. 🔢 Percentage mode: 10% -> target = 99.784 + (103.536 - 99.784) * 0.10 = 100.159s
+       percentage: 10.000
+       target: 100.159
+  8. 🔢 Final target clamped to AI range: 100.159s
+       final_target: 100.159
+  9. 🔢 Calculated ratio: R = a/(T-b) = 32.00/(100.159 - 72.24) = 1.146358
+       a: 32.000
+       b: 72.245
+       target_time: 100.159200
+       calculated_ratio: 1.146358
+  10. ⚠️ Ratio 1.146358 is within allowed range (0.5 - 1.5)
+       in_range: True
+       min_ratio: 0.500000
+       max_ratio: 1.500000
+  11. ✅ Calculation successful: New ratio = 1.146358 (target lap time: 100.159s)
+       new_ratio: 1.146358
+       target_lap_time: 100.159200
+
+📈 RESULTS
+----------------------------------------
+  Target Lap Time: 100.159s
+  Calculated Ratio: 1.146358
+  Final Ratio: 1.146358
+  Success: ✓
+  Message: Ratio calculated successfully
+
+================================================================================
