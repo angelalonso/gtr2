@@ -33,7 +33,6 @@ from cfg_funcs import (
 )
 from data_extraction import DataExtractor, RaceData, format_time
 from autopilot import AutopilotManager, Formula, get_vehicle_class, load_vehicle_classes, DEFAULT_A_VALUE
-from ai_target_analyzer import DataDumpButton, AITargetAnalyzer
 
 
 logger = logging.getLogger(__name__)
@@ -611,28 +610,16 @@ class RatioPanel(QFrame):
                 background-color: #555;
                 color: #888;
             }
-            QPushButton#dump_btn {
-                background-color: #9C27B0;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 6px 12px;
-                font-size: 11px;
-                font-weight: bold;
-            }
-            QPushButton#dump_btn:hover {
-                background-color: #7B1FA2;
-            }
         """)
         
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.setMinimumHeight(420)
+        self.setMinimumHeight(380)
         
         layout = QVBoxLayout(self)
         layout.setSpacing(15)
         layout.setContentsMargins(25, 25, 25, 25)
         
-        # Title row with edit, revert, and dump buttons
+        # Title row with edit and revert buttons
         self.title_layout = QHBoxLayout()
         
         self.title_label = QLabel(self.title)
@@ -654,9 +641,6 @@ class RatioPanel(QFrame):
         self.edit_btn.setFixedSize(70, 28)
         self.edit_btn.clicked.connect(self.on_edit_clicked)
         self.title_layout.addWidget(self.edit_btn)
-        
-        # Dump button - will be populated by parent
-        self.dump_btn = None
         
         layout.addLayout(self.title_layout)
         
@@ -709,12 +693,6 @@ class RatioPanel(QFrame):
         # Accuracy indicator
         self.accuracy_indicator = AccuracyIndicator()
         layout.addWidget(self.accuracy_indicator)
-    
-    def set_dump_button(self, button):
-        """Set the dump button for this panel"""
-        self.dump_btn = button
-        self.dump_btn.setParent(self)
-        self.title_layout.addWidget(self.dump_btn)
     
     def update_ratio(self, ratio: Optional[float]):
         """Update the current ratio and store previous for revert"""
@@ -884,22 +862,15 @@ class RedesignedMainWindow(QMainWindow):
         # Daemon
         self.daemon = None
         
-        # AI Target Analyzer
-        self.analyzer = AITargetAnalyzer()
+        # Flag to track if AIW is accessible
+        self.aiw_accessible = True
+        self.last_aiw_error = None
         
         self.setup_ui()
         
         # Connect revert signals
         self.qual_panel.revert_requested.connect(lambda: self.on_revert_ratio("qual"))
         self.race_panel.revert_requested.connect(lambda: self.on_revert_ratio("race"))
-        
-        # Create dump buttons
-        qual_dump_btn = DataDumpButton(self, self.analyzer).create_button("qual")
-        race_dump_btn = DataDumpButton(self, self.analyzer).create_button("race")
-        
-        # Add dump buttons to panels
-        self.qual_panel.set_dump_button(qual_dump_btn)
-        self.race_panel.set_dump_button(race_dump_btn)
         
         # Check and set base path before loading data
         if not self.ensure_base_path():
@@ -1000,54 +971,20 @@ class RedesignedMainWindow(QMainWindow):
         mode = self.ai_target_settings.get("mode", "percentage")
         error_margin = self.ai_target_settings.get("error_margin", 0.0)
         
-        # Log to analyzer if available
-        if hasattr(self, 'analyzer') and self.analyzer.current_analysis:
-            self.analyzer.add_calculation_step(
-                f"Calculating target lap time with mode={mode}, error_margin={error_margin:.2f}s",
-                {"best_ai": best_ai, "worst_ai": worst_ai, "mode": mode, "error_margin": error_margin}
-            )
-        
         if mode == "percentage":
             pct = self.ai_target_settings.get("percentage", 50) / 100.0
             target = best_ai + (worst_ai - best_ai) * pct
-            if hasattr(self, 'analyzer') and self.analyzer.current_analysis:
-                self.analyzer.add_calculation_step(
-                    f"Percentage mode: {pct*100:.0f}% -> target = {best_ai:.3f} + ({worst_ai:.3f} - {best_ai:.3f}) * {pct:.2f} = {target:.3f}s",
-                    {"percentage": pct*100, "target": target}
-                )
         elif mode == "faster_than_best":
             offset = self.ai_target_settings.get("offset_seconds", 0.0)
             target = best_ai + offset
-            if hasattr(self, 'analyzer') and self.analyzer.current_analysis:
-                self.analyzer.add_calculation_step(
-                    f"Faster than best mode: offset={offset:+.2f}s -> target = {best_ai:.3f} + {offset:+.2f} = {target:.3f}s",
-                    {"offset": offset, "target": target}
-                )
         else:
             offset = self.ai_target_settings.get("offset_seconds", 0.0)
             target = worst_ai - offset
-            if hasattr(self, 'analyzer') and self.analyzer.current_analysis:
-                self.analyzer.add_calculation_step(
-                    f"Slower than worst mode: offset={offset:+.2f}s -> target = {worst_ai:.3f} - {offset:+.2f} = {target:.3f}s",
-                    {"offset": offset, "target": target}
-                )
         
         if error_margin > 0:
-            old_target = target
             target = target + error_margin
-            if hasattr(self, 'analyzer') and self.analyzer.current_analysis:
-                self.analyzer.add_calculation_step(
-                    f"Applied error margin: +{error_margin:.2f}s -> {old_target:.3f}s → {target:.3f}s",
-                    {"error_margin": error_margin, "old_target": old_target, "new_target": target}
-                )
         
         target = max(best_ai, min(worst_ai + error_margin, target))
-        
-        if hasattr(self, 'analyzer') and self.analyzer.current_analysis:
-            self.analyzer.add_calculation_step(
-                f"Final target clamped to AI range: {target:.3f}s",
-                {"final_target": target}
-            )
         
         return target
     
@@ -1183,12 +1120,14 @@ class RedesignedMainWindow(QMainWindow):
                 if dialog.exec_() == QDialog.Accepted and dialog.selected_path:
                     update_base_path(dialog.selected_path, self.config_file)
                     logger.info(f"Base path set to: {dialog.selected_path}")
+                    self.aiw_accessible = True
                     return True
                 else:
                     return False
         
         path = Path(base_path)
         if (path / "GameData").exists() and (path / "UserData").exists():
+            self.aiw_accessible = True
             return True
         else:
             reply = QMessageBox.question(self, "Invalid Path",
@@ -1200,6 +1139,7 @@ class RedesignedMainWindow(QMainWindow):
                 if dialog.exec_() == QDialog.Accepted and dialog.selected_path:
                     update_base_path(dialog.selected_path, self.config_file)
                     logger.info(f"Base path updated to: {dialog.selected_path}")
+                    self.aiw_accessible = True
                     return True
             return False
     
@@ -1209,6 +1149,12 @@ class RedesignedMainWindow(QMainWindow):
         main_layout = QVBoxLayout(central)
         main_layout.setSpacing(25)
         main_layout.setContentsMargins(30, 30, 30, 30)
+        
+        # Top section (stretches to take available space)
+        top_section = QWidget()
+        top_layout = QVBoxLayout(top_section)
+        top_layout.setContentsMargins(0, 0, 0, 0)
+        top_layout.setSpacing(20)
         
         # Header section
         header_layout = QHBoxLayout()
@@ -1220,13 +1166,12 @@ class RedesignedMainWindow(QMainWindow):
         header_layout.addWidget(self.track_label)
         header_layout.addStretch()
         header_layout.addSpacing(80)
-        main_layout.addLayout(header_layout)
+        top_layout.addLayout(header_layout)
         
         # Car class
         self.car_class_label = QLabel("Car Class: -")
         self.car_class_label.setStyleSheet("font-size: 14px; color: #4CAF50; margin-bottom: 10px;")
-        main_layout.addWidget(self.car_class_label)
-        main_layout.addSpacing(20)
+        top_layout.addWidget(self.car_class_label)
         
         # Two-column layout for Quali and Race panels
         panels_layout = QHBoxLayout()
@@ -1240,8 +1185,15 @@ class RedesignedMainWindow(QMainWindow):
         self.race_panel.edit_complete.connect(lambda ratio: self.on_manual_edit("race", ratio))
         panels_layout.addWidget(self.race_panel)
         
-        main_layout.addLayout(panels_layout)
-        main_layout.addSpacing(30)
+        top_layout.addLayout(panels_layout)
+        
+        main_layout.addWidget(top_section, stretch=1)
+        
+        # Bottom section (fixed height for buttons)
+        bottom_section = QWidget()
+        bottom_layout = QVBoxLayout(bottom_section)
+        bottom_layout.setContentsMargins(0, 0, 0, 0)
+        bottom_layout.setSpacing(20)
         
         # Control buttons row
         buttons_layout = QHBoxLayout()
@@ -1299,7 +1251,9 @@ class RedesignedMainWindow(QMainWindow):
         self.exit_btn.clicked.connect(self.close)
         buttons_layout.addWidget(self.exit_btn)
         
-        main_layout.addLayout(buttons_layout)
+        bottom_layout.addLayout(buttons_layout)
+        
+        main_layout.addWidget(bottom_section, stretch=0)
         
         self.statusBar().showMessage("Ready")
         self.statusBar().setStyleSheet("QStatusBar { color: #888; }")
@@ -1426,13 +1380,107 @@ class RedesignedMainWindow(QMainWindow):
                         break
         return None
     
+    def show_aiw_error_and_configure(self, operation: str, error_detail: str = None):
+        """Show AIW error with option to reconfigure base path"""
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("AIW File Not Found")
+        msg_box.setIcon(QMessageBox.Critical)
+        
+        error_text = (
+            f"Cannot {operation} because the AIW file could not be found.\n\n"
+            f"This usually means the GTR2 base path is not configured correctly.\n\n"
+        )
+        
+        if error_detail:
+            error_text += f"Details: {error_detail}\n\n"
+        
+        error_text += (
+            f"Please configure the correct GTR2 installation folder "
+            f"(the one containing GameData and UserData directories)."
+        )
+        
+        msg_box.setText(error_text)
+        msg_box.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+        msg_box.button(QMessageBox.Ok).setText("Configure GTR2 Path")
+        
+        result = msg_box.exec_()
+        
+        if result == QMessageBox.Ok:
+            # Open base path selection dialog
+            dialog = BasePathSelectionDialog(self)
+            if dialog.exec_() == QDialog.Accepted and dialog.selected_path:
+                update_base_path(dialog.selected_path, self.config_file)
+                self.aiw_accessible = True
+                # Restart daemon with new path
+                self.stop_daemon()
+                self.start_daemon()
+                QMessageBox.information(self, "Path Updated", 
+                    f"GTR2 path updated to:\n{dialog.selected_path}\n\n"
+                    f"Please try the operation again.")
+            return True
+        return False
+    
+    def check_aiw_accessible(self, session_type: str) -> bool:
+        """Check if AIW file is accessible and show error if not"""
+        aiw_path = self._get_aiw_path()
+        if not aiw_path or not aiw_path.exists():
+            self.aiw_accessible = False
+            self.show_aiw_error_and_accessible(f"update {session_type.upper()} ratio", 
+                f"AIW file for track '{self.current_track}' not found in GameData/Locations/")
+            return False
+        self.aiw_accessible = True
+        return True
+    
+    def show_aiw_error_and_accessible(self, operation: str, error_detail: str = None):
+        """Show AIW error and mark as inaccessible"""
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("AIW File Not Found")
+        msg_box.setIcon(QMessageBox.Critical)
+        
+        error_text = (
+            f"Cannot {operation} because the AIW file could not be found.\n\n"
+            f"This usually means the GTR2 base path is not configured correctly.\n\n"
+        )
+        
+        if error_detail:
+            error_text += f"Details: {error_detail}\n\n"
+        
+        error_text += (
+            f"Please configure the correct GTR2 installation folder "
+            f"(the one containing GameData and UserData directories)."
+        )
+        
+        msg_box.setText(error_text)
+        msg_box.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+        msg_box.button(QMessageBox.Ok).setText("Configure GTR2 Path")
+        
+        result = msg_box.exec_()
+        
+        if result == QMessageBox.Ok:
+            dialog = BasePathSelectionDialog(self)
+            if dialog.exec_() == QDialog.Accepted and dialog.selected_path:
+                update_base_path(dialog.selected_path, self.config_file)
+                self.aiw_accessible = True
+                self.stop_daemon()
+                self.start_daemon()
+                QMessageBox.information(self, "Path Updated", 
+                    f"GTR2 path updated to:\n{dialog.selected_path}\n\n"
+                    f"Please try the operation again.")
+            return True
+        return False
+    
     def on_revert_ratio(self, session_type: str):
+        if not self.check_aiw_accessible(session_type):
+            return
+        
         if session_type == "qual":
             old_ratio = self.qual_panel.previous_ratio
             if old_ratio is None:
                 return
             aiw_path = self._get_aiw_path()
             if not aiw_path:
+                if self.show_aiw_error_and_accessible("revert QualRatio"):
+                    return
                 show_warning_dialog(self, "AIW Not Found", "Could not find AIW file to revert.")
                 return
             if self.autopilot_manager.engine._update_aiw_ratio(aiw_path, "QualRatio", old_ratio):
@@ -1449,6 +1497,8 @@ class RedesignedMainWindow(QMainWindow):
                 return
             aiw_path = self._get_aiw_path()
             if not aiw_path:
+                if self.show_aiw_error_and_accessible("revert RaceRatio"):
+                    return
                 show_warning_dialog(self, "AIW Not Found", "Could not find AIW file to revert.")
                 return
             if self.autopilot_manager.engine._update_aiw_ratio(aiw_path, "RaceRatio", old_ratio):
@@ -1491,8 +1541,13 @@ class RedesignedMainWindow(QMainWindow):
     
     def on_ratio_saved_from_advanced(self, session_type: str, ratio: float):
         """Handle ratio saved from advanced dialog - apply AI Target if needed"""
+        if not self.check_aiw_accessible(session_type):
+            return
+        
         aiw_path = self._get_aiw_path()
         if not aiw_path:
+            if self.show_aiw_error_and_accessible("save ratio"):
+                return
             show_warning_dialog(self, "AIW Not Found", "Could not find AIW file to save ratio.")
             return
         
@@ -1544,8 +1599,13 @@ class RedesignedMainWindow(QMainWindow):
         if not self._validate_ratio(new_ratio, ratio_name):
             return
         
+        if not self.check_aiw_accessible(session_type):
+            return
+        
         aiw_path = self._get_aiw_path()
         if not aiw_path or not aiw_path.exists():
+            if self.show_aiw_error_and_accessible(f"update {ratio_name}"):
+                return
             aiw_path_str, _ = QFileDialog.getOpenFileName(
                 self, f"Select AIW file for {self.current_track}",
                 str(Path.cwd()), "AIW Files (*.AIW *.aiw)")
@@ -1578,6 +1638,8 @@ class RedesignedMainWindow(QMainWindow):
                 self.race_panel.update_ratio(final_ratio)
             logger.info(f"Manually updated {ratio_name} to {final_ratio:.6f}")
             self.statusBar().showMessage(f"{ratio_name} updated to {final_ratio:.6f}", 3000)
+        else:
+            show_error_dialog(self, "Update Failed", f"Failed to update {ratio_name} in AIW file.")
     
     def _update_formulas_from_autopilot(self):
         if not self.current_track or not self.current_vehicle_class:
@@ -1747,7 +1809,8 @@ class RedesignedMainWindow(QMainWindow):
             return
         
         if hasattr(race_data, 'aiw_error') and race_data.aiw_error:
-            show_error_dialog(self, "AIW File Not Found", race_data.aiw_error)
+            self.show_aiw_error_and_accessible("process race data", race_data.aiw_error)
+            return
         
         if race_data.track_name:
             self.current_track = race_data.track_name

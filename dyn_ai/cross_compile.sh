@@ -8,11 +8,7 @@ CWD=$(pwd)
 echo "=== Starting build process ==="
 
 # Clean up previous builds
-rm -rf ${COMPILEDIR}/build ${COMPILEDIR}/dist
-rm -f ${COMPILEDIR}/*.py ${COMPILEDIR}/*.spec 
-rm -f ${COMPILEDIR}/Pipfile ${COMPILEDIR}/Pipfile.lock
-
-# Create compile directory
+rm -rf ${COMPILEDIR}
 mkdir -p ${COMPILEDIR}
 
 # Copy ALL files from current directory

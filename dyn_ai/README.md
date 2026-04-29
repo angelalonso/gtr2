@@ -1,4 +1,4 @@
-# dyn_ai — Live AI Tuner for GTR2 - v1.0.4
+# dyn_ai — Live AI Tuner for GTR2 - v1.0.5
 
 ## What it does
 
@@ -22,10 +22,9 @@ Usable, but needs some babysitting.
 
 **Windows (easy):** Run the `.exe` from the zip  
 **From source:**
-```bash
+
 pipenv install
 pipenv run python3 dyn_ai.py
-```
 
 ---
 
@@ -39,6 +38,8 @@ When enabled: detects race results → analyzes historical data → fits curve `
 
 ### AI Target Positioning
 
+⚠️ **WARNING: UNDER CONSTRUCTION** - Use with caution ⚠️
+
 Controls where your lap time falls within AI range:
 
 | Mode | Effect |
@@ -48,6 +49,8 @@ Controls where your lap time falls within AI range:
 | Seconds from slowest | Fixed offset from worst AI time |
 
 **Applied to ALL ratio calculations** (Auto-ratio, Manual edits, Advanced dialog)
+
+**Dump Analysis:** Click "📊 Dump Qual Analysis" or "📊 Dump Race Analysis" in the AI Target tab to save detailed calculation logs to `ai_target_dumps/`
 
 ### Manual Controls
 - Edit ratios directly (✎ button)
@@ -64,6 +67,13 @@ Controls where your lap time falls within AI range:
 - Edit a/b parameters
 - Auto-fit curve to data
 - Delete individual data points
+
+### AI Target Analysis (Advanced → AI Target)
+- **Warning banner** indicates feature is under construction
+- Position your lap time within AI range (percentage or fixed offset)
+- Apply error margin to make AI slightly slower
+- **Dump Analysis buttons** save detailed calculation logs for debugging
+- All settings applied to both Qualifying and Race sessions
 
 ### AIW Backup Restore
 Automatic backups (`*_ORIGINAL.AIW`). Restore individual or all tracks.
@@ -96,6 +106,7 @@ Higher R = faster AI | Lower R = slower AI
 | ai_data.db | SQLite database (data points, formulas) |
 | vehicle_classes.json | Maps vehicle names to classes |
 | aiw_backups/ | Original AIW backups |
+| ai_target_dumps/ | Detailed calculation logs from Dump Analysis buttons |
 
 ---
 
@@ -105,6 +116,7 @@ Higher R = faster AI | Lower R = slower AI
 - Formulas stored per track AND car class
 - Error margin (0.5-1.0s) makes AI slightly slower
 - Auto-calculate Ratios must be ON for automatic updates
+- Use Dump Analysis buttons to debug AI Target calculations
 
 ---
 
@@ -116,8 +128,17 @@ Higher R = faster AI | Lower R = slower AI
 | AI ratios not updating | Enable Auto-calculate Ratios (green) |
 | Can't find AIW file | Verify GTR2 path and track folder exists |
 | Ratio outside limits | Adjust `min_ratio`/`max_ratio` in cfg.yml |
+| AI Target calculations not working | Feature is under construction - use Dump Analysis to see what's happening |
 
 ---
+
+## Changelog v1.0.5
+
+- **AI Target warning banner** - Red warning added to indicate feature is under construction
+- **Improved AIW error handling** - Better error messages with "Configure GTR2 Path" button, prevents frontend changes when AIW not found
+- **Dump Analysis moved to AI Target tab** - Removed from main screen, now available in Advanced → AI Target
+- **Resizable main window fix** - Race and Quali panels now resize properly with window, buttons stay at bottom
+- **Fixed dump_analysis crash** - Resolved "'RedesignedMainWindow' object is not callable" error
 
 ## Changelog v1.0.4
 

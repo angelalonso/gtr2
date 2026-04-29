@@ -196,7 +196,6 @@ class ManualLapTimeDialog(QDialog):
         
         layout = QVBoxLayout(self)
         
-        # Title
         title = QLabel(f"Edit {self.session_type.upper()} Lap Time")
         title.setStyleSheet("font-size: 16px; font-weight: bold; color: #FFA500;")
         title.setAlignment(Qt.AlignCenter)
@@ -204,7 +203,6 @@ class ManualLapTimeDialog(QDialog):
         
         layout.addSpacing(10)
         
-        # Current value display
         current_label = QLabel(f"Current {self.session_type.upper()} Time:")
         current_label.setStyleSheet("color: #888;")
         layout.addWidget(current_label)
@@ -217,7 +215,6 @@ class ManualLapTimeDialog(QDialog):
         
         layout.addSpacing(15)
         
-        # New time input
         new_label = QLabel(f"New {self.session_type.upper()} Time (seconds):")
         new_label.setStyleSheet("color: #888;")
         layout.addWidget(new_label)
@@ -232,7 +229,6 @@ class ManualLapTimeDialog(QDialog):
         
         layout.addSpacing(20)
         
-        # Buttons
         btn_layout = QHBoxLayout()
         
         cancel_btn = QPushButton("Cancel")
@@ -254,15 +250,15 @@ class ManualLapTimeDialog(QDialog):
 class SessionPanel(QWidget):
     """Panel for a single session (Qualifying or Race) with controls"""
     
-    formula_changed = pyqtSignal(str, float, float)  # session_type, a, b
-    show_data_toggled = pyqtSignal(str, bool)  # session_type, show
-    calculate_ratio = pyqtSignal(str, float)  # session_type, lap_time
-    auto_fit_requested = pyqtSignal(str)  # session_type
-    lap_time_edited = pyqtSignal(str, float)  # session_type, new_lap_time
+    formula_changed = pyqtSignal(str, float, float)
+    show_data_toggled = pyqtSignal(str, bool)
+    calculate_ratio = pyqtSignal(str, float)
+    auto_fit_requested = pyqtSignal(str)
+    lap_time_edited = pyqtSignal(str, float)
     
     def __init__(self, session_type: str, title: str, db, parent=None):
         super().__init__(parent)
-        self.session_type = session_type  # "qual" or "race"
+        self.session_type = session_type
         self.title = title
         self.db = db
         
@@ -305,11 +301,9 @@ class SessionPanel(QWidget):
             }
         """)
         
-        # Main group box
         group = QGroupBox(self.title)
         group_layout = QVBoxLayout(group)
         
-        # Header with show/hide button
         header_layout = QHBoxLayout()
         
         self.show_checkbox = QCheckBox("Show on graph")
@@ -322,7 +316,6 @@ class SessionPanel(QWidget):
         
         group_layout.addLayout(header_layout)
         
-        # Formula display
         formula_layout = QHBoxLayout()
         formula_layout.addWidget(QLabel("Formula:"))
         self.formula_label = QLabel(f"T = {self.a:.2f} / R + {self.b:.2f}")
@@ -331,7 +324,6 @@ class SessionPanel(QWidget):
         formula_layout.addStretch()
         group_layout.addLayout(formula_layout)
         
-        # User time display with edit button
         user_layout = QHBoxLayout()
         user_layout.addWidget(QLabel("Your Time:"))
         self.user_time_label = QLabel("--")
@@ -347,7 +339,6 @@ class SessionPanel(QWidget):
         user_layout.addStretch()
         group_layout.addLayout(user_layout)
         
-        # A and B controls
         params_layout = QHBoxLayout()
         
         params_layout.addWidget(QLabel("a:"))
@@ -369,7 +360,6 @@ class SessionPanel(QWidget):
         params_layout.addStretch()
         group_layout.addLayout(params_layout)
         
-        # Buttons row
         buttons_layout = QHBoxLayout()
         
         self.calc_btn = QPushButton("Calculate Ratio")
@@ -643,6 +633,7 @@ class CurveGraphWidget(QWidget):
                 self.load_data()
                 self.update_graph()
                 self.data_updated.emit()
+    
     def select_classes(self):
         if not self.all_classes:
             QMessageBox.warning(self, "No Classes", "No vehicle classes available in database.")
@@ -977,6 +968,8 @@ def calculate_accuracy_rating(data_points: List[Tuple[float, float]], formula, m
         return "low"
     else:
         return "medium" if 4 <= unique_ratio_count <= 10 else "high"
+
+
 class AdvancedSettingsDialog(QDialog):
     """Advanced settings window with unified tab layout"""
     
@@ -1071,6 +1064,23 @@ class AdvancedSettingsDialog(QDialog):
         # TAB 2: AI TARGET
         target_tab = QWidget()
         target_layout = QVBoxLayout(target_tab)
+        
+        # WARNING BANNER - Feature under construction
+        warning_banner = QLabel("⚠️  WARNING: AI TARGET FEATURE IS UNDER CONSTRUCTION  ⚠️")
+        warning_banner.setStyleSheet("""
+            QLabel {
+                background-color: #f44336;
+                color: white;
+                font-weight: bold;
+                font-size: 14px;
+                padding: 8px;
+                border-radius: 5px;
+                text-align: center;
+            }
+        """)
+        warning_banner.setAlignment(Qt.AlignCenter)
+        target_layout.addWidget(warning_banner)
+        target_layout.addSpacing(10)
         
         target_info = QLabel(
             "AI Target Positioning\n\n"
@@ -1178,6 +1188,23 @@ class AdvancedSettingsDialog(QDialog):
         apply_target_btn.setStyleSheet("background-color: #FF9800;")
         apply_target_btn.clicked.connect(self.apply_target_settings)
         target_layout.addWidget(apply_target_btn)
+        
+        # Dump Analysis buttons
+        dump_analysis_layout = QHBoxLayout()
+        dump_analysis_layout.addStretch()
+        
+        self.dump_qual_btn = QPushButton("📊 Dump Qual Analysis")
+        self.dump_qual_btn.setStyleSheet("background-color: #9C27B0;")
+        self.dump_qual_btn.clicked.connect(lambda: self.dump_analysis("qual"))
+        dump_analysis_layout.addWidget(self.dump_qual_btn)
+        
+        self.dump_race_btn = QPushButton("📊 Dump Race Analysis")
+        self.dump_race_btn.setStyleSheet("background-color: #9C27B0;")
+        self.dump_race_btn.clicked.connect(lambda: self.dump_analysis("race"))
+        dump_analysis_layout.addWidget(self.dump_race_btn)
+        
+        target_layout.addLayout(dump_analysis_layout)
+        
         target_layout.addStretch()
         self.tab_widget.addTab(target_tab, "AI Target")
         
@@ -1252,6 +1279,278 @@ class AdvancedSettingsDialog(QDialog):
             QRadioButton { color: white; }
         """)
         self.update_mode_visibility()
+        
+        # Load backups automatically when tab is shown
+        self.tab_widget.currentChanged.connect(self.on_tab_changed)
+    
+    def on_tab_changed(self, index):
+        """Load backups when Backup Restore tab is selected"""
+        if self.tab_widget.tabText(index) == "Backup Restore":
+            self.refresh_backup_list()
+    
+    def dump_analysis(self, session_type: str):
+        """Dump analysis data for the specified session type"""
+        try:
+            from ai_target_analyzer import AITargetAnalyzer
+            
+            # Get current data from parent - self.parent is the RedesignedMainWindow instance
+            parent = self.parent()
+            if not parent:
+                QMessageBox.warning(self, "Error", "Cannot access parent window data.")
+                return
+            
+            # Create analysis
+            analyzer = AITargetAnalyzer()
+            
+            # Collect data from parent (RedesignedMainWindow)
+            track = getattr(parent, 'current_track', 'Unknown')
+            vehicle_class = getattr(parent, 'current_vehicle_class', 'Unknown')
+            
+            if session_type == "qual":
+                best_ai = getattr(parent, 'qual_best_ai', None)
+                worst_ai = getattr(parent, 'qual_worst_ai', None)
+                user_time = getattr(parent, 'user_qualifying_sec', None)
+                current_ratio = getattr(parent, 'last_qual_ratio', None)
+                formula_b = getattr(parent, 'qual_b', 70.0)
+            else:
+                best_ai = getattr(parent, 'race_best_ai', None)
+                worst_ai = getattr(parent, 'race_worst_ai', None)
+                user_time = getattr(parent, 'user_best_lap_sec', None)
+                current_ratio = getattr(parent, 'last_race_ratio', None)
+                formula_b = getattr(parent, 'race_b', 70.0)
+            
+            target_settings = getattr(parent, 'ai_target_settings', {
+                "mode": "percentage",
+                "percentage": 50,
+                "offset_seconds": 0.0,
+                "error_margin": 0.0
+            })
+            
+            # Start the analysis
+            analyzer.start_analysis(session_type, track, vehicle_class)
+            
+            # Add input data
+            analyzer.add_input_data(
+                best_ai=best_ai,
+                worst_ai=worst_ai,
+                user_lap_time=user_time if user_time and user_time > 0 else None,
+                current_ratio=current_ratio,
+                formula_a=32.0,
+                formula_b=formula_b
+            )
+            
+            # Add target settings
+            analyzer.add_target_settings(
+                mode=target_settings.get("mode", "percentage"),
+                settings=target_settings
+            )
+            
+            # Calculate target time based on settings
+            if best_ai and worst_ai and best_ai > 0 and worst_ai > 0:
+                mode = target_settings.get("mode", "percentage")
+                pct = target_settings.get("percentage", 50) / 100.0
+                offset = target_settings.get("offset_seconds", 0.0)
+                error_margin = target_settings.get("error_margin", 0.0)
+                
+                if mode == "percentage":
+                    target_time = best_ai + (worst_ai - best_ai) * pct
+                    analyzer.add_calculation_step(
+                        f"Target mode: Percentage - {pct*100:.0f}% from fastest AI",
+                        {"percentage": pct*100, "target_time": target_time}
+                    )
+                elif mode == "faster_than_best":
+                    target_time = best_ai + offset
+                    analyzer.add_calculation_step(
+                        f"Target mode: Faster than best AI - offset={offset:+.2f}s",
+                        {"offset": offset, "target_time": target_time}
+                    )
+                else:
+                    target_time = worst_ai - offset
+                    analyzer.add_calculation_step(
+                        f"Target mode: Slower than worst AI - offset={offset:+.2f}s",
+                        {"offset": offset, "target_time": target_time}
+                    )
+                
+                # Apply error margin
+                if error_margin > 0:
+                    old_target = target_time
+                    target_time = target_time + error_margin
+                    analyzer.add_calculation_step(
+                        f"Applied error margin: +{error_margin:.2f}s",
+                        {"error_margin": error_margin, "old_target": old_target, "new_target": target_time}
+                    )
+                
+                # Clamp to AI range
+                target_time = max(best_ai, min(worst_ai + error_margin, target_time))
+                analyzer.add_calculation_step(
+                    f"Final target clamped to AI range: {target_time:.3f}s",
+                    {"final_target": target_time}
+                )
+                
+                # Calculate ratio from target time
+                denominator = target_time - formula_b
+                if denominator > 0:
+                    calculated_ratio = 32.0 / denominator
+                    analyzer.add_calculation_step(
+                        f"Calculated ratio: R = a/(T-b) = 32.0/({target_time:.3f} - {formula_b:.2f}) = {calculated_ratio:.6f}",
+                        {"a": 32.0, "b": formula_b, "target_time": target_time, "calculated_ratio": calculated_ratio}
+                    )
+                    
+                    # Check ratio limits
+                    min_ratio, max_ratio = get_ratio_limits()
+                    if min_ratio <= calculated_ratio <= max_ratio:
+                        analyzer.add_range_check(
+                            f"Ratio {calculated_ratio:.6f} is within allowed range ({min_ratio} - {max_ratio})",
+                            {"in_range": True}
+                        )
+                        success = True
+                        message = "Analysis complete - ratio within limits"
+                    else:
+                        analyzer.add_range_check(
+                            f"Ratio {calculated_ratio:.6f} is OUTSIDE allowed range ({min_ratio} - {max_ratio})",
+                            {"in_range": False, "min_ratio": min_ratio, "max_ratio": max_ratio}
+                        )
+                        success = False
+                        message = f"Ratio {calculated_ratio:.6f} is outside allowed range"
+                    
+                    analyzer.set_result(target_time, calculated_ratio, calculated_ratio, success, message)
+                else:
+                    analyzer.add_error(
+                        f"Cannot calculate ratio: T-b = {target_time:.3f} - {formula_b:.2f} = {denominator:.3f} (must be positive)",
+                        {}
+                    )
+                    analyzer.set_result(target_time, None, None, False, "Cannot calculate ratio: T-b must be positive")
+            else:
+                analyzer.add_error(
+                    f"Insufficient AI data for {session_type}",
+                    {"best_ai": best_ai, "worst_ai": worst_ai}
+                )
+                analyzer.set_result(None, None, None, False, "Insufficient AI data - complete at least one race session")
+            
+            # Finalize and dump
+            dump_path = analyzer.finalize_and_dump()
+            
+            QMessageBox.information(
+                self, "Data Dump Complete", 
+                f"Analysis dumped to:\n{dump_path}\n\n"
+                f"Also saved to:\n{analyzer.dump_dir}/ai_target_log.csv"
+            )
+            
+        except ImportError as e:
+            QMessageBox.warning(self, "Error", f"AI Target Analyzer module not available: {e}")
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            QMessageBox.warning(self, "Error", f"Failed to dump analysis: {e}")
+    
+    def scan_aiw_backups(self):
+        """Scan for AIW backups - returns unique backups without duplicates"""
+        backups = []
+        seen_tracks = set()  # Track to prevent duplicates
+        backup_dirs = []
+        
+        if self.db:
+            backup_dirs.append(Path(self.db.db_path).parent / "aiw_backups")
+        backup_dirs.append(Path.cwd() / "aiw_backups")
+        
+        for backup_dir in backup_dirs:
+            if not backup_dir.exists():
+                continue
+            for backup_file in backup_dir.glob("*_ORIGINAL.AIW"):
+                original_name = backup_file.name.replace("_ORIGINAL.AIW", ".AIW")
+                track_name = original_name.replace(".AIW", "")
+                
+                # Create a unique key to prevent duplicates
+                unique_key = f"{track_name}_{original_name}"
+                
+                if unique_key not in seen_tracks:
+                    seen_tracks.add(unique_key)
+                    backups.append({
+                        "track": track_name,
+                        "original_file": original_name,
+                        "backup_path": backup_file,
+                        "backup_time": backup_file.stat().st_mtime if backup_file.exists() else 0,
+                        "backup_dir": str(backup_dir)
+                    })
+        
+        return sorted(backups, key=lambda x: x.get("track", ""))
+    
+    def refresh_backup_list(self):
+        """Refresh the backup list - loads all unique backups"""
+        self.backup_list.clear()
+        backups = self.scan_aiw_backups()
+        
+        if not backups:
+            item = QListWidgetItem("No backups found")
+            item.setFlags(Qt.NoItemFlags)  # Make it non-selectable
+            self.backup_list.addItem(item)
+            return
+        
+        for backup in backups:
+            time_str = datetime.fromtimestamp(backup["backup_time"]).strftime("%Y-%m-%d %H:%M:%S")
+            item = QListWidgetItem(f"{backup['track']} - {backup['original_file']} (backup: {time_str})")
+            item.setData(Qt.UserRole, backup)
+            self.backup_list.addItem(item)
+    
+    def restore_aiw_backup(self, backup_info):
+        try:
+            backup_path = backup_info["backup_path"]
+            original_name = backup_info["original_file"]
+            restore_path = None
+            if self.parent and hasattr(self.parent, 'daemon') and self.parent.daemon:
+                base_path = self.parent.daemon.base_path
+                locations_dir = base_path / "GameData" / "Locations"
+                if locations_dir.exists():
+                    for track_dir in locations_dir.iterdir():
+                        if track_dir.is_dir():
+                            aiw_path = track_dir / original_name
+                            if aiw_path.exists():
+                                restore_path = aiw_path
+                                break
+            if not restore_path:
+                restore_path_str, _ = QFileDialog.getSaveFileName(self, "Save Restored AIW As", str(backup_path.parent / original_name), "AIW Files (*.AIW)")
+                if restore_path_str:
+                    restore_path = Path(restore_path_str)
+                else:
+                    return False
+            shutil.copy2(backup_path, restore_path)
+            return True
+        except Exception as e:
+            logger.error(f"Error restoring backup: {e}")
+            return False
+    
+    def restore_selected_backups(self):
+        selected_items = self.backup_list.selectedItems()
+        if not selected_items:
+            QMessageBox.warning(self, "No Selection", "Please select backups to restore.")
+            return
+        reply = QMessageBox.question(self, "Confirm Restore", f"Restore {len(selected_items)} AIW file(s)?", QMessageBox.Yes | QMessageBox.No)
+        if reply != QMessageBox.Yes:
+            return
+        restored = 0
+        for item in selected_items:
+            backup = item.data(Qt.UserRole)
+            if backup and self.restore_aiw_backup(backup):
+                restored += 1
+        if restored > 0:
+            QMessageBox.information(self, "Restore Complete", f"Successfully restored {restored} AIW file(s).")
+            self.refresh_backup_list()
+    
+    def restore_all_backups(self):
+        backups = self.scan_aiw_backups()
+        if not backups:
+            QMessageBox.information(self, "No Backups", "No backups found to restore.")
+            return
+        reply = QMessageBox.question(self, "Confirm Restore All", f"Restore ALL {len(backups)} AIW backup(s)?", QMessageBox.Yes | QMessageBox.No)
+        if reply != QMessageBox.Yes:
+            return
+        restored = 0
+        for backup in backups:
+            if self.restore_aiw_backup(backup):
+                restored += 1
+        if restored > 0:
+            QMessageBox.information(self, "Restore Complete", f"Successfully restored {restored} AIW file(s).")
+            self.refresh_backup_list()
     
     def on_lap_time_edited(self, session_type: str, new_time: float):
         self.lap_time_updated.emit(session_type, new_time)
@@ -1726,92 +2025,6 @@ class AdvancedSettingsDialog(QDialog):
         else:
             logger.error("[AI TARGET] No engine available")
             QMessageBox.warning(self, "Error", "Could not access autopilot engine.")
-    
-    def scan_aiw_backups(self):
-        backups = []
-        backup_dirs = []
-        if self.db:
-            backup_dirs.append(Path(self.db.db_path).parent / "aiw_backups")
-        backup_dirs.append(Path.cwd() / "aiw_backups")
-        for backup_dir in backup_dirs:
-            if not backup_dir.exists():
-                continue
-            for backup_file in backup_dir.glob("*_ORIGINAL.AIW"):
-                original_name = backup_file.name.replace("_ORIGINAL.AIW", ".AIW")
-                track_name = original_name.replace(".AIW", "")
-                backups.append({"track": track_name, "original_file": original_name, "backup_path": backup_file, "backup_time": backup_file.stat().st_mtime if backup_file.exists() else 0})
-        return sorted(backups, key=lambda x: x.get("track", ""))
-    
-    def restore_aiw_backup(self, backup_info):
-        try:
-            backup_path = backup_info["backup_path"]
-            original_name = backup_info["original_file"]
-            restore_path = None
-            if self.parent and hasattr(self.parent, 'daemon') and self.parent.daemon:
-                base_path = self.parent.daemon.base_path
-                locations_dir = base_path / "GameData" / "Locations"
-                if locations_dir.exists():
-                    for track_dir in locations_dir.iterdir():
-                        if track_dir.is_dir():
-                            aiw_path = track_dir / original_name
-                            if aiw_path.exists():
-                                restore_path = aiw_path
-                                break
-            if not restore_path:
-                restore_path_str, _ = QFileDialog.getSaveFileName(self, "Save Restored AIW As", str(backup_path.parent / original_name), "AIW Files (*.AIW)")
-                if restore_path_str:
-                    restore_path = Path(restore_path_str)
-                else:
-                    return False
-            shutil.copy2(backup_path, restore_path)
-            return True
-        except Exception as e:
-            logger.error(f"Error restoring backup: {e}")
-            return False
-    
-    def refresh_backup_list(self):
-        self.backup_list.clear()
-        backups = self.scan_aiw_backups()
-        if not backups:
-            self.backup_list.addItem("No backups found")
-            return
-        for backup in backups:
-            time_str = datetime.fromtimestamp(backup["backup_time"]).strftime("%Y-%m-%d %H:%M:%S")
-            self.backup_list.addItem(f"{backup['track']} - {backup['original_file']} (backup: {time_str})")
-            self.backup_list.item(self.backup_list.count() - 1).setData(Qt.UserRole, backup)
-    
-    def restore_selected_backups(self):
-        selected_items = self.backup_list.selectedItems()
-        if not selected_items:
-            QMessageBox.warning(self, "No Selection", "Please select backups to restore.")
-            return
-        reply = QMessageBox.question(self, "Confirm Restore", f"Restore {len(selected_items)} AIW file(s)?", QMessageBox.Yes | QMessageBox.No)
-        if reply != QMessageBox.Yes:
-            return
-        restored = 0
-        for item in selected_items:
-            backup = item.data(Qt.UserRole)
-            if backup and self.restore_aiw_backup(backup):
-                restored += 1
-        if restored > 0:
-            QMessageBox.information(self, "Restore Complete", f"Successfully restored {restored} AIW file(s).")
-            self.refresh_backup_list()
-    
-    def restore_all_backups(self):
-        backups = self.scan_aiw_backups()
-        if not backups:
-            QMessageBox.information(self, "No Backups", "No backups found to restore.")
-            return
-        reply = QMessageBox.question(self, "Confirm Restore All", f"Restore ALL {len(backups)} AIW backup(s)?", QMessageBox.Yes | QMessageBox.No)
-        if reply != QMessageBox.Yes:
-            return
-        restored = 0
-        for backup in backups:
-            if self.restore_aiw_backup(backup):
-                restored += 1
-        if restored > 0:
-            QMessageBox.information(self, "Restore Complete", f"Successfully restored {restored} AIW file(s).")
-            self.refresh_backup_list()
 
 
 def setup_dark_theme(app):
