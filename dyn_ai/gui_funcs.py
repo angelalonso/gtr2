@@ -24,9 +24,9 @@ from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QColor, QFont
 import pyqtgraph as pg
 
-from formula_funcs import fit_curve, get_formula_string, hyperbolic, ratio_from_time
-from autopilot import load_vehicle_classes, get_vehicle_class, DEFAULT_A_VALUE
-from cfg_funcs import get_ratio_limits
+from formula_funcs import fit_curve, get_formula_string, hyperbolic, ratio_from_time, DEFAULT_A_VALUE
+from autopilot import load_vehicle_classes, get_vehicle_class
+from cfg_funcs import get_ratio_limits, get_config_with_defaults, get_base_path
 
 
 # Set up logger for this module
@@ -153,16 +153,16 @@ class SimpleLogHandler(logging.Handler):
 class ManualLapTimeDialog(QDialog):
     """Dialog for manually editing user lap time"""
     
-    def __init__(self, parent, session_type: str, current_time: float):
+    def __init__(self, parent, session_type: str, current_time: float = None):
         super().__init__(parent)
         self.session_type = session_type
-        self.current_time = current_time
+        self.current_time = current_time if current_time is not None and current_time > 0 else None
         self.new_time = None
         self.setup_ui()
     
     def setup_ui(self):
         self.setWindowTitle(f"Edit {self.session_type.upper()} Lap Time")
-        self.setFixedSize(350, 200)
+        self.setFixedSize(350, 220)
         self.setStyleSheet("""
             QDialog {
                 background-color: #2b2b2b;
@@ -203,15 +203,21 @@ class ManualLapTimeDialog(QDialog):
         
         layout.addSpacing(10)
         
-        current_label = QLabel(f"Current {self.session_type.upper()} Time:")
-        current_label.setStyleSheet("color: #888;")
-        layout.addWidget(current_label)
-        
-        minutes = int(self.current_time) // 60
-        seconds = self.current_time % 60
-        current_value = QLabel(f"{minutes}:{seconds:06.3f} ({self.current_time:.3f}s)")
-        current_value.setStyleSheet("font-size: 14px; font-family: monospace; color: #4CAF50;")
-        layout.addWidget(current_value)
+        # Current value display (if exists)
+        if self.current_time is not None:
+            current_label = QLabel(f"Current {self.session_type.upper()} Time:")
+            current_label.setStyleSheet("color: #888;")
+            layout.addWidget(current_label)
+            
+            minutes = int(self.current_time) // 60
+            seconds = self.current_time % 60
+            current_value = QLabel(f"{minutes}:{seconds:06.3f} ({self.current_time:.3f}s)")
+            current_value.setStyleSheet("font-size: 14px; font-family: monospace; color: #4CAF50;")
+            layout.addWidget(current_value)
+        else:
+            no_time_label = QLabel(f"No {self.session_type.upper()} time recorded yet")
+            no_time_label.setStyleSheet("color: #FFA500; font-style: italic;")
+            layout.addWidget(no_time_label)
         
         layout.addSpacing(15)
         
@@ -223,7 +229,10 @@ class ManualLapTimeDialog(QDialog):
         self.time_spin.setRange(10.0, 500.0)
         self.time_spin.setDecimals(3)
         self.time_spin.setSingleStep(0.5)
-        self.time_spin.setValue(self.current_time)
+        if self.current_time is not None:
+            self.time_spin.setValue(self.current_time)
+        else:
+            self.time_spin.setValue(90.0)  # Default reasonable value
         self.time_spin.setStyleSheet("font-size: 14px;")
         layout.addWidget(self.time_spin)
         
@@ -273,8 +282,8 @@ class SessionPanel(QWidget):
         
     def setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setSpacing(10)
-        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(4)
+        layout.setContentsMargins(6, 6, 6, 6)
         
         self.setStyleSheet("""
             QGroupBox {
@@ -303,83 +312,78 @@ class SessionPanel(QWidget):
         
         group = QGroupBox(self.title)
         group_layout = QVBoxLayout(group)
-        
-        header_layout = QHBoxLayout()
-        
+        group_layout.setSpacing(4)
+        group_layout.setContentsMargins(8, 8, 8, 8)
+
+        # Row 1: Show checkbox | Your Time: value [Edit]
+        row1 = QHBoxLayout()
         self.show_checkbox = QCheckBox("Show on graph")
         self.show_checkbox.setChecked(True)
         self.show_checkbox.setStyleSheet("color: #4CAF50; font-weight: bold;")
         self.show_checkbox.toggled.connect(self.on_show_toggled)
-        header_layout.addWidget(self.show_checkbox)
-        
-        header_layout.addStretch()
-        
-        group_layout.addLayout(header_layout)
-        
-        formula_layout = QHBoxLayout()
-        formula_layout.addWidget(QLabel("Formula:"))
-        self.formula_label = QLabel(f"T = {self.a:.2f} / R + {self.b:.2f}")
-        self.formula_label.setStyleSheet("color: #FFA500; font-family: monospace;")
-        formula_layout.addWidget(self.formula_label)
-        formula_layout.addStretch()
-        group_layout.addLayout(formula_layout)
-        
-        user_layout = QHBoxLayout()
-        user_layout.addWidget(QLabel("Your Time:"))
+        row1.addWidget(self.show_checkbox)
+
+        row1.addSpacing(12)
+        row1.addWidget(QLabel("Your Time:"))
         self.user_time_label = QLabel("--")
-        self.user_time_label.setStyleSheet("color: #4CAF50; font-weight: bold; font-family: monospace; font-size: 12px;")
-        user_layout.addWidget(self.user_time_label)
-        
-        self.edit_time_btn = QPushButton("✎ Edit")
+        self.user_time_label.setStyleSheet(
+            "color: #4CAF50; font-weight: bold; font-family: monospace; font-size: 12px;"
+        )
+        row1.addWidget(self.user_time_label)
+
+        self.edit_time_btn = QPushButton("Edit")
         self.edit_time_btn.setObjectName("edit_time_btn")
         self.edit_time_btn.setFixedSize(50, 20)
         self.edit_time_btn.clicked.connect(self.on_edit_time_clicked)
-        user_layout.addWidget(self.edit_time_btn)
-        
-        user_layout.addStretch()
-        group_layout.addLayout(user_layout)
-        
-        params_layout = QHBoxLayout()
-        
-        params_layout.addWidget(QLabel("a:"))
+        row1.addWidget(self.edit_time_btn)
+        row1.addStretch()
+        group_layout.addLayout(row1)
+
+        # Row 2: Formula: label | a: spin | b: spin
+        row2 = QHBoxLayout()
+        row2.addWidget(QLabel("Formula:"))
+        self.formula_label = QLabel(f"T = {self.a:.2f} / R + {self.b:.2f}")
+        self.formula_label.setStyleSheet("color: #FFA500; font-family: monospace;")
+        row2.addWidget(self.formula_label)
+
+        row2.addSpacing(8)
+        row2.addWidget(QLabel("a:"))
         self.a_spin = QDoubleSpinBox()
         self.a_spin.setRange(0.01, 500.0)
         self.a_spin.setDecimals(3)
         self.a_spin.setValue(self.a)
+        self.a_spin.setFixedWidth(70)
         self.a_spin.valueChanged.connect(self.on_param_changed)
-        params_layout.addWidget(self.a_spin)
-        
-        params_layout.addWidget(QLabel("b:"))
+        row2.addWidget(self.a_spin)
+
+        row2.addWidget(QLabel("b:"))
         self.b_spin = QDoubleSpinBox()
         self.b_spin.setRange(0.01, 200.0)
         self.b_spin.setDecimals(3)
         self.b_spin.setValue(self.b)
+        self.b_spin.setFixedWidth(70)
         self.b_spin.valueChanged.connect(self.on_param_changed)
-        params_layout.addWidget(self.b_spin)
-        
-        params_layout.addStretch()
-        group_layout.addLayout(params_layout)
-        
-        buttons_layout = QHBoxLayout()
-        
+        row2.addWidget(self.b_spin)
+        row2.addStretch()
+        group_layout.addLayout(row2)
+
+        # Row 3: action buttons
+        row3 = QHBoxLayout()
         self.calc_btn = QPushButton("Calculate Ratio")
         self.calc_btn.clicked.connect(self.on_calculate_ratio)
-        buttons_layout.addWidget(self.calc_btn)
-        
+        row3.addWidget(self.calc_btn)
+
         self.auto_fit_btn = QPushButton("Auto-Fit")
         self.auto_fit_btn.setStyleSheet("background-color: #2196F3;")
         self.auto_fit_btn.clicked.connect(lambda: self.auto_fit_requested.emit(self.session_type))
-        buttons_layout.addWidget(self.auto_fit_btn)
-        
-        group_layout.addLayout(buttons_layout)
-        
+        row3.addWidget(self.auto_fit_btn)
+        row3.addStretch()
+        group_layout.addLayout(row3)
+
         layout.addWidget(group)
     
     def on_edit_time_clicked(self):
-        if self.user_time is None or self.user_time <= 0:
-            QMessageBox.warning(self, "No Time", "No lap time available to edit.")
-            return
-        
+        """Allow editing lap time even if none exists yet"""
         dialog = ManualLapTimeDialog(self, self.session_type, self.user_time)
         if dialog.exec_() == QDialog.Accepted and dialog.new_time is not None:
             self.user_time = dialog.new_time
@@ -408,44 +412,42 @@ class SessionPanel(QWidget):
     def _calculate_and_confirm_ratio(self, lap_time: float):
         denominator = lap_time - self.b
         if denominator <= 0:
+            QMessageBox.warning(self, "Invalid Calculation", 
+                f"Cannot calculate ratio: T - b = {lap_time:.3f} - {self.b:.2f} = {denominator:.3f} (must be positive)")
             return
         
         ratio = self.a / denominator
-        if 0.3 < ratio < 3.0:
-            self.current_ratio = ratio
-            
-            min_ratio, max_ratio = get_ratio_limits()
-            if ratio < min_ratio or ratio > max_ratio:
-                reply = QMessageBox.question(
-                    self, "Ratio Out of Range",
-                    f"The calculated {self.session_type.upper()} Ratio = {ratio:.6f} is outside the allowed range "
-                    f"({min_ratio} - {max_ratio}).\n\n"
-                    f"Do you still want to save this ratio?",
-                    QMessageBox.Yes | QMessageBox.No
-                )
-                if reply != QMessageBox.Yes:
-                    return
-            
+        
+        # Check valid range
+        if not (0.3 < ratio < 3.0):
+            QMessageBox.warning(self, "Ratio Out of Range", 
+                f"Calculated ratio {ratio:.6f} is outside valid range (0.3 - 3.0)")
+            return
+        
+        self.current_ratio = ratio
+        
+        min_ratio, max_ratio = get_ratio_limits()
+        if ratio < min_ratio or ratio > max_ratio:
             reply = QMessageBox.question(
-                self, "Save Ratio to AIW?",
-                f"Calculated {self.session_type.upper()} Ratio = {ratio:.6f}\n\n"
-                f"Based on lap time: {lap_time:.3f}s\n"
-                f"Using formula: T = {self.a:.3f} / R + {self.b:.3f}\n\n"
-                f"Save this ratio to the AIW file?",
+                self, "Ratio Out of Range",
+                f"The calculated {self.session_type.upper()} Ratio = {ratio:.6f} is outside the allowed range "
+                f"({min_ratio} - {max_ratio}).\n\n"
+                f"Do you still want to save this ratio?",
                 QMessageBox.Yes | QMessageBox.No
             )
-            
-            if reply == QMessageBox.Yes:
-                self.calculate_ratio.emit(self.session_type, lap_time)
-                self.set_calc_button_modified(False)
-            else:
-                QMessageBox.information(self, "Cancelled", "Ratio not saved to AIW.")
+            if reply != QMessageBox.Yes:
+                return
+        
+        # NOTE: Removed the confirmation dialog here because the save method
+        # (_save_ratio_to_aiw) already has its own confirmation. This prevents double popups.
+        self.calculate_ratio.emit(self.session_type, lap_time)
+        self.set_calc_button_modified(False)
         
     def on_calculate_ratio(self):
         if self.user_time and self.user_time > 0:
             self._calculate_and_confirm_ratio(self.user_time)
         else:
-            QMessageBox.warning(self, "No Time", "No user time available for this session.")
+            QMessageBox.warning(self, "No Time", "No user time available for this session.\n\nClick the 'Edit' button to set a lap time manually.")
             
     def update_formula(self, a: float, b: float):
         self.a = a
@@ -460,10 +462,10 @@ class SessionPanel(QWidget):
         self.set_calc_button_modified(False)
         
     def update_user_time(self, time_sec: float):
-        self.user_time = time_sec
-        if time_sec and time_sec > 0:
-            minutes = int(time_sec) // 60
-            seconds = time_sec % 60
+        self.user_time = time_sec if time_sec > 0 else None
+        if self.user_time:
+            minutes = int(self.user_time) // 60
+            seconds = self.user_time % 60
             self.user_time_label.setText(f"{minutes}:{seconds:06.3f}")
         else:
             self.user_time_label.setText("--")
@@ -533,7 +535,7 @@ class CurveGraphWidget(QWidget):
         track_group.setStyleSheet("background-color: #1e1e1e; border-radius: 3px;")
         track_layout = QHBoxLayout(track_group)
         track_layout.setContentsMargins(8, 4, 8, 4)
-        track_layout.addWidget(QLabel("🏁 Track:"))
+        track_layout.addWidget(QLabel("Track:"))
         self.current_track_label = QLabel("-")
         self.current_track_label.setStyleSheet("color: #FFA500; font-weight: bold;")
         track_layout.addWidget(self.current_track_label)
@@ -549,7 +551,7 @@ class CurveGraphWidget(QWidget):
         class_group.setStyleSheet("background-color: #1e1e1e; border-radius: 3px;")
         class_layout = QHBoxLayout(class_group)
         class_layout.setContentsMargins(8, 4, 8, 4)
-        class_layout.addWidget(QLabel("📊 Class:"))
+        class_layout.addWidget(QLabel("Class:"))
         self.current_class_label = QLabel("-")
         self.current_class_label.setStyleSheet("color: #FF6600; font-weight: bold;")
         class_layout.addWidget(self.current_class_label)
@@ -895,9 +897,9 @@ class CurveGraphWidget(QWidget):
         qual_info = ""
         race_info = ""
         if self.user_qual_time and self.user_qual_ratio:
-            qual_info = f"Qual: T={self.user_qual_time:.2f}s → R={self.user_qual_ratio:.4f}"
+            qual_info = f"Qual: T={self.user_qual_time:.2f}s -> R={self.user_qual_ratio:.4f}"
         if self.user_race_time and self.user_race_ratio:
-            race_info = f"Race: T={self.user_race_time:.2f}s → R={self.user_race_ratio:.4f}"
+            race_info = f"Race: T={self.user_race_time:.2f}s -> R={self.user_race_ratio:.4f}"
         separator = "  |  " if qual_info and race_info else ""
         self.formula_label.setText(f"{qual_info}{separator}{race_info}")
     
@@ -977,6 +979,7 @@ class AdvancedSettingsDialog(QDialog):
     formula_updated = pyqtSignal(str, float, float)
     ratio_saved = pyqtSignal(str, float)
     lap_time_updated = pyqtSignal(str, float)
+    track_selected = pyqtSignal(str)  # Signal to notify parent when track is selected
     
     def __init__(self, parent=None, db=None, log_window=None):
         super().__init__(parent)
@@ -999,7 +1002,177 @@ class AdvancedSettingsDialog(QDialog):
         self.data_table = None
         
         self.setup_ui()
+
+    def _find_aiw_path_from_config(self) -> Optional[Path]:
+        """
+        Find AIW file using the same method as the main application and autopilot.
+        Ensures consistency across all AIW operations.
+        """
+        base_path = get_base_path()
         
+        if not base_path:
+            logger.error("No base path configured in cfg.yml")
+            return None
+        
+        # Get current track from parent
+        if self.parent and hasattr(self.parent, 'current_track'):
+            track_name = self.parent.current_track
+        else:
+            track_name = getattr(self.parent, 'current_track', None)
+        
+        if not track_name:
+            logger.error("No current track selected")
+            return None
+        
+        locations_dir = base_path / "GameData" / "Locations"
+        if not locations_dir.exists():
+            logger.error(f"Locations directory not found: {locations_dir}")
+            return None
+        
+        # Search case-insensitively for track folder
+        track_lower = track_name.lower()
+        for track_dir in locations_dir.iterdir():
+            if track_dir.is_dir() and track_dir.name.lower() == track_lower:
+                # Look for AIW file in found directory
+                for ext in ["*.AIW", "*.aiw"]:
+                    aiw_files = list(track_dir.glob(ext))
+                    if aiw_files:
+                        logger.debug(f"Found AIW file: {aiw_files[0]}")
+                        return aiw_files[0]
+                break
+        
+        # If not found, search all subdirectories for any AIW file matching track name
+        for ext in ["*.AIW", "*.aiw"]:
+            for aiw_file in locations_dir.rglob(ext):
+                if aiw_file.stem.lower() == track_lower or track_lower in aiw_file.stem.lower():
+                    logger.debug(f"Found AIW file via partial match: {aiw_file}")
+                    return aiw_file
+        
+        logger.warning(f"AIW file not found for track: {track_name}")
+        return None
+    
+    def _show_aiw_path_error(self):
+        """Show detailed error message with paths checked"""
+        config = get_config_with_defaults()
+        base_path = get_base_path()
+        
+        if self.parent and hasattr(self.parent, 'current_track'):
+            track_name = self.parent.current_track
+        else:
+            track_name = getattr(self.parent, 'current_track', 'Unknown')
+        
+        error_msg = f"AIW file not found for track: {track_name}\n\n"
+        error_msg += f"Base path from cfg.yml: {base_path if base_path else 'NOT SET'}\n"
+        
+        if base_path:
+            locations_dir = base_path / "GameData" / "Locations"
+            error_msg += f"Looking in: {locations_dir}\n"
+            
+            if locations_dir.exists():
+                error_msg += f"\nExisting track folders in {locations_dir}:\n"
+                for folder in locations_dir.iterdir():
+                    if folder.is_dir():
+                        error_msg += f"  - {folder.name}\n"
+                
+                # Check for partial matches
+                error_msg += f"\nSearching for folders matching '{track_name}':\n"
+                track_lower = track_name.lower()
+                found = False
+                for folder in locations_dir.iterdir():
+                    if folder.is_dir() and folder.name.lower() == track_lower:
+                        error_msg += f"  - FOUND: {folder.name}\n"
+                        found = True
+                if not found:
+                    error_msg += f"  - No folder named '{track_name}' found\n"
+            else:
+                error_msg += f"\nLocations directory does NOT exist: {locations_dir}\n"
+                error_msg += f"Please verify your GTR2 installation path in cfg.yml\n"
+        
+        error_msg += f"\nPlease ensure:\n"
+        error_msg += f"1. cfg.yml has correct 'base_path' pointing to your GTR2 installation\n"
+        error_msg += f"2. The track folder exists in GameData/Locations/\n"
+        error_msg += f"3. The AIW file exists in that folder\n"
+        
+        QMessageBox.critical(self, "AIW File Not Found", error_msg)
+    
+    def _update_aiw_ratio(self, aiw_path: Path, ratio_name: str, new_ratio: float) -> bool:
+        """Update a ratio in the AIW file"""
+        import re
+        
+        try:
+            if not aiw_path.exists():
+                logger.error(f"AIW file not found: {aiw_path}")
+                return False
+            
+            # Create backup if enabled
+            try:
+                backup_dir = aiw_path.parent / "aiw_backups"
+                backup_dir.mkdir(parents=True, exist_ok=True)
+                backup_path = backup_dir / f"{aiw_path.stem}_BACKUP{aiw_path.suffix}"
+                if not backup_path.exists():
+                    shutil.copy2(aiw_path, backup_path)
+                    logger.info(f"Created backup: {backup_path}")
+            except Exception as e:
+                logger.warning(f"Could not create backup: {e}")
+            
+            # Read and patch AIW file
+            raw = aiw_path.read_bytes()
+            content = raw.replace(b"\x00", b"").decode("utf-8", errors="ignore")
+            
+            pattern = rf'({re.escape(ratio_name)}\s*=\s*\(?)\s*[0-9.eE+-]+\s*(\)?)'
+            new_content, count = re.subn(
+                pattern, 
+                lambda m: f"{m.group(1)}{new_ratio:.6f}{m.group(2)}", 
+                content, 
+                flags=re.IGNORECASE
+            )
+            
+            if count > 0:
+                aiw_path.write_bytes(new_content.encode("utf-8", errors="ignore"))
+                logger.info(f"Updated {ratio_name} to {new_ratio:.6f} in {aiw_path.name}")
+                return True
+            else:
+                logger.warning(f"Could not find {ratio_name} pattern in {aiw_path.name}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error updating AIW ratio: {e}")
+            return False
+    
+    def _save_ratio_to_aiw(self, session_type: str, ratio: float, lap_time: float) -> bool:
+        """Save calculated ratio to AIW file - this shows ONE confirmation dialog"""
+        aiw_path = self._find_aiw_path_from_config()
+        
+        if not aiw_path:
+            self._show_aiw_path_error()
+            return False
+        
+        ratio_name = "QualRatio" if session_type == "qual" else "RaceRatio"
+        
+        # ONE confirmation dialog only
+        confirm_msg = f"Save {ratio_name} = {ratio:.6f}\n\n"
+        confirm_msg += f"To AIW file:\n{aiw_path}\n\n"
+        confirm_msg += f"Based on lap time: {lap_time:.3f}s\n"
+        confirm_msg += f"Formula: T = {DEFAULT_A_VALUE:.2f}/R + {self.qual_panel.b if session_type == 'qual' else self.race_panel.b:.2f}\n\n"
+        confirm_msg += f"Proceed?"
+        
+        reply = QMessageBox.question(self, "Confirm Save", confirm_msg, QMessageBox.Yes | QMessageBox.No)
+        if reply != QMessageBox.Yes:
+            return False
+        
+        # Update the AIW file
+        if self._update_aiw_ratio(aiw_path, ratio_name, ratio):
+            QMessageBox.information(self, "Success", 
+                f"{ratio_name} successfully updated to {ratio:.6f}\n\n"
+                f"AIW file: {aiw_path}")
+            return True
+        else:
+            QMessageBox.critical(self, "Error", 
+                f"Failed to update {ratio_name} in AIW file.\n\n"
+                f"File: {aiw_path}\n\n"
+                f"Please check file permissions and format.")
+            return False
+
     def setup_ui(self):
         layout = QVBoxLayout(self)
         self.tab_widget = QTabWidget()
@@ -1013,7 +1186,7 @@ class AdvancedSettingsDialog(QDialog):
         self.curve_graph.point_selected.connect(self.on_point_selected)
         self.curve_graph.data_updated.connect(self.on_data_updated)
         self.curve_graph.formula_changed.connect(self.on_formula_changed)
-        data_layout.addWidget(self.curve_graph)
+        data_layout.addWidget(self.curve_graph, stretch=4)
         
         middle_layout = QHBoxLayout()
         middle_layout.setSpacing(15)
@@ -1033,8 +1206,10 @@ class AdvancedSettingsDialog(QDialog):
         self.race_panel.auto_fit_requested.connect(self.on_auto_fit_requested)
         self.race_panel.lap_time_edited.connect(self.on_lap_time_edited)
         middle_layout.addWidget(self.race_panel)
-        
-        data_layout.addLayout(middle_layout)
+
+        middle_widget = QWidget()
+        middle_widget.setLayout(middle_layout)
+        data_layout.addWidget(middle_widget, stretch=1)
         
         table_group = QGroupBox("Data Points")
         table_layout = QVBoxLayout(table_group)
@@ -1066,7 +1241,7 @@ class AdvancedSettingsDialog(QDialog):
         target_layout = QVBoxLayout(target_tab)
         
         # WARNING BANNER - Feature under construction
-        warning_banner = QLabel("⚠️  WARNING: AI TARGET FEATURE IS UNDER CONSTRUCTION  ⚠️")
+        warning_banner = QLabel("WARNING: AI TARGET FEATURE IS UNDER CONSTRUCTION")
         warning_banner.setStyleSheet("""
             QLabel {
                 background-color: #f44336;
@@ -1086,7 +1261,7 @@ class AdvancedSettingsDialog(QDialog):
             "AI Target Positioning\n\n"
             "This controls where your lap time should fall within the AI's lap time range.\n\n"
             "The AI's best and worst lap times create a range. You choose where you want to be.\n\n"
-            "⚡ These settings will be applied to BOTH Qualifying and Race sessions.\n\n"
+            "These settings will be applied to BOTH Qualifying and Race sessions.\n\n"
             "How it works:\n"
             "1. The AI range is defined by the fastest and slowest AI lap times from your data\n"
             "2. Your target position determines what lap time the AI should aim for\n"
@@ -1193,12 +1368,12 @@ class AdvancedSettingsDialog(QDialog):
         dump_analysis_layout = QHBoxLayout()
         dump_analysis_layout.addStretch()
         
-        self.dump_qual_btn = QPushButton("📊 Dump Qual Analysis")
+        self.dump_qual_btn = QPushButton("Dump Qual Analysis")
         self.dump_qual_btn.setStyleSheet("background-color: #9C27B0;")
         self.dump_qual_btn.clicked.connect(lambda: self.dump_analysis("qual"))
         dump_analysis_layout.addWidget(self.dump_qual_btn)
         
-        self.dump_race_btn = QPushButton("📊 Dump Race Analysis")
+        self.dump_race_btn = QPushButton("Dump Race Analysis")
         self.dump_race_btn.setStyleSheet("background-color: #9C27B0;")
         self.dump_race_btn.clicked.connect(lambda: self.dump_analysis("race"))
         dump_analysis_layout.addWidget(self.dump_race_btn)
@@ -1267,6 +1442,9 @@ class AdvancedSettingsDialog(QDialog):
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
         
+        # Connect the curve graph's track selection to notify parent
+        self.curve_graph.data_updated.connect(self.on_graph_data_updated)
+        
         self.setStyleSheet("""
             QDialog { background-color: #1e1e1e; }
             QTabWidget::pane { background-color: #2b2b2b; border: 1px solid #555; }
@@ -1283,6 +1461,14 @@ class AdvancedSettingsDialog(QDialog):
         # Load backups automatically when tab is shown
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
     
+    def on_graph_data_updated(self):
+        """When the graph updates its data, check if track changed and notify parent"""
+        if self.curve_graph and self.curve_graph.current_track:
+            # Get current track from the graph
+            current_track = self.curve_graph.current_track
+            # Notify parent about the track change
+            self.track_selected.emit(current_track)
+    
     def on_tab_changed(self, index):
         """Load backups when Backup Restore tab is selected"""
         if self.tab_widget.tabText(index) == "Backup Restore":
@@ -1294,7 +1480,7 @@ class AdvancedSettingsDialog(QDialog):
             from ai_target_analyzer import AITargetAnalyzer
             
             # Get current data from parent - self.parent is the RedesignedMainWindow instance
-            parent = self.parent()
+            parent = self.parent() if callable(self.parent) else self.parent
             if not parent:
                 QMessageBox.warning(self, "Error", "Cannot access parent window data.")
                 return
@@ -1491,30 +1677,54 @@ class AdvancedSettingsDialog(QDialog):
             item = QListWidgetItem(f"{backup['track']} - {backup['original_file']} (backup: {time_str})")
             item.setData(Qt.UserRole, backup)
             self.backup_list.addItem(item)
-    
+
     def restore_aiw_backup(self, backup_info):
+        """Restore AIW backup using consistent path finding"""
         try:
             backup_path = backup_info["backup_path"]
             original_name = backup_info["original_file"]
+            track_name = backup_info["track"]
             restore_path = None
-            if self.parent and hasattr(self.parent, 'daemon') and self.parent.daemon:
-                base_path = self.parent.daemon.base_path
+            
+            # Use the same path finding method as the main application
+            base_path = get_base_path()
+            
+            if base_path:
                 locations_dir = base_path / "GameData" / "Locations"
                 if locations_dir.exists():
+                    # Search case-insensitively for the track folder
+                    track_lower = track_name.lower()
                     for track_dir in locations_dir.iterdir():
-                        if track_dir.is_dir():
+                        if track_dir.is_dir() and track_dir.name.lower() == track_lower:
                             aiw_path = track_dir / original_name
                             if aiw_path.exists():
                                 restore_path = aiw_path
                                 break
+                    
+                    # If not found, search by filename
+                    if not restore_path:
+                        for ext in ["*.AIW", "*.aiw"]:
+                            for aiw_file in locations_dir.rglob(ext):
+                                if aiw_file.name.lower() == original_name.lower():
+                                    restore_path = aiw_file
+                                    break
+            
+            # If still not found, ask user for location
             if not restore_path:
-                restore_path_str, _ = QFileDialog.getSaveFileName(self, "Save Restored AIW As", str(backup_path.parent / original_name), "AIW Files (*.AIW)")
+                restore_path_str, _ = QFileDialog.getSaveFileName(
+                    self, "Save Restored AIW As", 
+                    str(backup_path.parent / original_name), 
+                    "AIW Files (*.AIW)"
+                )
                 if restore_path_str:
                     restore_path = Path(restore_path_str)
                 else:
                     return False
+            
             shutil.copy2(backup_path, restore_path)
+            logger.info(f"Restored backup to {restore_path}")
             return True
+            
         except Exception as e:
             logger.error(f"Error restoring backup: {e}")
             return False
@@ -1666,16 +1876,17 @@ class AdvancedSettingsDialog(QDialog):
     def refresh_display(self):
         if not self.parent:
             return
-        current_track = getattr(self.parent, 'current_track', None)
-        current_vehicle = getattr(self.parent, 'current_vehicle', None)
-        user_qual_time = getattr(self.parent, 'user_qualifying_sec', 0.0)
-        user_race_time = getattr(self.parent, 'user_best_lap_sec', 0.0)
-        qual_a = getattr(self.parent, 'qual_a', DEFAULT_A_VALUE)
-        qual_b = getattr(self.parent, 'qual_b', 70.0)
-        race_a = getattr(self.parent, 'race_a', DEFAULT_A_VALUE)
-        race_b = getattr(self.parent, 'race_b', 70.0)
-        last_qual_ratio = getattr(self.parent, 'last_qual_ratio', None)
-        last_race_ratio = getattr(self.parent, 'last_race_ratio', None)
+        parent = self.parent() if callable(self.parent) else self.parent
+        current_track = getattr(parent, 'current_track', None)
+        current_vehicle = getattr(parent, 'current_vehicle', None)
+        user_qual_time = getattr(parent, 'user_qualifying_sec', 0.0)
+        user_race_time = getattr(parent, 'user_best_lap_sec', 0.0)
+        qual_a = getattr(parent, 'qual_a', DEFAULT_A_VALUE)
+        qual_b = getattr(parent, 'qual_b', 70.0)
+        race_a = getattr(parent, 'race_a', DEFAULT_A_VALUE)
+        race_b = getattr(parent, 'race_b', 70.0)
+        last_qual_ratio = getattr(parent, 'last_qual_ratio', None)
+        last_race_ratio = getattr(parent, 'last_race_ratio', None)
         
         if self.curve_graph:
             self.curve_graph.update_current_info(
@@ -1711,6 +1922,9 @@ class AdvancedSettingsDialog(QDialog):
     def on_data_updated(self):
         self.load_data_table()
         self.data_updated.emit()
+        # Also update the graph's track and notify parent
+        if self.curve_graph and self.curve_graph.current_track:
+            self.track_selected.emit(self.curve_graph.current_track)
     
     def on_formula_changed(self, session_type: str, a: float, b: float):
         if session_type == "qual" and self.qual_panel:
@@ -1742,20 +1956,35 @@ class AdvancedSettingsDialog(QDialog):
                 self.curve_graph.set_show_race(show)
     
     def on_calculate_and_save_ratio(self, session_type: str, lap_time: float):
+        """Calculate and save ratio - the save method already shows confirmation"""
         if session_type == "qual":
             a, b = self.qual_panel.a, self.qual_panel.b
         else:
             a, b = self.race_panel.a, self.race_panel.b
+        
         denominator = lap_time - b
         if denominator <= 0:
+            QMessageBox.warning(self, "Invalid Calculation", 
+                f"Cannot calculate ratio: T - b = {lap_time:.3f} - {b:.2f} = {denominator:.3f} (must be positive)")
             return
+        
         ratio = a / denominator
-        if 0.3 < ratio < 3.0:
-            min_ratio, max_ratio = get_ratio_limits()
-            if ratio < min_ratio or ratio > max_ratio:
-                reply = QMessageBox.question(self, "Ratio Out of Range", f"The calculated {session_type.upper()} Ratio = {ratio:.6f} is outside the allowed range ({min_ratio} - {max_ratio}).", QMessageBox.Yes | QMessageBox.No)
-                if reply != QMessageBox.Yes:
-                    return
+        if not (0.3 < ratio < 3.0):
+            QMessageBox.warning(self, "Ratio Out of Range", 
+                f"Calculated ratio {ratio:.6f} is outside valid range (0.3 - 3.0)")
+            return
+        
+        min_ratio, max_ratio = get_ratio_limits()
+        if ratio < min_ratio or ratio > max_ratio:
+            reply = QMessageBox.question(self, "Ratio Out of Range", 
+                f"The calculated {session_type.upper()} Ratio = {ratio:.6f} is outside the allowed range "
+                f"({min_ratio} - {max_ratio}).\n\nContinue anyway?",
+                QMessageBox.Yes | QMessageBox.No)
+            if reply != QMessageBox.Yes:
+                return
+        
+        # Save to AIW file - this method already shows its own confirmation dialog
+        if self._save_ratio_to_aiw(session_type, ratio, lap_time):
             self.ratio_saved.emit(session_type, ratio)
             if self.curve_graph:
                 if session_type == "qual":
@@ -1764,13 +1993,13 @@ class AdvancedSettingsDialog(QDialog):
                     self.curve_graph.user_race_ratio = ratio
                 self.curve_graph.update_graph()
             if self.parent:
+                parent = self.parent() if callable(self.parent) else self.parent
                 if session_type == "qual":
-                    self.parent.last_qual_ratio = ratio
-                    self.parent.qual_panel.update_ratio(ratio)
+                    parent.last_qual_ratio = ratio
+                    parent.qual_panel.update_ratio(ratio)
                 else:
-                    self.parent.last_race_ratio = ratio
-                    self.parent.race_panel.update_ratio(ratio)
-            QMessageBox.information(self, "Ratio Saved", f"{session_type.upper()} Ratio = {ratio:.6f} has been saved to the AIW file.")
+                    parent.last_race_ratio = ratio
+                    parent.race_panel.update_ratio(ratio)
     
     def on_auto_fit_requested(self, session_type: str):
         if not self.curve_graph:
@@ -1807,11 +2036,12 @@ class AdvancedSettingsDialog(QDialog):
                 self.curve_graph.update_graph()
             self.formula_updated.emit(session_type, a, b)
             if self.parent:
+                parent = self.parent() if callable(self.parent) else self.parent
                 if session_type == "qual":
-                    self.parent.qual_b = b
+                    parent.qual_b = b
                 else:
-                    self.parent.race_b = b
-                self.parent.update_display()
+                    parent.race_b = b
+                parent.update_display()
             QMessageBox.information(self, "Auto-Fit Complete", f"Formula fitted to {len(points)} data points:\nT = {a:.4f} / R + {b:.4f}\nAverage error: {avg_err:.3f}s\nMax error: {max_err:.3f}s")
         else:
             QMessageBox.warning(self, "Fit Failed", "Could not fit curve to data.")
@@ -1946,10 +2176,14 @@ class AdvancedSettingsDialog(QDialog):
                     "offset_seconds": self.target_offset_seconds, "error_margin": self.ai_error_margin}
         logger.info(f"[AI TARGET] Settings: mode={self.target_mode}, percentage={self.target_percentage}, offset={self.target_offset_seconds}, error_margin={self.ai_error_margin}")
         
-        qual_best = getattr(self.parent, 'qual_best_ai', None)
-        qual_worst = getattr(self.parent, 'qual_worst_ai', None)
-        race_best = getattr(self.parent, 'race_best_ai', None)
-        race_worst = getattr(self.parent, 'race_worst_ai', None)
+        parent = self.parent() if callable(self.parent) else self.parent
+        if parent:
+            qual_best = getattr(parent, 'qual_best_ai', None)
+            qual_worst = getattr(parent, 'qual_worst_ai', None)
+            race_best = getattr(parent, 'race_best_ai', None)
+            race_worst = getattr(parent, 'race_worst_ai', None)
+        else:
+            qual_best = qual_worst = race_best = race_worst = None
         logger.info(f"[AI TARGET] AI ranges: Qual={qual_best}-{qual_worst}, Race={race_best}-{race_worst}")
         
         if qual_best is None or qual_worst is None or race_best is None or race_worst is None:
@@ -1985,22 +2219,14 @@ class AdvancedSettingsDialog(QDialog):
             return
         
         aiw_path = None
-        if hasattr(self.parent, '_get_aiw_path'):
-            aiw_path = self.parent._get_aiw_path()
-            logger.info(f"[AI TARGET] Got AIW path from parent: {aiw_path}")
+        # Use the config-based path finder
+        aiw_path = self._find_aiw_path_from_config()
         
         if not aiw_path:
-            track_name = getattr(self.parent, 'current_track', 'Unknown')
-            aiw_path_str, _ = QFileDialog.getOpenFileName(self, f"Select AIW file for {track_name}", str(Path.cwd()), "AIW Files (*.AIW *.aiw)")
-            if aiw_path_str:
-                aiw_path = Path(aiw_path_str)
-                logger.info(f"[AI TARGET] User selected AIW: {aiw_path}")
-            else:
-                logger.error("[AI TARGET] No AIW file selected")
-                QMessageBox.warning(self, "No AIW File", "Cannot apply settings without AIW file.")
-                return
+            self._show_aiw_path_error()
+            return
         
-        engine = self.parent.autopilot_manager.engine if hasattr(self.parent, 'autopilot_manager') else None
+        engine = parent.autopilot_manager.engine if parent and hasattr(parent, 'autopilot_manager') else None
         logger.info(f"[AI TARGET] Engine available: {engine is not None}")
         
         if engine:
@@ -2009,15 +2235,16 @@ class AdvancedSettingsDialog(QDialog):
             logger.info(f"[AI TARGET] Updates: Qual={qual_updated}, Race={race_updated}")
             
             if qual_updated or race_updated:
-                if qual_updated:
-                    self.parent.last_qual_ratio = qual_new_ratio
-                    self.parent.qual_panel.update_ratio(qual_new_ratio)
-                if race_updated:
-                    self.parent.last_race_ratio = race_new_ratio
-                    self.parent.race_panel.update_ratio(race_new_ratio)
-                self.parent.ai_target_settings = settings
-                if hasattr(self.parent, 'update_target_display'):
-                    self.parent.update_target_display()
+                if qual_updated and parent:
+                    parent.last_qual_ratio = qual_new_ratio
+                    parent.qual_panel.update_ratio(qual_new_ratio)
+                if race_updated and parent:
+                    parent.last_race_ratio = race_new_ratio
+                    parent.race_panel.update_ratio(race_new_ratio)
+                if parent and hasattr(parent, 'ai_target_settings'):
+                    parent.ai_target_settings = settings
+                if parent and hasattr(parent, 'update_target_display'):
+                    parent.update_target_display()
                 QMessageBox.information(self, "Settings Applied", f"AI Target settings applied!\nQualRatio: {qual_new_ratio:.6f}\nRaceRatio: {race_new_ratio:.6f}")
             else:
                 logger.error("[AI TARGET] Failed to update AIW file")

@@ -108,11 +108,13 @@ class Formula:
         return hyperbolic(ratio, self.a, self.b)
     
     def get_ratio_for_time(self, lap_time: float) -> Optional[float]:
+        """Calculate ratio directly from formula - same as manual calculation"""
         denominator = lap_time - self.b
         if denominator <= 0:
             return None
         if self.a <= 0:
             return None
+        # Direct calculation: R = a / (T - b)
         return self.a / denominator
     
     def is_valid(self) -> bool:
@@ -445,19 +447,25 @@ class AutopilotEngine:
             new_formula = Formula.from_point(track, vehicle_class, current_ratio, target_time, session_type, DEFAULT_A_VALUE)
             return new_formula
     
-    def _calculate_new_ratio_from_user_time(self, formula: Formula, user_lap_time: float) -> Optional[float]:
+    def _calculate_new_ratio_direct(self, user_lap_time: float, a: float, b: float) -> Optional[float]:
         """
-        Calculate what ratio would give the user's lap time using the current formula.
-        This is the key method for adjusting AI difficulty to match user performance.
+        DIRECT calculation of ratio from user lap time using formula parameters.
+        This matches exactly what the manual calculation does in the Data Management tab.
+        R = a / (T - b)
         """
         if user_lap_time <= 0:
             logger.debug(f"  No valid user lap time provided")
             return None
         
-        new_ratio = formula.get_ratio_for_time(user_lap_time)
+        denominator = user_lap_time - b
+        if denominator <= 0:
+            logger.debug(f"  Denominator <= 0: {user_lap_time:.3f} - {b:.2f} = {denominator:.3f}")
+            return None
         
-        if new_ratio and 0.3 < new_ratio < 3.0:
-            logger.debug(f"  Calculated new ratio from user time {user_lap_time:.3f}s: {new_ratio:.6f}")
+        new_ratio = a / denominator
+        
+        if 0.3 < new_ratio < 3.0:
+            logger.debug(f"  DIRECT calculation: R = {a:.2f} / ({user_lap_time:.3f} - {b:.2f}) = {new_ratio:.6f}")
             return new_ratio
         else:
             logger.debug(f"  Calculated ratio {new_ratio} is out of valid range (0.3-3.0)")
@@ -468,7 +476,8 @@ class AutopilotEngine:
                          ratio_name: str, ai_target_settings: Dict = None) -> Dict[str, Any]:
         """
         Process a single session (qualifying or race).
-        Now properly calculates target ratio based on USER lap time, not AI midpoint.
+        Uses DIRECT calculation for the new ratio - same as manual method.
+        Formula is still stored separately for future reference and graph display.
         """
         result = {
             "updated": False,
@@ -482,34 +491,35 @@ class AutopilotEngine:
         logger.debug(f"  Current ratio from AIW: {current_ratio:.6f}")
         logger.debug(f"  User lap time: {user_lap_time:.3f}s" if user_lap_time > 0 else "  User lap time: Not available")
         
-        # CRITICAL FIX: If we have user lap time, that's what we should target
-        # The goal is to make AI times match the user's performance level
-        if user_lap_time > 0:
-            # Use user's lap time as the target for formula creation/adaptation
-            target_time_for_formula = user_lap_time
-            logger.debug(f"  Using USER lap time as target: {target_time_for_formula:.3f}s")
+        # CRITICAL FIX: Get the current formula parameters (or default)
+        # We need a and b values for direct calculation
+        existing_formula = self.formula_manager.get_formula_by_class(track, vehicle_class, session_type)
+        
+        if existing_formula and existing_formula.is_valid():
+            a = existing_formula.a
+            b = existing_formula.b
+            logger.debug(f"  Using existing formula: a={a:.2f}, b={b:.2f}")
+            result["formula"] = existing_formula
         else:
-            # Fallback to AI midpoint if no user time (e.g., first qualifying session)
-            target_time_for_formula = midpoint_time
-            logger.debug(f"  No user time - using AI midpoint as target: {target_time_for_formula:.3f}s")
+            a = DEFAULT_A_VALUE
+            # Estimate b from current ratio if we have one
+            if current_ratio > 0 and user_lap_time > 0:
+                # We can estimate b from the current point
+                b = user_lap_time - (a / current_ratio)
+                b = max(10.0, min(200.0, b))
+                logger.debug(f"  No formula found, estimating b from current data: b={b:.2f}")
+            else:
+                b = 70.0
+                logger.debug(f"  No formula found, using default b={b:.2f}")
         
-        # Get or create formula using the target time
-        formula = self._get_or_create_formula(track, vehicle_class, session_type, current_ratio, target_time_for_formula)
-        logger.debug(f"  Formula: {formula.get_formula_string()}")
-        
-        # Save the formula
-        self.formula_manager.save_formula(formula)
-        result["formula"] = formula
-        
-        # Calculate what ratio would give the user's lap time (or target time)
-        # This is the NEW ratio we should write to the AIW
+        # DIRECT calculation - same as manual method in Data Management
         if user_lap_time > 0:
-            # We have user data - calculate ratio that makes AI match user
-            new_ratio = self._calculate_new_ratio_from_user_time(formula, user_lap_time)
-            logger.debug(f"  Calculated new ratio from user time {user_lap_time:.3f}s: {new_ratio:.6f}" if new_ratio else "  Could not calculate new ratio from user time")
+            new_ratio = self._calculate_new_ratio_direct(user_lap_time, a, b)
+            if new_ratio:
+                logger.debug(f"  DIRECT new ratio: {new_ratio:.6f}")
+            else:
+                logger.debug(f"  Could not calculate new ratio from user time")
         else:
-            # No user data - we can't calculate a meaningful new ratio
-            # Keep current ratio, but we've created/updated the formula for future use
             new_ratio = None
             logger.debug(f"  No user time available - cannot calculate new ratio")
         
@@ -526,11 +536,13 @@ class AutopilotEngine:
                     best_ai_time, worst_ai_time, ai_target_settings
                 )
                 
-                # Recalculate ratio for the target position
-                adjusted_ratio = formula.get_ratio_for_time(target_time)
-                if adjusted_ratio and 0.3 < adjusted_ratio < 3.0:
-                    logger.debug(f"  Adjusted for AI target (position {ai_target_settings.get('percentage', 50)}%): {adjusted_ratio:.6f}")
-                    new_ratio = adjusted_ratio
+                # Recalculate ratio for the target position using direct method
+                denominator = target_time - b
+                if denominator > 0:
+                    adjusted_ratio = a / denominator
+                    if 0.3 < adjusted_ratio < 3.0:
+                        logger.debug(f"  Adjusted for AI target (position {ai_target_settings.get('percentage', 50)}%): {adjusted_ratio:.6f}")
+                        new_ratio = adjusted_ratio
         
         # Apply the new ratio to the AIW file if we have one and it's different
         if new_ratio and abs(new_ratio - current_ratio) > 0.000001:
@@ -547,6 +559,25 @@ class AutopilotEngine:
                 logger.debug(f"  New ratio {new_ratio:.6f} is essentially same as current {current_ratio:.6f} - no update needed")
             else:
                 logger.debug(f"  No new ratio calculated - keeping current value")
+        
+        # AFTER applying the ratio, update (or create) the formula with the new data point
+        # for future reference. This is separate from the ratio calculation.
+        if user_lap_time > 0:
+            # Use the target time that was actually used for calculation
+            target_time_for_formula = user_lap_time
+            
+            if existing_formula:
+                # Update existing formula with this new point
+                updated_formula = existing_formula.adjust_height_to_point(current_ratio, target_time_for_formula)
+                self.formula_manager.save_formula(updated_formula)
+                logger.debug(f"  Updated formula with new data point")
+                result["formula"] = updated_formula
+            else:
+                # Create new formula
+                new_formula = Formula.from_point(track, vehicle_class, current_ratio, target_time_for_formula, session_type, a)
+                self.formula_manager.save_formula(new_formula)
+                logger.debug(f"  Created new formula from data point")
+                result["formula"] = new_formula
         
         return result
     
@@ -681,7 +712,7 @@ class AutopilotEngine:
             return False
     
     def calculate_ratio_from_formula(self, track: str, vehicle_class: str, session_type: str, lap_time: float) -> Optional[float]:
-        """Calculate ratio from a formula for a given lap time"""
+        """Calculate ratio from a formula for a given lap time using direct method"""
         formula = self.formula_manager.get_formula_by_class(track, vehicle_class, session_type)
         if not formula:
             # Use default formula with base a=32
@@ -689,7 +720,11 @@ class AutopilotEngine:
             b = max(10.0, min(200.0, b))
             formula = Formula(track, vehicle_class, DEFAULT_A_VALUE, b, session_type)
         
-        return formula.get_ratio_for_time(lap_time)
+        # Direct calculation
+        denominator = lap_time - formula.b
+        if denominator <= 0:
+            return None
+        return formula.a / denominator
 
 
 class AutopilotManager:

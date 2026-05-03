@@ -7,6 +7,9 @@ T = a / R + b
 import numpy as np
 from typing import List, Tuple, Optional
 
+# Default 'a' value for formulas
+DEFAULT_A_VALUE = 32.0
+
 
 def hyperbolic(R: float, a: float, b: float) -> float:
     """Calculate lap time from ratio using hyperbolic formula"""
@@ -76,7 +79,7 @@ def fit_curve(ratios: List[float], times: List[float], verbose: bool = True) -> 
             b_guess = t1 - a_guess * inv_r1
             print(f"  [fit_curve] Calculated guess: a={a_guess:.4f}, b={b_guess:.4f}")
         else:
-            a_guess = 30.0
+            a_guess = DEFAULT_A_VALUE
             b_guess = 70.0
             print(f"  [fit_curve] Using default guess: a={a_guess:.4f}, b={b_guess:.4f}")
         

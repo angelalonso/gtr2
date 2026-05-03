@@ -27,6 +27,7 @@ echo "Building executable with PyInstaller..."
 wine python -m PyInstaller \
     --onefile \
     --windowed \
+    --add-data="ai_target_analyzer.py;." \
     --add-data="autopilot.py;." \
     --add-data="cfg_funcs.py;." \
     --add-data="data_daemon.py;." \
@@ -35,6 +36,7 @@ wine python -m PyInstaller \
     --add-data="dyn_ai.py;." \
     --add-data="formula_funcs.py;." \
     --add-data="gui_funcs.py;." \
+    --hidden-import=ai_target_analyzer.py \
     --hidden-import=autopilot \
     --hidden-import=cfg_funcs \
     --hidden-import=data_daemon \
