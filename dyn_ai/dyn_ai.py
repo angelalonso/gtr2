@@ -197,7 +197,6 @@ class BasePathSelectionDialog(QDialog):
         layout.setSpacing(15)
         layout.setContentsMargins(25, 25, 25, 25)
         
-        # Title
         title = QLabel("GTR2 Installation Path")
         title.setStyleSheet("font-size: 18px; font-weight: bold; color: #FFA500;")
         title.setAlignment(Qt.AlignCenter)
@@ -205,7 +204,6 @@ class BasePathSelectionDialog(QDialog):
         
         layout.addSpacing(10)
         
-        # Description
         desc = QLabel(
             "Please select the root folder of your GTR2 installation.\n\n"
             "This folder should contain the 'GameData' and 'UserData' directories.\n"
@@ -218,7 +216,6 @@ class BasePathSelectionDialog(QDialog):
         
         layout.addSpacing(10)
         
-        # Path input row
         path_layout = QHBoxLayout()
         path_layout.addWidget(QLabel("Path:"))
         
@@ -232,14 +229,12 @@ class BasePathSelectionDialog(QDialog):
         
         layout.addLayout(path_layout)
         
-        # Validation message
         self.validation_label = QLabel("")
         self.validation_label.setStyleSheet("color: #FFA500; font-size: 10px;")
         layout.addWidget(self.validation_label)
         
         layout.addSpacing(20)
         
-        # Buttons
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
         
@@ -848,7 +843,12 @@ class RedesignedMainWindow(QMainWindow):
         
         self.add_target_indicator()
         
-        self.load_aiw_ratios()
+        # Initialize without loading AIW ratios - no track selected yet
+        self.track_label.setText("- No Track Selected -")
+        self.qual_panel.update_ratio(None)
+        self.race_panel.update_ratio(None)
+        self.qual_panel.update_last_read_ratio(None)
+        self.race_panel.update_last_read_ratio(None)
     
     def open_advanced_to_data_management(self):
         """Open advanced settings and switch to Data Management tab"""
@@ -957,9 +957,9 @@ class RedesignedMainWindow(QMainWindow):
             
             lines_to_insert = []
             if not has_qual:
-                lines_to_insert.append(f"  QualRatio = 1.000000")
+                lines_to_insert.append("QualRatio = 1.000000")
             if not has_race:
-                lines_to_insert.append(f"  RaceRatio = 1.000000")
+                lines_to_insert.append("RaceRatio = 1.000000")
             
             if lines_to_insert:
                 insert_text = "\n" + "\n".join(lines_to_insert)
@@ -974,6 +974,7 @@ class RedesignedMainWindow(QMainWindow):
             return False
     
     def load_aiw_ratios(self):
+        # Do nothing if no track is selected - maintain blank display
         if not self.current_track:
             logger.debug("No track selected, skipping AIW ratio load")
             self.qual_panel.update_ratio(None)
@@ -1107,7 +1108,6 @@ class RedesignedMainWindow(QMainWindow):
     def calculate_ratio_from_user_time(self, session_type: str, user_time: float) -> Optional[float]:
         """
         Direct calculation of ratio from user lap time - same as manual method.
-        This is the correct way to calculate ratio - using user's actual performance.
         """
         logger.info(f"[RATIO CALC] calculate_ratio_from_user_time called for {session_type} with user_time={user_time:.3f}s")
         
@@ -1559,7 +1559,6 @@ class RedesignedMainWindow(QMainWindow):
         
         final_ratio = new_ratio
         if self.ai_target_settings.get("mode") != "percentage" or self.ai_target_settings.get("percentage") != 50:
-            # For manual edit, ask if user wants to use AI target positioning
             if self.qual_best_ai and self.qual_worst_ai:
                 target_time = self.calculate_target_lap_time(self.qual_best_ai, self.qual_worst_ai)
                 if session_type == "qual":
@@ -1715,7 +1714,6 @@ class RedesignedMainWindow(QMainWindow):
                 qual_time=self.user_qualifying_sec if self.user_qualifying_sec > 0 else None,
                 race_time=self.user_best_lap_sec if self.user_best_lap_sec > 0 else None,
                 qual_ratio=self.last_qual_ratio, race_ratio=self.last_race_ratio)
-            self.advanced_window.curve_graph.set_formulas(self.qual_a, self.qual_b, self.race_a, self.race_b)
             self.advanced_window.curve_graph.full_refresh()
         
         self.advanced_window.show()
@@ -1739,6 +1737,7 @@ class RedesignedMainWindow(QMainWindow):
                 self.update_formula_accuracy("qual")
                 self.update_formula_accuracy("race")
             
+            # Now load AIW ratios since we have a track selected
             self.load_aiw_ratios()
             
             if self.advanced_window and self.advanced_window.isVisible():
@@ -1891,7 +1890,6 @@ class RedesignedMainWindow(QMainWindow):
             
             self._ensure_aiw_has_ratios(race_data.aiw_path)
             
-            # Calculate new ratios using user's actual lap times - NOT the AI target
             if self.user_qualifying_sec > 0:
                 new_qual_ratio = self.calculate_ratio_from_user_time("qual", self.user_qualifying_sec)
                 if new_qual_ratio and abs(new_qual_ratio - self.last_qual_ratio) > 0.000001:
@@ -1934,11 +1932,8 @@ class RedesignedMainWindow(QMainWindow):
         self.all_tracks = self.db.get_all_tracks()
         
         if self.all_tracks and not self.current_track:
-            self.current_track = self.all_tracks[0]
-            self.track_label.setText(self.current_track)
-            self.setWindowTitle(f"GTR2 Dynamic AI - {self.current_track}")
-            self.qual_best_ai, self.qual_worst_ai = self._get_ai_times_for_track(self.current_track, "qual")
-            self.race_best_ai, self.race_worst_ai = self._get_ai_times_for_track(self.current_track, "race")
+            # Don't auto-select a track - keep "No Track Selected"
+            pass
         elif self.current_track and self.current_track not in self.all_tracks:
             self.current_track = ""
             self.track_label.setText("- No Track Selected -")

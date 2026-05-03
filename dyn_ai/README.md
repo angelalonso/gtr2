@@ -1,4 +1,4 @@
-# dyn_ai — Live AI Tuner for GTR2 - v1.0.5
+# dyn_ai — Live AI Tuner for GTR2 - v1.0.6
 
 ## What it does
 
@@ -8,7 +8,7 @@ Automatically adjusts AI difficulty to match your driving pace. Reads your lap t
 
 ## Current State
 
-Usable, but needs some babysitting.
+Usable, stable release with improved UI and AIW handling.
 
 **USE AT YOUR OWN RISK.** Test on a separate install.
 
@@ -50,10 +50,11 @@ Controls where your lap time falls within AI range:
 
 **Applied to ALL ratio calculations** (Auto-ratio, Manual edits, Advanced dialog)
 
-**Dump Analysis:** Click "📊 Dump Qual Analysis" or "📊 Dump Race Analysis" in the AI Target tab to save detailed calculation logs to `ai_target_dumps/`
+**Dump Analysis:** Click "Dump Qual Analysis" or "Dump Race Analysis" in the AI Target tab to save detailed calculation logs to `ai_target_dumps/`
 
 ### Manual Controls
-- Edit ratios directly (✎ button)
+- Edit ratios directly (Edit button)
+- Revert to previous ratio (Revert button)
 - Calculate ratio from lap time
 - Save formulas manually
 
@@ -66,7 +67,7 @@ Controls where your lap time falls within AI range:
 - Visualize curves and data points
 - Edit a/b parameters
 - Auto-fit curve to data
-- Delete individual data points
+- **Launch Dyn AI Data Manager** - Button to open external vehicle class management tool
 
 ### AI Target Analysis (Advanced → AI Target)
 - **Warning banner** indicates feature is under construction
@@ -117,6 +118,7 @@ Higher R = faster AI | Lower R = slower AI
 - Error margin (0.5-1.0s) makes AI slightly slower
 - Auto-calculate Ratios must be ON for automatic updates
 - Use Dump Analysis buttons to debug AI Target calculations
+- Track name must be selected before AI ratios are displayed
 
 ---
 
@@ -129,6 +131,28 @@ Higher R = faster AI | Lower R = slower AI
 | Can't find AIW file | Verify GTR2 path and track folder exists |
 | Ratio outside limits | Adjust `min_ratio`/`max_ratio` in cfg.yml |
 | AI Target calculations not working | Feature is under construction - use Dump Analysis to see what's happening |
+| No ratios shown on main screen | Select a track first via Advanced → Data Management |
+| AIW file has malformed ratios | Fixed in v1.0.6 - now adds each ratio on separate line |
+
+---
+
+## Changelog v1.0.6
+
+**Main Screen Improvements:**
+- Main screen no longer shows any track until explicitly selected via Advanced → Data Management
+- Track label now displays "- No Track Selected -" at startup
+- Quali-Ratio and Race-Ratio panels show blank (--) until a track is chosen
+- Load AIW ratios only after track selection
+
+**AIW File Format Fix:**
+- Fixed bug where missing QualRatio/RaceRatio were added with wrong format
+- Each ratio now appears on its own line with proper indentation
+
+**Data Management Tab Redesign (Advanced → Data Management):**
+- Removed the Data Points table area for cleaner interface
+- Graph area is now more prominent and visible
+- Added "Open Dyn AI Data Manager" button to launch `datamgmt_dyn_ai.exe` (or `.py` if running from source)
+- Provides quick access to vehicle class management and CSV import
 
 ---
 
@@ -139,6 +163,8 @@ Higher R = faster AI | Lower R = slower AI
 - **Dump Analysis moved to AI Target tab** - Removed from main screen, now available in Advanced → AI Target
 - **Resizable main window fix** - Race and Quali panels now resize properly with window, buttons stay at bottom
 - **Fixed dump_analysis crash** - Resolved "'RedesignedMainWindow' object is not callable" error
+
+---
 
 ## Changelog v1.0.4
 
