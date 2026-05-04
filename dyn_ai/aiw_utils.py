@@ -1,0 +1,341 @@
+#!/usr/bin/env python3
+"""
+Shared AIW file utilities for Live AI Tuner
+Provides consistent AIW file finding across all modules
+"""
+
+import re
+import shutil
+import logging
+from pathlib import Path
+from typing import Optional, Tuple
+
+logger = logging.getLogger(__name__)
+
+
+def find_aiw_file_from_path(relative_path: str, base_path: Path) -> Optional[Path]:
+    """
+    Find AIW file from a relative path (like from raceresults.txt).
+    Handles case-insensitive paths and different path separators.
+    
+    Args:
+        relative_path: Path like "GAMEDATA/LOCATIONS/Testtrack2/Testtrack2.AIW"
+        base_path: Base GTR2 installation path
+    
+    Returns:
+        Full Path to AIW file or None if not found
+    """
+    if not relative_path or not base_path:
+        logger.error(f"find_aiw_file_from_path: missing params - relative_path={relative_path}, base_path={base_path}")
+        return None
+    
+    # Normalize path separators to /
+    normalized = str(relative_path).replace('\\', '/')
+    logger.debug(f"find_aiw_file_from_path: looking for '{normalized}' in base_path '{base_path}'")
+    
+    # Try the path as-is first
+    full_path = base_path / normalized
+    if full_path.exists():
+        logger.info(f"Found AIW via exact path: {full_path}")
+        return full_path
+    else:
+        logger.debug(f"Exact path not found: {full_path}")
+    
+    # Try lowercase version
+    lower_path = base_path / normalized.lower()
+    if lower_path.exists():
+        logger.info(f"Found AIW via lowercase path: {lower_path}")
+        return lower_path
+    else:
+        logger.debug(f"Lowercase path not found: {lower_path}")
+    
+    # Try uppercase version
+    upper_path = base_path / normalized.upper()
+    if upper_path.exists():
+        logger.info(f"Found AIW via uppercase path: {upper_path}")
+        return upper_path
+    else:
+        logger.debug(f"Uppercase path not found: {upper_path}")
+    
+    # Try with GameData instead of GAMEDATA
+    if normalized.startswith('GAMEDATA/'):
+        with_gamedata = base_path / ('GameData/' + normalized[9:])
+        if with_gamedata.exists():
+            logger.info(f"Found AIW with GameData: {with_gamedata}")
+            return with_gamedata
+        else:
+            logger.debug(f"GameData variant not found: {with_gamedata}")
+    
+    if normalized.startswith('gamedata/'):
+        with_GameData = base_path / ('GameData/' + normalized[9:])
+        if with_GameData.exists():
+            logger.info(f"Found AIW with GameData: {with_GameData}")
+            return with_GameData
+        else:
+            logger.debug(f"GameData variant not found: {with_GameData}")
+    
+    # Try with different case combinations for the path components
+    # Split the path and try to find each component case-insensitively
+    path_parts = normalized.split('/')
+    if len(path_parts) >= 3:
+        # Start from the base_path and walk through parts case-insensitively
+        current_path = base_path
+        for part in path_parts:
+            if not current_path.exists():
+                logger.debug(f"Path component not found: {current_path}")
+                break
+            # Find the actual directory name case-insensitively
+            found = None
+            if current_path.is_dir():
+                for item in current_path.iterdir():
+                    if item.name.lower() == part.lower():
+                        found = item
+                        break
+            if found:
+                current_path = found
+            else:
+                # If we can't find the directory, try to create the full path differently
+                break
+        else:
+            # We successfully walked through all parts
+            if current_path.exists():
+                logger.info(f"Found AIW via case-insensitive walk: {current_path}")
+                return current_path
+    
+    # Try to find by filename in the locations directory
+    filename = Path(normalized).name
+    logger.debug(f"Trying to find by filename '{filename}' in Locations directories")
+    
+    locations_candidates = [
+        base_path / "GameData" / "Locations",
+        base_path / "GAMEDATA" / "Locations",
+        base_path / "gamedata" / "locations",
+        base_path / "GameData" / "locations",
+        base_path / "gamedata" / "Locations",
+    ]
+    
+    for locations_dir in locations_candidates:
+        if locations_dir.exists():
+            logger.debug(f"Searching in Locations directory: {locations_dir}")
+            for ext in ["*.AIW", "*.aiw"]:
+                for aiw_file in locations_dir.rglob(ext):
+                    if aiw_file.name.lower() == filename.lower():
+                        logger.info(f"Found AIW via filename search in {locations_dir}: {aiw_file}")
+                        return aiw_file
+    
+    logger.warning(f"AIW file NOT found for path: {relative_path} (normalized: {normalized})")
+    logger.warning(f"  Base path: {base_path}")
+    logger.warning(f"  Tried variants: {full_path}, {lower_path}, {upper_path}")
+    return None
+
+
+def find_aiw_file_by_track(track_name: str, base_path: Path) -> Optional[Path]:
+    """
+    Find AIW file by track name (fallback when no relative path available).
+    
+    Args:
+        track_name: Name of the track (e.g., "Donington", "Monza")
+        base_path: Base GTR2 installation path
+    
+    Returns:
+        Full Path to AIW file or None if not found
+    """
+    if not track_name or not base_path:
+        logger.error(f"find_aiw_file_by_track: missing params - track_name={track_name}, base_path={base_path}")
+        return None
+    
+    logger.debug(f"find_aiw_file_by_track: looking for track '{track_name}' in base_path '{base_path}'")
+    
+    locations_candidates = [
+        base_path / "GameData" / "Locations",
+        base_path / "GAMEDATA" / "Locations",
+        base_path / "gamedata" / "locations",
+        base_path / "GameData" / "locations",
+        base_path / "gamedata" / "Locations",
+    ]
+    
+    locations_dir = None
+    for candidate in locations_candidates:
+        if candidate.exists():
+            locations_dir = candidate
+            logger.debug(f"Found Locations directory: {locations_dir}")
+            break
+    
+    if not locations_dir:
+        logger.error(f"Locations directory not found. Tried: {locations_candidates}")
+        return None
+    
+    track_lower = track_name.lower()
+    
+    # Try exact folder match
+    for track_dir in locations_dir.iterdir():
+        if track_dir.is_dir() and track_dir.name.lower() == track_lower:
+            for ext in ["*.AIW", "*.aiw"]:
+                aiw_files = list(track_dir.glob(ext))
+                if aiw_files:
+                    logger.info(f"Found AIW via exact folder match: {aiw_files[0]}")
+                    return aiw_files[0]
+            logger.debug(f"Folder '{track_dir.name}' matched but no AIW file found")
+    
+    # Try matching AIW filename (remove leading digits)
+    for ext in ["*.AIW", "*.aiw"]:
+        for aiw_file in locations_dir.rglob(ext):
+            aiw_stem = re.sub(r'^\d+', '', aiw_file.stem.lower())
+            if aiw_stem == track_lower:
+                logger.info(f"Found AIW via stem match: {aiw_file} (stem={aiw_stem})")
+                return aiw_file
+    
+    # Try folder name containing the track name as a whole word
+    for track_dir in locations_dir.iterdir():
+        if track_dir.is_dir():
+            dir_lower = track_dir.name.lower()
+            if re.search(r'\b' + re.escape(track_lower) + r'\b', dir_lower):
+                for ext in ["*.AIW", "*.aiw"]:
+                    aiw_files = list(track_dir.glob(ext))
+                    if aiw_files:
+                        logger.info(f"Found AIW via folder word match: {aiw_files[0]} (folder={track_dir.name})")
+                        return aiw_files[0]
+    
+    logger.warning(f"AIW file NOT found for track: {track_name}")
+    logger.warning(f"  Locations directory: {locations_dir}")
+    logger.warning(f"  Available folders in Locations: {[d.name for d in locations_dir.iterdir() if d.is_dir()]}")
+    return None
+
+
+def update_aiw_ratio(aiw_path: Path, ratio_name: str, new_ratio: float, backup_dir: Optional[Path] = None) -> bool:
+    """
+    Update a ratio in the AIW file.
+    
+    Args:
+        aiw_path: Path to the AIW file
+        ratio_name: "QualRatio" or "RaceRatio"
+        new_ratio: New ratio value
+        backup_dir: Directory to store backups (if None, no backup created)
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        if not aiw_path:
+            logger.error(f"update_aiw_ratio: aiw_path is None")
+            return False
+        
+        if not aiw_path.exists():
+            logger.error(f"update_aiw_ratio: AIW file not found: {aiw_path}")
+            return False
+        
+        logger.debug(f"update_aiw_ratio: updating {ratio_name} to {new_ratio:.6f} in {aiw_path}")
+        
+        # Create backup if backup_dir provided
+        if backup_dir:
+            backup_dir = Path(backup_dir)
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            backup_path = backup_dir / f"{aiw_path.stem}_ORIGINAL{aiw_path.suffix}"
+            if not backup_path.exists():
+                shutil.copy2(aiw_path, backup_path)
+                logger.debug(f"Created backup: {backup_path}")
+        
+        # Read file content
+        raw = aiw_path.read_bytes()
+        content = raw.replace(b"\x00", b"").decode("utf-8", errors="ignore")
+        
+        # Update the ratio using regex
+        pattern = rf'({re.escape(ratio_name)}\s*=\s*\(?)\s*[0-9.eE+-]+\s*(\)?)'
+        new_content, count = re.subn(
+            pattern,
+            lambda m: f"{m.group(1)}{new_ratio:.6f}{m.group(2)}",
+            content,
+            flags=re.IGNORECASE
+        )
+        
+        if count > 0:
+            aiw_path.write_bytes(new_content.encode("utf-8", errors="ignore"))
+            logger.info(f"Updated {ratio_name} to {new_ratio:.6f} in {aiw_path.name}")
+            return True
+        else:
+            logger.warning(f"Could not find {ratio_name} pattern in {aiw_path.name}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Error updating AIW ratio: {e}")
+        return False
+
+
+def ensure_aiw_has_ratios(aiw_path: Path, backup_dir: Optional[Path] = None) -> bool:
+    """
+    Ensure AIW file has both QualRatio and RaceRatio entries.
+    Adds them with default values if missing.
+    
+    Args:
+        aiw_path: Path to the AIW file
+        backup_dir: Directory to store backups
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        if not aiw_path:
+            logger.error(f"ensure_aiw_has_ratios: aiw_path is None")
+            return False
+        
+        if not aiw_path.exists():
+            logger.error(f"ensure_aiw_has_ratios: AIW file not found: {aiw_path}")
+            return False
+        
+        raw = aiw_path.read_bytes()
+        content = raw.replace(b"\x00", b"").decode("utf-8", errors="ignore")
+        
+        has_qual = re.search(r'QualRatio\s*=', content, re.IGNORECASE) is not None
+        has_race = re.search(r'RaceRatio\s*=', content, re.IGNORECASE) is not None
+        
+        if has_qual and has_race:
+            logger.debug(f"AIW {aiw_path.name} already has both ratios")
+            return True
+        
+        logger.info(f"AIW {aiw_path.name} missing ratios: qual={has_qual}, race={has_race}")
+        
+        # Create backup if backup_dir provided
+        if backup_dir:
+            backup_dir = Path(backup_dir)
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            backup_path = backup_dir / f"{aiw_path.stem}_ORIGINAL{aiw_path.suffix}"
+            if not backup_path.exists():
+                shutil.copy2(aiw_path, backup_path)
+                logger.info(f"Created backup before adding ratios: {backup_path}")
+        
+        # Find Waypoint section
+        waypoint_pattern = re.compile(r'(\[Waypoint\](.*?)(?=\[|$))', re.DOTALL | re.IGNORECASE)
+        waypoint_match = waypoint_pattern.search(content)
+        
+        if not waypoint_match:
+            logger.warning(f"Cannot find Waypoint section in {aiw_path.name}")
+            return False
+        
+        waypoint_section = waypoint_match.group(1)
+        waypoint_start = waypoint_match.start()
+        
+        # Find insertion position (after BestAdjust or at end of Waypoint section)
+        insert_pos = waypoint_start + len("[Waypoint]")
+        best_adjust_match = re.search(r'BestAdjust\s*=', waypoint_section, re.IGNORECASE)
+        if best_adjust_match:
+            line_end = waypoint_section.find('\n', best_adjust_match.end())
+            if line_end != -1:
+                insert_pos = waypoint_start + line_end + 1
+        
+        lines_to_insert = []
+        if not has_qual:
+            lines_to_insert.append("QualRatio = 1.000000")
+        if not has_race:
+            lines_to_insert.append("RaceRatio = 1.000000")
+        
+        if lines_to_insert:
+            insert_text = "\n" + "\n".join(lines_to_insert)
+            new_content = content[:insert_pos] + insert_text + content[insert_pos:]
+            aiw_path.write_bytes(new_content.encode("utf-8", errors="ignore"))
+            logger.info(f"Added missing ratios to {aiw_path.name}: {lines_to_insert}")
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error ensuring AIW has ratios: {e}")
+        return False

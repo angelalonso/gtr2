@@ -1,4 +1,4 @@
-# data_extraction.py - Fixed to store correct vehicle per AI driver
+# data_extraction.py - Fixed to store correct AIW path from raceresults.txt
 #!/usr/bin/env python3
 """
 Data extraction module for parsing race results and AIW files
@@ -14,6 +14,8 @@ from typing import Optional, Dict, List, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from aiw_utils import find_aiw_file_from_path, update_aiw_ratio, ensure_aiw_has_ratios
+
 logger = logging.getLogger(__name__)
 
 
@@ -26,6 +28,7 @@ class RaceData:
     track_folder: Optional[str] = None
     aiw_file: Optional[str] = None
     aiw_path: Optional[Path] = None
+    aiw_relative_path: Optional[str] = None  # Store the relative path from raceresults.txt
     aiw_error: Optional[str] = None  # Store AIW error messages
     qual_ratio: Optional[float] = None
     race_ratio: Optional[float] = None
@@ -195,8 +198,8 @@ class DataExtractor:
             print(f"  AI Drivers: {data.ai_count}")
             
             # Parse AIW ratios if we have AIW file and base path
-            if data.aiw_file and self.base_path:
-                self._parse_aiw_ratios(data)
+            if data.aiw_relative_path and self.base_path:
+                self._resolve_aiw_path(data)
             
             return data
             
@@ -217,14 +220,71 @@ class DataExtractor:
                 scene_path = Path(scene)
                 data.track_folder = scene_path.parent.name
                 track_name = scene_path.stem
+                # Remove leading digits (e.g., "4Donington" -> "Donington")
                 track_name = re.sub(r'^\d+', '', track_name)
                 data.track_name = track_name
             
             aiw_match = self.AIDB_PATTERN.search(race_section)
             if aiw_match:
                 aiw_path_str = aiw_match.group(1).strip().replace('\\', '/')
-                data.aiw_path = Path(aiw_path_str)
-                data.aiw_file = data.aiw_path.name
+                data.aiw_relative_path = aiw_path_str
+                # Extract just the filename for display
+                data.aiw_file = Path(aiw_path_str).name
+    
+    def _resolve_aiw_path(self, data: RaceData):
+        """Resolve AIW path using shared utility with detailed logging"""
+        if not data.aiw_relative_path or not self.base_path:
+            error_msg = f"No AIW relative path or base path to resolve (path={data.aiw_relative_path}, base={self.base_path})"
+            logger.error(error_msg)
+            data.aiw_error = error_msg
+            return
+        
+        logger.info(f"Resolving AIW path from: {data.aiw_relative_path}")
+        logger.info(f"Base path: {self.base_path}")
+        
+        aiw_path = find_aiw_file_from_path(data.aiw_relative_path, self.base_path)
+        
+        if aiw_path and aiw_path.exists():
+            data.aiw_path = aiw_path
+            logger.info(f"Successfully resolved AIW path: {aiw_path}")
+            self._parse_aiw_ratios(data)
+        else:
+            error_msg = f"AIW file not found for path: {data.aiw_relative_path}"
+            logger.error(error_msg)
+            logger.error(f"  Full base path: {self.base_path}")
+            logger.error(f"  Expected location: {self.base_path / data.aiw_relative_path}")
+            data.aiw_error = error_msg
+    
+    def _parse_aiw_ratios(self, data: RaceData):
+        """Parse QualRatio and RaceRatio from AIW file"""
+        if not data.aiw_path or not data.aiw_path.exists():
+            error_msg = f"AIW file not found: {data.aiw_path}"
+            logger.error(error_msg)
+            data.aiw_error = error_msg
+            return
+        
+        try:
+            with open(data.aiw_path, 'rb') as f:
+                raw = f.read()
+            
+            content = raw.replace(b'\x00', b'').decode('utf-8', errors='ignore')
+            
+            wp_match = self.WAYPOINT_PATTERN.search(content)
+            if wp_match:
+                section = wp_match.group(1)
+                
+                q_match = self.QUAL_RATIO_PATTERN.search(section)
+                if q_match:
+                    data.qual_ratio = float(q_match.group(1))
+                    print(f"  QualRatio from AIW: {data.qual_ratio:.6f}")
+                
+                r_match = self.RACE_RATIO_PATTERN.search(section)
+                if r_match:
+                    data.race_ratio = float(r_match.group(1))
+                    print(f"  RaceRatio from AIW: {data.race_ratio:.6f}")
+                    
+        except Exception as e:
+            print(f"Error parsing AIW ratios: {e}")
     
     def _parse_drivers(self, content: str, data: RaceData):
         """Parse driver information - each AI driver keeps its own vehicle"""
@@ -292,87 +352,6 @@ class DataExtractor:
             data.worst_ai_lap_sec, data.worst_ai_lap, _ = ai_times_race[-1]
             print(f"  Race: {len(ai_times_race)} AI times, best={data.best_ai_lap_sec:.3f}s, worst={data.worst_ai_lap_sec:.3f}s")
     
-    def _parse_aiw_ratios(self, data: RaceData):
-        """Parse QualRatio and RaceRatio from AIW file"""
-        if not data.aiw_file:
-            return
-        
-        aiw_path = self._find_aiw_file(data.aiw_file, data.track_folder)
-        
-        if not aiw_path or not aiw_path.exists():
-            # This should be an ERROR and shown to the user via GUI
-            error_msg = f"AIW file not found for track '{data.track_folder or 'Unknown'}' / '{data.aiw_file}' — skipping AIW patch"
-            logger.error(error_msg)
-            data.aiw_error = error_msg
-            return
-        
-        data.aiw_path = aiw_path
-        
-        try:
-            with open(aiw_path, 'rb') as f:
-                raw = f.read()
-            
-            content = raw.replace(b'\x00', b'').decode('utf-8', errors='ignore')
-            
-            wp_match = self.WAYPOINT_PATTERN.search(content)
-            if wp_match:
-                section = wp_match.group(1)
-                
-                q_match = self.QUAL_RATIO_PATTERN.search(section)
-                if q_match:
-                    data.qual_ratio = float(q_match.group(1))
-                    print(f"  QualRatio from AIW: {data.qual_ratio:.6f}")
-                
-                r_match = self.RACE_RATIO_PATTERN.search(section)
-                if r_match:
-                    data.race_ratio = float(r_match.group(1))
-                    print(f"  RaceRatio from AIW: {data.race_ratio:.6f}")
-                    
-        except Exception as e:
-            print(f"Error parsing AIW ratios: {e}")
-    
-    def _find_aiw_file(self, aiw_filename: str, track_folder: Optional[str]) -> Optional[Path]:
-        """Find AIW file using case-insensitive search"""
-        if not self.base_path:
-            return None
-        
-        cache_key = f"{track_folder}_{aiw_filename}".lower()
-        if cache_key in self._aiw_cache:
-            cached = self._aiw_cache[cache_key]
-            if cached.exists():
-                return cached
-            del self._aiw_cache[cache_key]
-        
-        locations_path = self.base_path / 'GameData' / 'Locations'
-        if not locations_path.exists():
-            return None
-        
-        filename_norm = Path(aiw_filename).name.lower()
-        
-        if track_folder:
-            track_lower = track_folder.lower()
-            for folder in locations_path.iterdir():
-                if folder.is_dir() and folder.name.lower() == track_lower:
-                    for f in folder.iterdir():
-                        if f.is_file() and f.name.lower() == filename_norm:
-                            self._aiw_cache[cache_key] = f
-                            return f
-                    
-                    for ext in ['*.AIW', '*.aiw']:
-                        candidates = list(folder.glob(ext))
-                        if candidates:
-                            self._aiw_cache[cache_key] = candidates[0]
-                            return candidates[0]
-        
-        for root, _, files in os.walk(locations_path):
-            for f in files:
-                if f.lower() == filename_norm:
-                    path = Path(root) / f
-                    self._aiw_cache[cache_key] = path
-                    return path
-        
-        return None
-    
     def _extract(self, text: str, pattern: re.Pattern) -> Optional[str]:
         """Extract first match from text using pattern"""
         m = pattern.search(text)
@@ -410,44 +389,44 @@ def get_display_text(data: RaceData) -> str:
     """Generate display text for popup"""
     lines = []
     lines.append("=" * 50)
-    lines.append(f"🏁 {data.track_name or 'Unknown Track'} 🏁")
+    lines.append(f"Track: {data.track_name or 'Unknown Track'}")
     lines.append("=" * 50)
     
     if data.aiw_file:
-        lines.append(f"\n📄 AIW File: {data.aiw_file}")
+        lines.append(f"\nAIW File: {data.aiw_file}")
     
     if data.qual_ratio is not None:
-        lines.append(f"\n📊 Current Ratios:")
-        lines.append(f"   Qualifying: {data.qual_ratio:.6f}")
+        lines.append(f"\nCurrent Ratios:")
+        lines.append(f"  Qualifying: {data.qual_ratio:.6f}")
     if data.race_ratio is not None:
-        lines.append(f"   Race: {data.race_ratio:.6f}")
+        lines.append(f"  Race: {data.race_ratio:.6f}")
     
     if data.user_name:
-        lines.append(f"\n👤 Driver: {data.user_name}")
+        lines.append(f"\nDriver: {data.user_name}")
     if data.user_vehicle:
-        lines.append(f"   Vehicle: {data.user_vehicle}")
+        lines.append(f"  Vehicle: {data.user_vehicle}")
     
     if data.user_qualifying:
-        lines.append(f"\n⏱️ Your Times:")
-        lines.append(f"   Qualifying: {data.user_qualifying}")
+        lines.append(f"\nYour Times:")
+        lines.append(f"  Qualifying: {data.user_qualifying}")
     if data.user_best_lap:
-        lines.append(f"   Best Lap: {data.user_best_lap}")
+        lines.append(f"  Best Lap: {data.user_best_lap}")
     
     qual_stats = data.get_ai_statistics("qual")
     race_stats = data.get_ai_statistics("race")
     
     if qual_stats["count"] > 0:
-        lines.append(f"\n🤖 Qualifying AI ({qual_stats['count']} drivers):")
-        lines.append(f"   Best: {format_time(qual_stats['min'])}")
-        lines.append(f"   Worst: {format_time(qual_stats['max'])}")
+        lines.append(f"\nQualifying AI ({qual_stats['count']} drivers):")
+        lines.append(f"  Best: {format_time(qual_stats['min'])}")
+        lines.append(f"  Worst: {format_time(qual_stats['max'])}")
     
     if race_stats["count"] > 0:
-        lines.append(f"\n🏁 Race AI ({race_stats['count']} drivers):")
-        lines.append(f"   Best: {format_time(race_stats['min'])}")
-        lines.append(f"   Worst: {format_time(race_stats['max'])}")
+        lines.append(f"\nRace AI ({race_stats['count']} drivers):")
+        lines.append(f"  Best: {format_time(race_stats['min'])}")
+        lines.append(f"  Worst: {format_time(race_stats['max'])}")
     
     if data.aiw_path:
-        lines.append(f"\n📁 AIW Path: {data.aiw_path}")
+        lines.append(f"\nAIW Path: {data.aiw_path}")
     
     lines.append("\n" + "=" * 50)
     

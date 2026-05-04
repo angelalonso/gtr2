@@ -1,4 +1,4 @@
-# dyn_ai — Live AI Tuner for GTR2 - v1.0.6
+# dyn_ai — Live AI Tuner for GTR2 - v1.0.7
 
 ## What it does
 
@@ -18,7 +18,12 @@ Usable, stable release with improved UI and AIW handling.
 
 1. Edit `cfg.yml` and `vehicle_classes.json` if needed
 2. Run the application
-3. Point it to your GTR2 install folder (with `GameData/`) - saved to `cfg.yml`
+3. Pre-run checks will verify your setup:
+   - Configuration file (cfg.yml)
+   - Vehicle classes file (vehicle_classes.json)
+   - GTR2 base path (must contain GameData/ and UserData/)
+   - GTR2 executable
+4. Point it to your GTR2 install folder (with `GameData/`) if not already configured - saved to `cfg.yml`
 
 **Windows (easy):** Run the `.exe` from the zip  
 **From source:**
@@ -29,6 +34,15 @@ pipenv run python3 dyn_ai.py
 ---
 
 ## Main Features
+
+### Pre-Run Checks
+Automatically verifies before launching:
+- cfg.yml exists and is valid
+- vehicle_classes.json exists and has correct structure
+- GTR2 base path is configured and valid
+- GTR2.exe is present
+
+Once all checks pass, usage instructions are displayed. The Continue button is greyed out until all checks pass.
 
 ### Auto-harvest Data
 Saves every race session to the database. Builds history of lap times vs AI ratios.
@@ -133,6 +147,52 @@ Higher R = faster AI | Lower R = slower AI
 | AI Target calculations not working | Feature is under construction - use Dump Analysis to see what's happening |
 | No ratios shown on main screen | Select a track first via Advanced → Data Management |
 | AIW file has malformed ratios | Fixed in v1.0.6 - now adds each ratio on separate line |
+| Wrong track AIW gets updated (e.g., Donington 2003 updates Donington 2004) | See Known Issues below |
+
+---
+
+## Known Issues
+
+### Track Name Matching Problem
+
+**Symptom:** When racing on Donington 2003, the Donington 2004 AIW file gets updated instead.
+
+**Root Cause:** The application uses case-insensitive partial matching to find AIW files. It searches for a folder name containing the track name. For "Donington 2003", it finds "Donington 2004" because "Donington" matches both.
+
+**How track matching works:**
+1. `raceresults.txt` contains `Scene=...\Testtrack2\Testtrack2.TRK`
+2. The parser extracts `Testtrack2` as the track folder name
+3. The application looks for a folder in `GameData/Locations/` with matching name
+4. It uses `if track_dir.name.lower() == track_lower` for exact matching
+5. If not found, it falls back to `if track_lower in track_dir.name.lower()` (partial match)
+
+**Current Fix in v1.0.7:** The matching logic now prioritizes exact folder name matching before falling back to partial matching. This should resolve the issue for most cases.
+
+**If you still experience the issue:**
+- Ensure your track folder names in `GameData/Locations/` are unique and descriptive
+- For conflicting tracks (e.g., "Donington" vs "Donington 2003" vs "Donington 2004"), consider renaming folders or using the exact match in `raceresults.txt`
+
+---
+
+## Changelog v1.0.7
+
+**Pre-Run Check Screen:**
+- Added comprehensive pre-run verification before application starts
+- Checks: cfg.yml, vehicle_classes.json, GTR2 base path, GTR2 executable
+- Continue button is greyed out until all checks pass
+- "How to Use" section with colored text (white for steps, yellow for TIPS header)
+
+**Track Matching Fix:**
+- Improved AIW file matching to prioritize exact folder name matches
+- Partial matching only used as fallback
+- Should resolve issues where wrong track's AIW gets updated (e.g., Donington 2003 vs Donington 2004)
+
+**Code Organization:**
+- Split `dyn_ai.py` into multiple files for better maintainability:
+  - `main_window.py` - Main application window
+  - `pre_run_check.py` - Pre-run verification dialog
+  - `dialogs_base_path.py` - Base path selection dialog
+  - `dialogs_info_message.py` - Info dialog (kept for compatibility)
 
 ---
 

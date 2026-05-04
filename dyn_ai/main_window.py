@@ -754,6 +754,10 @@ class RedesignedMainWindow(QMainWindow):
             self.advanced_window.tab_widget.setCurrentIndex(0)
     
     def _find_aiw_file(self, track_name: str = None) -> Optional[Path]:
+        """
+        Find AIW file for a track.
+        Uses case-insensitive search and handles different case variations.
+        """
         base_path = get_base_path(self.config_file)
         if not base_path:
             logger.error("No base path configured")
@@ -764,30 +768,58 @@ class RedesignedMainWindow(QMainWindow):
             logger.error("No track selected")
             return None
         
-        locations_dir = base_path / "GameData" / "Locations"
-        if not locations_dir.exists():
-            logger.error(f"Locations directory not found: {locations_dir}")
+        # Try both GameData and GAMEDATA (case variations)
+        locations_candidates = [
+            base_path / "GameData" / "Locations",
+            base_path / "GAMEDATA" / "Locations",
+            base_path / "gamedata" / "locations",
+        ]
+        
+        locations_dir = None
+        for candidate in locations_candidates:
+            if candidate.exists():
+                locations_dir = candidate
+                break
+        
+        if not locations_dir:
+            logger.error(f"Locations directory not found. Tried: {locations_candidates}")
             return None
         
+        # First, try to find by exact folder name (case-insensitive)
         track_lower = track_name.lower()
         for track_dir in locations_dir.iterdir():
             if track_dir.is_dir() and track_dir.name.lower() == track_lower:
                 for ext in ["*.AIW", "*.aiw"]:
                     aiw_files = list(track_dir.glob(ext))
                     if aiw_files:
-                        logger.debug(f"Found AIW file: {aiw_files[0]}")
+                        logger.debug(f"Found AIW file via folder match: {aiw_files[0]}")
                         return aiw_files[0]
-                break
         
+        # Second, try to find by AIW filename (remove leading digits for comparison)
         for ext in ["*.AIW", "*.aiw"]:
             for aiw_file in locations_dir.rglob(ext):
-                if aiw_file.stem.lower() == track_lower or track_lower in aiw_file.stem.lower():
-                    logger.debug(f"Found AIW file via partial match: {aiw_file}")
+                # Remove leading digits from AIW filename for comparison (e.g., "4Donington" -> "Donington")
+                aiw_stem = re.sub(r'^\d+', '', aiw_file.stem.lower())
+                if aiw_stem == track_lower:
+                    logger.debug(f"Found AIW file via stem match: {aiw_file}")
                     return aiw_file
+        
+        # Third, try to find by folder name containing the track name (exact word match)
+        import re
+        for track_dir in locations_dir.iterdir():
+            if track_dir.is_dir():
+                dir_lower = track_dir.name.lower()
+                # Check if the folder name contains the track name as a whole word
+                if re.search(r'\b' + re.escape(track_lower) + r'\b', dir_lower):
+                    for ext in ["*.AIW", "*.aiw"]:
+                        aiw_files = list(track_dir.glob(ext))
+                        if aiw_files:
+                            logger.debug(f"Found AIW file via folder word match: {aiw_files[0]}")
+                            return aiw_files[0]
         
         logger.warning(f"AIW file not found for track: {track_name}")
         return None
-    
+
     def _read_aiw_ratios(self, aiw_path: Path) -> tuple:
         qual_ratio = None
         race_ratio = None
