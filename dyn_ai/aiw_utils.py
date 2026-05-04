@@ -13,6 +13,14 @@ from typing import Optional, Tuple
 logger = logging.getLogger(__name__)
 
 
+def normalize_path_for_search(path_str: str) -> str:
+    """Normalize a path string for case-insensitive search."""
+    # Replace backslashes with forward slashes
+    normalized = str(path_str).replace('\\', '/')
+    # Convert to lowercase for case-insensitive comparison
+    return normalized.lower()
+
+
 def find_aiw_file_from_path(relative_path: str, base_path: Path) -> Optional[Path]:
     """
     Find AIW file from a relative path (like from raceresults.txt).
@@ -31,7 +39,8 @@ def find_aiw_file_from_path(relative_path: str, base_path: Path) -> Optional[Pat
     
     # Normalize path separators to /
     normalized = str(relative_path).replace('\\', '/')
-    logger.debug(f"find_aiw_file_from_path: looking for '{normalized}' in base_path '{base_path}'")
+    logger.info(f"find_aiw_file_from_path: looking for '{normalized}'")
+    logger.info(f"  Base path: {base_path}")
     
     # Try the path as-is first
     full_path = base_path / normalized
@@ -41,70 +50,78 @@ def find_aiw_file_from_path(relative_path: str, base_path: Path) -> Optional[Pat
     else:
         logger.debug(f"Exact path not found: {full_path}")
     
-    # Try lowercase version
-    lower_path = base_path / normalized.lower()
-    if lower_path.exists():
-        logger.info(f"Found AIW via lowercase path: {lower_path}")
-        return lower_path
-    else:
-        logger.debug(f"Lowercase path not found: {lower_path}")
+    # Try with GameData instead of GAMEDATA (and vice versa)
+    # This handles the common case where the path uses GAMEDATA but actual folder is GameData
+    path_variants = []
     
-    # Try uppercase version
-    upper_path = base_path / normalized.upper()
-    if upper_path.exists():
-        logger.info(f"Found AIW via uppercase path: {upper_path}")
-        return upper_path
-    else:
-        logger.debug(f"Uppercase path not found: {upper_path}")
+    # Replace GAMEDATA with GameData
+    if 'GAMEDATA' in normalized:
+        path_variants.append(normalized.replace('GAMEDATA', 'GameData'))
+    if 'gamedata' in normalized:
+        path_variants.append(normalized.replace('gamedata', 'GameData'))
+    if 'GameData' in normalized:
+        path_variants.append(normalized.replace('GameData', 'GAMEDATA'))
     
-    # Try with GameData instead of GAMEDATA
-    if normalized.startswith('GAMEDATA/'):
-        with_gamedata = base_path / ('GameData/' + normalized[9:])
-        if with_gamedata.exists():
-            logger.info(f"Found AIW with GameData: {with_gamedata}")
-            return with_gamedata
+    # Try all variants
+    for variant in path_variants:
+        test_path = base_path / variant
+        if test_path.exists():
+            logger.info(f"Found AIW via path variant: {test_path}")
+            return test_path
         else:
-            logger.debug(f"GameData variant not found: {with_gamedata}")
+            logger.debug(f"Path variant not found: {test_path}")
     
-    if normalized.startswith('gamedata/'):
-        with_GameData = base_path / ('GameData/' + normalized[9:])
-        if with_GameData.exists():
-            logger.info(f"Found AIW with GameData: {with_GameData}")
-            return with_GameData
-        else:
-            logger.debug(f"GameData variant not found: {with_GameData}")
-    
-    # Try with different case combinations for the path components
-    # Split the path and try to find each component case-insensitively
+    # Now try to find by walking the directory structure case-insensitively
+    # Split the path and walk from base_path
     path_parts = normalized.split('/')
-    if len(path_parts) >= 3:
-        # Start from the base_path and walk through parts case-insensitively
+    if len(path_parts) >= 2:
+        # Remove empty first part if present
+        if path_parts[0] == '':
+            path_parts = path_parts[1:]
+        
+        # Start from base_path
         current_path = base_path
-        for part in path_parts:
-            if not current_path.exists():
-                logger.debug(f"Path component not found: {current_path}")
-                break
-            # Find the actual directory name case-insensitively
-            found = None
-            if current_path.is_dir():
-                for item in current_path.iterdir():
-                    if item.name.lower() == part.lower():
-                        found = item
-                        break
-            if found:
-                current_path = found
+        
+        for i, part in enumerate(path_parts):
+            # For the last part (filename), we want to match case-insensitively
+            if i == len(path_parts) - 1:
+                # This is the filename - search in current directory
+                if current_path.exists() and current_path.is_dir():
+                    # Look for file with matching name (case-insensitive)
+                    for file_path in current_path.iterdir():
+                        if file_path.is_file() and file_path.name.lower() == part.lower():
+                            logger.info(f"Found AIW via case-insensitive filename: {file_path}")
+                            return file_path
+                    # Also try with different extensions
+                    for ext in ['.AIW', '.aiw']:
+                        test_name = Path(part).stem + ext
+                        for file_path in current_path.iterdir():
+                            if file_path.is_file() and file_path.name.lower() == test_name.lower():
+                                logger.info(f"Found AIW via case-insensitive filename with extension: {file_path}")
+                                return file_path
             else:
-                # If we can't find the directory, try to create the full path differently
-                break
+                # This is a directory - try to find it case-insensitively
+                next_path = None
+                if current_path.exists() and current_path.is_dir():
+                    for item in current_path.iterdir():
+                        if item.is_dir() and item.name.lower() == part.lower():
+                            next_path = item
+                            break
+                
+                if next_path:
+                    current_path = next_path
+                else:
+                    logger.debug(f"Could not find directory '{part}' in {current_path}")
+                    break
         else:
-            # We successfully walked through all parts
-            if current_path.exists():
-                logger.info(f"Found AIW via case-insensitive walk: {current_path}")
-                return current_path
+            # If we successfully walked through all parts, we should have found the file
+            # But if not, continue to fallback methods
+            pass
     
-    # Try to find by filename in the locations directory
+    # Fallback: search by filename in Locations directory
     filename = Path(normalized).name
-    logger.debug(f"Trying to find by filename '{filename}' in Locations directories")
+    filename_without_ext = Path(filename).stem
+    logger.info(f"Trying fallback: search for file matching '{filename}' or '{filename_without_ext}'")
     
     locations_candidates = [
         base_path / "GameData" / "Locations",
@@ -119,13 +136,40 @@ def find_aiw_file_from_path(relative_path: str, base_path: Path) -> Optional[Pat
             logger.debug(f"Searching in Locations directory: {locations_dir}")
             for ext in ["*.AIW", "*.aiw"]:
                 for aiw_file in locations_dir.rglob(ext):
+                    # Check if filename matches (case-insensitive)
                     if aiw_file.name.lower() == filename.lower():
-                        logger.info(f"Found AIW via filename search in {locations_dir}: {aiw_file}")
+                        logger.info(f"Found AIW via exact filename match: {aiw_file}")
+                        return aiw_file
+                    # Check if stem matches (without extension)
+                    if aiw_file.stem.lower() == filename_without_ext.lower():
+                        logger.info(f"Found AIW via stem match: {aiw_file} (stem={aiw_file.stem})")
+                        return aiw_file
+                    # Check if stem without leading digits matches
+                    stem_no_digits = re.sub(r'^\d+', '', aiw_file.stem.lower())
+                    if stem_no_digits == filename_without_ext.lower():
+                        logger.info(f"Found AIW via stem without digits: {aiw_file}")
                         return aiw_file
     
-    logger.warning(f"AIW file NOT found for path: {relative_path} (normalized: {normalized})")
+    # Last resort: try to find by folder name and then any AIW file in that folder
+    # Extract the folder name from the path (second last part)
+    if len(path_parts) >= 2:
+        folder_name = path_parts[-2]
+        logger.info(f"Trying last resort: find folder matching '{folder_name}' and take any AIW file")
+        
+        for locations_dir in locations_candidates:
+            if locations_dir.exists():
+                for track_dir in locations_dir.iterdir():
+                    if track_dir.is_dir() and track_dir.name.lower() == folder_name.lower():
+                        for ext in ["*.AIW", "*.aiw"]:
+                            aiw_files = list(track_dir.glob(ext))
+                            if aiw_files:
+                                logger.info(f"Found AIW via folder match: {aiw_files[0]}")
+                                return aiw_files[0]
+    
+    logger.warning(f"AIW file NOT found for path: {relative_path}")
+    logger.warning(f"  Normalized path: {normalized}")
     logger.warning(f"  Base path: {base_path}")
-    logger.warning(f"  Tried variants: {full_path}, {lower_path}, {upper_path}")
+    logger.warning(f"  Expected full path: {base_path / normalized}")
     return None
 
 
@@ -144,7 +188,7 @@ def find_aiw_file_by_track(track_name: str, base_path: Path) -> Optional[Path]:
         logger.error(f"find_aiw_file_by_track: missing params - track_name={track_name}, base_path={base_path}")
         return None
     
-    logger.debug(f"find_aiw_file_by_track: looking for track '{track_name}' in base_path '{base_path}'")
+    logger.info(f"find_aiw_file_by_track: looking for track '{track_name}'")
     
     locations_candidates = [
         base_path / "GameData" / "Locations",
@@ -167,7 +211,7 @@ def find_aiw_file_by_track(track_name: str, base_path: Path) -> Optional[Path]:
     
     track_lower = track_name.lower()
     
-    # Try exact folder match
+    # Try exact folder match (case-insensitive)
     for track_dir in locations_dir.iterdir():
         if track_dir.is_dir() and track_dir.name.lower() == track_lower:
             for ext in ["*.AIW", "*.aiw"]:
@@ -224,7 +268,7 @@ def update_aiw_ratio(aiw_path: Path, ratio_name: str, new_ratio: float, backup_d
             logger.error(f"update_aiw_ratio: AIW file not found: {aiw_path}")
             return False
         
-        logger.debug(f"update_aiw_ratio: updating {ratio_name} to {new_ratio:.6f} in {aiw_path}")
+        logger.info(f"update_aiw_ratio: updating {ratio_name} to {new_ratio:.6f} in {aiw_path}")
         
         # Create backup if backup_dir provided
         if backup_dir:
