@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Live AI Tuner - Main Entry Point
+Dynamic AI - Main Entry Point
 Redesigned GUI matching the reference image layout
 """
 

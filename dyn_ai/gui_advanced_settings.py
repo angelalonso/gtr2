@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Advanced Settings Dialog for Live AI Tuner
+Advanced Settings Dialog for Dynamic AI
 Provides data management, AI target configuration, backup restore, and logs
 """
 
@@ -53,11 +53,6 @@ class AdvancedSettingsDialog(QDialog):
         self.setGeometry(100, 100, 1200, 800)
         self.setMinimumWidth(1000)
         self.setMinimumHeight(700)
-        
-        self.target_mode = "percentage"
-        self.target_percentage = 50
-        self.target_offset_seconds = 0.0
-        self.ai_error_margin = 0.0
         
         self.qual_panel = None
         self.race_panel = None
@@ -190,7 +185,7 @@ class AdvancedSettingsDialog(QDialog):
         self.tab_widget = QTabWidget()
         
         data_tab = self._create_data_tab()
-        self.tab_widget.addTab(data_tab, "Data Management")
+        self.tab_widget.addTab(data_tab, "Formula Management")
         
         target_tab = self._create_target_tab()
         self.tab_widget.addTab(target_tab, "AI Target")
@@ -220,7 +215,6 @@ class AdvancedSettingsDialog(QDialog):
             QGroupBox { color: #4CAF50; }
             QRadioButton { color: white; }
         """)
-        self.update_mode_visibility()
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
     
     def _create_data_tab(self) -> QWidget:
@@ -291,123 +285,20 @@ class AdvancedSettingsDialog(QDialog):
         tab = QWidget()
         target_layout = QVBoxLayout(tab)
         
-        warning_banner = QLabel("WARNING: AI TARGET FEATURE IS UNDER CONSTRUCTION")
+        warning_banner = QLabel("COMING (HOPEFULLY) SOON!")
         warning_banner.setStyleSheet("""
             QLabel {
                 background-color: #f44336;
                 color: white;
                 font-weight: bold;
-                font-size: 14px;
-                padding: 8px;
-                border-radius: 5px;
+                font-size: 24px;
+                padding: 30px;
+                border-radius: 10px;
                 text-align: center;
             }
         """)
         warning_banner.setAlignment(Qt.AlignCenter)
         target_layout.addWidget(warning_banner)
-        target_layout.addSpacing(10)
-        
-        target_info = QLabel(
-            "AI Target Positioning\n\n"
-            "This controls where your lap time should fall within the AI's lap time range.\n\n"
-            "The AI's best and worst lap times create a range. You choose where you want to be.\n\n"
-            "These settings will be applied to BOTH Qualifying and Race sessions."
-        )
-        target_info.setStyleSheet("color: #FFA500; background-color: #2b2b2b; padding: 10px; border-radius: 5px;")
-        target_info.setWordWrap(True)
-        target_layout.addWidget(target_info)
-        target_layout.addSpacing(10)
-        
-        mode_group = QGroupBox("Target Mode")
-        mode_layout = QVBoxLayout(mode_group)
-        self.percentage_radio = QRadioButton("Percentage within AI range (Recommended)")
-        self.percentage_radio.setChecked(True)
-        self.percentage_radio.toggled.connect(self.on_target_mode_changed)
-        mode_layout.addWidget(self.percentage_radio)
-        pct_desc = QLabel("  0 percent = match fastest AI, 50 percent = middle, 100 percent = match slowest AI")
-        pct_desc.setStyleSheet("color: #888; font-size: 10px; margin-left: 20px;")
-        pct_desc.setWordWrap(True)
-        mode_layout.addWidget(pct_desc)
-        mode_layout.addSpacing(5)
-        self.faster_radio = QRadioButton("Fixed seconds from fastest AI")
-        self.faster_radio.toggled.connect(self.on_target_mode_changed)
-        mode_layout.addWidget(self.faster_radio)
-        self.slower_radio = QRadioButton("Fixed seconds from slowest AI")
-        self.slower_radio.toggled.connect(self.on_target_mode_changed)
-        mode_layout.addWidget(self.slower_radio)
-        target_layout.addWidget(mode_group)
-        target_layout.addSpacing(10)
-        
-        percent_group = QGroupBox("Percentage Setting")
-        percent_layout = QVBoxLayout(percent_group)
-        percent_slider_layout = QHBoxLayout()
-        percent_slider_layout.addWidget(QLabel("Position in AI range:"))
-        self.target_percent_slider = QSlider(Qt.Horizontal)
-        self.target_percent_slider.setRange(0, 100)
-        self.target_percent_slider.setValue(50)
-        self.target_percent_slider.setTickPosition(QSlider.TicksBelow)
-        self.target_percent_slider.setTickInterval(10)
-        self.target_percent_slider.valueChanged.connect(self.on_percent_changed)
-        percent_slider_layout.addWidget(self.target_percent_slider)
-        self.target_percent_spin = QSpinBox()
-        self.target_percent_spin.setRange(0, 100)
-        self.target_percent_spin.setValue(50)
-        self.target_percent_spin.setSuffix("%")
-        self.target_percent_spin.valueChanged.connect(self.on_percent_spin_changed)
-        percent_slider_layout.addWidget(self.target_percent_spin)
-        percent_layout.addLayout(percent_slider_layout)
-        self.percent_description = QLabel("You will be exactly in the MIDDLE of the AI range")
-        self.percent_description.setStyleSheet("color: #4CAF50; font-weight: bold;")
-        percent_layout.addWidget(self.percent_description)
-        target_layout.addWidget(percent_group)
-        
-        absolute_group = QGroupBox("Fixed Offset Setting")
-        absolute_layout = QVBoxLayout(absolute_group)
-        offset_layout = QHBoxLayout()
-        offset_layout.addWidget(QLabel("Offset:"))
-        self.target_offset_spin = QDoubleSpinBox()
-        self.target_offset_spin.setRange(-10.0, 10.0)
-        self.target_offset_spin.setDecimals(2)
-        self.target_offset_spin.setSingleStep(0.1)
-        self.target_offset_spin.setValue(0.0)
-        self.target_offset_spin.setSuffix(" seconds")
-        self.target_offset_spin.valueChanged.connect(self.on_offset_changed)
-        offset_layout.addWidget(self.target_offset_spin)
-        offset_layout.addStretch()
-        absolute_layout.addLayout(offset_layout)
-        self.offset_description = QLabel("You will be 0.00 seconds from the reference AI time")
-        self.offset_description.setStyleSheet("color: #4CAF50; font-weight: bold;")
-        absolute_layout.addWidget(self.offset_description)
-        target_layout.addWidget(absolute_group)
-        target_layout.addSpacing(10)
-        
-        error_group = QGroupBox("AI Error Margin (Makes AI Slower)")
-        error_layout = QVBoxLayout(error_group)
-        error_slider_layout = QHBoxLayout()
-        error_slider_layout.addWidget(QLabel("Extra time:"))
-        self.error_margin_slider = QSlider(Qt.Horizontal)
-        self.error_margin_slider.setRange(0, 500)
-        self.error_margin_slider.setValue(0)
-        self.error_margin_slider.setTickPosition(QSlider.TicksBelow)
-        self.error_margin_slider.setTickInterval(50)
-        self.error_margin_slider.valueChanged.connect(self.on_error_margin_changed)
-        error_slider_layout.addWidget(self.error_margin_slider)
-        self.error_margin_spin = QDoubleSpinBox()
-        self.error_margin_spin.setRange(0, 5.0)
-        self.error_margin_spin.setDecimals(2)
-        self.error_margin_spin.setSingleStep(0.1)
-        self.error_margin_spin.setValue(0.0)
-        self.error_margin_spin.setSuffix(" seconds")
-        self.error_margin_spin.valueChanged.connect(self.on_error_margin_spin_changed)
-        error_slider_layout.addWidget(self.error_margin_spin)
-        error_layout.addLayout(error_slider_layout)
-        target_layout.addWidget(error_group)
-        target_layout.addSpacing(10)
-        
-        apply_target_btn = QPushButton("Apply Target Settings")
-        apply_target_btn.setStyleSheet("background-color: #FF9800;")
-        apply_target_btn.clicked.connect(self.apply_target_settings)
-        target_layout.addWidget(apply_target_btn)
         
         target_layout.addStretch()
         
@@ -867,183 +758,3 @@ class AdvancedSettingsDialog(QDialog):
         if self.log_update_timer:
             self.log_update_timer.stop()
         super().closeEvent(event)
-    
-    def on_target_mode_changed(self):
-        if self.percentage_radio.isChecked():
-            self.target_mode = "percentage"
-        elif self.faster_radio.isChecked():
-            self.target_mode = "faster_than_best"
-        else:
-            self.target_mode = "slower_than_worst"
-        self.update_mode_visibility()
-    
-    def update_mode_visibility(self):
-        for child in self.findChildren(QGroupBox):
-            if "Percentage Setting" in child.title():
-                child.setVisible(self.target_mode == "percentage")
-            elif "Fixed Offset Setting" in child.title():
-                child.setVisible(self.target_mode != "percentage")
-        self.update_mode_description()
-    
-    def update_mode_description(self):
-        if self.target_mode == "percentage":
-            pct = self.target_percent_slider.value()
-            if pct == 0:
-                desc = "You will match the FASTEST AI lap time"
-            elif pct == 100:
-                desc = "You will match the SLOWEST AI lap time"
-            elif pct == 50:
-                desc = "You will be exactly in the MIDDLE of the AI range"
-            else:
-                desc = f"You will be {pct}% from fastest AI to slowest AI"
-            self.percent_description.setText(desc)
-        elif self.target_mode == "faster_than_best":
-            offset = self.target_offset_spin.value()
-            if offset == 0:
-                desc = "You will match the fastest AI lap time"
-            elif offset > 0:
-                desc = f"You will be {offset:.2f} seconds SLOWER than the fastest AI"
-            else:
-                desc = f"You will be {abs(offset):.2f} seconds FASTER than the fastest AI"
-            self.offset_description.setText(desc)
-        else:
-            offset = self.target_offset_spin.value()
-            if offset == 0:
-                desc = "You will match the slowest AI lap time"
-            elif offset > 0:
-                desc = f"You will be {offset:.2f} seconds FASTER than the slowest AI"
-            else:
-                desc = f"You will be {abs(offset):.2f} seconds SLOWER than the slowest AI"
-            self.offset_description.setText(desc)
-    
-    def on_percent_changed(self, value):
-        self.target_percent_spin.blockSignals(True)
-        self.target_percent_spin.setValue(value)
-        self.target_percent_spin.blockSignals(False)
-        self.target_percentage = value
-        self.update_mode_description()
-    
-    def on_percent_spin_changed(self, value):
-        self.target_percent_slider.blockSignals(True)
-        self.target_percent_slider.setValue(value)
-        self.target_percent_slider.blockSignals(False)
-        self.target_percentage = value
-        self.update_mode_description()
-    
-    def on_offset_changed(self, value):
-        self.target_offset_seconds = value
-        self.update_mode_description()
-    
-    def on_error_margin_changed(self, value):
-        seconds = value / 100.0
-        self.error_margin_spin.blockSignals(True)
-        self.error_margin_spin.setValue(seconds)
-        self.error_margin_spin.blockSignals(False)
-        self.ai_error_margin = seconds
-    
-    def on_error_margin_spin_changed(self, value):
-        self.error_margin_slider.blockSignals(True)
-        self.error_margin_slider.setValue(int(value * 100))
-        self.error_margin_slider.blockSignals(False)
-        self.ai_error_margin = value
-    
-    def calculate_target_lap_time(self, best_ai: float, worst_ai: float, settings: dict) -> float:
-        mode = settings.get("mode", "percentage")
-        error_margin = settings.get("error_margin", 0.0)
-        if mode == "percentage":
-            pct = settings.get("percentage", 50) / 100.0
-            target = best_ai + (worst_ai - best_ai) * pct
-        elif mode == "faster_than_best":
-            offset = settings.get("offset_seconds", 0.0)
-            target = best_ai + offset
-        else:
-            offset = settings.get("offset_seconds", 0.0)
-            target = worst_ai - offset
-        target = target + error_margin
-        target = max(best_ai, min(worst_ai + error_margin, target))
-        return target
-    
-    def calculate_new_ratio_for_target(self, target_time: float, session_type: str) -> float:
-        if session_type == "qual":
-            if self.qual_panel:
-                a, b = self.qual_panel.a, self.qual_panel.b
-            else:
-                a, b = DEFAULT_A_VALUE, 70.0
-        else:
-            if self.race_panel:
-                a, b = self.race_panel.a, self.race_panel.b
-            else:
-                a, b = DEFAULT_A_VALUE, 70.0
-        denominator = target_time - b
-        if denominator <= 0:
-            return None
-        ratio = a / denominator
-        return ratio if 0.3 < ratio < 3.0 else None
-    
-    def apply_target_settings(self):
-        settings = {
-            "mode": self.target_mode,
-            "percentage": self.target_percentage,
-            "offset_seconds": self.target_offset_seconds,
-            "error_margin": self.ai_error_margin
-        }
-        
-        parent = self.parent() if callable(self.parent) else self.parent
-        if parent:
-            qual_best = getattr(parent, 'qual_best_ai', None)
-            qual_worst = getattr(parent, 'qual_worst_ai', None)
-            race_best = getattr(parent, 'race_best_ai', None)
-            race_worst = getattr(parent, 'race_worst_ai', None)
-        else:
-            qual_best = qual_worst = race_best = race_worst = None
-        
-        if qual_best is None or qual_worst is None or race_best is None or race_worst is None:
-            error_msg = "No AI lap time data available. Please complete at least one race session first."
-            QMessageBox.warning(self, "No AI Data", error_msg)
-            return
-        
-        qual_target = self.calculate_target_lap_time(qual_best, qual_worst, settings)
-        race_target = self.calculate_target_lap_time(race_best, race_worst, settings)
-        
-        qual_new_ratio = self.calculate_new_ratio_for_target(qual_target, "qual")
-        race_new_ratio = self.calculate_new_ratio_for_target(race_target, "race")
-        
-        if not qual_new_ratio or not race_new_ratio:
-            error_msg = "Could not calculate new ratios. Target times may be too close to formula b value."
-            QMessageBox.warning(self, "Calculation Failed", error_msg)
-            return
-        
-        confirm_msg = f"AI Target Settings Summary:\n\nQualifying:\n  AI Range: {qual_best:.3f}s - {qual_worst:.3f}s\n  Target: {qual_target:.3f}s\n  New QualRatio: {qual_new_ratio:.6f}\n\nRace:\n  AI Range: {race_best:.3f}s - {race_worst:.3f}s\n  Target: {race_target:.3f}s\n  New RaceRatio: {race_new_ratio:.6f}\n\nContinue?"
-        
-        reply = QMessageBox.question(self, "Apply AI Target Settings", confirm_msg, QMessageBox.Yes | QMessageBox.No)
-        if reply != QMessageBox.Yes:
-            return
-        
-        aiw_path = self._find_aiw_path_from_config()
-        
-        if not aiw_path:
-            self._show_aiw_path_error()
-            return
-        
-        engine = parent.autopilot_manager.engine if parent and hasattr(parent, 'autopilot_manager') else None
-        
-        if engine:
-            qual_updated = engine._update_aiw_ratio(aiw_path, "QualRatio", qual_new_ratio)
-            race_updated = engine._update_aiw_ratio(aiw_path, "RaceRatio", race_new_ratio)
-            
-            if qual_updated or race_updated:
-                if qual_updated and parent:
-                    parent.last_qual_ratio = qual_new_ratio
-                    parent.qual_panel.update_ratio(qual_new_ratio)
-                if race_updated and parent:
-                    parent.last_race_ratio = race_new_ratio
-                    parent.race_panel.update_ratio(race_new_ratio)
-                if parent and hasattr(parent, 'ai_target_settings'):
-                    parent.ai_target_settings = settings
-                if parent and hasattr(parent, 'update_target_display'):
-                    parent.update_target_display()
-                QMessageBox.information(self, "Settings Applied", f"AI Target settings applied!\nQualRatio: {qual_new_ratio:.6f}\nRaceRatio: {race_new_ratio:.6f}")
-            else:
-                QMessageBox.warning(self, "Update Failed", "Failed to update AIW file with new ratios.")
-        else:
-            QMessageBox.warning(self, "Error", "Could not access autopilot engine.")

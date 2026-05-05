@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Pre-run check dialog for Live AI Tuner
+Pre-run check dialog for Dynamic AI
 """
 
 import sys
@@ -61,7 +61,7 @@ class PreRunCheckDialog(QDialog):
         self.run_checks()
     
     def setup_ui(self):
-        self.setWindowTitle("Live AI Tuner - Pre-Run Checks")
+        self.setWindowTitle("Dynamic AI - Pre-Run Checks")
         self.setFixedSize(850, 850)
         self.setModal(True)
         

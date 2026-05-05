@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Shared GUI components and utilities for Live AI Tuner
+Shared GUI components and utilities for Dynamic AI
 Provides common dialogs, styles, and reusable widgets
 """
 
@@ -29,7 +29,7 @@ class InfoMessageDialog(QDialog):
         self.setup_ui()
     
     def setup_ui(self):
-        self.setWindowTitle("Live AI Tuner - Getting Started")
+        self.setWindowTitle("Dynamic AI - Getting Started")
         self.setFixedSize(600, 500)
         self.setModal(True)
         
@@ -70,7 +70,7 @@ class InfoMessageDialog(QDialog):
         layout.setSpacing(15)
         layout.setContentsMargins(25, 25, 25, 25)
         
-        title_label = QLabel("Live AI Tuner - Ready to Go")
+        title_label = QLabel("Dynamic AI - Ready to Go")
         title_label.setStyleSheet("font-size: 22px; font-weight: bold; color: #FFA500;")
         title_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(title_label)
@@ -196,7 +196,7 @@ class LogWindow(QDialog):
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Live AI Tuner - Log Viewer")
+        self.setWindowTitle("Dynamic AI - Log Viewer")
         self.setGeometry(200, 200, 800, 500)
         
         self.log_buffer = []

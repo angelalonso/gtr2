@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Dyn AI Data Management Tool
-Manages vehicle classes and imports race data into the Live AI Tuner SQLite database
+Manages vehicle classes and imports race data into the Dynamic AI SQLite database
 """
 
 import sys
@@ -352,7 +352,7 @@ class DynAIDataManager(QMainWindow):
     
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Dyn AI Data Manager - Live AI Tuner")
+        self.setWindowTitle("Dyn AI Data Manager - Dynamic AI")
         self.setGeometry(100, 100, 1200, 800)
         
         self.db_path = "ai_data.db"
@@ -607,7 +607,7 @@ class DynAIDataManager(QMainWindow):
         about_text.setReadOnly(True)
         about_text.setHtml("""
         <h2>Dyn AI Data Manager</h2>
-        <p>Comprehensive data management tool for the Live AI Tuner system.</p>
+        <p>Comprehensive data management tool for the Dynamic AI system.</p>
         
         <h3>Race Data Import:</h3>
         <ul>
