@@ -7,7 +7,6 @@ T = a / R + b
 import numpy as np
 from typing import List, Tuple, Optional
 
-# Default 'a' value for formulas
 DEFAULT_A_VALUE = 32.0
 
 
@@ -53,7 +52,6 @@ def fit_curve(ratios: List[float], times: List[float], verbose: bool = True) -> 
         print(f"  [fit_curve] ERROR: Need at least 2 points, got {len(ratios)}")
         return None, None, None, None
     
-    # Print the data points being fitted
     print(f"  [fit_curve] Data points:")
     for i, (r, t) in enumerate(zip(ratios, times)):
         print(f"    {i+1}: R={r:.6f}, T={t:.3f}")
@@ -65,7 +63,6 @@ def fit_curve(ratios: List[float], times: List[float], verbose: bool = True) -> 
         return a / R + b
     
     try:
-        # Initial guess using first two points
         r1, t1 = ratios[0], times[0]
         r2, t2 = ratios[1], times[1]
         inv_r1 = 1.0 / r1
@@ -89,7 +86,6 @@ def fit_curve(ratios: List[float], times: List[float], verbose: bool = True) -> 
         a, b = popt
         print(f"  [fit_curve] curve_fit result: a={a:.6f}, b={b:.6f}")
         
-        # Calculate errors
         predictions = _hyperbolic(r_array, a, b)
         errors = np.abs(t_array - predictions)
         avg_error = float(np.mean(errors))
@@ -98,7 +94,6 @@ def fit_curve(ratios: List[float], times: List[float], verbose: bool = True) -> 
         print(f"  [fit_curve] Fit complete: {get_formula_string(a, b)}")
         print(f"  [fit_curve] Avg error: {avg_error:.4f}s, Max error: {max_error:.4f}s")
         
-        # Print individual errors
         for i, (r, t, pred, err) in enumerate(zip(ratios, times, predictions, errors)):
             print(f"    Point {i+1}: predicted T={pred:.3f}s, error={err:.3f}s")
         

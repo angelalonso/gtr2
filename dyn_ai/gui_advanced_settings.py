@@ -1,155 +1,39 @@
 #!/usr/bin/env python3
 """
-GUI module for curve viewer
-Provides reusable GUI components and dialogs
+Advanced Settings Dialog for Live AI Tuner
+Provides data management, AI target configuration, backup restore, and logs
 """
 
 import logging
-import numpy as np
+import sys
+import re
+import json
 import shutil
 import sqlite3
 import subprocess
-import sys
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Optional, Tuple, Any
+
+import numpy as np
+import pyqtgraph as pg
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QListWidget, 
-    QDoubleSpinBox, QPushButton, QGroupBox, QSplitter, 
-    QMessageBox, QAbstractItemView, QComboBox, QDialog,
-    QDialogButtonBox, QListWidgetItem, QSlider, QSpinBox,
-    QCheckBox, QTabWidget, QTableWidget, QTableWidgetItem,
-    QHeaderView, QScrollArea, QFileDialog, QSizePolicy, QRadioButton,
-    QTextEdit, QFrame, QLineEdit
+    QDialog, QVBoxLayout, QHBoxLayout, QWidget, QLabel, QPushButton,
+    QGroupBox, QTabWidget, QListWidget, QListWidgetItem, QAbstractItemView, QMessageBox,
+    QDialogButtonBox, QFileDialog, QSlider, QSpinBox, QDoubleSpinBox,
+    QRadioButton, QTableWidget, QTableWidgetItem, QHeaderView, QTextEdit,
+    QFrame, QCheckBox
 )
 from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QColor, QFont
-import pyqtgraph as pg
+from PyQt5.QtGui import QFont
 
-from formula_funcs import fit_curve, get_formula_string, hyperbolic, ratio_from_time, DEFAULT_A_VALUE
-from autopilot import load_vehicle_classes, get_vehicle_class
-from cfg_funcs import get_ratio_limits, get_config_with_defaults, get_base_path
+from core_database import CurveDatabase
+from core_formula import hyperbolic, fit_curve, get_formula_string, DEFAULT_A_VALUE
+from core_config import get_base_path, get_ratio_limits, get_config_with_defaults
+from core_autopilot import get_vehicle_class, load_vehicle_classes, Formula
+from core_aiw_utils import update_aiw_ratio
 
-
-# Set up logger for this module
 logger = logging.getLogger(__name__)
-
-
-class LogWindow(QDialog):
-    """Separate window for displaying logs on demand"""
-    
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Live AI Tuner - Log Viewer")
-        self.setGeometry(200, 200, 800, 500)
-        
-        self.log_buffer = []
-        self.max_lines = 1000
-        self.current_level = "INFO"
-        
-        self.setup_ui()
-        
-    def setup_ui(self):
-        layout = QVBoxLayout(self)
-        
-        control_layout = QHBoxLayout()
-        
-        control_layout.addWidget(QLabel("Show level:"))
-        self.level_combo = QComboBox()
-        self.level_combo.addItems(["ERROR", "WARNING", "INFO", "DEBUG", "ALL"])
-        self.level_combo.setCurrentText("INFO")
-        self.level_combo.currentTextChanged.connect(self.on_level_changed)
-        control_layout.addWidget(self.level_combo)
-        
-        control_layout.addWidget(QLabel("Max lines:"))
-        self.max_lines_spin = QSpinBox()
-        self.max_lines_spin.setRange(100, 10000)
-        self.max_lines_spin.setValue(1000)
-        self.max_lines_spin.valueChanged.connect(self.on_max_lines_changed)
-        control_layout.addWidget(self.max_lines_spin)
-        
-        control_layout.addStretch()
-        
-        self.clear_btn = QPushButton("Clear")
-        self.clear_btn.clicked.connect(self.clear_log)
-        control_layout.addWidget(self.clear_btn)
-        
-        self.auto_scroll_cb = QCheckBox("Auto-scroll")
-        self.auto_scroll_cb.setChecked(True)
-        control_layout.addWidget(self.auto_scroll_cb)
-        
-        layout.addLayout(control_layout)
-        
-        self.log_text = QTextEdit()
-        self.log_text.setReadOnly(True)
-        self.log_text.setFontFamily("Courier New")
-        self.log_text.setStyleSheet("""
-            QTextEdit {
-                background-color: #1e1e1e;
-                color: #d4d4d4;
-                font-size: 10px;
-            }
-        """)
-        layout.addWidget(self.log_text)
-        
-    def add_log(self, level: str, message: str):
-        timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
-        formatted = f"[{timestamp}] [{level:7}] {message}"
-        
-        self.log_buffer.append((level, formatted))
-        
-        if len(self.log_buffer) > self.max_lines:
-            self.log_buffer = self.log_buffer[-self.max_lines:]
-        
-        self._update_display()
-        
-    def _update_display(self):
-        level_map = {"ERROR": 40, "WARNING": 30, "INFO": 20, "DEBUG": 10, "ALL": 0}
-        min_level = level_map.get(self.current_level, 20)
-        
-        level_values = {"ERROR": 40, "WARNING": 30, "INFO": 20, "DEBUG": 10}
-        color_map = {"ERROR": "#f44336", "WARNING": "#ff9800", "INFO": "#4caf50", "DEBUG": "#9e9e9e"}
-        
-        html_lines = []
-        for level, formatted in self.log_buffer:
-            if self.current_level == "ALL" or level_values.get(level, 0) >= min_level:
-                color = color_map.get(level, "#ffffff")
-                html_lines.append(f'<span style="color: {color};">{formatted}</span>')
-        
-        if self.auto_scroll_cb.isChecked():
-            self.log_text.setHtml("<br>".join(html_lines))
-            scrollbar = self.log_text.verticalScrollBar()
-            scrollbar.setValue(scrollbar.maximum())
-        else:
-            self.log_text.setHtml("<br>".join(html_lines))
-        
-    def on_level_changed(self, level: str):
-        self.current_level = level
-        self._update_display()
-        
-    def on_max_lines_changed(self, value: int):
-        self.max_lines = value
-        if len(self.log_buffer) > self.max_lines:
-            self.log_buffer = self.log_buffer[-self.max_lines:]
-        self._update_display()
-        
-    def clear_log(self):
-        self.log_buffer.clear()
-        self.log_text.clear()
-
-
-class SimpleLogHandler(logging.Handler):
-    def __init__(self, log_window: LogWindow):
-        super().__init__()
-        self.log_window = log_window
-        
-    def emit(self, record):
-        try:
-            level = record.levelname
-            message = self.format(record)
-            self.log_window.add_log(level, message)
-        except Exception:
-            pass
 
 
 class ManualLapTimeDialog(QDialog):
@@ -606,6 +490,7 @@ class CurveGraphWidget(QWidget):
         if not self.all_tracks:
             QMessageBox.warning(self, "No Tracks", "No tracks available in database.")
             return
+        from PyQt5.QtWidgets import QDialog, QVBoxLayout, QListWidget, QDialogButtonBox
         dialog = QDialog(self)
         dialog.setWindowTitle("Select Track")
         dialog.setModal(True)
@@ -634,6 +519,7 @@ class CurveGraphWidget(QWidget):
         if not self.all_classes:
             QMessageBox.warning(self, "No Classes", "No vehicle classes available in database.")
             return
+        from PyQt5.QtWidgets import QDialog, QVBoxLayout, QListWidget, QAbstractItemView, QDialogButtonBox
         dialog = QDialog(self)
         dialog.setWindowTitle("Select Vehicle Classes")
         dialog.setModal(True)
@@ -937,35 +823,6 @@ class CurveGraphWidget(QWidget):
         self.update_graph()
 
 
-def calculate_accuracy_rating(data_points: List[Tuple[float, float]], formula, max_allowed_error: float = 0.5) -> str:
-    if not data_points or len(data_points) < 2:
-        return "very_low"
-    unique_ratios = set()
-    ratio_counts = {}
-    for ratio, _ in data_points:
-        unique_ratios.add(ratio)
-        ratio_counts[ratio] = ratio_counts.get(ratio, 0) + 1
-    unique_ratio_count = len(unique_ratios)
-    if unique_ratio_count < 4:
-        return "very_low"
-    min_points_per_ratio = min(ratio_counts.values()) if ratio_counts else 0
-    if min_points_per_ratio < 4:
-        return "very_low"
-    total_error = 0
-    for ratio, lap_time in data_points:
-        predicted = formula.get_time_at_ratio(ratio) if hasattr(formula, 'get_time_at_ratio') else (formula.a / ratio + formula.b)
-        error = abs(predicted - lap_time)
-        total_error += error
-    avg_error = total_error / len(data_points)
-    error_too_big = avg_error > max_allowed_error
-    if unique_ratio_count > 10 and error_too_big:
-        return "medium"
-    if error_too_big:
-        return "low"
-    else:
-        return "medium" if 4 <= unique_ratio_count <= 10 else "high"
-
-
 class AdvancedSettingsDialog(QDialog):
     """Advanced settings window with unified tab layout"""
     
@@ -1080,8 +937,6 @@ class AdvancedSettingsDialog(QDialog):
         QMessageBox.critical(self, "AIW File Not Found", error_msg)
     
     def _update_aiw_ratio(self, aiw_path: Path, ratio_name: str, new_ratio: float) -> bool:
-        import re
-        
         try:
             if not aiw_path.exists():
                 logger.error(f"AIW file not found: {aiw_path}")
@@ -1155,7 +1010,6 @@ class AdvancedSettingsDialog(QDialog):
         layout = QVBoxLayout(self)
         self.tab_widget = QTabWidget()
         
-        # TAB 1: DATA MANAGEMENT - No Data Points area, enhanced graph, button to open datamgmt_dyn_ai
         data_tab = QWidget()
         data_layout = QVBoxLayout(data_tab)
         data_layout.setContentsMargins(0, 0, 0, 0)
@@ -1194,7 +1048,6 @@ class AdvancedSettingsDialog(QDialog):
         middle_widget.setLayout(middle_layout)
         data_layout.addWidget(middle_widget, stretch=1)
         
-        # Button to open datamgmt_dyn_ai
         datamgmt_layout = QHBoxLayout()
         datamgmt_layout.addStretch()
         
@@ -1220,7 +1073,6 @@ class AdvancedSettingsDialog(QDialog):
         
         self.tab_widget.addTab(data_tab, "Data Management")
         
-        # TAB 2: AI TARGET
         target_tab = QWidget()
         target_layout = QVBoxLayout(target_tab)
         
@@ -1262,7 +1114,7 @@ class AdvancedSettingsDialog(QDialog):
         self.percentage_radio.setChecked(True)
         self.percentage_radio.toggled.connect(self.on_target_mode_changed)
         mode_layout.addWidget(self.percentage_radio)
-        pct_desc = QLabel("  0% = match fastest AI, 50% = middle, 100% = match slowest AI")
+        pct_desc = QLabel("  0 percent = match fastest AI, 50 percent = middle, 100 percent = match slowest AI")
         pct_desc.setStyleSheet("color: #888; font-size: 10px; margin-left: 20px;")
         pct_desc.setWordWrap(True)
         mode_layout.addWidget(pct_desc)
@@ -1365,7 +1217,6 @@ class AdvancedSettingsDialog(QDialog):
         target_layout.addStretch()
         self.tab_widget.addTab(target_tab, "AI Target")
         
-        # TAB 3: BACKUP RESTORE
         backup_tab = QWidget()
         backup_layout = QVBoxLayout(backup_tab)
         backup_info = QLabel(
@@ -1399,7 +1250,6 @@ class AdvancedSettingsDialog(QDialog):
         backup_layout.addStretch()
         self.tab_widget.addTab(backup_tab, "Backup Restore")
         
-        # TAB 4: LOGS
         logs_tab = QWidget()
         logs_layout = QVBoxLayout(logs_tab)
         if self.log_window:
@@ -1444,7 +1294,7 @@ class AdvancedSettingsDialog(QDialog):
     def open_datamgmt_dyn_ai(self):
         script_dir = Path(__file__).parent
         exe_path = script_dir / "datamgmt_dyn_ai.exe"
-        py_path = script_dir / "datamgmt_dyn_ai.py"
+        py_path = script_dir / "dyn_ai_data_manager.py"
         
         try:
             if exe_path.exists():
@@ -1453,10 +1303,10 @@ class AdvancedSettingsDialog(QDialog):
             elif py_path.exists():
                 python_exe = sys.executable
                 subprocess.Popen([python_exe, str(py_path)], shell=False)
-                logger.info(f"Started datamgmt_dyn_ai.py with {python_exe}")
+                logger.info(f"Started dyn_ai_data_manager.py with {python_exe}")
             else:
                 QMessageBox.warning(self, "File Not Found", 
-                    "datamgmt_dyn_ai.exe or datamgmt_dyn_ai.py not found in the application directory.\n\n"
+                    "Data Manager not found in the application directory.\n\n"
                     f"Expected locations:\n{exe_path}\n{py_path}")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to start Dyn AI Data Manager:\n{str(e)}")
@@ -1473,14 +1323,10 @@ class AdvancedSettingsDialog(QDialog):
     
     def dump_analysis(self, session_type: str):
         try:
-            from ai_target_analyzer import AITargetAnalyzer
-            
             parent = self.parent() if callable(self.parent) else self.parent
             if not parent:
                 QMessageBox.warning(self, "Error", "Cannot access parent window data.")
                 return
-            
-            analyzer = AITargetAnalyzer()
             
             track = getattr(parent, 'current_track', 'Unknown')
             vehicle_class = getattr(parent, 'current_vehicle_class', 'Unknown')
@@ -1504,6 +1350,14 @@ class AdvancedSettingsDialog(QDialog):
                 "offset_seconds": 0.0,
                 "error_margin": 0.0
             })
+            
+            analyzer = None
+            try:
+                from core_target_analyzer import AITargetAnalyzer
+                analyzer = AITargetAnalyzer()
+            except ImportError:
+                QMessageBox.warning(self, "Error", "AI Target Analyzer module not available.")
+                return
             
             analyzer.start_analysis(session_type, track, vehicle_class)
             
@@ -1606,8 +1460,6 @@ class AdvancedSettingsDialog(QDialog):
                 f"Also saved to:\n{analyzer.dump_dir}/ai_target_log.csv"
             )
             
-        except ImportError as e:
-            QMessageBox.warning(self, "Error", f"AI Target Analyzer module not available: {e}")
         except Exception as e:
             import traceback
             traceback.print_exc()
@@ -2135,48 +1987,3 @@ class AdvancedSettingsDialog(QDialog):
         else:
             logger.error("[AI TARGET] No engine available")
             QMessageBox.warning(self, "Error", "Could not access autopilot engine.")
-
-
-def setup_dark_theme(app):
-    app.setStyle('Fusion')
-    app.setStyleSheet("""
-        QMainWindow, QWidget { background-color: #1e1e1e; }
-        QLabel { color: white; }
-        QGroupBox { color: #4CAF50; border: 2px solid #555; border-radius: 5px; margin-top: 8px; padding-top: 8px; }
-        QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 5px 0 5px; }
-        QListWidget { background-color: #2b2b2b; color: white; border: 1px solid #4CAF50; border-radius: 3px; outline: none; }
-        QListWidget::item:selected { background-color: #4CAF50; color: white; }
-        QListWidget::item:hover { background-color: #3c3c3c; }
-        QDoubleSpinBox, QSpinBox { background-color: #3c3c3c; color: white; border: 1px solid #4CAF50; border-radius: 3px; padding: 4px; }
-        QPushButton { background-color: #4CAF50; color: white; border: none; border-radius: 4px; padding: 6px 12px; font-weight: bold; }
-        QPushButton:hover { background-color: #45a049; }
-        QStatusBar { color: #888; }
-        QComboBox { background-color: #3c3c3c; color: white; border: 1px solid #4CAF50; border-radius: 3px; padding: 4px; }
-        QCheckBox { color: white; }
-        QRadioButton { color: white; }
-        QFrame { background-color: transparent; }
-    """)
-
-
-def show_error_dialog(parent, title: str, message: str):
-    msg = QMessageBox(parent)
-    msg.setWindowTitle(title)
-    msg.setIcon(QMessageBox.Critical)
-    msg.setText(message)
-    msg.exec_()
-
-
-def show_info_dialog(parent, title: str, message: str):
-    msg = QMessageBox(parent)
-    msg.setWindowTitle(title)
-    msg.setIcon(QMessageBox.Information)
-    msg.setText(message)
-    msg.exec_()
-
-
-def show_warning_dialog(parent, title: str, message: str):
-    msg = QMessageBox(parent)
-    msg.setWindowTitle(title)
-    msg.setIcon(QMessageBox.Warning)
-    msg.setText(message)
-    msg.exec_()

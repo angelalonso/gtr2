@@ -29,12 +29,10 @@ def find_aiw_file_from_path(relative_path: str, base_path: Path) -> Optional[Pat
         logger.error(f"find_aiw_file_from_path: missing params - relative_path={relative_path}, base_path={base_path}")
         return None
     
-    # Normalize path separators to /
     normalized = str(relative_path).replace('\\', '/')
     logger.info(f"find_aiw_file_from_path: looking for '{normalized}'")
     logger.info(f"  Base path: {base_path}")
     
-    # Try the path as-is first
     full_path = base_path / normalized
     if full_path.exists():
         logger.info(f"Found AIW via exact path: {full_path}")
@@ -42,10 +40,8 @@ def find_aiw_file_from_path(relative_path: str, base_path: Path) -> Optional[Pat
     else:
         logger.debug(f"Exact path not found: {full_path}")
     
-    # Try with GameData instead of GAMEDATA (and vice versa)
     path_variants = []
     
-    # Replace GAMEDATA with GameData
     if 'GAMEDATA' in normalized:
         path_variants.append(normalized.replace('GAMEDATA', 'GameData'))
     if 'gamedata' in normalized:
@@ -53,13 +49,11 @@ def find_aiw_file_from_path(relative_path: str, base_path: Path) -> Optional[Pat
     if 'GameData' in normalized:
         path_variants.append(normalized.replace('GameData', 'GAMEDATA'))
     
-    # Try with different case for Locations
     if 'LOCATIONS' in normalized:
         path_variants.append(normalized.replace('LOCATIONS', 'Locations'))
     if 'Locations' in normalized:
         path_variants.append(normalized.replace('Locations', 'LOCATIONS'))
     
-    # Try all variants
     for variant in path_variants:
         test_path = base_path / variant
         if test_path.exists():
@@ -68,20 +62,14 @@ def find_aiw_file_from_path(relative_path: str, base_path: Path) -> Optional[Pat
         else:
             logger.debug(f"Path variant not found: {test_path}")
     
-    # Now try to find by walking the directory structure case-insensitively
-    # Split the path and walk from base_path
     path_parts = normalized.split('/')
-    # Remove empty first part if present
     if path_parts and path_parts[0] == '':
         path_parts = path_parts[1:]
     
-    # Start from base_path
     current_path = base_path
     
     for i, part in enumerate(path_parts):
-        # For the last part (filename), we want to match case-insensitively
         if i == len(path_parts) - 1:
-            # This is the filename - search in current directory
             if current_path.exists() and current_path.is_dir():
                 found = False
                 for file_path in current_path.iterdir():
@@ -91,7 +79,6 @@ def find_aiw_file_from_path(relative_path: str, base_path: Path) -> Optional[Pat
                 if not found:
                     logger.debug(f"No file matching '{part}' found in {current_path}")
         else:
-            # This is a directory - try to find it case-insensitively
             next_path = None
             if current_path.exists() and current_path.is_dir():
                 for item in current_path.iterdir():
@@ -104,12 +91,9 @@ def find_aiw_file_from_path(relative_path: str, base_path: Path) -> Optional[Pat
                 logger.debug(f"Found directory '{part}' as '{current_path.name}'")
             else:
                 logger.debug(f"Could not find directory '{part}' in {current_path}")
-                # Break out of the loop - we can't continue
                 current_path = None
                 break
     
-    # If we successfully walked through all directories but didn't find the file,
-    # try to find any AIW file in the final directory that matches the expected filename
     if current_path and current_path.exists() and current_path.is_dir():
         expected_filename = path_parts[-1] if path_parts else ""
         expected_stem = Path(expected_filename).stem
@@ -120,7 +104,6 @@ def find_aiw_file_from_path(relative_path: str, base_path: Path) -> Optional[Pat
                     logger.info(f"Found AIW via case-insensitive filename with extension: {file_path}")
                     return file_path
     
-    # Last resort: search by exact filename in the base_path/GameData/Locations directory
     filename = Path(normalized).name
     locations_candidates = [
         base_path / "GameData" / "Locations",
@@ -181,7 +164,6 @@ def find_aiw_file_by_track(track_name: str, base_path: Path) -> Optional[Path]:
     
     track_lower = track_name.lower()
     
-    # Try exact folder match (case-insensitive)
     for track_dir in locations_dir.iterdir():
         if track_dir.is_dir() and track_dir.name.lower() == track_lower:
             for ext in ["*.AIW", "*.aiw"]:
@@ -191,7 +173,6 @@ def find_aiw_file_by_track(track_name: str, base_path: Path) -> Optional[Path]:
                     return aiw_files[0]
             logger.debug(f"Folder '{track_dir.name}' matched but no AIW file found")
     
-    # Try AIW filename matching
     for ext in ["*.AIW", "*.aiw"]:
         for aiw_file in locations_dir.rglob(ext):
             if aiw_file.stem.lower() == track_lower:
@@ -228,7 +209,6 @@ def update_aiw_ratio(aiw_path: Path, ratio_name: str, new_ratio: float, backup_d
         
         logger.info(f"update_aiw_ratio: updating {ratio_name} to {new_ratio:.6f} in {aiw_path}")
         
-        # Create backup if backup_dir provided
         if backup_dir:
             backup_dir = Path(backup_dir)
             backup_dir.mkdir(parents=True, exist_ok=True)
@@ -237,11 +217,9 @@ def update_aiw_ratio(aiw_path: Path, ratio_name: str, new_ratio: float, backup_d
                 shutil.copy2(aiw_path, backup_path)
                 logger.debug(f"Created backup: {backup_path}")
         
-        # Read file content
         raw = aiw_path.read_bytes()
         content = raw.replace(b"\x00", b"").decode("utf-8", errors="ignore")
         
-        # Update the ratio using regex
         pattern = rf'({re.escape(ratio_name)}\s*=\s*\(?)\s*[0-9.eE+-]+\s*(\)?)'
         new_content, count = re.subn(
             pattern,
@@ -296,7 +274,6 @@ def ensure_aiw_has_ratios(aiw_path: Path, backup_dir: Optional[Path] = None) -> 
         
         logger.info(f"AIW {aiw_path.name} missing ratios: qual={has_qual}, race={has_race}")
         
-        # Create backup if backup_dir provided
         if backup_dir:
             backup_dir = Path(backup_dir)
             backup_dir.mkdir(parents=True, exist_ok=True)
@@ -305,7 +282,6 @@ def ensure_aiw_has_ratios(aiw_path: Path, backup_dir: Optional[Path] = None) -> 
                 shutil.copy2(aiw_path, backup_path)
                 logger.info(f"Created backup before adding ratios: {backup_path}")
         
-        # Find Waypoint section
         waypoint_pattern = re.compile(r'(\[Waypoint\](.*?)(?=\[|$))', re.DOTALL | re.IGNORECASE)
         waypoint_match = waypoint_pattern.search(content)
         
@@ -316,7 +292,6 @@ def ensure_aiw_has_ratios(aiw_path: Path, backup_dir: Optional[Path] = None) -> 
         waypoint_section = waypoint_match.group(1)
         waypoint_start = waypoint_match.start()
         
-        # Find insertion position (after BestAdjust or at end of Waypoint section)
         insert_pos = waypoint_start + len("[Waypoint]")
         best_adjust_match = re.search(r'BestAdjust\s*=', waypoint_section, re.IGNORECASE)
         if best_adjust_match:

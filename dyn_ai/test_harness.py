@@ -3,17 +3,6 @@
 Test Harness for Live AI Tuner
 Launches the application with test configuration and simulates game behavior
 UPDATED: Works with test_mocks/cfg_test.yml and test_mocks/UserData/Log/Results/raceresults.txt
-
-WORKFLOW (per mock result file):
-  1. Parse ratios from filename (qr / rr values)
-  2. Parse track name + AIW filename from the mock result content
-  3. Find the actual AIW file under test_mocks/GameData/Locations
-  4. Backup the AIW (once per unique AIW path)
-  5. Backup raceresults.txt (once, at the start)
-  6. Patch the AIW with the ratios from the filename
-  7. Copy the mock result content to the live raceresults.txt
-  8. Let the main program detect and process the change
-  9. On finish / interrupt / error → restore both the AIW(s) and raceresults.txt
 """
 
 import os
@@ -32,10 +21,8 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, List, Tuple
 
-# Add current directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-# Configure logging with TEST_HARNESS tag
 logging.basicConfig(
     level=logging.INFO,
     format='[TEST_HARNESS] %(asctime)s - %(levelname)s - %(message)s'
@@ -53,47 +40,29 @@ class LiveAITunerTestHarness:
         self.log_queue = queue.Queue()
         self.app_log_file = None
 
-        # Paths for test environment
         self.user_data_dir = self.test_dir / "UserData"
         self.log_results_dir = self.user_data_dir / "Log" / "Results"
         self.target_results_file = self.log_results_dir / "raceresults.txt"
         self.test_config_path = self.test_dir / "cfg_test.yml"
         self.app_logs_dir = self.test_dir / "app_logs"
 
-        # Directory containing generated race results
         self.mock_results_dir = self.test_dir / "mock_raceresults"
 
-        # Backup dir for AIW files and raceresults
         self.harness_backup_dir = self.test_dir / "harness_backups"
         self.harness_backup_dir.mkdir(parents=True, exist_ok=True)
 
-        # Backup of original test results file
         self.backup_results_file = self.harness_backup_dir / "original_raceresults_backup.txt"
 
-        # AIW backup tracking: maps str(aiw_path) -> Path of backup copy
         self._aiw_backups: Dict[str, Path] = {}
 
-        # Create necessary directories
         self.log_results_dir.mkdir(parents=True, exist_ok=True)
         self.app_logs_dir.mkdir(parents=True, exist_ok=True)
 
-        # Track information from existing data
         self.tracks = self._discover_tracks()
 
-        # Track processed files to avoid duplicates
         self.processed_hashes = set()
 
-    # ------------------------------------------------------------------
-    # Database cleanup methods
-    # ------------------------------------------------------------------
-
     def _cleanup_database_entries(self, track_name_pattern: str = "TestTrack") -> int:
-        """
-        Delete all database entries (data_points, race_sessions, formulas) 
-        that reference tracks matching the pattern (case-insensitive).
-        
-        Returns number of rows deleted.
-        """
         if not self.db_path.exists():
             logger.info(f"Database {self.db_path} does not exist, skipping cleanup")
             return 0
@@ -104,7 +73,6 @@ class LiveAITunerTestHarness:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
-            # First, find all track names that match the pattern (case-insensitive)
             cursor.execute("""
                 SELECT DISTINCT track FROM data_points 
                 WHERE LOWER(track) LIKE LOWER(?)
@@ -118,10 +86,8 @@ class LiveAITunerTestHarness:
             
             logger.info(f"Found {len(matching_tracks)} track(s) matching '{track_name_pattern}': {matching_tracks}")
             
-            # Build placeholders for IN clause
             placeholders = ','.join('?' * len(matching_tracks))
             
-            # Delete from data_points
             cursor.execute(f"""
                 DELETE FROM data_points 
                 WHERE track IN ({placeholders})
@@ -130,7 +96,6 @@ class LiveAITunerTestHarness:
             total_deleted += data_points_deleted
             logger.info(f"  Deleted {data_points_deleted} entries from data_points")
             
-            # Delete from race_sessions
             cursor.execute(f"""
                 DELETE FROM race_sessions 
                 WHERE track_name IN ({placeholders})
@@ -139,7 +104,6 @@ class LiveAITunerTestHarness:
             total_deleted += race_sessions_deleted
             logger.info(f"  Deleted {race_sessions_deleted} entries from race_sessions")
             
-            # Delete from formulas
             cursor.execute(f"""
                 DELETE FROM formulas 
                 WHERE track IN ({placeholders})
@@ -151,7 +115,7 @@ class LiveAITunerTestHarness:
             conn.commit()
             conn.close()
             
-            logger.info(f"✓ Database cleanup complete: {total_deleted} total entries deleted")
+            logger.info(f"Database cleanup complete: {total_deleted} total entries deleted")
             return total_deleted
             
         except sqlite3.Error as e:
@@ -166,16 +130,11 @@ class LiveAITunerTestHarness:
             return 0
 
     def _cleanup_test_data(self):
-        """Clean up test data from database before and after test runs"""
         logger.info("\n" + "=" * 60)
         logger.info("DATABASE CLEANUP")
         logger.info("=" * 60)
         
-        # Delete entries for TestTrack (case-insensitive)
         deleted = self._cleanup_database_entries("TestTrack")
-        
-        # Also delete any entries with "Test" in the track name (for safety)
-        # This catches variations like "TestTrack", "TestTrack2", etc.
         additional_deleted = self._cleanup_database_entries("Test")
         if additional_deleted > deleted:
             deleted = additional_deleted
@@ -183,16 +142,11 @@ class LiveAITunerTestHarness:
         if deleted == 0:
             logger.info("No test data found in database")
         else:
-            logger.info(f"✓ Removed {deleted} test entries from database")
+            logger.info(f"Removed {deleted} test entries from database")
         
         logger.info("=" * 60 + "\n")
 
-    # ------------------------------------------------------------------
-    # Track / AIW discovery
-    # ------------------------------------------------------------------
-
     def _discover_tracks(self) -> List[Dict]:
-        """Discover existing tracks from test_mocks/GameData/Locations"""
         tracks = []
         locations_dir = self.test_dir / "GameData" / "Locations"
 
@@ -222,104 +176,64 @@ class LiveAITunerTestHarness:
 
         return tracks
 
-    # ------------------------------------------------------------------
-    # Filename / content parsing helpers
-    # ------------------------------------------------------------------
-
     def _parse_filename_for_ratios(self, filename: str) -> Optional[Dict]:
-        """
-        Parse qualratio and raceratio from filename like raceresult_1_qr0_98_rr0_97.txt
-        Handles both underscore and dot as decimal separators.
-        """
-        # Debug: print the filename being parsed
         logger.debug(f"Parsing filename: {filename}")
         
-        # Method 1: Simple string splitting approach
-        # Find the qr and rr parts
         if 'qr' in filename and 'rr' in filename:
             try:
-                # Get everything after 'qr' and before '_rr'
                 qr_part = filename.split('qr')[1].split('_rr')[0]
-                # Get everything after 'rr' and before '.txt'
                 rr_part = filename.split('rr')[1].split('.txt')[0]
-                
-                # Remove any trailing underscores or dots
                 qr_part = qr_part.rstrip('_.')
                 rr_part = rr_part.rstrip('_.')
-                
-                # Replace underscore with dot for decimal
                 qr_part = qr_part.replace('_', '.')
                 rr_part = rr_part.replace('_', '.')
-                
                 qual_ratio = float(qr_part)
                 race_ratio = float(rr_part)
-                
-                logger.info(f"  ✓ Parsed ratios: QR={qual_ratio}, RR={race_ratio}")
-                return {
-                    "qual_ratio": qual_ratio,
-                    "race_ratio": race_ratio
-                }
+                logger.info(f"  Parsed ratios: QR={qual_ratio}, RR={race_ratio}")
+                return {"qual_ratio": qual_ratio, "race_ratio": race_ratio}
             except (IndexError, ValueError) as e:
                 logger.debug(f"  String splitting failed: {e}")
         
-        # Method 2: More robust regex approach
-        # This pattern handles both underscore and dot decimal separators
         pattern = r'qr([\d_]+?)_rr([\d_]+?)\.txt'
         match = re.search(pattern, filename)
         if match:
             try:
                 qual_str = match.group(1).replace('_', '.')
                 race_str = match.group(2).replace('_', '.')
-                
-                # Remove any trailing dots
                 qual_str = qual_str.rstrip('.')
                 race_str = race_str.rstrip('.')
-                
                 qual_ratio = float(qual_str)
                 race_ratio = float(race_str)
-                logger.info(f"  ✓ Parsed ratios (regex): QR={qual_ratio}, RR={race_ratio}")
-                return {
-                    "qual_ratio": qual_ratio,
-                    "race_ratio": race_ratio
-                }
+                logger.info(f"  Parsed ratios (regex): QR={qual_ratio}, RR={race_ratio}")
+                return {"qual_ratio": qual_ratio, "race_ratio": race_ratio}
             except ValueError as e:
                 logger.debug(f"  Regex parsing failed: {e}")
         
-        # Method 3: Alternative pattern for dots
         pattern_dot = r'qr([\d.]+?)_rr([\d.]+?)\.txt'
         match = re.search(pattern_dot, filename)
         if match:
             try:
                 qual_ratio = float(match.group(1))
                 race_ratio = float(match.group(2))
-                logger.info(f"  ✓ Parsed ratios (dot pattern): QR={qual_ratio}, RR={race_ratio}")
-                return {
-                    "qual_ratio": qual_ratio,
-                    "race_ratio": race_ratio
-                }
+                logger.info(f"  Parsed ratios (dot pattern): QR={qual_ratio}, RR={race_ratio}")
+                return {"qual_ratio": qual_ratio, "race_ratio": race_ratio}
             except ValueError as e:
                 logger.debug(f"  Dot pattern parsing failed: {e}")
         
-        logger.warning(f"  ✗ Could not parse ratios from filename: {filename}")
+        logger.warning(f"  Could not parse ratios from filename: {filename}")
         return None
 
     def _parse_track_from_result_file(self, filepath: Path) -> Dict:
-        """
-        Read a mock result file and extract track folder name and AIW filename.
-        Returns a dict with keys 'track_folder' and 'aiw_file' (may be None if not found).
-        """
         info = {"track_folder": None, "aiw_file": None}
         try:
             content = filepath.read_text(encoding="utf-8", errors="ignore")
 
-            # Scene=<path>  → derive track folder
             scene_match = re.search(r'Scene\s*=\s*(.+)', content, re.IGNORECASE)
             if scene_match:
                 scene = scene_match.group(1).strip().replace("\\", "/")
                 scene_path = Path(scene)
                 info["track_folder"] = scene_path.parent.name
 
-            # AIDB=<path>  → derive AIW filename
             aidb_match = re.search(r'AIDB\s*=\s*(.+)', content, re.IGNORECASE)
             if aidb_match:
                 aiw_path_str = aidb_match.group(1).strip().replace("\\", "/")
@@ -331,15 +245,10 @@ class LiveAITunerTestHarness:
         return info
 
     def _find_aiw_path(self, track_folder: Optional[str], aiw_file: Optional[str]) -> Optional[Path]:
-        """
-        Locate the AIW file under test_mocks/GameData/Locations.
-        Uses case-insensitive matching on both folder and filename.
-        """
         locations_dir = self.test_dir / "GameData" / "Locations"
         if not locations_dir.exists():
             return None
 
-        # Build lowercased lookup targets
         tf_lower = track_folder.lower() if track_folder else None
         af_lower = aiw_file.lower() if aiw_file else None
 
@@ -352,13 +261,11 @@ class LiveAITunerTestHarness:
                 if not folder_matches:
                     continue
 
-                # Try exact filename match first
                 if af_lower:
                     for f in folder.iterdir():
                         if f.is_file() and f.name.lower() == af_lower:
                             return f
 
-                # Fallback: any AIW file in that folder
                 for ext_glob in ("*.AIW", "*.aiw"):
                     candidates = list(folder.glob(ext_glob))
                     if candidates:
@@ -367,7 +274,6 @@ class LiveAITunerTestHarness:
         except OSError as e:
             logger.warning(f"Error searching for AIW: {e}")
 
-        # Last resort: recursive search by filename
         if af_lower:
             try:
                 for root, _dirs, files in os.walk(locations_dir):
@@ -379,15 +285,7 @@ class LiveAITunerTestHarness:
 
         return None
 
-    # ------------------------------------------------------------------
-    # AIW backup / patch / restore
-    # ------------------------------------------------------------------
-
     def _backup_aiw_file(self, aiw_path: Path) -> Optional[Path]:
-        """
-        Back up an AIW file before the first time we touch it.
-        Subsequent calls for the same path are no-ops (returns existing backup path).
-        """
         key = str(aiw_path)
         if key in self._aiw_backups:
             logger.debug(f"AIW already backed up: {aiw_path.name}")
@@ -399,18 +297,13 @@ class LiveAITunerTestHarness:
         try:
             shutil.copy2(aiw_path, backup_path)
             self._aiw_backups[key] = backup_path
-            logger.info(f"  ✓ AIW backed up → {backup_path.name}")
+            logger.info(f"  AIW backed up -> {backup_path.name}")
             return backup_path
         except Exception as e:
-            logger.error(f"  ✗ Failed to back up AIW {aiw_path.name}: {e}")
+            logger.error(f"  Failed to back up AIW {aiw_path.name}: {e}")
             return None
 
     def _update_aiw_ratios(self, aiw_path: Path, qual_ratio: float, race_ratio: float) -> bool:
-        """
-        Patch QualRatio and RaceRatio values inside the AIW file in-place.
-        The file is read as bytes (handles null bytes), patched via regex, and
-        written back as UTF-8.
-        """
         try:
             raw = aiw_path.read_bytes()
             content = raw.replace(b"\x00", b"").decode("utf-8", errors="ignore")
@@ -431,26 +324,23 @@ class LiveAITunerTestHarness:
             content, race_ok = _replace_ratio(content, "RaceRatio", race_ratio)
 
             if not qual_ok:
-                logger.warning(f"  ⚠ QualRatio pattern not found in {aiw_path.name}")
+                logger.warning(f"  QualRatio pattern not found in {aiw_path.name}")
             if not race_ok:
-                logger.warning(f"  ⚠ RaceRatio pattern not found in {aiw_path.name}")
+                logger.warning(f"  RaceRatio pattern not found in {aiw_path.name}")
 
             if content != original:
                 aiw_path.write_bytes(content.encode("utf-8", errors="ignore"))
-                logger.info(
-                    f"  ✓ AIW patched: QualRatio={qual_ratio:.6f}  RaceRatio={race_ratio:.6f}"
-                )
+                logger.info(f"  AIW patched: QualRatio={qual_ratio:.6f}  RaceRatio={race_ratio:.6f}")
             else:
-                logger.warning(f"  ⚠ AIW content unchanged after patch attempt ({aiw_path.name})")
+                logger.warning(f"  AIW content unchanged after patch attempt ({aiw_path.name})")
 
             return qual_ok or race_ok
 
         except Exception as e:
-            logger.error(f"  ✗ Failed to update AIW ratios in {aiw_path.name}: {e}")
+            logger.error(f"  Failed to update AIW ratios in {aiw_path.name}: {e}")
             return False
 
     def _restore_aiw_file(self, aiw_path: Path) -> bool:
-        """Restore a single AIW file from its harness backup."""
         key = str(aiw_path)
         backup_path = self._aiw_backups.get(key)
         if not backup_path or not backup_path.exists():
@@ -458,14 +348,13 @@ class LiveAITunerTestHarness:
             return False
         try:
             shutil.copy2(backup_path, aiw_path)
-            logger.info(f"  ✓ AIW restored: {aiw_path.name}")
+            logger.info(f"  AIW restored: {aiw_path.name}")
             return True
         except Exception as e:
-            logger.error(f"  ✗ Failed to restore AIW {aiw_path.name}: {e}")
+            logger.error(f"  Failed to restore AIW {aiw_path.name}: {e}")
             return False
 
     def _restore_all_aiw_backups(self):
-        """Restore every AIW file that was backed up during this test run."""
         if not self._aiw_backups:
             logger.info("No AIW backups to restore.")
             return
@@ -474,16 +363,11 @@ class LiveAITunerTestHarness:
         for aiw_path_str, backup_path in self._aiw_backups.items():
             self._restore_aiw_file(Path(aiw_path_str))
 
-    # ------------------------------------------------------------------
-    # raceresults.txt backup / restore
-    # ------------------------------------------------------------------
-
     def backup_original_results(self) -> bool:
-        """Backup the original test raceresults.txt if it exists"""
         if self.target_results_file.exists():
             try:
                 shutil.copy2(self.target_results_file, self.backup_results_file)
-                logger.info(f"✓ Backed up original test results to: {self.backup_results_file}")
+                logger.info(f"Backed up original test results to: {self.backup_results_file}")
                 return True
             except Exception as e:
                 logger.error(f"Failed to backup results: {e}")
@@ -494,18 +378,17 @@ class LiveAITunerTestHarness:
             return True
 
     def restore_original_results(self) -> bool:
-        """Restore the original test raceresults.txt"""
         if self.backup_results_file.exists():
             content = self.backup_results_file.read_text()
             if content.startswith("# No original backup"):
                 if self.target_results_file.exists():
                     self.target_results_file.unlink()
-                    logger.info("✓ Removed test results file (didn't exist originally)")
+                    logger.info("Removed test results file (didn't exist originally)")
                 return True
             else:
                 try:
                     shutil.copy2(self.backup_results_file, self.target_results_file)
-                    logger.info("✓ Restored original test results from backup")
+                    logger.info("Restored original test results from backup")
                     return True
                 except Exception as e:
                     logger.error(f"Failed to restore results: {e}")
@@ -514,104 +397,60 @@ class LiveAITunerTestHarness:
             logger.warning("No backup file found to restore")
             return False
 
-    # ------------------------------------------------------------------
-    # Core simulation step
-    # ------------------------------------------------------------------
-
     def simulate_race_with_file(self, result_file: Path, wait_before: float = 0) -> bool:
-        """
-        Full per-file simulation workflow:
-          1. Extract ratios from the filename
-          2. Parse track / AIW info from the file content
-          3. Find + backup the AIW (once per AIW path)
-          4. Patch the AIW with the filename ratios
-          5. Copy mock result → live raceresults.txt
-          6. Touch the file so the monitor sees the change
-        """
         logger.info(f"\n  Simulating race with: {result_file.name}")
 
         if wait_before > 0:
             time.sleep(wait_before)
 
-        # ── Step 1: ratios from filename ──────────────────────────────
         ratios = self._parse_filename_for_ratios(result_file.name)
         if ratios:
-            logger.info(
-                f"  Ratios from filename → QualRatio={ratios['qual_ratio']}  "
-                f"RaceRatio={ratios['race_ratio']}"
-            )
+            logger.info(f"  Ratios from filename -> QualRatio={ratios['qual_ratio']}  RaceRatio={ratios['race_ratio']}")
         else:
-            logger.warning(
-                f"  Could not parse ratios from filename: {result_file.name}  "
-                "(will skip AIW patch)"
-            )
+            logger.warning(f"  Could not parse ratios from filename: {result_file.name}")
 
-        # ── Step 2: track / AIW info from file content ────────────────
         track_info = self._parse_track_from_result_file(result_file)
-        logger.info(
-            f"  Track folder: {track_info['track_folder'] or '(unknown)'}  "
-            f"AIW file: {track_info['aiw_file'] or '(unknown)'}"
-        )
+        logger.info(f"  Track folder: {track_info['track_folder'] or '(unknown)'}  AIW file: {track_info['aiw_file'] or '(unknown)'}")
 
-        # ── Step 3 + 4: locate AIW, backup, patch ─────────────────────
         if ratios and (track_info["track_folder"] or track_info["aiw_file"]):
-            aiw_path = self._find_aiw_path(
-                track_info["track_folder"], track_info["aiw_file"]
-            )
+            aiw_path = self._find_aiw_path(track_info["track_folder"], track_info["aiw_file"])
             if aiw_path:
                 logger.info(f"  Found AIW: {aiw_path}")
-                self._backup_aiw_file(aiw_path)          # no-op if already backed up
-                self._update_aiw_ratios(
-                    aiw_path,
-                    ratios["qual_ratio"],
-                    ratios["race_ratio"]
-                )
+                self._backup_aiw_file(aiw_path)
+                self._update_aiw_ratios(aiw_path, ratios["qual_ratio"], ratios["race_ratio"])
             else:
-                logger.warning(
-                    f"  ⚠ AIW file not found for track "
-                    f"'{track_info['track_folder']}' / '{track_info['aiw_file']}' "
-                    "— skipping AIW patch"
-                )
+                logger.warning(f"  AIW file not found for track '{track_info['track_folder']}' / '{track_info['aiw_file']}'")
         else:
-            logger.warning("  ⚠ Insufficient info to locate AIW — skipping AIW patch")
+            logger.warning("  Insufficient info to locate AIW")
 
-        # ── Step 5 + 6: copy mock result → live raceresults.txt ───────
         success = self._copy_result_to_target(result_file)
 
         if success:
-            logger.info(f"  ✓ Race results written to: {self.target_results_file}")
-            # Brief pause so the file-monitor's debounce window passes cleanly
+            logger.info(f"  Race results written to: {self.target_results_file}")
             time.sleep(1)
         else:
-            logger.error("  ✗ Failed to write race results")
+            logger.error("  Failed to write race results")
 
         return success
 
     def _copy_result_to_target(self, source_file: Path) -> bool:
-        """Copy a mock result file to the monitored raceresults.txt location."""
         try:
             self.target_results_file.parent.mkdir(parents=True, exist_ok=True)
 
             content = source_file.read_text(encoding="utf-8", errors="ignore")
             self.target_results_file.write_text(content, encoding="utf-8")
 
-            # Force mtime update so file-monitor always sees a change
             now = time.time()
             os.utime(self.target_results_file, (now, now))
 
-            logger.info(f"  ✓ Copied to: {self.target_results_file}")
+            logger.info(f"  Copied to: {self.target_results_file}")
             self._log_result_file_info(source_file)
             return True
         except Exception as e:
             logger.error(f"  Failed to copy result file: {e}")
             return False
 
-    # ------------------------------------------------------------------
-    # Misc helpers (unchanged from original)
-    # ------------------------------------------------------------------
-
     def _get_sorted_result_files(self) -> List[Path]:
-        """Get all race result files from mock_raceresults directory, sorted by number"""
         if not self.mock_results_dir.exists():
             logger.error(f"Mock results directory not found: {self.mock_results_dir}")
             return []
@@ -633,7 +472,6 @@ class LiveAITunerTestHarness:
         return result_files
 
     def _log_result_file_info(self, filepath: Path):
-        """Log information from a result file"""
         try:
             content = filepath.read_text(encoding="utf-8", errors="ignore")
 
@@ -659,12 +497,7 @@ class LiveAITunerTestHarness:
         except Exception as e:
             logger.debug(f"  Could not parse result file info: {e}")
 
-    # ------------------------------------------------------------------
-    # Config / app lifecycle (unchanged from original)
-    # ------------------------------------------------------------------
-
     def create_test_config(self) -> bool:
-        """Create test configuration pointing to test_mocks directory"""
         logger.info("Creating test configuration...")
 
         test_config = {
@@ -688,7 +521,6 @@ class LiveAITunerTestHarness:
             return False
 
     def _log_reader_thread(self, pipe, log_file, source_name):
-        """Thread to read from a pipe and log to file and queue"""
         try:
             for line in iter(pipe.readline, ''):
                 if line:
@@ -700,18 +532,17 @@ class LiveAITunerTestHarness:
                     log_file.flush()
 
                     if "ERROR" in line or "CRITICAL" in line:
-                        print(f"\033[91m{formatted_line}\033[0m")
+                        print(f"[91m{formatted_line}[0m")
                     elif "WARNING" in line:
-                        print(f"\033[93m{formatted_line}\033[0m")
+                        print(f"[93m{formatted_line}[0m")
                     elif "INFO" in line:
-                        print(f"\033[92m{formatted_line}\033[0m")
+                        print(f"[92m{formatted_line}[0m")
                     else:
                         print(formatted_line)
         except Exception as e:
             logger.error(f"Log reader thread error for {source_name}: {e}")
 
     def launch_application(self, no_gui: bool = False) -> bool:
-        """Launch the Live AI Tuner application and capture logs"""
         logger.info("Launching Live AI Tuner...")
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -724,10 +555,7 @@ class LiveAITunerTestHarness:
             logger.error(f"Application script not found: {app_script}")
             return False
 
-        cmd = [
-            sys.executable, "-u", str(app_script),
-            "--config", str(self.test_config_path)
-        ]
+        cmd = [sys.executable, "-u", str(app_script), "--config", str(self.test_config_path)]
 
         if no_gui:
             cmd.append("--no-gui")
@@ -772,13 +600,13 @@ class LiveAITunerTestHarness:
 
             if self.app_process.poll() is not None:
                 time.sleep(1)
-                logger.error(f"  ❌ Application exited immediately with code {self.app_process.returncode}")
+                logger.error(f"  Application exited immediately with code {self.app_process.returncode}")
                 logger.error(f"  Check log file for details: {self.app_log_file}")
                 self._display_recent_logs()
                 return False
 
-            logger.info(f"  ✓ Application launched with PID: {self.app_process.pid}")
-            logger.info(f"  ✓ Log file: {self.app_log_file}")
+            logger.info(f"  Application launched with PID: {self.app_process.pid}")
+            logger.info(f"  Log file: {self.app_log_file}")
             return True
 
         except Exception as e:
@@ -786,7 +614,6 @@ class LiveAITunerTestHarness:
             return False
 
     def _display_recent_logs(self, lines: int = 20):
-        """Display recent lines from the log file"""
         if not self.app_log_file or not self.app_log_file.exists():
             return
 
@@ -805,7 +632,6 @@ class LiveAITunerTestHarness:
             logger.error(f"    Could not read log file: {e}")
 
     def stop_application(self):
-        """Stop the application gracefully"""
         if self.app_process:
             logger.info("Stopping application...")
             self.app_process.terminate()
@@ -822,16 +648,13 @@ class LiveAITunerTestHarness:
 
             if hasattr(self, 'log_file_handle'):
                 self.log_file_handle.write("\n" + "=" * 80 + "\n")
-                self.log_file_handle.write(
-                    f"=== Application stopped at {datetime.now().isoformat()} ===\n"
-                )
+                self.log_file_handle.write(f"=== Application stopped at {datetime.now().isoformat()} ===\n")
                 self.log_file_handle.close()
 
             self._check_for_errors_in_log()
             self.app_process = None
 
     def _check_for_errors_in_log(self):
-        """Check the log file for errors and display summary"""
         if not self.app_log_file or not self.app_log_file.exists():
             return
 
@@ -857,12 +680,7 @@ class LiveAITunerTestHarness:
         except Exception as e:
             logger.error(f"  Could not check log for errors: {e}")
 
-    # ------------------------------------------------------------------
-    # Integration tests
-    # ------------------------------------------------------------------
-
     def run_integration_tests(self) -> bool:
-        """Run integration tests to verify setup"""
         logger.info("\n" + "=" * 60)
         logger.info("Running Integration Tests")
         logger.info("=" * 60)
@@ -873,42 +691,35 @@ class LiveAITunerTestHarness:
             if not result_files:
                 logger.error(f"  No result files found in {self.mock_results_dir}")
                 return False
-            logger.info(f"  ✓ Found {len(result_files)} result files")
+            logger.info(f"  Found {len(result_files)} result files")
 
             logger.info("\n[Test 2] Testing filename parsing...")
             for f in result_files[:3]:
                 ratios = self._parse_filename_for_ratios(f.name)
                 if ratios:
-                    logger.info(f"  ✓ {f.name} → Qual={ratios['qual_ratio']}, Race={ratios['race_ratio']}")
+                    logger.info(f"  {f.name} -> Qual={ratios['qual_ratio']}, Race={ratios['race_ratio']}")
 
             logger.info("\n[Test 3] Testing track / AIW extraction from file content...")
             for f in result_files[:3]:
                 ti = self._parse_track_from_result_file(f)
                 aiw = self._find_aiw_path(ti["track_folder"], ti["aiw_file"])
-                logger.info(
-                    f"  {'✓' if aiw else '⚠'} {f.name} → "
-                    f"folder={ti['track_folder']}, aiw={ti['aiw_file']}, "
-                    f"found={'yes' if aiw else 'no'}"
-                )
+                logger.info(f"  {'FOUND' if aiw else 'MISSING'} {f.name} -> folder={ti['track_folder']}, aiw={ti['aiw_file']}")
 
             logger.info("\n[Test 4] Checking results directory...")
             if not self.log_results_dir.exists():
                 self.log_results_dir.mkdir(parents=True, exist_ok=True)
-            logger.info(f"  ✓ Results directory ready: {self.log_results_dir}")
+            logger.info(f"  Results directory ready: {self.log_results_dir}")
 
             logger.info("\n[Test 5] Testing file copy...")
             if result_files:
                 self._copy_result_to_target(result_files[0])
                 if self.target_results_file.exists() and self.target_results_file.stat().st_size > 0:
-                    logger.info(
-                        f"  ✓ Target file has content "
-                        f"({self.target_results_file.stat().st_size} bytes)"
-                    )
+                    logger.info(f"  Target file has content ({self.target_results_file.stat().st_size} bytes)")
                 else:
-                    logger.error("  ✗ Target file is empty or missing")
+                    logger.error("  Target file is empty or missing")
 
             logger.info("\n" + "=" * 60)
-            logger.info("✓ All integration tests passed!")
+            logger.info("All integration tests passed!")
             logger.info("=" * 60)
             return True
 
@@ -916,25 +727,17 @@ class LiveAITunerTestHarness:
             logger.error(f"Integration test failed: {e}", exc_info=True)
             return False
 
-    # ------------------------------------------------------------------
-    # High-level test runners
-    # ------------------------------------------------------------------
-
     def _cleanup(self):
-        """Restore all modified files and clean database. Called from every finally block."""
         logger.info("\n--- Cleanup: restoring files and cleaning database ---")
         self._restore_all_aiw_backups()
         self.restore_original_results()
-        # Clean up test data from database after test
         self._cleanup_test_data()
 
     def run_full_test_with_files(self):
-        """Run full test reading all result files in order"""
         logger.info("\n" + "=" * 60)
         logger.info("Full Test Mode - Reading Race Result Files in Order")
         logger.info("=" * 60)
 
-        # Clean up test data from database before starting
         self._cleanup_test_data()
 
         result_files = self._get_sorted_result_files()
@@ -946,9 +749,7 @@ class LiveAITunerTestHarness:
         logger.info(f"\nWill process {len(result_files)} result files:")
         for i, f in enumerate(result_files, 1):
             ratios = self._parse_filename_for_ratios(f.name)
-            ratio_str = (
-                f"QR={ratios['qual_ratio']}, RR={ratios['race_ratio']}" if ratios else "unknown ratios"
-            )
+            ratio_str = f"QR={ratios['qual_ratio']}, RR={ratios['race_ratio']}" if ratios else "unknown ratios"
             logger.info(f"  {i}. {f.name} ({ratio_str})")
 
         if not self.create_test_config():
@@ -988,7 +789,7 @@ class LiveAITunerTestHarness:
                 time.sleep(5)
 
             logger.info("\n" + "=" * 60)
-            logger.info("✓ Full test complete!")
+            logger.info("Full test complete!")
             logger.info(f"Processed {len(result_files)} result files")
             logger.info(f"Log file: {self.app_log_file}")
             logger.info("Application is still running. Press Enter to stop...")
@@ -1005,7 +806,6 @@ class LiveAITunerTestHarness:
         return True
 
     def run_user_interactive_test(self):
-        """Run user-interactive test - single change after delay"""
         logger.info("\n" + "=" * 60)
         logger.info("User-Interactive Test Mode")
         logger.info("=" * 60)
@@ -1016,7 +816,6 @@ class LiveAITunerTestHarness:
         logger.info("  4. Keep application running for you to observe")
         logger.info("=" * 60)
 
-        # Clean up test data from database before starting
         self._cleanup_test_data()
 
         result_files = self._get_sorted_result_files()
@@ -1049,7 +848,7 @@ class LiveAITunerTestHarness:
             self.simulate_race_with_file(test_file, wait_before=0)
 
             logger.info("\n" + "=" * 60)
-            logger.info("✓ Test change complete!")
+            logger.info("Test change complete!")
             logger.info("Application is now running and monitoring.")
             logger.info(f"Log file: {self.app_log_file}")
             logger.info("Press Enter to stop the application...")
@@ -1066,12 +865,7 @@ class LiveAITunerTestHarness:
         return True
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
-
 def main():
-    """Main entry point - defaults to mode 2"""
     print("\n" + "=" * 60)
     print("[TEST_HARNESS] Live AI Tuner Test Harness")
     print("=" * 60)
@@ -1108,7 +902,7 @@ def main():
         choice = "2"
 
     if choice not in ("1", "2", "3"):
-        print(f"\nInvalid choice: {choice!r} — using default (2)")
+        print(f"\nInvalid choice: {choice!r} - using default (2)")
         choice = "2"
 
     print()
@@ -1120,7 +914,7 @@ def main():
     elif choice == "2":
         print("\nRunning full test with result files...")
         success = harness.run_full_test_with_files()
-    else:  # "3"
+    else:
         print("\nRunning integration tests only...")
         harness.create_test_config()
         success = harness.run_integration_tests()

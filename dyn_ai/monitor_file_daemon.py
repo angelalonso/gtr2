@@ -12,15 +12,15 @@ from datetime import datetime
 from typing import Optional, Callable
 
 from PyQt5.QtWidgets import QApplication, QMessageBox, QSystemTrayIcon, QMenu, QWidget
-from PyQt5.QtCore import QTimer, pyqtSignal, QObject
+from PyQt5.QtCore import QTimer, pyqtSignal, QObject, Qt
 from PyQt5.QtGui import QIcon
 
-from cfg_funcs import get_results_file_path, get_poll_interval, get_config_with_defaults
+from core_config import get_results_file_path, get_poll_interval, get_config_with_defaults
 
 
 class FileChangeSignal(QObject):
     """Signal for thread-safe GUI updates"""
-    file_changed = pyqtSignal(str, str)  # filename, timestamp
+    file_changed = pyqtSignal(str, str)
 
 
 class FileMonitorDaemon(QObject):
@@ -40,7 +40,6 @@ class FileMonitorDaemon(QObject):
         """Start monitoring"""
         if not self.file_path.exists():
             print(f"Warning: File does not exist yet: {self.file_path}")
-            # Create parent directories if needed
             self.file_path.parent.mkdir(parents=True, exist_ok=True)
         
         self._update_file_state()
@@ -127,7 +126,6 @@ class FileChangePopup(QWidget):
             }
             QLabel {
                 color: white;
-                font-size: 12px;
             }
             QPushButton {
                 background-color: #4CAF50;
@@ -142,11 +140,12 @@ class FileChangePopup(QWidget):
             }
         """)
         
+        from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QPushButton, QLabel
+        
         layout = QVBoxLayout(self)
         
-        # Icon and title
         title_layout = QHBoxLayout()
-        icon_label = QLabel("📁")
+        icon_label = QLabel("FOLDER")
         icon_label.setStyleSheet("font-size: 24px;")
         title_layout.addWidget(icon_label)
         
@@ -158,20 +157,17 @@ class FileChangePopup(QWidget):
         
         layout.addSpacing(10)
         
-        # File info
         self.file_label = QLabel()
         self.file_label.setWordWrap(True)
         self.file_label.setStyleSheet("color: #4CAF50; font-family: monospace;")
         layout.addWidget(self.file_label)
         
-        # Timestamp
         self.time_label = QLabel()
         self.time_label.setStyleSheet("color: #888; font-size: 10px;")
         layout.addWidget(self.time_label)
         
         layout.addSpacing(10)
         
-        # Buttons
         button_layout = QHBoxLayout()
         
         open_btn = QPushButton("Open File")
@@ -184,7 +180,6 @@ class FileChangePopup(QWidget):
         
         layout.addLayout(button_layout)
         
-        # Auto-close timer (5 seconds)
         self.close_timer = QTimer()
         self.close_timer.setSingleShot(True)
         self.close_timer.timeout.connect(self.close)
@@ -194,26 +189,25 @@ class FileChangePopup(QWidget):
         self.file_label.setText(f"File: {file_path}")
         self.time_label.setText(f"Time: {timestamp}")
         
-        # Show window
         self.show()
         self.raise_()
         self.activateWindow()
         
-        # Start auto-close timer
         self.close_timer.start(5000)
         
     def open_file(self):
         """Open the file with default application"""
         import subprocess
         import platform
+        import os
         
         file_path = self.file_label.text().replace("File: ", "")
         if Path(file_path).exists():
             if platform.system() == "Windows":
                 os.startfile(file_path)
-            elif platform.system() == "Darwin":  # macOS
+            elif platform.system() == "Darwin":
                 subprocess.run(["open", file_path])
-            else:  # Linux
+            else:
                 subprocess.run(["xdg-open", file_path])
         self.close()
 
@@ -227,11 +221,9 @@ class SystemTrayIcon(QSystemTrayIcon):
         
     def setup_ui(self):
         """Setup the system tray icon"""
-        # Create a simple icon (using a circle emoji as fallback)
         self.setIcon(QIcon())
         self.setToolTip("File Monitor Daemon")
         
-        # Create context menu
         menu = QMenu()
         
         show_action = menu.addAction("Show Monitor")
@@ -269,6 +261,9 @@ class FileMonitorApp(QWidget):
         
     def setup_ui(self):
         """Setup the main window UI"""
+        from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QGroupBox, QPushButton, QLabel
+        from PyQt5.QtCore import Qt
+        
         self.setWindowTitle("File Monitor Daemon")
         self.setGeometry(300, 300, 500, 300)
         
@@ -312,7 +307,6 @@ class FileMonitorApp(QWidget):
         
         layout = QVBoxLayout(self)
         
-        # Title
         title = QLabel("File Monitor Daemon")
         title.setStyleSheet("font-size: 16px; font-weight: bold; color: #FFA500;")
         title.setAlignment(Qt.AlignCenter)
@@ -320,11 +314,10 @@ class FileMonitorApp(QWidget):
         
         layout.addSpacing(10)
         
-        # Status group
         status_group = QGroupBox("Status")
         status_layout = QVBoxLayout(status_group)
         
-        self.status_label = QLabel("● Stopped")
+        self.status_label = QLabel("STOPPED")
         self.status_label.setStyleSheet("color: #f44336; font-weight: bold;")
         status_layout.addWidget(self.status_label)
         
@@ -339,7 +332,6 @@ class FileMonitorApp(QWidget):
         
         layout.addWidget(status_group)
         
-        # Stats group
         stats_group = QGroupBox("Statistics")
         stats_layout = QVBoxLayout(stats_group)
         
@@ -353,7 +345,6 @@ class FileMonitorApp(QWidget):
         
         layout.addSpacing(10)
         
-        # Buttons
         button_layout = QHBoxLayout()
         
         self.start_btn = QPushButton("Start Monitoring")
@@ -368,7 +359,6 @@ class FileMonitorApp(QWidget):
         
         layout.addLayout(button_layout)
         
-        # Test button
         test_btn = QPushButton("Test Popup")
         test_btn.setStyleSheet("background-color: #2196F3;")
         test_btn.clicked.connect(self.test_popup)
@@ -376,39 +366,29 @@ class FileMonitorApp(QWidget):
         
         layout.addStretch()
         
-        # Status bar
-        self.status_bar = self.statusBar() if hasattr(self, 'statusBar') else None
-        
         self.change_count = 0
         self.last_change_time = None
         
     def start_monitoring(self):
         """Start the file monitoring daemon"""
-        # Load config
         config = get_config_with_defaults(self.config_file)
         
-        # Get file path
         file_path = get_results_file_path(self.config_file)
         if not file_path:
-            self.status_label.setText("⚠ No base path configured")
+            self.status_label.setText("No base path configured")
             self.status_label.setStyleSheet("color: #FFA500; font-weight: bold;")
             return
         
-        # Get poll interval
         poll_interval = get_poll_interval(self.config_file)
         
-        # Create daemon
         self.daemon = FileMonitorDaemon(file_path, poll_interval)
         self.daemon.signal.file_changed.connect(self.on_file_changed)
         
-        # Create popup
         self.popup = FileChangePopup(self)
         
-        # Start daemon
         self.daemon.start()
         
-        # Update UI
-        self.status_label.setText("● Running")
+        self.status_label.setText("RUNNING")
         self.status_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
         self.file_label.setText(f"File: {file_path}")
         self.interval_label.setText(f"Poll interval: {poll_interval} seconds")
@@ -423,7 +403,7 @@ class FileMonitorApp(QWidget):
             self.daemon.stop()
             self.daemon = None
             
-        self.status_label.setText("● Stopped")
+        self.status_label.setText("STOPPED")
         self.status_label.setStyleSheet("color: #f44336; font-weight: bold;")
         self.start_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
@@ -435,15 +415,12 @@ class FileMonitorApp(QWidget):
         self.change_count += 1
         self.last_change_time = timestamp
         
-        # Update stats
         self.changes_label.setText(f"Changes detected: {self.change_count}")
         self.last_change_label.setText(f"Last change: {timestamp}")
         
-        # Show popup
         if self.popup:
             self.popup.show_change(file_path, timestamp)
         
-        # Also print to console
         print(f"\n{'='*60}")
         print(f"FILE CHANGE DETECTED!")
         print(f"  File: {file_path}")
@@ -451,7 +428,6 @@ class FileMonitorApp(QWidget):
         print(f"  Total changes: {self.change_count}")
         print(f"{'='*60}\n")
         
-        # Bring window to front
         self.show()
         self.raise_()
         self.activateWindow()
@@ -472,10 +448,8 @@ def run_daemon():
     app = QApplication(sys.argv)
     app.setStyle('Fusion')
     
-    # Create system tray icon
     tray = SystemTrayIcon()
     
-    # Create main window
     window = FileMonitorApp()
     window.show()
     

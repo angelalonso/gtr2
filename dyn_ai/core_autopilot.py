@@ -2,11 +2,6 @@
 """
 Autopilot module for Live AI Tuner
 Automatically adjusts AIW ratios based on detected race data
-
-Core principle: 
-- Use base a=32 unless a formula exists for this track/car combo
-- Calculate b from new data point: b = T - a/R
-- This creates a simple formula that fits the new data point exactly
 """
 
 import logging
@@ -19,26 +14,19 @@ from typing import Optional, Dict, List, Tuple, Any, Set
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from formula_funcs import hyperbolic, get_formula_string
-from db_funcs import CurveDatabase
-from data_extraction import RaceData
-from cfg_funcs import get_base_path
-from aiw_utils import find_aiw_file_from_path, find_aiw_file_by_track, update_aiw_ratio, ensure_aiw_has_ratios
+from core_formula import hyperbolic, get_formula_string, DEFAULT_A_VALUE
+from core_database import CurveDatabase
+from core_data_extraction import RaceData
+from core_config import get_base_path
+from core_aiw_utils import find_aiw_file_from_path, find_aiw_file_by_track, update_aiw_ratio, ensure_aiw_has_ratios
 
 logger = logging.getLogger(__name__)
 
-# Path to vehicle classes configuration file
 VEHICLE_CLASSES_FILE = Path(__file__).parent / "vehicle_classes.json"
-
-# Track which AIW files have been backed up
 _BACKED_UP_AIW_FILES: Set[str] = set()
-
-# Default 'a' value for formulas
-DEFAULT_A_VALUE = 32.0
 
 
 def load_vehicle_classes() -> Dict[str, Dict]:
-    """Load vehicle class mappings from JSON file"""
     default_classes = {
         "Formula Cars": {
             "vehicles": ["Formula Senior", "Formula Junior", "Formula 3", "Formula Renault", "Formula Ford", "f4", "F4", "F3", "F2", "F1"]
@@ -69,7 +57,6 @@ def load_vehicle_classes() -> Dict[str, Dict]:
 
 
 def get_vehicle_class(vehicle_name: str, class_mapping: Dict[str, Dict]) -> str:
-    """Get the class for a vehicle based on the loaded mapping."""
     if not vehicle_name:
         return "Unknown"
     
@@ -92,7 +79,6 @@ def get_vehicle_class(vehicle_name: str, class_mapping: Dict[str, Dict]) -> str:
 
 @dataclass
 class Formula:
-    """Represents a stored formula for a track and vehicle class"""
     track: str
     vehicle_class: str
     a: float
@@ -110,7 +96,6 @@ class Formula:
         return hyperbolic(ratio, self.a, self.b)
     
     def get_ratio_for_time(self, lap_time: float) -> Optional[float]:
-        """Calculate ratio directly from formula - same as manual calculation"""
         denominator = lap_time - self.b
         if denominator <= 0:
             return None
@@ -126,15 +111,9 @@ class Formula:
     
     @classmethod
     def from_point(cls, track: str, vehicle_class: str, ratio: float, lap_time: float, session_type: str, a_value: float = DEFAULT_A_VALUE) -> 'Formula':
-        """
-        Create a formula from a single data point using fixed a value.
-        b = T - a/R
-        """
         b = lap_time - (a_value / ratio)
         b = max(10.0, min(200.0, b))
-        
         logger.debug(f"  Created formula from point: a={a_value:.4f}, b={b:.4f}")
-        
         return cls(
             track=track,
             vehicle_class=vehicle_class,
@@ -147,17 +126,10 @@ class Formula:
         )
     
     def adjust_height_to_point(self, ratio: float, lap_time: float) -> 'Formula':
-        """
-        Adjust the formula's height (b) to pass through the given point.
-        Keeps the same slope (a), only changes b.
-        b_new = T - a/R
-        """
         old_b = self.b
         new_b = lap_time - (self.a / ratio)
         new_b = max(10.0, min(200.0, new_b))
-        
         logger.debug(f"    Adjusting height: a={self.a:.4f} (unchanged), b={old_b:.4f} -> {new_b:.4f}")
-        
         return Formula(
             track=self.track,
             vehicle_class=self.vehicle_class,
@@ -173,8 +145,6 @@ class Formula:
 
 
 class FormulaManager:
-    """Manages formulas for tracks and vehicle classes"""
-    
     def __init__(self, db: CurveDatabase):
         self.db = db
         self._formulas: Dict[str, Dict[str, Dict[str, Formula]]] = {}
@@ -183,7 +153,6 @@ class FormulaManager:
         self._load_formulas()
     
     def _init_database(self):
-        """Initialize or migrate the database schema"""
         conn = sqlite3.connect(self.db.db_path)
         cursor = conn.cursor()
         
@@ -207,7 +176,6 @@ class FormulaManager:
             )
         """)
         
-        # Check if a_value column exists, add if not
         cursor.execute("PRAGMA table_info(formulas)")
         columns = [col[1] for col in cursor.fetchall()]
         if 'a_value' not in columns:
@@ -217,12 +185,9 @@ class FormulaManager:
         conn.close()
     
     def _load_formulas(self):
-        """Load all formulas from database"""
         self._formulas.clear()
-        
         conn = sqlite3.connect(self.db.db_path)
         cursor = conn.cursor()
-        
         cursor.execute("""
             SELECT track, vehicle_class, a, b, session_type, confidence, 
                    data_points_used, avg_error, max_error, vehicles_in_class, a_value 
@@ -307,7 +272,6 @@ class FormulaManager:
         conn.commit()
         conn.close()
         
-        # Update cache
         if formula.track not in self._formulas:
             self._formulas[formula.track] = {}
         if formula.vehicle_class not in self._formulas[formula.track]:
@@ -318,7 +282,6 @@ class FormulaManager:
         return True
     
     def update_formula_a_value(self, track: str, vehicle_class: str, session_type: str, a_value: float) -> bool:
-        """Update the 'a' value for an existing formula"""
         formula = self.get_formula_by_class(track, vehicle_class, session_type)
         if not formula:
             return False
@@ -337,15 +300,12 @@ class FormulaManager:
 
 
 class AutopilotEngine:
-    """Autopilot engine that creates/adapts formulas and calculates new ratios"""
-    
     def __init__(self, db: CurveDatabase, formula_manager: FormulaManager):
         self.db = db
         self.formula_manager = formula_manager
         self._class_mapping = load_vehicle_classes()
     
     def _backup_aiw_file(self, aiw_path: Path) -> bool:
-        """Create a backup of an AIW file before modifying it - ONLY ONCE per file"""
         global _BACKED_UP_AIW_FILES
         
         aiw_key = str(aiw_path.absolute())
@@ -355,14 +315,11 @@ class AutopilotEngine:
         try:
             backup_dir = Path(self.db.db_path).parent / "aiw_backups"
             backup_dir.mkdir(parents=True, exist_ok=True)
-            
             backup_name = f"{aiw_path.stem}_ORIGINAL{aiw_path.suffix}"
             backup_path = backup_dir / backup_name
-            
             if not backup_path.exists():
                 shutil.copy2(aiw_path, backup_path)
                 logger.debug(f"  Created backup: {backup_path}")
-            
             _BACKED_UP_AIW_FILES.add(aiw_key)
             return True
         except Exception as e:
@@ -370,40 +327,19 @@ class AutopilotEngine:
             return False
     
     def _get_data_points(self, track: str, vehicle_class: str, session_type: str) -> List[Tuple[float, float]]:
-        """Get all data points for a track/class from database"""
         conn = sqlite3.connect(self.db.db_path)
         cursor = conn.cursor()
-        
         session_filter = "qual" if session_type == "qual" else "race"
-        
         cursor.execute("""
             SELECT ratio, lap_time 
             FROM data_points 
             WHERE track = ? AND vehicle_class = ? AND session_type = ?
         """, (track, vehicle_class, session_filter))
-        
         rows = cursor.fetchall()
         conn.close()
-        
         return [(ratio, lap_time) for ratio, lap_time in rows]
     
-    def _calculate_midpoint(self, points: List[Tuple[float, float]]) -> Tuple[Optional[float], Optional[float]]:
-        """Calculate the midpoint (average) of all points"""
-        if not points:
-            return None, None
-        
-        avg_ratio = sum(p[0] for p in points) / len(points)
-        avg_time = sum(p[1] for p in points) / len(points)
-        
-        if len(points) == 1:
-            logger.debug(f"  Single data point: R={avg_ratio:.4f}, T={avg_time:.2f}s")
-        else:
-            logger.debug(f"  Using {len(points)} data points → midpoint: R={avg_ratio:.4f}, T={avg_time:.2f}s")
-        
-        return avg_ratio, avg_time
-    
     def calculate_target_time_from_settings(self, best_ai_time, worst_ai_time, settings):
-        """Calculate target AI time based on user's target settings."""
         if best_ai_time <= 0 or worst_ai_time <= 0:
             return best_ai_time if best_ai_time > 0 else worst_ai_time
         
@@ -422,38 +358,23 @@ class AutopilotEngine:
         
         error_margin = settings.get("error_margin", 0.0)
         target = target + error_margin
-        
         target = max(best_ai_time, min(worst_ai_time + error_margin, target))
-        
         return target
     
     def _get_or_create_formula(self, track: str, vehicle_class: str, session_type: str, 
                                 current_ratio: float, target_time: float) -> Formula:
-        """
-        Get existing formula or create a new one from the data point.
-        Uses base a=32 for new formulas.
-        """
-        # Try to get existing formula
         formula = self.formula_manager.get_formula_by_class(track, vehicle_class, session_type)
-        
         if formula:
             old_formula_str = formula.get_formula_string()
-            # Adapt the formula to the new point
             adapted = formula.adjust_height_to_point(current_ratio, target_time)
             logger.info(f"Formula for Track {track}, car class {vehicle_class} modified from {old_formula_str} to {adapted.get_formula_string()}")
             return adapted
         else:
-            # Create new formula from point with base a=32
             logger.debug(f"  Creating new formula for {track}/{vehicle_class}/{session_type} (base a={DEFAULT_A_VALUE})")
             new_formula = Formula.from_point(track, vehicle_class, current_ratio, target_time, session_type, DEFAULT_A_VALUE)
             return new_formula
     
     def _calculate_new_ratio_direct(self, user_lap_time: float, a: float, b: float) -> Optional[float]:
-        """
-        DIRECT calculation of ratio from user lap time using formula parameters.
-        This matches exactly what the manual calculation does in the Data Management tab.
-        R = a / (T - b)
-        """
         if user_lap_time <= 0:
             logger.debug(f"  No valid user lap time provided")
             return None
@@ -473,11 +394,9 @@ class AutopilotEngine:
             return None
     
     def _find_aiw_file_for_track(self, track_name: str, base_path: Path) -> Optional[Path]:
-        """Find AIW file by track name using shared utility"""
         return find_aiw_file_by_track(track_name, base_path)
     
     def _update_aiw_ratio(self, aiw_path: Path, ratio_name: str, new_ratio: float) -> bool:
-        """Update a ratio in the AIW file using shared utility"""
         backup_dir = Path(self.db.db_path).parent / "aiw_backups"
         return update_aiw_ratio(aiw_path, ratio_name, new_ratio, backup_dir)
     
@@ -485,35 +404,22 @@ class AutopilotEngine:
                          current_ratio: float, user_lap_time: float, midpoint_time: float, 
                          aiw_path: Path, ratio_name: str, ai_target_settings: Dict = None,
                          race_data_aiw_path: Path = None) -> Dict[str, Any]:
-        """
-        Process a single session (qualifying or race).
-        Uses race_data_aiw_path if provided (from raceresults.txt), otherwise uses aiw_path.
-        """
-        result = {
-            "updated": False,
-            "old_ratio": current_ratio,
-            "new_ratio": None,
-            "formula": None,
-            "message": ""
-        }
+        
+        result = {"updated": False, "old_ratio": current_ratio, "new_ratio": None, "formula": None, "message": ""}
         
         logger.debug(f"\n{'='*50}")
         logger.debug(f"[{session_type.upper()}] Processing {session_type} session")
         logger.debug(f"  Current ratio from AIW: {current_ratio:.6f}")
         logger.debug(f"  User lap time: {user_lap_time:.3f}s" if user_lap_time > 0 else "  User lap time: Not available")
         
-        # Determine which AIW path to use
         actual_aiw_path = None
         
-        # First priority: use path from race_data (most reliable, comes directly from raceresults.txt)
         if race_data_aiw_path and race_data_aiw_path.exists():
             actual_aiw_path = race_data_aiw_path
             logger.info(f"  Using AIW path from race_data: {actual_aiw_path}")
-        # Second priority: use provided aiw_path
         elif aiw_path and aiw_path.exists():
             actual_aiw_path = aiw_path
             logger.info(f"  Using AIW path from config: {actual_aiw_path}")
-        # Third priority: try to find AIW file based on track name
         else:
             base_path = get_base_path()
             if base_path:
@@ -521,16 +427,10 @@ class AutopilotEngine:
                 if actual_aiw_path:
                     logger.info(f"  Found AIW via track search: {actual_aiw_path}")
         
-        # Log the AIW path resolution details
         if actual_aiw_path:
             logger.info(f"AIW path resolution for {session_type}: using {actual_aiw_path}")
         else:
             logger.error(f"AIW path resolution for {session_type}: FAILED - no path found")
-            logger.error(f"  race_data_aiw_path: {race_data_aiw_path}")
-            logger.error(f"  aiw_path (config): {aiw_path}")
-            logger.error(f"  track: {track}")
-            base_path = get_base_path()
-            logger.error(f"  base_path from config: {base_path}")
             result["message"] = f"AIW file not found for track: {track}"
             return result
         
@@ -539,11 +439,9 @@ class AutopilotEngine:
             result["message"] = f"AIW file not found for track: {track}"
             return result
         
-        # Ensure AIW has the required ratio entries
         backup_dir = Path(self.db.db_path).parent / "aiw_backups"
         ensure_aiw_has_ratios(actual_aiw_path, backup_dir)
         
-        # Get the current formula parameters (or default)
         existing_formula = self.formula_manager.get_formula_by_class(track, vehicle_class, session_type)
         
         if existing_formula and existing_formula.is_valid():
@@ -553,7 +451,6 @@ class AutopilotEngine:
             result["formula"] = existing_formula
         else:
             a = DEFAULT_A_VALUE
-            # Estimate b from current ratio if we have one
             if current_ratio > 0 and user_lap_time > 0:
                 b = user_lap_time - (a / current_ratio)
                 b = max(10.0, min(200.0, b))
@@ -562,7 +459,6 @@ class AutopilotEngine:
                 b = 70.0
                 logger.debug(f"  No formula found, using default b={b:.2f}")
         
-        # DIRECT calculation - same as manual method in Data Management
         new_ratio = None
         if user_lap_time > 0:
             denominator = user_lap_time - b
@@ -571,10 +467,7 @@ class AutopilotEngine:
                 logger.debug(f"  DIRECT new ratio: {new_ratio:.6f} (T={user_lap_time:.3f}, b={b:.2f})")
             else:
                 logger.debug(f"  Cannot calculate ratio: denominator <= 0: {user_lap_time:.3f} - {b:.2f} = {denominator:.3f}")
-        else:
-            logger.debug(f"  No user time available - cannot calculate new ratio")
         
-        # Apply AI target settings if provided and we have AI range data
         if ai_target_settings and new_ratio and new_ratio != current_ratio:
             existing_points = self._get_data_points(track, vehicle_class, session_type)
             if existing_points:
@@ -582,10 +475,7 @@ class AutopilotEngine:
                 best_ai_time = min(ai_times)
                 worst_ai_time = max(ai_times)
                 
-                target_time = self.calculate_target_time_from_settings(
-                    best_ai_time, worst_ai_time, ai_target_settings
-                )
-                
+                target_time = self.calculate_target_time_from_settings(best_ai_time, worst_ai_time, ai_target_settings)
                 denominator = target_time - b
                 if denominator > 0:
                     adjusted_ratio = a / denominator
@@ -593,10 +483,8 @@ class AutopilotEngine:
                         logger.debug(f"  Adjusted for AI target (position {ai_target_settings.get('percentage', 50)}%): {adjusted_ratio:.6f}")
                         new_ratio = adjusted_ratio
         
-        # Apply the new ratio to the AIW file if we have one and it's different
         if new_ratio and abs(new_ratio - current_ratio) > 0.000001:
             logger.info(f"  Updating {ratio_name} from {current_ratio:.6f} to {new_ratio:.6f}")
-            
             if self._update_aiw_ratio(actual_aiw_path, ratio_name, new_ratio):
                 result["updated"] = True
                 result["new_ratio"] = new_ratio
@@ -604,16 +492,9 @@ class AutopilotEngine:
             else:
                 logger.error(f"  Failed to update AIW file")
                 result["message"] = f"Failed to update {ratio_name} in AIW file"
-        else:
-            if new_ratio:
-                logger.debug(f"  New ratio {new_ratio:.6f} is essentially same as current {current_ratio:.6f} - no update needed")
-            else:
-                logger.debug(f"  No new ratio calculated - keeping current value")
         
-        # AFTER applying the ratio, update (or create) the formula with the new data point
         if user_lap_time > 0:
             target_time_for_formula = user_lap_time
-            
             if existing_formula:
                 updated_formula = existing_formula.adjust_height_to_point(current_ratio, target_time_for_formula)
                 self.formula_manager.save_formula(updated_formula)
@@ -628,7 +509,6 @@ class AutopilotEngine:
         return result
     
     def process_race_data(self, race_data: RaceData, aiw_path: Path, ai_target_settings: Dict = None) -> Dict[str, Any]:
-        """Process race data - create/adapt formulas and calculate new ratios"""
         result = {
             "success": False,
             "qual_updated": False,
@@ -650,14 +530,10 @@ class AutopilotEngine:
         user_vehicle = race_data.user_vehicle or "Unknown"
         vehicle_class = get_vehicle_class(user_vehicle, self._class_mapping)
         
-        # Use the AIW path from race_data if available (most reliable - comes directly from raceresults.txt)
         race_aiw_path = race_data.aiw_path if hasattr(race_data, 'aiw_path') and race_data.aiw_path else None
         if race_aiw_path and race_aiw_path.exists():
             logger.info(f"  Using AIW path from race_data: {race_aiw_path}")
-        else:
-            logger.debug(f"  No valid AIW path in race_data, will use fallback")
         
-        # Determine which sessions have data
         has_qual = (race_data.qual_ratio is not None and race_data.qual_ratio > 0 and 
                     race_data.qual_best_ai_lap_sec > 0 and race_data.qual_worst_ai_lap_sec > 0)
         has_race = (race_data.race_ratio is not None and race_data.race_ratio > 0 and 
@@ -670,8 +546,6 @@ class AutopilotEngine:
             session_type_str = "qualifying"
         elif has_race:
             session_type_str = "race"
-        else:
-            session_type_str = "none"
         
         if session_type_str != "none":
             logger.info(f"New data received for Track {track}, {session_type_str} session, car class {vehicle_class}")
@@ -681,83 +555,51 @@ class AutopilotEngine:
         logger.debug(f"{'='*70}")
         logger.debug(f"  Track: '{track}'")
         logger.debug(f"  User Vehicle: '{user_vehicle}' -> Class: '{vehicle_class}'")
-        logger.debug(f"  Race AIW Path from results: {race_aiw_path}")
-        logger.debug(f"  User Qualifying Time: {race_data.user_qualifying_sec:.3f}s" if race_data.user_qualifying_sec > 0 else "  User Qualifying Time: Not available")
-        logger.debug(f"  User Best Race Time: {race_data.user_best_lap_sec:.3f}s" if race_data.user_best_lap_sec > 0 else "  User Best Race Time: Not available")
         
-        # Process qualifying
         if has_qual:
             result["qual_old_ratio"] = race_data.qual_ratio
-            qual_midpoint = (race_data.qual_best_ai_lap_sec + race_data.qual_worst_ai_lap_sec) / 2
-            
             qual_result = self._process_session(
                 track, vehicle_class, "qual",
-                race_data.qual_ratio, 
-                race_data.user_qualifying_sec,
-                qual_midpoint, 
-                aiw_path, 
-                "QualRatio",
-                ai_target_settings,
-                race_aiw_path
+                race_data.qual_ratio, race_data.user_qualifying_sec,
+                (race_data.qual_best_ai_lap_sec + race_data.qual_worst_ai_lap_sec) / 2,
+                aiw_path, "QualRatio", ai_target_settings, race_aiw_path
             )
-            
             result["qual_updated"] = qual_result["updated"]
             result["qual_new_ratio"] = qual_result["new_ratio"]
             result["qual_formula"] = qual_result["formula"]
-            if "message" in qual_result and qual_result["message"]:
-                result["message"] = qual_result["message"]
         
-        # Process race
         if has_race:
             result["race_old_ratio"] = race_data.race_ratio
-            race_midpoint = (race_data.best_ai_lap_sec + race_data.worst_ai_lap_sec) / 2
-            
             race_result = self._process_session(
                 track, vehicle_class, "race",
-                race_data.race_ratio,
-                race_data.user_best_lap_sec,
-                race_midpoint,
-                aiw_path,
-                "RaceRatio",
-                ai_target_settings,
-                race_aiw_path
+                race_data.race_ratio, race_data.user_best_lap_sec,
+                (race_data.best_ai_lap_sec + race_data.worst_ai_lap_sec) / 2,
+                aiw_path, "RaceRatio", ai_target_settings, race_aiw_path
             )
-            
             result["race_updated"] = race_result["updated"]
             result["race_new_ratio"] = race_result["new_ratio"]
             result["race_formula"] = race_result["formula"]
-            if "message" in race_result and race_result["message"]:
-                result["message"] = race_result["message"]
         
         result["success"] = result["qual_updated"] or result["race_updated"]
         
-        # Summary - only log details at DEBUG level
         logger.debug(f"\n{'='*70}")
         logger.debug(f"[AUTO] Summary")
         logger.debug(f"{'='*70}")
         if result["qual_updated"]:
             logger.debug(f"  QUALIFYING: {result['qual_old_ratio']:.6f} -> {result['qual_new_ratio']:.6f}")
-        else:
-            logger.debug(f"  QUALIFYING: No update")
-        
         if result["race_updated"]:
             logger.debug(f"  RACE: {result['race_old_ratio']:.6f} -> {result['race_new_ratio']:.6f}")
-        else:
-            logger.debug(f"  RACE: No update")
         logger.debug(f"{'='*70}\n")
         
         return result
     
     def calculate_ratio_from_formula(self, track: str, vehicle_class: str, session_type: str, lap_time: float) -> Optional[float]:
-        """Calculate ratio from a formula for a given lap time using direct method"""
         formula = self.formula_manager.get_formula_by_class(track, vehicle_class, session_type)
         if not formula:
-            # Use default formula with base a=32
-            b = lap_time - (DEFAULT_A_VALUE / 1.0)  # Rough estimate
+            b = lap_time - (DEFAULT_A_VALUE / 1.0)
             b = max(10.0, min(200.0, b))
             formula = Formula(track, vehicle_class, DEFAULT_A_VALUE, b, session_type)
         
-        # Direct calculation
         denominator = lap_time - formula.b
         if denominator <= 0:
             return None
@@ -791,12 +633,4 @@ class AutopilotManager:
         self.formula_manager._load_formulas()
     
     def calculate_ratio(self, track: str, vehicle_class: str, session_type: str, lap_time: float) -> Optional[float]:
-        """Calculate ratio for a given lap time using stored formula"""
         return self.engine.calculate_ratio_from_formula(track, vehicle_class, session_type, lap_time)
-
-
-if __name__ == "__main__":
-    from db_funcs import CurveDatabase
-    db = CurveDatabase("ai_data.db")
-    manager = AutopilotManager(db)
-    print(f"Status: {manager.get_status()}")

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Live AI Tuner - Redesigned GUI matching the reference image layout
+Live AI Tuner - Main Entry Point
+Redesigned GUI matching the reference image layout
 """
 
 import sys
@@ -9,11 +10,11 @@ from pathlib import Path
 
 from PyQt5.QtWidgets import QDialog, QApplication
 
-from pre_run_check import PreRunCheckDialog
-from gui_funcs import setup_dark_theme
-from cfg_funcs import get_config_with_defaults, get_db_path, create_default_config_if_missing
-from db_funcs import CurveDatabase
-from main_window import RedesignedMainWindow
+from gui_pre_run_check import PreRunCheckDialog
+from gui_common import setup_dark_theme
+from core_config import get_config_with_defaults, get_db_path, create_default_config_if_missing
+from core_database import CurveDatabase
+from gui_main_window import RedesignedMainWindow
 
 
 logger = logging.getLogger(__name__)

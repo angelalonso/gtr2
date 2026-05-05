@@ -23,25 +23,22 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, pyqtSignal, QObject, QTimer
 from PyQt5.QtGui import QFont, QColor
 
-from db_funcs import CurveDatabase
-from formula_funcs import get_formula_string, hyperbolic, fit_curve
-from gui_funcs import (
-    setup_dark_theme, show_error_dialog, show_info_dialog, show_warning_dialog,
-    AdvancedSettingsDialog, LogWindow, SimpleLogHandler
-)
-from cfg_funcs import (
+from core_database import CurveDatabase
+from core_formula import get_formula_string, hyperbolic, fit_curve, DEFAULT_A_VALUE
+from core_config import (
     get_config_with_defaults, get_results_file_path, get_poll_interval,
     get_db_path, create_default_config_if_missing, get_base_path,
     get_autopilot_enabled, get_autopilot_silent, get_ratio_limits,
     update_autopilot_enabled, update_autopilot_silent, update_base_path,
     load_config, save_config
 )
-from data_extraction import DataExtractor, RaceData, format_time
-from autopilot import AutopilotManager, Formula, get_vehicle_class, load_vehicle_classes, DEFAULT_A_VALUE
-from pre_run_check import PreRunCheckDialog
-from dialogs_base_path import BasePathSelectionDialog
-from dialogs_info_message import InfoMessageDialog
+from core_data_extraction import DataExtractor, RaceData, format_time
+from core_autopilot import AutopilotManager, Formula, get_vehicle_class, load_vehicle_classes, DEFAULT_A_VALUE
 
+from gui_common import setup_dark_theme, show_error_dialog, show_info_dialog, show_warning_dialog, GTR2Logo, ToggleSwitch, LogWindow, SimpleLogHandler
+from gui_advanced_settings import AdvancedSettingsDialog
+from gui_pre_run_check import PreRunCheckDialog
+from gui_base_path_dialog import BasePathSelectionDialog
 
 logger = logging.getLogger(__name__)
 
@@ -281,6 +278,7 @@ class ManualEditDialog(QDialog):
     def setup_ui(self):
         self.setWindowTitle(f"Manual Edit - {self.ratio_name}")
         self.setFixedSize(400, 250)
+        
         self.setStyleSheet("""
             QDialog {
                 background-color: #2b2b2b;
@@ -570,83 +568,6 @@ class RatioPanel(QFrame):
         self.calc_button_modified = is_orange
 
 
-class GTR2Logo(QLabel):
-    """Custom GTR2 logo with gray GTR and red 2"""
-    
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setText("GTR2")
-        self.setStyleSheet("""
-            QLabel {
-                font-size: 40px;
-                font-weight: bold;
-                color: #888888;
-            }
-        """)
-        self.setTextFormat(Qt.RichText)
-
-
-class ToggleSwitch(QPushButton):
-    """A toggle switch button that changes appearance based on state"""
-    
-    def __init__(self, text_on: str, text_off: str, parent=None):
-        super().__init__(parent)
-        self.text_on = text_on
-        self.text_off = text_off
-        self._checked = False
-        self.setCheckable(True)
-        self.clicked.connect(self._on_click)
-        self._update_style()
-        self.setMinimumHeight(36)
-        self.setMinimumWidth(180)
-    
-    def _on_click(self):
-        self._checked = not self._checked
-        self._update_style()
-    
-    def _update_style(self):
-        if self._checked:
-            self.setText(self.text_on)
-            self.setStyleSheet("""
-                QPushButton {
-                    background-color: #4CAF50;
-                    color: white;
-                    font-weight: bold;
-                    padding: 8px 18px;
-                    border: none;
-                    border-radius: 4px;
-                    font-size: 13px;
-                }
-                QPushButton:hover {
-                    background-color: #45a049;
-                }
-            """)
-        else:
-            self.setText(self.text_off)
-            self.setStyleSheet("""
-                QPushButton {
-                    background-color: #3c3c3c;
-                    color: #aaa;
-                    font-weight: bold;
-                    padding: 8px 18px;
-                    border: none;
-                    border-radius: 4px;
-                    font-size: 13px;
-                }
-                QPushButton:hover {
-                    background-color: #4a4a4a;
-                }
-            """)
-    
-    def is_checked(self) -> bool:
-        return self._checked
-    
-    def set_checked(self, checked: bool):
-        self._checked = checked
-        self.setChecked(checked)
-        self._update_style()
-
-
 class RedesignedMainWindow(QMainWindow):
     """Redesigned main window matching the reference image layout exactly"""
     
@@ -754,10 +675,7 @@ class RedesignedMainWindow(QMainWindow):
             self.advanced_window.tab_widget.setCurrentIndex(0)
     
     def _find_aiw_file(self, track_name: str = None) -> Optional[Path]:
-        """
-        Find AIW file for a track.
-        Uses case-insensitive search and handles different case variations.
-        """
+        import re
         base_path = get_base_path(self.config_file)
         if not base_path:
             logger.error("No base path configured")
@@ -768,7 +686,6 @@ class RedesignedMainWindow(QMainWindow):
             logger.error("No track selected")
             return None
         
-        # Try both GameData and GAMEDATA (case variations)
         locations_candidates = [
             base_path / "GameData" / "Locations",
             base_path / "GAMEDATA" / "Locations",
@@ -785,7 +702,6 @@ class RedesignedMainWindow(QMainWindow):
             logger.error(f"Locations directory not found. Tried: {locations_candidates}")
             return None
         
-        # First, try to find by exact folder name (case-insensitive)
         track_lower = track_name.lower()
         for track_dir in locations_dir.iterdir():
             if track_dir.is_dir() and track_dir.name.lower() == track_lower:
@@ -795,21 +711,17 @@ class RedesignedMainWindow(QMainWindow):
                         logger.debug(f"Found AIW file via folder match: {aiw_files[0]}")
                         return aiw_files[0]
         
-        # Second, try to find by AIW filename (remove leading digits for comparison)
         for ext in ["*.AIW", "*.aiw"]:
             for aiw_file in locations_dir.rglob(ext):
-                # Remove leading digits from AIW filename for comparison (e.g., "4Donington" -> "Donington")
                 aiw_stem = re.sub(r'^\d+', '', aiw_file.stem.lower())
                 if aiw_stem == track_lower:
                     logger.debug(f"Found AIW file via stem match: {aiw_file}")
                     return aiw_file
         
-        # Third, try to find by folder name containing the track name (exact word match)
         import re
         for track_dir in locations_dir.iterdir():
             if track_dir.is_dir():
                 dir_lower = track_dir.name.lower()
-                # Check if the folder name contains the track name as a whole word
                 if re.search(r'\b' + re.escape(track_lower) + r'\b', dir_lower):
                     for ext in ["*.AIW", "*.aiw"]:
                         aiw_files = list(track_dir.glob(ext))
@@ -1625,6 +1537,7 @@ class RedesignedMainWindow(QMainWindow):
     
     def open_advanced_settings(self):
         if self.advanced_window is None:
+            from gui_advanced_settings import AdvancedSettingsDialog
             self.advanced_window = AdvancedSettingsDialog(self, self.db, self.log_window)
             self.advanced_window.data_updated.connect(self.on_data_updated)
             self.advanced_window.formula_updated.connect(self.on_formula_updated)

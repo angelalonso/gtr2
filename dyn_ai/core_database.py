@@ -23,7 +23,6 @@ class CurveDatabase:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
-        # Data points table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS data_points (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -36,7 +35,6 @@ class CurveDatabase:
             )
         """)
         
-        # Race sessions table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS race_sessions (
                 race_id TEXT PRIMARY KEY,
@@ -56,7 +54,6 @@ class CurveDatabase:
             )
         """)
         
-        # AI results table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS ai_results (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -76,7 +73,6 @@ class CurveDatabase:
             )
         """)
         
-        # Formulas table with a_value column
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS formulas (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -97,13 +93,11 @@ class CurveDatabase:
             )
         """)
         
-        # Check if a_value column exists (for existing databases)
         cursor.execute("PRAGMA table_info(formulas)")
         columns = [col[1] for col in cursor.fetchall()]
         if 'a_value' not in columns:
             cursor.execute("ALTER TABLE formulas ADD COLUMN a_value REAL DEFAULT 32.0")
         
-        # Create indexes
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_track ON data_points(track)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_vehicle_class ON data_points(vehicle_class)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_session ON data_points(session_type)")
@@ -594,9 +588,9 @@ def run_importer(db_path: str = "ai_data.db"):
         for session_type, count in stats['by_type'].items():
             print(f"  {session_type}: {count}")
         print("=" * 50)
-        print(f"\n✓ Successfully imported {total} total data points to {db_path}")
+        print(f"\nSuccessfully imported {total} total data points to {db_path}")
     else:
-        print("\n⚠ No data was imported.")
+        print("\nNo data was imported.")
     
     return total
 
