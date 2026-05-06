@@ -5,6 +5,7 @@ Pre-run check dialog for Dynamic AI
 
 import sys
 import subprocess
+import re
 from pathlib import Path
 from typing import Tuple
 
@@ -62,7 +63,7 @@ class PreRunCheckDialog(QDialog):
     
     def setup_ui(self):
         self.setWindowTitle("Dynamic AI - Pre-Run Checks")
-        self.setFixedSize(850, 850)
+        self.setFixedSize(850, 900)
         self.setModal(True)
         
         self.setStyleSheet("""
@@ -110,6 +111,12 @@ class PreRunCheckDialog(QDialog):
             QPushButton#fix_vehicles:hover {
                 background-color: #7B1FA2;
             }
+            QPushButton#fix_plr {
+                background-color: #2196F3;
+            }
+            QPushButton#fix_plr:hover {
+                background-color: #1976D2;
+            }
             QPushButton#continue:disabled {
                 background-color: #555;
                 color: #888;
@@ -147,7 +154,7 @@ class PreRunCheckDialog(QDialog):
         
         self.status_text = QTextEdit()
         self.status_text.setReadOnly(True)
-        self.status_text.setMinimumHeight(400)
+        self.status_text.setMinimumHeight(450)
         self.status_text.setFont(QFont("Monospace", 11))
         status_layout.addWidget(self.status_text)
         
@@ -170,6 +177,12 @@ class PreRunCheckDialog(QDialog):
         self.fix_vehicles_btn.setVisible(False)
         self.fix_vehicles_btn.clicked.connect(self.open_vehicle_manager)
         button_layout.addWidget(self.fix_vehicles_btn)
+        
+        self.fix_plr_btn = QPushButton("Fix PLR File (Set Extra Stats=0)")
+        self.fix_plr_btn.setObjectName("fix_plr")
+        self.fix_plr_btn.setVisible(False)
+        self.fix_plr_btn.clicked.connect(self.fix_plr_file)
+        button_layout.addWidget(self.fix_plr_btn)
         
         self.retry_btn = QPushButton("Retry Checks")
         self.retry_btn.setObjectName("retry")
@@ -249,6 +262,7 @@ class PreRunCheckDialog(QDialog):
         self.check_results = {}
         self.continue_btn.setEnabled(False)
         self.fix_vehicles_btn.setVisible(False)
+        self.fix_plr_btn.setVisible(False)
         self.info_group.setVisible(False)
         self.result_label.setText("")
         self.scan_progress.setVisible(False)
@@ -259,6 +273,7 @@ class PreRunCheckDialog(QDialog):
             ("Vehicle Classes Data", self.check_vehicle_classes_data),
             ("GTR2 Base Path", self.check_base_path),
             ("GTR2 Executable", self.check_gtr2_executable),
+            ("GTR2 PLR File (Extra Stats)", self.check_plr_file),
             ("Vehicle Definitions Complete", self.check_vehicle_definitions),
         ]
         
@@ -287,6 +302,10 @@ class PreRunCheckDialog(QDialog):
         if vehicle_check_failed:
             self.fix_vehicles_btn.setVisible(True)
         
+        plr_check_failed = not self.check_results.get("GTR2 PLR File (Extra Stats)", False)
+        if plr_check_failed:
+            self.fix_plr_btn.setVisible(True)
+        
         if all_passed:
             self.result_label.setText("ALL CHECKS PASSED - System is ready")
             self.result_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #4CAF50;")
@@ -304,14 +323,132 @@ class PreRunCheckDialog(QDialog):
             guidance_msg += "2. vehicle_classes.json exists and is valid\n"
             guidance_msg += "3. GTR2 base path is correctly set in cfg.yml\n"
             guidance_msg += "4. GTR2.exe exists in the base path\n"
+            guidance_msg += "5. GTR2 PLR file has Extra Stats=\"0\" (not \"1\")\n"
             
             if vehicle_check_failed:
-                guidance_msg += "5. All vehicles in GTR2 are defined in vehicle_classes.json\n"
+                guidance_msg += "6. All vehicles in GTR2 are defined in vehicle_classes.json\n"
                 guidance_msg += "   Click 'Open Vehicle Manager' to add missing vehicles to classes"
             else:
-                guidance_msg += "5. All vehicles in GTR2 are defined in vehicle_classes.json"
+                guidance_msg += "6. All vehicles in GTR2 are defined in vehicle_classes.json"
             
             self.log_check("GUIDANCE", "INFO", guidance_msg)
+    
+    def find_plr_file(self) -> Tuple[Path, str]:
+        """Find the active PLR file in the UserData directory"""
+        base_path = get_base_path(self.config_file)
+        
+        if not base_path:
+            return None, "Base path not configured"
+        
+        userdata_dir = base_path / "UserData"
+        if not userdata_dir.exists():
+            return None, f"UserData directory not found: {userdata_dir}"
+        
+        # Look for any .PLR or .plr file directly in UserData
+        for ext in ["*.PLR", "*.plr"]:
+            plr_files = list(userdata_dir.glob(ext))
+            if plr_files:
+                # Use the first one found (usually the active player profile)
+                return plr_files[0], f"Found PLR file: {plr_files[0].name}"
+        
+        # Also check for subdirectories (sometimes profiles are in subfolders)
+        for item in userdata_dir.iterdir():
+            if item.is_dir():
+                for ext in ["*.PLR", "*.plr"]:
+                    plr_files = list(item.glob(ext))
+                    if plr_files:
+                        return plr_files[0], f"Found PLR file: {plr_files[0].name} (in {item.name})"
+        
+        return None, "No .PLR file found in UserData directory"
+    
+    def check_plr_file(self) -> Tuple[bool, str]:
+        """Check that the PLR file has Extra Stats set to 0"""
+        plr_path, status_msg = self.find_plr_file()
+        
+        if not plr_path:
+            return False, status_msg
+        
+        if not plr_path.exists():
+            return False, f"PLR file not found: {plr_path}"
+        
+        try:
+            content = plr_path.read_text(encoding='utf-8', errors='ignore')
+            
+            # Look for Extra Stats setting
+            # Pattern matches Extra Stats="0", Extra Stats="1", Extra Stats="0.00000", etc.
+            pattern = r'Extra\s+Stats\s*=\s*"([^"]*)"'
+            match = re.search(pattern, content, re.IGNORECASE)
+            
+            if not match:
+                return False, f"Extra Stats setting not found in {plr_path.name}"
+            
+            value = match.group(1).strip()
+            
+            # Check if value is "0" (or 0.0, 0.00000, etc.)
+            try:
+                float_val = float(value)
+                if float_val == 0.0:
+                    return True, f"Extra Stats is properly set to 0 in {plr_path.name}"
+                else:
+                    return False, f"Extra Stats is set to {value} in {plr_path.name} (must be 0 for race results to be written)"
+            except ValueError:
+                if value == "0":
+                    return True, f"Extra Stats is properly set to 0 in {plr_path.name}"
+                else:
+                    return False, f"Extra Stats is set to '{value}' in {plr_path.name} (must be 0 for race results to be written)"
+                
+        except Exception as e:
+            return False, f"Error reading PLR file: {str(e)}"
+    
+    def fix_plr_file(self):
+        """Fix the PLR file by setting Extra Stats to 0"""
+        plr_path, status_msg = self.find_plr_file()
+        
+        if not plr_path or not plr_path.exists():
+            QMessageBox.warning(self, "PLR File Not Found", 
+                f"Cannot fix PLR file.\n{status_msg}\n\n"
+                f"Please ensure you have run GTR2 at least once to create a player profile.")
+            return
+        
+        try:
+            # Create backup
+            backup_path = plr_path.with_suffix(plr_path.suffix + ".backup")
+            backup_content = plr_path.read_text(encoding='utf-8', errors='ignore')
+            backup_path.write_text(backup_content, encoding='utf-8')
+            
+            # Read and fix content
+            content = backup_content
+            
+            # Pattern for Extra Stats
+            pattern = r'(Extra\s+Stats\s*=\s*)"[^"]*"'
+            replacement = r'\1"0"'
+            
+            new_content = re.sub(pattern, replacement, content, flags=re.IGNORECASE)
+            
+            # Also handle case where value is not in quotes (though GTR2 uses quotes)
+            pattern_no_quotes = r'(Extra\s+Stats\s*=\s*)([0-9.eE+-]+)'
+            new_content = re.sub(pattern_no_quotes, r'\g<1>"0"', new_content, flags=re.IGNORECASE)
+            
+            if new_content == content:
+                return False, "Could not find Extra Stats setting to modify"
+            
+            plr_path.write_text(new_content, encoding='utf-8')
+            
+            QMessageBox.information(self, "PLR File Fixed", 
+                f"PLR file has been fixed:\n{plr_path}\n\n"
+                f"Extra Stats has been set to 0.\n"
+                f"A backup was saved to:\n{backup_path}")
+            
+            # Retry checks after fixing
+            reply = QMessageBox.question(self, "Retry Checks?",
+                "PLR file has been fixed.\n\nClick Yes to retry the checks, or No to continue without retrying.",
+                QMessageBox.Yes | QMessageBox.No)
+            
+            if reply == QMessageBox.Yes:
+                self.run_checks()
+                
+        except Exception as e:
+            QMessageBox.critical(self, "Error Fixing PLR File", f"Failed to fix PLR file:\n{str(e)}")
     
     def open_vehicle_manager(self):
         config = get_config_with_defaults(self.config_file)

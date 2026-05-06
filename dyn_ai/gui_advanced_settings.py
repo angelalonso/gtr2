@@ -682,12 +682,33 @@ class AdvancedSettingsDialog(QDialog):
         if len(points) < 2:
             QMessageBox.warning(self, "Insufficient Data", f"Need at least 2 data points to auto-fit {session_type} formula. Found {len(points)} points.")
             return
+        
         ratios = [p[0] for p in points]
         times = [p[1] for p in points]
-        a, b, avg_err, max_err = fit_curve(ratios, times, verbose=False)
+        
+        # Get outlier settings from config
+        from core_config import get_outlier_settings
+        outlier_settings = get_outlier_settings()
+        
+        # Fit curve with outlier filtering
+        a, b, avg_err, max_err, outlier_info = fit_curve(
+            ratios, times, 
+            verbose=False,
+            outlier_method=outlier_settings['method'],
+            outlier_threshold=outlier_settings['threshold'],
+            min_points_after_filtering=2
+        )
+        
         if a and b and a > 0 and b > 0:
             b = b
             a = DEFAULT_A_VALUE
+            
+            # Show outlier information to user
+            if outlier_info and outlier_info.outliers_removed > 0:
+                outlier_msg = f"\n\nOutlier detection ({outlier_info.method_used}, threshold={outlier_info.threshold_used}):\n"
+                outlier_msg += f"Removed {outlier_info.outliers_removed} outlier(s) from {outlier_info.total_points} total points."
+                QMessageBox.information(self, "Outliers Removed", outlier_msg)
+            
             if session_type == "qual":
                 self.qual_panel.update_formula(a, b)
                 if self.curve_graph:
@@ -698,13 +719,16 @@ class AdvancedSettingsDialog(QDialog):
                 if self.curve_graph:
                     self.curve_graph.race_a = a
                     self.curve_graph.race_b = b
+            
             if self.curve_graph:
                 if self.curve_graph.user_qual_time:
                     self.curve_graph.user_qual_ratio = self.curve_graph._calculate_ratio_for_user_time(self.curve_graph.user_qual_time, "qual")
                 if self.curve_graph.user_race_time:
                     self.curve_graph.user_race_ratio = self.curve_graph._calculate_ratio_for_user_time(self.curve_graph.user_race_time, "race")
                 self.curve_graph.update_graph()
+            
             self.formula_updated.emit(session_type, a, b)
+            
             if self.parent:
                 parent = self.parent() if callable(self.parent) else self.parent
                 if session_type == "qual":
@@ -712,7 +736,13 @@ class AdvancedSettingsDialog(QDialog):
                 else:
                     parent.race_b = b
                 parent.update_display()
-            QMessageBox.information(self, "Auto-Fit Complete", f"Formula fitted to {len(points)} data points:\nT = {a:.4f} / R + {b:.4f}\nAverage error: {avg_err:.3f}s\nMax error: {max_err:.3f}s")
+            
+            summary_msg = f"Formula fitted to {len(points)} data points"
+            if outlier_info and outlier_info.outliers_removed > 0:
+                summary_msg += f" (after removing {outlier_info.outliers_removed} outliers)"
+            summary_msg += f":\nT = {a:.4f} / R + {b:.4f}\nAverage error: {avg_err:.3f}s\nMax error: {max_err:.3f}s"
+            
+            QMessageBox.information(self, "Auto-Fit Complete", summary_msg)
         else:
             QMessageBox.warning(self, "Fit Failed", "Could not fit curve to data.")
     

@@ -8,7 +8,7 @@ Automatically adjusts AI difficulty to match your driving pace. Reads your lap t
 
 ## Current State
 
-Usable, stable release with improved UI and AIW handling.
+Usable, stable release with improved UI, AIW handling, and outlier detection.
 
 **USE AT YOUR OWN RISK.** Test on a separate install.
 
@@ -16,13 +16,14 @@ Usable, stable release with improved UI and AIW handling.
 
 ## Quick Start
 
-1. Edit `cfg.yml` and `vehicle_classes.json` if needed
+1. Check and edit `cfg.yml` and `vehicle_classes.json` if needed
 2. Run the application
 3. Pre-run checks will verify your setup:
    - Configuration file (cfg.yml)
    - Vehicle classes file (vehicle_classes.json)
    - GTR2 base path (must contain GameData/ and UserData/)
    - GTR2 executable
+   - GTR2 PLR file (Extra Stats setting)
 4. Point it to your GTR2 install folder (with `GameData/`) if not already configured - saved to `cfg.yml`
 
 **Windows (easy):** Run the `.exe` from the zip  
@@ -41,6 +42,7 @@ Automatically verifies before launching:
 - vehicle_classes.json exists and has correct structure
 - GTR2 base path is configured and valid
 - GTR2.exe is present
+- GTR2 PLR file has `Extra Stats="0"` (required for race results to be written)
 
 Once all checks pass, usage instructions are displayed. The Continue button is greyed out until all checks pass.
 
@@ -50,21 +52,25 @@ Saves every race session to the database. Builds history of lap times vs AI rati
 ### Auto-calculate Ratios
 When enabled: detects race results → analyzes historical data → fits curve `T = a/R + b` → updates AIW file.
 
+### Outlier Detection (New)
+Automatically filters out anomalous data points when auto-fitting curves:
+
+| Method | Description | Default Threshold |
+|--------|-------------|-------------------|
+| Standard Deviation | Removes points with error > mean + N*std_dev | 2.0 |
+| IQR (Interquartile Range) | Removes points with error > Q3 + multiplier*IQR | 1.5 |
+| Percentile | Removes points above specified percentile | 90% |
+
+Configure in `cfg.yml`:
+outlier_method: std      # std, iqr, percentile, or none
+outlier_threshold: 2.0   # Method-specific threshold
+outlier_min_points: 3    # Minimum points before attempting detection
+
+When outliers are detected, a message shows how many were removed from the fit.
+
 ### AI Target Positioning
 
-⚠️ **WARNING: UNDER CONSTRUCTION** - Use with caution ⚠️
-
-Controls where your lap time falls within AI range:
-
-| Mode | Effect |
-|------|--------|
-| Percentage | 0% = fastest AI, 50% = middle, 100% = slowest AI |
-| Seconds from fastest | Fixed offset from best AI time |
-| Seconds from slowest | Fixed offset from worst AI time |
-
-**Applied to ALL ratio calculations** (Auto-ratio, Manual edits, Advanced dialog)
-
-**Dump Analysis:** Click "Dump Qual Analysis" or "Dump Race Analysis" in the AI Target tab to save detailed calculation logs to `ai_target_dumps/`
+TBD
 
 ### Manual Controls
 - Edit ratios directly (Edit button)
@@ -80,7 +86,7 @@ Controls where your lap time falls within AI range:
 - Filter by track/vehicle class
 - Visualize curves and data points
 - Edit a/b parameters
-- Auto-fit curve to data
+- Auto-fit curve with outlier detection
 - **Launch Dyn AI Data Manager** - Button to open external vehicle class management tool
 
 ### AI Target Analysis (Advanced → AI Target)
@@ -117,11 +123,22 @@ Higher R = faster AI | Lower R = slower AI
 
 | File | Purpose |
 |------|---------|
-| cfg.yml | Configuration (GTR2 path, min/max ratio limits, etc.) |
+| cfg.yml | Configuration (GTR2 path, min/max ratio limits, outlier settings, etc.) |
 | ai_data.db | SQLite database (data points, formulas) |
 | vehicle_classes.json | Maps vehicle names to classes |
 | aiw_backups/ | Original AIW backups |
 | ai_target_dumps/ | Detailed calculation logs from Dump Analysis buttons |
+
+### cfg.yml Example
+base_path: C:\GTR2
+db_path: ai_data.db
+poll_interval: 5.0
+min_ratio: 0.5
+max_ratio: 1.5
+autopilot_enabled: true
+outlier_method: std
+outlier_threshold: 2.0
+outlier_min_points: 3
 
 ---
 
@@ -133,6 +150,7 @@ Higher R = faster AI | Lower R = slower AI
 - Auto-calculate Ratios must be ON for automatic updates
 - Use Dump Analysis buttons to debug AI Target calculations
 - Track name must be selected before AI ratios are displayed
+- Outlier detection helps ignore crashes or anomalous laps when auto-fitting
 
 ---
 
@@ -143,11 +161,12 @@ Higher R = faster AI | Lower R = slower AI
 | "No base path configured" | Set `base_path` in cfg.yml |
 | AI ratios not updating | Enable Auto-calculate Ratios (green) |
 | Can't find AIW file | Verify GTR2 path and track folder exists |
-| Ratio outside limits | Adjust `min_ratio`/`max_ratio` in cfg.yml |
-| AI Target calculations not working | Feature is under construction - use Dump Analysis to see what's happening |
+| Ratio outside limits | Adjust `min_ratio`/`max_ratio` in cfg.yml - THIS MAY PRODUCE MAYHEM |
 | No ratios shown on main screen | Select a track first via Advanced → Data Management |
 | AIW file has malformed ratios | Fixed in v1.0.6 - now adds each ratio on separate line |
 | Wrong track AIW gets updated (e.g., Donington 2003 updates Donington 2004) | See Known Issues below |
+| "Extra Stats" error in pre-run checks | Set `Extra Stats="0"` in your GTR2 PLR file (use Fix PLR File button) |
+| Auto-fit includes bad laps | Enable outlier detection in cfg.yml (outlier_method: std) |
 
 ---
 
@@ -179,13 +198,26 @@ Higher R = faster AI | Lower R = slower AI
 **Pre-Run Check Screen:**
 - Added comprehensive pre-run verification before application starts
 - Checks: cfg.yml, vehicle_classes.json, GTR2 base path, GTR2 executable
+- Added PLR file validation (Extra Stats must be 0)
+- Added "Fix PLR File" button to automatically correct Extra Stats setting
 - Continue button is greyed out until all checks pass
 - "How to Use" section with colored text (white for steps, yellow for TIPS header)
+
+**Outlier Detection (New):**
+- Added three outlier detection methods for auto-fit: Std Dev, IQR, Percentile
+- Configurable via cfg.yml (outlier_method, outlier_threshold, outlier_min_points)
+- Shows message when outliers are removed during auto-fit
+- Helps ignore anomalous laps (crashes, off-track excursions)
 
 **Track Matching Fix:**
 - Improved AIW file matching to prioritize exact folder name matches
 - Partial matching only used as fallback
 - Should resolve issues where wrong track's AIW gets updated (e.g., Donington 2003 vs Donington 2004)
+
+**PLR File Validation:**
+- Pre-run check now verifies GTR2 PLR file has Extra Stats="0"
+- Without this setting, GTR2 does not write race results
+- Automatic fix button available in pre-run check dialog
 
 **Code Organization:**
 - Split `dyn_ai.py` into multiple files for better maintainability:
@@ -193,6 +225,13 @@ Higher R = faster AI | Lower R = slower AI
   - `pre_run_check.py` - Pre-run verification dialog
   - `dialogs_base_path.py` - Base path selection dialog
   - `dialogs_info_message.py` - Info dialog (kept for compatibility)
+
+**Testing:**
+- Added comprehensive unit tests for:
+  - Outlier detection (std, iqr, percentile methods)
+  - PLR file validation and fixing
+  - Pre-run check integration
+  - Formula cross-validation
 
 ---
 

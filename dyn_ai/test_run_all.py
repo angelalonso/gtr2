@@ -5,7 +5,6 @@ Runs all tests and reports results
 """
 
 import sys
-import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -18,8 +17,12 @@ from test_unit_aiw_utils import TestAIWUtils
 from test_unit_vehicle_classes import TestVehicleClasses
 from test_unit_data_extraction import TestDataExtraction
 from test_unit_vehicle_scanner import TestVehicleScanner
+from test_unit_plr_check import run_plr_tests
+from test_unit_pre_run_check import run_pre_run_check_plr_tests
+from test_unit_outlier_detection import run_outlier_tests
 from test_error_injection import TestErrorInjection
 from test_simulation_harness import run_simulation_tests
+import unittest
 
 
 def run_unit_tests():
@@ -46,6 +49,31 @@ def run_unit_tests():
     return result
 
 
+def run_plr_unit_tests():
+    """Run PLR-specific unit tests"""
+    print("\n" + "=" * 60)
+    print("RUNNING PLR UNIT TESTS")
+    print("=" * 60)
+    
+    plr_result = run_plr_tests()
+    pre_run_result = run_pre_run_check_plr_tests()
+    
+    print(f"\nPLR Tests Result: {'PASS' if plr_result else 'FAIL'}")
+    print(f"Pre-run Check PLR Tests Result: {'PASS' if pre_run_result else 'FAIL'}")
+    
+    return plr_result and pre_run_result
+
+
+def run_outlier_unit_tests():
+    """Run outlier detection unit tests"""
+    print("\n" + "=" * 60)
+    print("RUNNING OUTLIER DETECTION UNIT TESTS")
+    print("=" * 60)
+    
+    result = run_outlier_tests()
+    return result
+
+
 def run_all_tests():
     """Run all tests including simulations"""
     print("\n" + "=" * 60)
@@ -67,6 +95,10 @@ def run_all_tests():
     
     unit_result = run_unit_tests()
     
+    plr_result = run_plr_unit_tests()
+    
+    outlier_result = run_outlier_unit_tests()
+    
     simulation_results = run_simulation_tests()
     
     backup_manager.restore_all()
@@ -79,9 +111,11 @@ def run_all_tests():
     sim_passed = all(r.success for r in simulation_results)
     
     print(f"Unit Tests: {'PASS' if unit_passed else 'FAIL'}")
+    print(f"PLR Tests: {'PASS' if plr_result else 'FAIL'}")
+    print(f"Outlier Detection Tests: {'PASS' if outlier_result else 'FAIL'}")
     print(f"Simulation Tests: {'PASS' if sim_passed else 'FAIL'}")
     
-    if unit_passed and sim_passed:
+    if unit_passed and plr_result and outlier_result and sim_passed:
         print("\nALL TESTS PASSED")
         return 0
     else:
@@ -95,6 +129,8 @@ def main():
     
     parser = argparse.ArgumentParser(description='Live AI Tuner Test Suite')
     parser.add_argument('--unit', action='store_true', help='Run only unit tests')
+    parser.add_argument('--plr', action='store_true', help='Run only PLR tests')
+    parser.add_argument('--outlier', action='store_true', help='Run only outlier detection tests')
     parser.add_argument('--simulation', action='store_true', help='Run only simulation tests')
     parser.add_argument('--all', action='store_true', help='Run all tests')
     
@@ -103,6 +139,12 @@ def main():
     if args.unit:
         result = run_unit_tests()
         return 0 if result.wasSuccessful() else 1
+    elif args.plr:
+        result = run_plr_unit_tests()
+        return 0 if result else 1
+    elif args.outlier:
+        result = run_outlier_unit_tests()
+        return 0 if result else 1
     elif args.simulation:
         results = run_simulation_tests()
         return 0 if all(r.success for r in results) else 1

@@ -36,7 +36,6 @@ wine python -m PyInstaller \
     --add-data="core_formula.py;." \
     --add-data="core_vehicle_scanner.py;." \
     --add-data="dyn_ai.py;." \
-    --add-data="dyn_ai_data_manager.py;." \
     --add-data="gui_advanced_settings.py;." \
     --add-data="gui_base_path_dialog.py;." \
     --add-data="gui_common.py;." \
@@ -52,7 +51,6 @@ wine python -m PyInstaller \
     --add-data="gui_session_panel.py;." \
     --add-data="gui_vehicle_manager.py;." \
     --add-data="monitor_file_daemon.py;." \
-    --add-data="test_harness.py;." \
     --hidden-import=cfg_funcs \
     --hidden-import=core_aiw_utils \
     --hidden-import=core_autopilot \
@@ -62,7 +60,6 @@ wine python -m PyInstaller \
     --hidden-import=core_formula \
     --hidden-import=core_vehicle_scanner \
     --hidden-import=dyn_ai \
-    --hidden-import=dyn_ai_data_manager \
     --hidden-import=gui_advanced_settings \
     --hidden-import=gui_base_path_dialog \
     --hidden-import=gui_common \
@@ -78,7 +75,6 @@ wine python -m PyInstaller \
     --hidden-import=gui_session_panel \
     --hidden-import=gui_vehicle_manager \
     --hidden-import=monitor_file_daemon \
-    --hidden-import=test_harness \
     dyn_ai.py
 
 # Check if build succeeded

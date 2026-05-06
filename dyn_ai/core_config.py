@@ -22,6 +22,10 @@ DEFAULT_CONFIG = {
     'poll_interval': 5.0,
     'min_ratio': 0.5,
     'max_ratio': 1.5,
+    # Outlier detection settings
+    'outlier_method': 'std',  # 'std', 'iqr', 'percentile', or 'none'
+    'outlier_threshold': 2.0,  # std multiplier (2.0), IQR multiplier (1.5), or percentile (95.0)
+    'outlier_min_points': 3,   # Minimum points required before attempting outlier detection
 }
 
 
@@ -185,9 +189,29 @@ def update_ratio_limits(min_ratio: float, max_ratio: float, config_file: str = "
     return save_config(config, config_file)
 
 
+def get_outlier_settings(config_file: str = "cfg.yml") -> Dict[str, Any]:
+    """Get outlier detection settings from config"""
+    config = get_config_with_defaults(config_file)
+    return {
+        'method': config.get('outlier_method', DEFAULT_CONFIG['outlier_method']),
+        'threshold': config.get('outlier_threshold', DEFAULT_CONFIG['outlier_threshold']),
+        'min_points': config.get('outlier_min_points', DEFAULT_CONFIG['outlier_min_points']),
+    }
+
+
+def update_outlier_settings(method: str, threshold: float, min_points: int, config_file: str = "cfg.yml") -> bool:
+    """Update outlier detection settings in config"""
+    config = get_config_with_defaults(config_file)
+    config['outlier_method'] = method
+    config['outlier_threshold'] = threshold
+    config['outlier_min_points'] = min_points
+    return save_config(config, config_file)
+
+
 if __name__ == "__main__":
     print("Testing configuration loading...")
     create_default_config_if_missing()
     config = get_config_with_defaults()
     print(f"Config loaded: {config}")
     print(f"Results file path: {get_results_file_path()}")
+    print(f"Outlier settings: {get_outlier_settings()}")
