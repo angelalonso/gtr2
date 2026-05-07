@@ -1,18 +1,52 @@
+# dyn_ai.spec
 # -*- mode: python ; coding: utf-8 -*-
-
 
 a = Analysis(
     ['dyn_ai.py'],
     pathex=[],
     binaries=[],
-    datas=[],
-    hiddenimports=[],
+    datas=[
+        ('cfg_funcs.py', '.'),
+        ('core_aiw_utils.py', '.'),
+        ('core_autopilot.py', '.'),
+        ('core_config.py', '.'),
+        ('core_database.py', '.'),
+        ('core_data_extraction.py', '.'),
+        ('core_formula.py', '.'),
+        ('core_vehicle_scanner.py', '.'),
+        ('dyn_ai.py', '.'),
+        ('gui_advanced_settings.py', '.'),
+        ('gui_base_path_dialog.py', '.'),
+        ('gui_common.py', '.'),
+        ('gui_common_dialogs.py', '.'),
+        ('gui_components.py', '.'),
+        ('gui_curve_graph.py', '.'),
+        ('gui_data_manager.py', '.'),
+        ('gui_file_monitor.py', '.'),
+        ('gui_log_window.py', '.'),
+        ('gui_main_window.py', '.'),
+        ('gui_pre_run_check.py', '.'),
+        ('gui_ratio_panel.py', '.'),
+        ('gui_session_panel.py', '.'),
+        ('gui_vehicle_manager.py', '.'),
+        ('monitor_file_daemon.py', '.'),
+        ('cfg.yml', '.'),
+    ],
+    hiddenimports=[
+        'cfg_funcs', 'core_aiw_utils', 'core_autopilot', 'core_config',
+        'core_database', 'core_data_extraction', 'core_formula',
+        'core_vehicle_scanner', 'dyn_ai', 'gui_advanced_settings',
+        'gui_base_path_dialog', 'gui_common', 'gui_common_dialogs',
+        'gui_components', 'gui_curve_graph', 'gui_data_manager',
+        'gui_file_monitor', 'gui_log_window', 'gui_main_window',
+        'gui_pre_run_check', 'gui_ratio_panel', 'gui_session_panel',
+        'gui_vehicle_manager', 'monitor_file_daemon'
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[],
     noarchive=False,
-    optimize=0,
 )
 pyz = PYZ(a.pure)
 
@@ -29,7 +63,7 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,
+    console=True,  # Set to False if you want windowed (no console)
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

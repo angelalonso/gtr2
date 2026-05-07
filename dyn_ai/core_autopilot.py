@@ -26,7 +26,8 @@ VEHICLE_CLASSES_FILE = Path(__file__).parent / "vehicle_classes.json"
 _BACKED_UP_AIW_FILES: Set[str] = set()
 
 
-def load_vehicle_classes() -> Dict[str, Dict]:
+def load_vehicle_classes(classes_path=None):
+    """Load vehicle classes from JSON file"""
     default_classes = {
         "Formula Cars": {
             "vehicles": ["Formula Senior", "Formula Junior", "Formula 3", "Formula Renault", "Formula Ford", "f4", "F4", "F3", "F2", "F1"]
@@ -42,17 +43,39 @@ def load_vehicle_classes() -> Dict[str, Dict]:
         }
     }
     
-    if not VEHICLE_CLASSES_FILE.exists():
-        with open(VEHICLE_CLASSES_FILE, 'w') as f:
-            json.dump(default_classes, f, indent=2)
-        return default_classes
+    # If no path provided, try to find it
+    if classes_path is None:
+        # Try to import the helper from gui_common if available
+        try:
+            from gui_common import get_data_file_path
+            classes_path = get_data_file_path("vehicle_classes.json")
+        except ImportError:
+            # Fallback to local path
+            classes_path = Path(__file__).parent / "vehicle_classes.json"
+    
+    # Convert to Path if string
+    if isinstance(classes_path, str):
+        classes_path = Path(classes_path)
+    
+    # Check if file exists
+    if not classes_path.exists():
+        # Create default file
+        try:
+            classes_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(classes_path, 'w') as f:
+                json.dump(default_classes, f, indent=2)
+            logger.info(f"Created default vehicle_classes.json at {classes_path}")
+            return default_classes
+        except Exception as e:
+            logger.warning(f"Could not create vehicle_classes.json: {e}")
+            return default_classes
     
     try:
-        with open(VEHICLE_CLASSES_FILE, 'r') as f:
+        with open(classes_path, 'r') as f:
             classes = json.load(f)
         return classes
     except Exception as e:
-        logger.warning(f"Error loading {VEHICLE_CLASSES_FILE}: {e}, using defaults")
+        logger.warning(f"Error loading {classes_path}: {e}, using defaults")
         return default_classes
 
 

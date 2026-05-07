@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e  # Exit on error
+set -e
 
 COMPILEDIR="$HOME/.wine/drive_c/dyn_ai"
 CWD=$(pwd)
@@ -17,16 +17,17 @@ cp -R ./* ${COMPILEDIR}/
 
 cd ${COMPILEDIR}
 
-# Install dependencies
+# Install dependencies (including PyInstaller)
 echo "Installing dependencies..."
 wine python -m pip install --upgrade pip
-wine python -m pip install watchdog pyyaml numpy scipy matplotlib PyQt5
+wine python -m pip install watchdog pyyaml numpy scipy matplotlib PyQt5 pyinstaller
 
-# Build with PyInstaller, explicitly adding all Python files
+# Build with PyInstaller - using --add-data for all required files
 echo "Building executable with PyInstaller..."
 wine python -m PyInstaller \
     --onefile \
     --windowed \
+    --name="dyn_ai" \
     --add-data="cfg_funcs.py;." \
     --add-data="core_aiw_utils.py;." \
     --add-data="core_autopilot.py;." \
@@ -51,6 +52,10 @@ wine python -m PyInstaller \
     --add-data="gui_session_panel.py;." \
     --add-data="gui_vehicle_manager.py;." \
     --add-data="monitor_file_daemon.py;." \
+    --add-data="cfg.yml;." \
+    --add-data="vehicle_classes.json;." \
+    --add-data="dyn_ai_data_manager.py;." \
+    --collect-data=pyqtgraph \
     --hidden-import=cfg_funcs \
     --hidden-import=core_aiw_utils \
     --hidden-import=core_autopilot \
@@ -75,6 +80,7 @@ wine python -m PyInstaller \
     --hidden-import=gui_session_panel \
     --hidden-import=gui_vehicle_manager \
     --hidden-import=monitor_file_daemon \
+    --hidden-import=pyqtgraph \
     dyn_ai.py
 
 # Check if build succeeded
@@ -85,11 +91,11 @@ if [ -f "dist/dyn_ai.exe" ]; then
     cp dist/dyn_ai.exe ${CWD}/
     echo "Copied executable to ${CWD}/dyn_ai.exe"
     
-    # Optional: Test the executable
-    echo "Testing executable..."
-    cd ${CWD}
-    wine dyn_ai.exe --config=./cfg.yml | head -5 || echo "Test completed"
+    # Also copy required data files to be alongside the exe
+    cp cfg.yml ${CWD}/ 2>/dev/null || true
+    cp vehicle_classes.json ${CWD}/ 2>/dev/null || true
     
+    echo "Build completed! Make sure cfg.yml and vehicle_classes.json are in the same folder as dyn_ai.exe"
 else
     echo "ERROR: Build failed - executable not created"
     exit 1

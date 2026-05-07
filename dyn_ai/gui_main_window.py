@@ -36,7 +36,7 @@ from core_config import (
 from core_data_extraction import DataExtractor, RaceData, format_time
 from core_autopilot import AutopilotManager, Formula, get_vehicle_class, load_vehicle_classes, DEFAULT_A_VALUE
 
-from gui_common import setup_dark_theme, show_error_dialog, show_info_dialog, show_warning_dialog, GTR2Logo, ToggleSwitch, LogWindow, SimpleLogHandler
+from gui_common import get_data_file_path, setup_dark_theme, show_error_dialog, show_info_dialog, show_warning_dialog, GTR2Logo, ToggleSwitch, LogWindow, SimpleLogHandler
 from gui_advanced_settings import AdvancedSettingsDialog
 from gui_pre_run_check import PreRunCheckDialog
 from gui_base_path_dialog import BasePathSelectionDialog
@@ -73,7 +73,11 @@ class RedesignedMainWindow(QMainWindow):
         logging.getLogger().setLevel(logging.INFO)
         
         self.simplified_logger = SimplifiedLogger()
-        self.class_mapping = load_vehicle_classes()
+        
+        # Load vehicle classes using the helper function
+        from gui_common import get_data_file_path
+        vehicle_classes_path = get_data_file_path("vehicle_classes.json")
+        self.class_mapping = load_vehicle_classes(vehicle_classes_path)
         
         self.autopilot_manager = AutopilotManager(self.db)
         

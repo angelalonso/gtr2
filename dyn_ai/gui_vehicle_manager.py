@@ -20,10 +20,11 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 
 from core_vehicle_scanner import scan_vehicles_from_gtr2
+from gui_common import get_data_file_path
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_VEHICLE_CLASSES_PATH = Path(__file__).parent / "vehicle_classes.json"
+DEFAULT_VEHICLE_CLASSES_PATH = get_data_file_path("vehicle_classes.json")
 
 DEFAULT_VEHICLE_CLASSES = {
     "GT_0304": {

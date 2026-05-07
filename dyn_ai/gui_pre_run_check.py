@@ -22,6 +22,7 @@ from core_config import (
 )
 from core_vehicle_scanner import find_missing_vehicles, load_vehicle_classes, scan_vehicles_from_gtr2
 from gui_vehicle_manager import launch_vehicle_manager
+from gui_common import get_data_file_path
 
 
 class VehicleScanWorker(QThread):
@@ -490,25 +491,33 @@ class PreRunCheckDialog(QDialog):
             return False, f"Error reading config: {str(e)}"
     
     def check_vehicle_classes_file(self) -> Tuple[bool, str]:
-        classes_path = Path(__file__).parent / "vehicle_classes.json"
+        from gui_common import get_data_file_path
+        classes_path = get_data_file_path("vehicle_classes.json")
         
         if not classes_path.exists():
-            return False, f"File not found: {classes_path}"
+            # Try to create default if missing
+            try:
+                import json
+                classes_path.parent.mkdir(parents=True, exist_ok=True)
+                default_classes = {
+                    "GT Cars": {"vehicles": []},
+                    "Formula Cars": {"vehicles": []},
+                    "Prototype Cars": {"vehicles": []}
+                }
+                with open(classes_path, 'w', encoding='utf-8') as f:
+                    json.dump(default_classes, f, indent=2)
+                return True, f"Created default vehicle_classes.json at {classes_path}"
+            except Exception as e:
+                return False, f"File not found and could not create: {classes_path}\nError: {e}"
         
         try:
             import json
             with open(classes_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            
-            if not isinstance(data, dict):
-                return False, "File does not contain a JSON object"
-            
-            return True, f"Valid JSON file with {len(data)} classes"
-        except json.JSONDecodeError as e:
-            return False, f"Invalid JSON: {str(e)}"
+            return True, f"Found vehicle_classes.json at {classes_path}"
         except Exception as e:
-            return False, f"Error reading file: {str(e)}"
-    
+            return False, f"Error reading vehicle_classes.json: {e}"
+
     def check_vehicle_classes_data(self) -> Tuple[bool, str]:
         classes_path = Path(__file__).parent / "vehicle_classes.json"
         

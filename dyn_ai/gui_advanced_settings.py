@@ -31,6 +31,7 @@ from gui_components import AccuracyIndicator
 from gui_session_panel import SessionPanel
 from gui_curve_graph import CurveGraphWidget
 from gui_common_dialogs import ManualLapTimeDialog
+from gui_common import get_data_file_path
 
 logger = logging.getLogger(__name__)
 
@@ -387,7 +388,8 @@ class AdvancedSettingsDialog(QDialog):
         return tab
     
     def open_datamgmt_dyn_ai(self):
-        script_dir = Path(__file__).parent
+        from gui_common import get_data_file_path
+        script_dir = get_data_file_path("")  # Get the resource base directory
         exe_path = script_dir / "datamgmt_dyn_ai.exe"
         py_path = script_dir / "dyn_ai_data_manager.py"
         
@@ -406,7 +408,7 @@ class AdvancedSettingsDialog(QDialog):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to start Dyn AI Data Manager:\n{str(e)}")
             logger.error(f"Failed to start datamgmt_dyn_ai: {e}")
-    
+
     def on_parent_data_refresh(self):
         """Called when parent window signals that data has been refreshed"""
         logger.debug("AdvancedSettingsDialog: Received data refresh signal from parent")
