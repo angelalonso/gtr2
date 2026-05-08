@@ -69,44 +69,6 @@ DEFAULT_VEHICLE_CLASSES = {
             "Viper Competition Coupe"
         ]
     },
-    "GT_2012": {
-        "classes": ["GT_2012"],
-        "vehicles": [
-            "Aston Martin",
-            "Audi R8 LMS Ultra",
-            "Audi R8 LMS",
-            "BMW Alpina B6",
-            "BMW Z4 E89",
-            "Chevrolet Camaro GT",
-            "Chevrolet Corvette Z06.R",
-            "Dodge Viper Competition Coupe",
-            "Ferrari 458",
-            "Ferrari F458 Italia",
-            "Ford Mustang FR500",
-            "Gallardo",
-            "Lambda Performance Ford GT",
-            "Lamborghini Gallardo LP600+",
-            "Maserati MC12",
-            "McLaren GT MP4-12C",
-            "Mclaren",
-            "Mercedes GT",
-            "Mercedes-Benz SLS AMG",
-            "Nissan Nismo GT-R",
-            "Porsche 997 GT3 R",
-            "GT Cars"
-        ]
-    },
-    "Formula_4": {
-        "classes": ["Formula_4"],
-        "vehicles": [
-            "Formula 4",
-            "Formula BMW",
-            "Formula F4",
-            "Formula Senior",
-            "f4",
-            "F4"
-        ]
-    },
     "OTHER": {
         "classes": ["OTHER"],
         "vehicles": [
@@ -369,17 +331,6 @@ class AddEditClassDialog(QDialog):
         
         layout.addLayout(vehicle_btn_layout)
         
-        new_vehicle_layout = QHBoxLayout()
-        self.new_vehicle_edit = QLineEdit()
-        self.new_vehicle_edit.setPlaceholderText("New vehicle name...")
-        new_vehicle_layout.addWidget(self.new_vehicle_edit)
-        
-        self.add_new_btn = QPushButton("Add")
-        self.add_new_btn.clicked.connect(self.add_new_vehicle)
-        new_vehicle_layout.addWidget(self.add_new_btn)
-        
-        layout.addLayout(new_vehicle_layout)
-        
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
@@ -409,14 +360,6 @@ class AddEditClassDialog(QDialog):
             self.vehicles[idx] = new_name.strip()
             self.vehicles.sort()
             self.load_vehicles()
-    
-    def add_new_vehicle(self):
-        vehicle_name = self.new_vehicle_edit.text().strip()
-        if vehicle_name and vehicle_name not in self.vehicles:
-            self.vehicles.append(vehicle_name)
-            self.vehicles.sort()
-            self.load_vehicles()
-            self.new_vehicle_edit.clear()
     
     def remove_vehicles(self):
         selected = self.vehicles_list.selectedItems()
@@ -625,17 +568,6 @@ class VehicleManagerDialog(QDialog):
         self.remove_vehicle_btn.clicked.connect(self.remove_vehicles)
         vehicle_btn_layout.addWidget(self.remove_vehicle_btn)
         middle_layout.addLayout(vehicle_btn_layout)
-        
-        quick_layout = QHBoxLayout()
-        quick_layout.addWidget(QLabel("Quick Add:"))
-        self.new_vehicle_edit = QLineEdit()
-        self.new_vehicle_edit.setPlaceholderText("Vehicle name...")
-        self.new_vehicle_edit.returnPressed.connect(self.quick_add_vehicle)
-        quick_layout.addWidget(self.new_vehicle_edit)
-        self.quick_add_btn = QPushButton("Add")
-        self.quick_add_btn.clicked.connect(self.quick_add_vehicle)
-        quick_layout.addWidget(self.quick_add_btn)
-        middle_layout.addLayout(quick_layout)
         
         main_splitter.addWidget(middle_panel)
         
@@ -908,23 +840,6 @@ class VehicleManagerDialog(QDialog):
             self.refresh_unassigned_list()
             self.classes_updated.emit()
             QMessageBox.information(self, "Success", f"Removed {removed} vehicle(s).")
-    
-    def quick_add_vehicle(self):
-        current_class = self.class_list.currentItem()
-        if not current_class:
-            QMessageBox.warning(self, "No Selection", "Please select a class first.")
-            return
-        vehicle_name = self.new_vehicle_edit.text().strip()
-        if not vehicle_name:
-            return
-        class_name = current_class.text()
-        if self.manager.add_vehicle(class_name, vehicle_name):
-            self.on_class_selected()
-            self.refresh_unassigned_list()
-            self.classes_updated.emit()
-            self.new_vehicle_edit.clear()
-        else:
-            QMessageBox.warning(self, "Error", f"Could not add '{vehicle_name}'. It may already exist.")
     
     def save_changes(self):
         if self.manager.save():

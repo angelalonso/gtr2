@@ -195,6 +195,18 @@ outlier_min_points: 3
 
 ## Changelog v1.0.7
 
+**Ratio Clamping:**
+
+- Calculated ratios outside min/max limits are now clamped to the limit value instead of being rejected
+- A warning dialog informs you when clamping occurs
+- Applies to auto-ratio calculations, manual edits, and advanced dialog saves
+- No more silent rejection of out-of-range ratios
+
+**Vehicle Classes Manager Cleanup:**
+
+- Removed redundant "Quick Add" input field from the vehicle manager interface
+- Cleaner, more focused UI for managing vehicle classes
+
 **Pre-Run Check Screen:**
 - Added comprehensive pre-run verification before application starts
 - Checks: cfg.yml, vehicle_classes.json, GTR2 base path, GTR2 executable
@@ -232,6 +244,7 @@ outlier_min_points: 3
   - PLR file validation and fixing
   - Pre-run check integration
   - Formula cross-validation
+  - Ratio clamping functionality
 
 ---
 

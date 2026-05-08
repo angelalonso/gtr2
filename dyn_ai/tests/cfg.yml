@@ -1,0 +1,14 @@
+auto_apply: false
+autopilot_enabled: false
+autopilot_silent: false
+backup_enabled: true
+base_path: ''
+db_path: ai_data.db
+formulas_dir: ./track_formulas
+logging_enabled: false
+max_ratio: 1.5
+min_ratio: 0.5
+outlier_method: std
+outlier_min_points: 3
+outlier_threshold: 2.0
+poll_interval: 5.0
