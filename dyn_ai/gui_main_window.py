@@ -57,6 +57,57 @@ def clamp_ratio(ratio: float, min_ratio: float, max_ratio: float) -> float:
     return ratio
 
 
+def show_clamp_warning(parent, ratio_name: str, original_ratio: float, clamped_ratio: float, min_ratio: float, max_ratio: float):
+    """Show a formatted warning message when ratio is clamped"""
+    if clamped_ratio < original_ratio:
+        # Hit upper limit (ratio was too high, clamped down to max_ratio)
+        message = (
+            f"WARNING: {ratio_name} = {original_ratio:.6f} exceeded the maximum allowed value of {max_ratio:.3f}.\n\n"
+            f"The ratio has been clamped to {clamped_ratio:.6f}.\n\n"
+            f"Consider setting a HIGHER AI Difficulty Level in GTR2.\n"
+            f"Move the AI Difficulty slider in small increments (e.g., 100% -> 101% -> 102%).\n\n"
+            f"This will make the AI drive faster,\n"
+            f"which allows the ratio to stay within the valid range."
+        )
+    else:
+        # Hit lower limit (ratio was too low, clamped up to min_ratio)
+        message = (
+            f"WARNING: {ratio_name} = {original_ratio:.6f} fell below the minimum allowed value of {min_ratio:.3f}.\n\n"
+            f"The ratio has been clamped to {clamped_ratio:.6f}.\n\n"
+            f"To fix this, set a LOWER AI Difficulty Level in GTR2.\n"
+            f"Move the AI Difficulty slider in small increments (e.g., 110% -> 109% -> 108%).\n\n"
+            f"This will make the AI drive slower,\n"
+            f"which allows the ratio to stay within the valid range."
+        )
+    
+    msg_box = QMessageBox(parent)
+    msg_box.setWindowTitle(f"{ratio_name} Adjusted")
+    msg_box.setIcon(QMessageBox.Warning)
+    msg_box.setText(message)
+    msg_box.setStyleSheet("""
+        QMessageBox {
+            background-color: #2b2b2b;
+        }
+        QMessageBox QLabel {
+            color: #FFCC00;
+            font-size: 12px;
+            min-width: 500px;
+        }
+        QPushButton {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 16px;
+            font-weight: bold;
+        }
+        QPushButton:hover {
+            background-color: #45a049;
+        }
+    """)
+    msg_box.exec_()
+
+
 class RedesignedMainWindow(QMainWindow):
     """Redesigned main window matching the reference image layout exactly"""
     
@@ -755,13 +806,13 @@ class RedesignedMainWindow(QMainWindow):
     def _validate_and_clamp_ratio(self, ratio: float, ratio_name: str) -> tuple:
         """Validate ratio against limits and clamp if needed. Returns (clamped_ratio, was_clamped, warning_message)"""
         if ratio < self.min_ratio:
-            warning_msg = f"{ratio_name} = {ratio:.6f} was below minimum ({self.min_ratio}). Clamped to {self.min_ratio}."
-            logger.info(warning_msg)
-            return self.min_ratio, True, warning_msg
+            clamped = self.min_ratio
+            show_clamp_warning(self, ratio_name, ratio, clamped, self.min_ratio, self.max_ratio)
+            return clamped, True, f"{ratio_name} was below minimum ({self.min_ratio}). Clamped to {clamped}."
         elif ratio > self.max_ratio:
-            warning_msg = f"{ratio_name} = {ratio:.6f} was above maximum ({self.max_ratio}). Clamped to {self.max_ratio}."
-            logger.info(warning_msg)
-            return self.max_ratio, True, warning_msg
+            clamped = self.max_ratio
+            show_clamp_warning(self, ratio_name, ratio, clamped, self.min_ratio, self.max_ratio)
+            return clamped, True, f"{ratio_name} was above maximum ({self.max_ratio}). Clamped to {clamped}."
         return ratio, False, None
     
     def _get_aiw_path(self) -> Optional[Path]:
@@ -870,9 +921,6 @@ class RedesignedMainWindow(QMainWindow):
         ratio_name = "QualRatio" if session_type == "qual" else "RaceRatio"
         clamped_ratio, was_clamped, warning_msg = self._validate_and_clamp_ratio(new_ratio, ratio_name)
         
-        if was_clamped and warning_msg:
-            show_warning_dialog(self, f"{ratio_name} Adjusted", warning_msg)
-        
         if not self.check_aiw_accessible(session_type):
             return
         
@@ -908,8 +956,6 @@ class RedesignedMainWindow(QMainWindow):
                         QMessageBox.Yes | QMessageBox.No)
                     if reply == QMessageBox.Yes:
                         target_clamped, target_was_clamped, target_warning = self._validate_and_clamp_ratio(target_ratio, ratio_name)
-                        if target_was_clamped and target_warning:
-                            show_warning_dialog(self, f"{ratio_name} Adjusted", target_warning)
                         final_ratio = target_clamped
         
         if self.autopilot_manager.engine._update_aiw_ratio(aiw_path, ratio_name, final_ratio):
@@ -1099,9 +1145,6 @@ class RedesignedMainWindow(QMainWindow):
         ratio_name = "QualRatio" if session_type == "qual" else "RaceRatio"
         clamped_ratio, was_clamped, warning_msg = self._validate_and_clamp_ratio(ratio, ratio_name)
         
-        if was_clamped and warning_msg:
-            show_warning_dialog(self, f"{ratio_name} Adjusted", warning_msg)
-        
         if self.autopilot_manager.engine._update_aiw_ratio(aiw_path, ratio_name, clamped_ratio):
             if session_type == "qual":
                 self.last_qual_ratio = clamped_ratio
@@ -1221,8 +1264,7 @@ class RedesignedMainWindow(QMainWindow):
                 if new_qual_ratio and abs(new_qual_ratio - self.last_qual_ratio) > 0.000001:
                     clamped_ratio = self._clamp_ratio(new_qual_ratio)
                     if clamped_ratio != new_qual_ratio:
-                        show_warning_dialog(self, "QualRatio Adjusted", 
-                            f"QualRatio was calculated as {new_qual_ratio:.6f} but was clamped to {clamped_ratio:.6f} to stay within limits.")
+                        show_clamp_warning(self, "QualRatio", new_qual_ratio, clamped_ratio, self.min_ratio, self.max_ratio)
                     if self.autopilot_manager.engine._update_aiw_ratio(race_data.aiw_path, "QualRatio", clamped_ratio):
                         self.last_qual_ratio = clamped_ratio
                         self.qual_panel.update_ratio(clamped_ratio)
@@ -1233,8 +1275,7 @@ class RedesignedMainWindow(QMainWindow):
                 if new_race_ratio and abs(new_race_ratio - self.last_race_ratio) > 0.000001:
                     clamped_ratio = self._clamp_ratio(new_race_ratio)
                     if clamped_ratio != new_race_ratio:
-                        show_warning_dialog(self, "RaceRatio Adjusted", 
-                            f"RaceRatio was calculated as {new_race_ratio:.6f} but was clamped to {clamped_ratio:.6f} to stay within limits.")
+                        show_clamp_warning(self, "RaceRatio", new_race_ratio, clamped_ratio, self.min_ratio, self.max_ratio)
                     if self.autopilot_manager.engine._update_aiw_ratio(race_data.aiw_path, "RaceRatio", clamped_ratio):
                         self.last_race_ratio = clamped_ratio
                         self.race_panel.update_ratio(clamped_ratio)

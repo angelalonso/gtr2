@@ -14,7 +14,7 @@ from PyQt5.QtWidgets import (
     QGroupBox, QTextEdit, QProgressBar, QApplication, QMessageBox
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QColor, QTextCursor
 
 from core_config import (
     get_config_with_defaults, create_default_config_if_missing,
@@ -224,38 +224,58 @@ class PreRunCheckDialog(QDialog):
         self.info_group.setVisible(False)
     
     def log_check(self, check_name: str, status: str, message: str = ""):
+        """Log a check with appropriate coloring"""
         color = ""
-        if status == "PASS":
+        
+        if status == "CHECK":
+            # White/light grey for running checks
+            color = "#C0C0C0"
+            status_display = ""
+            formatted = f'<span style="color: {color};">[CHECK] {check_name}: Running...</span>'
+            self.status_text.append(formatted)
+            QApplication.processEvents()
+            return
+            
+        elif status == "PASS":
+            # Green for PASS (keep as is)
             color = "#4CAF50"
+            formatted = f'<span style="color: {color}; font-weight: bold;">[PASS]</span> <span style="color: {color};">{check_name}</span>'
+            if message:
+                formatted += f': <span style="color: #aaa;">{message}</span>'
+            self.status_text.append(formatted)
+            
         elif status == "WARN":
-            color = "#FF9800"
+            # Full yellow message for warnings
+            color = "#FFCC00"
+            full_message = f'<span style="color: {color};">[WARN] {check_name}'
+            if message:
+                full_message += f': {message}'
+            full_message += '</span>'
+            self.status_text.append(full_message)
+            
         elif status == "FAIL":
+            # Full red message for errors
             color = "#f44336"
-        elif status == "CHECK":
-            color = "#FFA500"
+            full_message = f'<span style="color: {color};">[FAIL] {check_name}'
+            if message:
+                full_message += f': {message}'
+            full_message += '</span>'
+            self.status_text.append(full_message)
+            
         elif status == "INFO":
             color = "#888"
-        
-        if color:
-            if status == "PASS":
-                formatted = f'<span style="color: {color}; font-weight: bold; font-size: 14px;">[PASS]</span> <span style="font-size: 13px;">{check_name}</span>'
-            elif status == "FAIL":
-                formatted = f'<span style="color: {color}; font-weight: bold; font-size: 14px;">[FAIL]</span> <span style="font-size: 13px;">{check_name}</span>'
-            elif status == "WARN":
-                formatted = f'<span style="color: {color}; font-weight: bold; font-size: 14px;">[WARN]</span> <span style="font-size: 13px;">{check_name}</span>'
-            elif status == "CHECK":
-                formatted = f'<span style="color: {color}; font-size: 13px;">[CHECK]</span> <span style="font-size: 13px;">{check_name}</span>'
-            else:
-                formatted = f'<span style="color: {color}; font-weight: bold;">[{status}]</span> {check_name}'
+            formatted = f'<span style="color: {color};">[INFO] {check_name}'
+            if message:
+                formatted += f': {message}'
+            formatted += '</span>'
+            self.status_text.append(formatted)
+            
+        elif status == "ERROR":
+            color = "#f44336"
+            self.status_text.append(f'<span style="color: {color};">[ERROR] {check_name}: {message}</span>')
         else:
-            formatted = f"[{status}] {check_name}"
+            self.status_text.append(f'[{status}] {check_name}: {message}')
         
-        if message:
-            if len(message) > 200:
-                message = message[:197] + "..."
-            formatted += f': <span style="color: #aaa;">{message}</span>'
-        
-        self.status_text.append(formatted)
         QApplication.processEvents()
     
     def run_checks(self):
@@ -282,13 +302,11 @@ class PreRunCheckDialog(QDialog):
         vehicle_warning = False
         
         for check_name, check_func in checks:
-            self.log_check(check_name, "CHECK", "Running...")
-            QApplication.processEvents()
+            self.log_check(check_name, "CHECK", "")
             
             try:
                 passed, message = check_func()
                 
-                # Vehicle Definitions Complete is a warning, not a critical failure
                 if check_name == "Vehicle Definitions Complete":
                     if not passed:
                         vehicle_warning = True
@@ -305,7 +323,7 @@ class PreRunCheckDialog(QDialog):
                 self.check_results[check_name] = passed
             except Exception as e:
                 all_critical_passed = False
-                self.log_check(check_name, "FAIL", str(e))
+                self.log_check(check_name, "ERROR", str(e))
             
             QApplication.processEvents()
         
@@ -326,7 +344,7 @@ class PreRunCheckDialog(QDialog):
             if vehicle_warning:
                 self.log_check("SUMMARY", "WARN", "Critical checks passed, but some vehicles are not defined in vehicle_classes.json. The application may not properly classify some vehicles.")
                 self.result_label.setText("Critical checks PASSED (with vehicle warnings)")
-                self.result_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #FF9800;")
+                self.result_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #FFCC00;")
             else:
                 self.log_check("SUMMARY", "INFO", "All checks passed. You can continue to the application.")
             
@@ -359,14 +377,11 @@ class PreRunCheckDialog(QDialog):
         if not userdata_dir.exists():
             return None, f"UserData directory not found: {userdata_dir}"
         
-        # Look for any .PLR or .plr file directly in UserData
         for ext in ["*.PLR", "*.plr"]:
             plr_files = list(userdata_dir.glob(ext))
             if plr_files:
-                # Use the first one found (usually the active player profile)
                 return plr_files[0], f"Found PLR file: {plr_files[0].name}"
         
-        # Also check for subdirectories (sometimes profiles are in subfolders)
         for item in userdata_dir.iterdir():
             if item.is_dir():
                 for ext in ["*.PLR", "*.plr"]:
@@ -389,8 +404,6 @@ class PreRunCheckDialog(QDialog):
         try:
             content = plr_path.read_text(encoding='utf-8', errors='ignore')
             
-            # Look for Extra Stats setting
-            # Pattern matches Extra Stats="0", Extra Stats="1", Extra Stats="0.00000", etc.
             pattern = r'Extra\s+Stats\s*=\s*"([^"]*)"'
             match = re.search(pattern, content, re.IGNORECASE)
             
@@ -399,7 +412,6 @@ class PreRunCheckDialog(QDialog):
             
             value = match.group(1).strip()
             
-            # Check if value is "0" (or 0.0, 0.00000, etc.)
             try:
                 float_val = float(value)
                 if float_val == 0.0:
@@ -426,21 +438,17 @@ class PreRunCheckDialog(QDialog):
             return
         
         try:
-            # Create backup
             backup_path = plr_path.with_suffix(plr_path.suffix + ".backup")
             backup_content = plr_path.read_text(encoding='utf-8', errors='ignore')
             backup_path.write_text(backup_content, encoding='utf-8')
             
-            # Read and fix content
             content = backup_content
             
-            # Pattern for Extra Stats
             pattern = r'(Extra\s+Stats\s*=\s*)"[^"]*"'
             replacement = r'\1"0"'
             
             new_content = re.sub(pattern, replacement, content, flags=re.IGNORECASE)
             
-            # Also handle case where value is not in quotes (though GTR2 uses quotes)
             pattern_no_quotes = r'(Extra\s+Stats\s*=\s*)([0-9.eE+-]+)'
             new_content = re.sub(pattern_no_quotes, r'\g<1>"0"', new_content, flags=re.IGNORECASE)
             
@@ -455,7 +463,6 @@ class PreRunCheckDialog(QDialog):
                 f"Extra Stats has been set to 0.\n"
                 f"A backup was saved to:\n{backup_path}")
             
-            # Retry checks after fixing
             reply = QMessageBox.question(self, "Retry Checks?",
                 "PLR file has been fixed.\n\nClick Yes to retry the checks, or No to continue without retrying.",
                 QMessageBox.Yes | QMessageBox.No)
@@ -510,7 +517,6 @@ class PreRunCheckDialog(QDialog):
         classes_path = get_data_file_path("vehicle_classes.json")
         
         if not classes_path.exists():
-            # Try to create default if missing
             try:
                 import json
                 classes_path.parent.mkdir(parents=True, exist_ok=True)
@@ -683,7 +689,7 @@ class PreRunCheckDialog(QDialog):
                 if missing_count > 10:
                     missing_display += f" and {missing_count - 10} more..."
                 
-                return False, f"{missing_count} vehicle(s) missing from vehicle_classes.json: {missing_display} (WARNING only)"
+                return False, f"{missing_count} vehicle(s) missing from vehicle_classes.json: {missing_display}"
             
             return True, f"All {len(all_vehicles)} vehicles from GTR2 are defined in vehicle_classes.json"
         else:

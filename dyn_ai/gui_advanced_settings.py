@@ -14,17 +14,20 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, List, Tuple
 
+from PyQt5 import QtGui
+
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QWidget, QLabel, QPushButton,
     QGroupBox, QTabWidget, QListWidget, QListWidgetItem, QAbstractItemView, QMessageBox,
     QDialogButtonBox, QFileDialog, QSlider, QSpinBox, QDoubleSpinBox,
-    QRadioButton, QTextEdit, QFrame, QCheckBox
+    QRadioButton, QTextEdit, QFrame, QCheckBox, QLineEdit, QFormLayout,
+    QComboBox, QScrollArea
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer
 
 from core_database import CurveDatabase
 from core_formula import fit_curve, DEFAULT_A_VALUE
-from core_config import get_base_path, get_ratio_limits, get_config_with_defaults
+from core_config import get_base_path, get_ratio_limits, get_config_with_defaults, load_config, save_config, DEFAULT_CONFIG
 from core_autopilot import load_vehicle_classes
 
 from gui_components import AccuracyIndicator
@@ -68,6 +71,7 @@ class AdvancedSettingsDialog(QDialog):
         self.race_panel = None
         self.curve_graph = None
         self.log_update_timer = None
+        self.config_file = "cfg.yml"
         
         self.setup_ui()
 
@@ -197,6 +201,9 @@ class AdvancedSettingsDialog(QDialog):
         data_tab = self._create_data_tab()
         self.tab_widget.addTab(data_tab, "Formula Management")
         
+        config_tab = self._create_config_tab()
+        self.tab_widget.addTab(config_tab, "Configuration")
+        
         target_tab = self._create_target_tab()
         self.tab_widget.addTab(target_tab, "AI Target")
         
@@ -207,8 +214,15 @@ class AdvancedSettingsDialog(QDialog):
         self.tab_widget.addTab(logs_tab, "Logs")
         
         layout.addWidget(self.tab_widget)
+        
+        # Create a button box with only a Close button (no icon)
         button_box = QDialogButtonBox(QDialogButtonBox.Close)
         button_box.rejected.connect(self.reject)
+        # Remove the icon from the close button
+        close_button = button_box.button(QDialogButtonBox.Close)
+        if close_button:
+            close_button.setText("Close")
+            close_button.setIcon(QtGui.QIcon())
         layout.addWidget(button_box)
         
         if self.curve_graph:
@@ -224,8 +238,338 @@ class AdvancedSettingsDialog(QDialog):
             QListWidget { background-color: #2b2b2b; color: white; }
             QGroupBox { color: #4CAF50; }
             QRadioButton { color: white; }
+            QLineEdit { background-color: #3c3c3c; color: white; border: 1px solid #4CAF50; border-radius: 4px; padding: 6px; }
+            QLabel { color: white; }
         """)
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
+    
+    def _create_config_tab(self) -> QWidget:
+        """Create the configuration tab for editing cfg.yml variables"""
+        tab = QWidget()
+        main_layout = QVBoxLayout(tab)
+        
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
+        
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setSpacing(15)
+        scroll_layout.setContentsMargins(20, 20, 20, 20)
+        
+        info_label = QLabel("Edit Configuration File (cfg.yml)")
+        info_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #FFA500; margin-bottom: 10px;")
+        scroll_layout.addWidget(info_label)
+        
+        info_desc = QLabel("These settings are saved to cfg.yml in the application directory. Changes may require restart to take full effect.")
+        info_desc.setStyleSheet("color: #888; margin-bottom: 20px;")
+        info_desc.setWordWrap(True)
+        scroll_layout.addWidget(info_desc)
+        
+        self.config_form = QWidget()
+        form_layout = QFormLayout(self.config_form)
+        form_layout.setSpacing(12)
+        form_layout.setLabelAlignment(Qt.AlignRight)
+        
+        self.config_widgets = {}
+        
+        config = get_config_with_defaults(self.config_file)
+        
+        fields = [
+            ("base_path", "GTR2 Base Path:", "text", ""),
+            ("formulas_dir", "Formulas Directory:", "text", "./track_formulas"),
+            ("db_path", "Database Path:", "text", "ai_data.db"),
+            ("auto_apply", "Auto Apply:", "bool", False),
+            ("backup_enabled", "Backup Enabled:", "bool", True),
+            ("logging_enabled", "Logging Enabled:", "bool", False),
+            ("autopilot_enabled", "Autopilot Enabled:", "bool", False),
+            ("autopilot_silent", "Autopilot Silent:", "bool", False),
+            ("poll_interval", "Poll Interval (seconds):", "float", 5.0),
+            ("min_ratio", "Minimum Ratio:", "float", 0.5),
+            ("max_ratio", "Maximum Ratio:", "float", 1.5),
+            ("outlier_method", "Outlier Detection Method:", "combo", "std"),
+            ("outlier_threshold", "Outlier Threshold:", "float", 2.0),
+            ("outlier_min_points", "Min Points for Outlier Detection:", "int", 3),
+        ]
+        
+        for key, label, field_type, default_value in fields:
+            value = config.get(key, default_value)
+            
+            if field_type == "text":
+                widget = QLineEdit()
+                widget.setText(str(value) if value else "")
+                widget.setToolTip(f"Edit {key}")
+                form_layout.addRow(label, widget)
+                self.config_widgets[key] = widget
+                
+            elif field_type == "bool":
+                widget = QCheckBox()
+                widget.setChecked(bool(value))
+                widget.setToolTip(f"Edit {key}")
+                form_layout.addRow(label, widget)
+                self.config_widgets[key] = widget
+                
+            elif field_type == "float":
+                widget = QDoubleSpinBox()
+                widget.setRange(-999999.0, 999999.0)
+                widget.setDecimals(6)
+                widget.setValue(float(value))
+                widget.setToolTip(f"Edit {key}")
+                form_layout.addRow(label, widget)
+                self.config_widgets[key] = widget
+                
+            elif field_type == "int":
+                widget = QSpinBox()
+                widget.setRange(-999999, 999999)
+                widget.setValue(int(value))
+                widget.setToolTip(f"Edit {key}")
+                form_layout.addRow(label, widget)
+                self.config_widgets[key] = widget
+                
+            elif field_type == "combo":
+                widget = QComboBox()
+                widget.addItems(["std", "iqr", "percentile", "none"])
+                widget.setCurrentText(str(value))
+                widget.setToolTip(f"Edit {key}\nstd: standard deviation (2.0 threshold)\niqr: interquartile range (1.5 threshold)\npercentile: percentile (90 threshold)\nnone: no outlier detection")
+                form_layout.addRow(label, widget)
+                self.config_widgets[key] = widget
+        
+        scroll_layout.addWidget(self.config_form)
+        
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        
+        self.save_config_btn = QPushButton("Save Configuration to cfg.yml")
+        self.save_config_btn.setStyleSheet("background-color: #4CAF50; padding: 10px 20px; font-size: 13px; font-weight: bold;")
+        self.save_config_btn.clicked.connect(self.save_configuration)
+        button_layout.addWidget(self.save_config_btn)
+        
+        self.reload_config_btn = QPushButton("Reload from cfg.yml")
+        self.reload_config_btn.setStyleSheet("background-color: #2196F3; padding: 10px 20px; font-size: 13px; font-weight: bold;")
+        self.reload_config_btn.clicked.connect(self.reload_configuration)
+        button_layout.addWidget(self.reload_config_btn)
+        
+        button_layout.addStretch()
+        scroll_layout.addLayout(button_layout)
+        
+        scroll_layout.addStretch()
+        
+        scroll_area.setWidget(scroll_content)
+        main_layout.addWidget(scroll_area)
+        
+        return tab
+    
+    def save_configuration(self):
+        """Save all configuration values to cfg.yml"""
+        try:
+            config = load_config(self.config_file)
+            if config is None:
+                config = DEFAULT_CONFIG.copy()
+            
+            modified = False
+            changes = []
+            restart_required_changes = []
+            live_update_possible_changes = []
+            
+            # Settings that require restart to take effect
+            restart_settings = {
+                'base_path', 'formulas_dir', 'db_path', 'logging_enabled', 
+                'autopilot_enabled', 'autopilot_silent'
+            }
+            
+            for key, widget in self.config_widgets.items():
+                current_value = config.get(key)
+                
+                if isinstance(widget, QLineEdit):
+                    new_value = widget.text().strip()
+                    # Handle empty string vs None comparison properly
+                    current_str = str(current_value) if current_value is not None else ""
+                    if current_str != new_value:
+                        config[key] = new_value
+                        modified = True
+                        change_text = f"{key}: '{current_str}' -> '{new_value}'"
+                        changes.append(change_text)
+                        if key in restart_settings:
+                            restart_required_changes.append(change_text)
+                        else:
+                            live_update_possible_changes.append(change_text)
+                            
+                elif isinstance(widget, QCheckBox):
+                    new_value = widget.isChecked()
+                    if new_value != current_value:
+                        config[key] = new_value
+                        modified = True
+                        change_text = f"{key}: {current_value} -> {new_value}"
+                        changes.append(change_text)
+                        if key in restart_settings:
+                            restart_required_changes.append(change_text)
+                        else:
+                            live_update_possible_changes.append(change_text)
+                            
+                elif isinstance(widget, QDoubleSpinBox):
+                    new_value = widget.value()
+                    if new_value != current_value:
+                        config[key] = new_value
+                        modified = True
+                        change_text = f"{key}: {current_value} -> {new_value}"
+                        changes.append(change_text)
+                        if key in restart_settings:
+                            restart_required_changes.append(change_text)
+                        else:
+                            live_update_possible_changes.append(change_text)
+                            
+                elif isinstance(widget, QSpinBox):
+                    new_value = widget.value()
+                    if new_value != current_value:
+                        config[key] = new_value
+                        modified = True
+                        change_text = f"{key}: {current_value} -> {new_value}"
+                        changes.append(change_text)
+                        if key in restart_settings:
+                            restart_required_changes.append(change_text)
+                        else:
+                            live_update_possible_changes.append(change_text)
+                            
+                elif isinstance(widget, QComboBox):
+                    new_value = widget.currentText()
+                    if new_value != current_value:
+                        config[key] = new_value
+                        modified = True
+                        change_text = f"{key}: '{current_value}' -> '{new_value}'"
+                        changes.append(change_text)
+                        if key in restart_settings:
+                            restart_required_changes.append(change_text)
+                        else:
+                            live_update_possible_changes.append(change_text)
+            
+            if modified:
+                if save_config(config, self.config_file):
+                    # Build detailed message
+                    message_parts = []
+                    message_parts.append(f"Configuration saved successfully to {self.config_file}\n")
+                    
+                    if changes:
+                        message_parts.append("\nChanges made:")
+                        message_parts.append("-" * 40)
+                        for change in changes:
+                            message_parts.append(f"  {change}")
+                    
+                    if restart_required_changes:
+                        message_parts.append("\n" + "=" * 50)
+                        message_parts.append("RESTART REQUIRED FOR THESE CHANGES:")
+                        message_parts.append("-" * 40)
+                        for change in restart_required_changes:
+                            message_parts.append(f"  {change}")
+                        message_parts.append("\nThese settings affect core application initialization")
+                        message_parts.append("and will only take effect after restarting the application.")
+                    
+                    if live_update_possible_changes:
+                        message_parts.append("\n" + "=" * 50)
+                        message_parts.append("LIVE UPDATES APPLIED (no restart needed):")
+                        message_parts.append("-" * 40)
+                        for change in live_update_possible_changes:
+                            message_parts.append(f"  {change}")
+                        message_parts.append("\nThese settings have been applied to the running instance")
+                        message_parts.append("and will work immediately.")
+                        
+                        # Apply live updates for settings that can be updated immediately
+                        self._apply_live_updates(live_update_possible_changes)
+                    
+                    message_parts.append("\n" + "=" * 50)
+                    if restart_required_changes:
+                        message_parts.append("\nNote: Please restart the application for all changes to take full effect.")
+                    else:
+                        message_parts.append("\nAll changes have been applied immediately. No restart needed.")
+                    
+                    QMessageBox.information(self, "Configuration Saved", "\n".join(message_parts))
+                    self.data_updated.emit()
+                    
+                    if self.parent:
+                        try:
+                            from core_config import get_config_with_defaults
+                            get_config_with_defaults(self.config_file)
+                            
+                            if hasattr(self.parent, 'min_ratio') and hasattr(self.parent, 'max_ratio'):
+                                min_ratio, max_ratio = get_ratio_limits(self.config_file)
+                                self.parent.min_ratio = min_ratio
+                                self.parent.max_ratio = max_ratio
+                            
+                            if hasattr(self.parent, 'config'):
+                                self.parent.config = get_config_with_defaults(self.config_file)
+                                
+                        except Exception as e:
+                            logger.warning(f"Could not update parent config: {e}")
+                else:
+                    QMessageBox.critical(self, "Save Failed", f"Failed to save configuration to {self.config_file}")
+            else:
+                QMessageBox.information(self, "No Changes", "No configuration changes were made.")
+                
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Error saving configuration: {str(e)}")
+            logger.error(f"Config save error: {e}")
+    
+    def _apply_live_updates(self, live_changes):
+        """Apply settings that can be updated without restart"""
+        try:
+            # Update ratio limits in parent window
+            if self.parent:
+                for change in live_changes:
+                    if 'min_ratio' in change or 'max_ratio' in change:
+                        min_ratio, max_ratio = get_ratio_limits(self.config_file)
+                        if hasattr(self.parent, 'min_ratio'):
+                            self.parent.min_ratio = min_ratio
+                        if hasattr(self.parent, 'max_ratio'):
+                            self.parent.max_ratio = max_ratio
+                        logger.info(f"Live updated min_ratio/max_ratio to {min_ratio}/{max_ratio}")
+                        
+                    elif 'poll_interval' in change:
+                        from core_config import get_poll_interval
+                        new_interval = get_poll_interval(self.config_file)
+                        if hasattr(self.parent, 'daemon') and self.parent.daemon:
+                            # Stop and restart daemon with new interval
+                            self.parent.stop_daemon()
+                            self.parent.start_daemon()
+                        logger.info(f"Live updated poll_interval to {new_interval}")
+                        
+                    elif 'outlier_method' in change or 'outlier_threshold' in change or 'outlier_min_points' in change:
+                        from core_config import get_outlier_settings
+                        new_settings = get_outlier_settings(self.config_file)
+                        logger.info(f"Live updated outlier settings: {new_settings}")
+                        
+            # Update the curve graph if it exists
+            if hasattr(self, 'curve_graph') and self.curve_graph:
+                # Refresh graph to apply new outlier settings
+                self.curve_graph.full_refresh()
+                
+        except Exception as e:
+            logger.warning(f"Could not apply all live updates: {e}")
+    
+    def reload_configuration(self):
+        """Reload configuration from cfg.yml and update UI"""
+        try:
+            config = get_config_with_defaults(self.config_file)
+            
+            for key, widget in self.config_widgets.items():
+                value = config.get(key)
+                
+                if isinstance(widget, QLineEdit):
+                    widget.setText(str(value) if value else "")
+                elif isinstance(widget, QCheckBox):
+                    widget.setChecked(bool(value))
+                elif isinstance(widget, QDoubleSpinBox):
+                    widget.setValue(float(value) if value is not None else 0.0)
+                elif isinstance(widget, QSpinBox):
+                    widget.setValue(int(value) if value is not None else 0)
+                elif isinstance(widget, QComboBox):
+                    idx = widget.findText(str(value))
+                    if idx >= 0:
+                        widget.setCurrentIndex(idx)
+            
+            QMessageBox.information(self, "Reloaded", f"Configuration reloaded from {self.config_file}\n\nAll values have been reset to the current cfg.yml file.")
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Error reloading configuration: {str(e)}")
+            logger.error(f"Config reload error: {e}")
     
     def _create_data_tab(self) -> QWidget:
         tab = QWidget()
@@ -359,7 +703,6 @@ class AdvancedSettingsDialog(QDialog):
         if self.log_window:
             logs_layout.addWidget(QLabel("Application Logs:"))
             
-            # Create a container widget for the log display to handle proper resizing
             log_container = QWidget()
             log_container_layout = QVBoxLayout(log_container)
             log_container_layout.setContentsMargins(0, 0, 0, 0)
@@ -378,14 +721,12 @@ class AdvancedSettingsDialog(QDialog):
             log_container_layout.addWidget(self.log_display)
             logs_layout.addWidget(log_container, stretch=1)
             
-            # Connect to the log window's text change signal if available
             if hasattr(self.log_window, 'log_text'):
                 self.log_window.log_text.document().contentsChange.connect(self.sync_log_display)
             
-            # Start a timer to periodically update the log display
             self.log_update_timer = QTimer()
             self.log_update_timer.timeout.connect(self.sync_log_display)
-            self.log_update_timer.start(500)  # Update every 500ms
+            self.log_update_timer.start(500)
             
             log_btn_layout = QHBoxLayout()
             clear_log_btn = QPushButton("Clear Log")
@@ -398,7 +739,7 @@ class AdvancedSettingsDialog(QDialog):
     
     def open_datamgmt_dyn_ai(self):
         from gui_common import get_data_file_path
-        script_dir = get_data_file_path("")  # Get the resource base directory
+        script_dir = get_data_file_path("")
         exe_path = script_dir / "datamgmt_dyn_ai.exe"
         py_path = script_dir / "dyn_ai_data_manager.py"
         
@@ -432,8 +773,8 @@ class AdvancedSettingsDialog(QDialog):
         if self.tab_widget.tabText(index) == "Backup Restore":
             self.refresh_backup_list()
         elif self.tab_widget.tabText(index) == "Logs":
-            # Force a refresh of the logs when switching to the logs tab
             self.sync_log_display()
+        # Removed automatic reload when switching to Configuration tab
     
     def scan_aiw_backups(self):
         backups = []
@@ -575,12 +916,10 @@ class AdvancedSettingsDialog(QDialog):
         """Sync the log display with the log window content"""
         if hasattr(self, 'log_display') and self.log_window:
             if hasattr(self.log_window, 'log_text'):
-                # Copy the HTML content from the log window
                 html_content = self.log_window.log_text.toHtml()
                 if html_content != self.log_display.toHtml():
                     self.log_display.setHtml(html_content)
                     
-                    # Auto-scroll to bottom
                     scrollbar = self.log_display.verticalScrollBar()
                     scrollbar.setValue(scrollbar.maximum())
     
@@ -695,11 +1034,9 @@ class AdvancedSettingsDialog(QDialog):
         ratios = [p[0] for p in points]
         times = [p[1] for p in points]
         
-        # Get outlier settings from config
         from core_config import get_outlier_settings
         outlier_settings = get_outlier_settings()
         
-        # Fit curve with outlier filtering
         a, b, avg_err, max_err, outlier_info = fit_curve(
             ratios, times, 
             verbose=False,
@@ -712,7 +1049,6 @@ class AdvancedSettingsDialog(QDialog):
             b = b
             a = DEFAULT_A_VALUE
             
-            # Show outlier information to user
             if outlier_info and outlier_info.outliers_removed > 0:
                 outlier_msg = f"\n\nOutlier detection ({outlier_info.method_used}, threshold={outlier_info.threshold_used}):\n"
                 outlier_msg += f"Removed {outlier_info.outliers_removed} outlier(s) from {outlier_info.total_points} total points."
@@ -793,7 +1129,7 @@ class AdvancedSettingsDialog(QDialog):
         super().showEvent(event)
     
     def closeEvent(self, event):
-        # Stop the log update timer when closing
         if self.log_update_timer:
             self.log_update_timer.stop()
         super().closeEvent(event)
+
