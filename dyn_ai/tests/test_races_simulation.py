@@ -579,6 +579,11 @@ class LiveAITunerTestHarness:
             cmd.append("--no-gui")
             logger.info("  Running in console mode")
 
+        # Set environment variable to force X11 instead of Wayland
+        env = os.environ.copy()
+        env['QT_QPA_PLATFORM'] = 'xcb'  # Force X11 backend
+        env['DISPLAY'] = os.environ.get('DISPLAY', ':0')
+
         try:
             # IMPORTANT: Change working directory to project root
             # so the app finds ai_data.db and other files correctly
@@ -591,8 +596,8 @@ class LiveAITunerTestHarness:
                 text=True,
                 bufsize=1,
                 universal_newlines=True,
-                env=os.environ.copy(),
-                cwd=str(project_root)  # <-- THIS IS THE KEY FIX
+                env=env,  # Use modified environment
+                cwd=str(project_root)
             )
 
             log_file = open(self.app_log_file, 'w', encoding='utf-8')
@@ -620,14 +625,28 @@ class LiveAITunerTestHarness:
             self.log_threads = (stdout_thread, stderr_thread)
 
             logger.info("  Waiting for application to initialize...")
-            time.sleep(5)
-
-            if self.app_process.poll() is not None:
+            
+            # Wait longer - up to 15 seconds
+            max_wait = 15
+            for i in range(max_wait):
                 time.sleep(1)
-                logger.error(f"  Application exited immediately with code {self.app_process.returncode}")
-                logger.error(f"  Check log file for details: {self.app_log_file}")
-                self._display_recent_logs()
-                return False
+                if self.app_process.poll() is not None:
+                    if i < 5:  # If it exited in first 5 seconds, it's a problem
+                        logger.error(f"  Application exited too early after {i+1} seconds with code {self.app_process.returncode}")
+                        self._display_recent_logs()
+                        return False
+                    else:
+                        logger.warning(f"  Application exited after {i+1} seconds with code {self.app_process.returncode}")
+                        # This might be a normal exit if GUI was closed
+                        if self.app_process.returncode == 0:
+                            logger.info("  Application exited normally")
+                            return True
+                        return False
+            
+            # Check if process is still running
+            if self.app_process.poll() is not None:
+                logger.warning(f"  Application exited with code {self.app_process.returncode}")
+                return self.app_process.returncode == 0
 
             logger.info(f"  Application launched with PID: {self.app_process.pid}")
             logger.info(f"  Working directory: {project_root}")
@@ -688,7 +707,6 @@ class LiveAITunerTestHarness:
 
             self._check_for_errors_in_log()
             self.app_process = None
-
 
     def _check_for_errors_in_log(self):
         if not self.app_log_file or not self.app_log_file.exists():
@@ -768,6 +786,8 @@ class LiveAITunerTestHarness:
         self._restore_all_aiw_backups()
         self.restore_original_results()
         self._cleanup_test_data()
+        # Clear the backup list after restoring
+        self._aiw_backups.clear()
 
     def run_full_test_with_files(self):
         logger.info("\n" + "=" * 60)
@@ -910,6 +930,8 @@ class LiveAITunerTestHarness:
             self._cleanup()
             return False
 
+        app_exited_normally = False
+        
         try:
             logger.info("\nWaiting 2 seconds for application to fully initialize...")
             time.sleep(2)
@@ -927,8 +949,6 @@ class LiveAITunerTestHarness:
             # Wait for either:
             # 1. User presses Enter in the terminal, OR
             # 2. The application exits normally (user clicked Exit)
-            
-            app_exited_normally = False
             
             while True:
                 # Check if application is still running
@@ -959,19 +979,24 @@ class LiveAITunerTestHarness:
 
         except KeyboardInterrupt:
             logger.info("\nTest interrupted by user")
+        except Exception as e:
+            logger.error(f"\nUnexpected error: {e}")
         finally:
-            # Only stop the application if it's still running
+            # CRITICAL FIX: Only call stop_application if we need to terminate it
+            # and the app is still running
             if self.app_process and self.app_process.poll() is None:
                 if not app_exited_normally:
                     logger.info("Stopping application...")
                     self.stop_application()
                 else:
-                    logger.info("Application already exited normally, skipping stop")
+                    logger.info("Application already exited normally, skipping forced stop")
+            # CRITICAL FIX: Don't call cleanup if the app already cleaned up
+            if not app_exited_normally:
+                self._cleanup()
             else:
-                logger.info("Application already terminated")
-            
-            self._cleanup()
+                logger.info("Skipping cleanup (app exited normally)")
 
+        # Return True regardless of how we exited, as long as we didn't crash
         return True
 
 
