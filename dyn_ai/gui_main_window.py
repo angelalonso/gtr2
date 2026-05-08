@@ -48,6 +48,15 @@ from gui_file_monitor import FileMonitorDaemon, SimplifiedLogger
 logger = logging.getLogger(__name__)
 
 
+def clamp_ratio(ratio: float, min_ratio: float, max_ratio: float) -> float:
+    """Clamp ratio to within min and max limits"""
+    if ratio < min_ratio:
+        return min_ratio
+    if ratio > max_ratio:
+        return max_ratio
+    return ratio
+
+
 class RedesignedMainWindow(QMainWindow):
     """Redesigned main window matching the reference image layout exactly"""
     
@@ -733,20 +742,27 @@ class RedesignedMainWindow(QMainWindow):
             panel = self.qual_panel if session_type == "qual" else self.race_panel
             panel.update_accuracy(0, 0, None, None, 0)
     
-    def _validate_ratio(self, ratio: float, ratio_name: str) -> bool:
+    def _clamp_ratio(self, ratio: float) -> float:
+        """Clamp ratio to within configured min and max limits"""
         if ratio < self.min_ratio:
-            show_warning_dialog(self, f"{ratio_name} Below Minimum",
-                f"The calculated {ratio_name} = {ratio:.6f} is below the minimum allowed value ({self.min_ratio}).\n\n"
-                f"The ratio will NOT be changed.\n\n"
-                f"To allow lower values, adjust 'min_ratio' in cfg.yml.")
-            return False
+            logger.debug(f"Clamping ratio {ratio:.6f} up to minimum {self.min_ratio}")
+            return self.min_ratio
+        if ratio > self.max_ratio:
+            logger.debug(f"Clamping ratio {ratio:.6f} down to maximum {self.max_ratio}")
+            return self.max_ratio
+        return ratio
+    
+    def _validate_and_clamp_ratio(self, ratio: float, ratio_name: str) -> tuple:
+        """Validate ratio against limits and clamp if needed. Returns (clamped_ratio, was_clamped, warning_message)"""
+        if ratio < self.min_ratio:
+            warning_msg = f"{ratio_name} = {ratio:.6f} was below minimum ({self.min_ratio}). Clamped to {self.min_ratio}."
+            logger.info(warning_msg)
+            return self.min_ratio, True, warning_msg
         elif ratio > self.max_ratio:
-            show_warning_dialog(self, f"{ratio_name} Above Maximum",
-                f"The calculated {ratio_name} = {ratio:.6f} is above the maximum allowed value ({self.max_ratio}).\n\n"
-                f"The ratio will NOT be changed.\n\n"
-                f"To allow higher values, adjust 'max_ratio' in cfg.yml.")
-            return False
-        return True
+            warning_msg = f"{ratio_name} = {ratio:.6f} was above maximum ({self.max_ratio}). Clamped to {self.max_ratio}."
+            logger.info(warning_msg)
+            return self.max_ratio, True, warning_msg
+        return ratio, False, None
     
     def _get_aiw_path(self) -> Optional[Path]:
         return self._find_aiw_file()
@@ -852,8 +868,10 @@ class RedesignedMainWindow(QMainWindow):
             return
         
         ratio_name = "QualRatio" if session_type == "qual" else "RaceRatio"
-        if not self._validate_ratio(new_ratio, ratio_name):
-            return
+        clamped_ratio, was_clamped, warning_msg = self._validate_and_clamp_ratio(new_ratio, ratio_name)
+        
+        if was_clamped and warning_msg:
+            show_warning_dialog(self, f"{ratio_name} Adjusted", warning_msg)
         
         if not self.check_aiw_accessible(session_type):
             return
@@ -873,7 +891,7 @@ class RedesignedMainWindow(QMainWindow):
         
         self._ensure_aiw_has_ratios(aiw_path)
         
-        final_ratio = new_ratio
+        final_ratio = clamped_ratio
         if self.ai_target_settings.get("mode") != "percentage" or self.ai_target_settings.get("percentage") != 50:
             if self.qual_best_ai and self.qual_worst_ai:
                 target_time = self.calculate_target_lap_time(self.qual_best_ai, self.qual_worst_ai)
@@ -889,7 +907,10 @@ class RedesignedMainWindow(QMainWindow):
                         f"Which ratio would you like to use?",
                         QMessageBox.Yes | QMessageBox.No)
                     if reply == QMessageBox.Yes:
-                        final_ratio = target_ratio
+                        target_clamped, target_was_clamped, target_warning = self._validate_and_clamp_ratio(target_ratio, ratio_name)
+                        if target_was_clamped and target_warning:
+                            show_warning_dialog(self, f"{ratio_name} Adjusted", target_warning)
+                        final_ratio = target_clamped
         
         if self.autopilot_manager.engine._update_aiw_ratio(aiw_path, ratio_name, final_ratio):
             if session_type == "qual":
@@ -1076,15 +1097,19 @@ class RedesignedMainWindow(QMainWindow):
         self._ensure_aiw_has_ratios(aiw_path)
         
         ratio_name = "QualRatio" if session_type == "qual" else "RaceRatio"
-        if self._validate_ratio(ratio, ratio_name):
-            if self.autopilot_manager.engine._update_aiw_ratio(aiw_path, ratio_name, ratio):
-                if session_type == "qual":
-                    self.last_qual_ratio = ratio
-                    self.qual_panel.update_ratio(ratio)
-                else:
-                    self.last_race_ratio = ratio
-                    self.race_panel.update_ratio(ratio)
-                logger.info(f"Saved ratio from Advanced dialog: {ratio_name}={ratio:.6f}")
+        clamped_ratio, was_clamped, warning_msg = self._validate_and_clamp_ratio(ratio, ratio_name)
+        
+        if was_clamped and warning_msg:
+            show_warning_dialog(self, f"{ratio_name} Adjusted", warning_msg)
+        
+        if self.autopilot_manager.engine._update_aiw_ratio(aiw_path, ratio_name, clamped_ratio):
+            if session_type == "qual":
+                self.last_qual_ratio = clamped_ratio
+                self.qual_panel.update_ratio(clamped_ratio)
+            else:
+                self.last_race_ratio = clamped_ratio
+                self.race_panel.update_ratio(clamped_ratio)
+            logger.info(f"Saved ratio from Advanced dialog: {ratio_name}={clamped_ratio:.6f}")
     
     def on_lap_time_updated_from_advanced(self, session_type: str, lap_time: float):
         if session_type == "qual":
@@ -1194,20 +1219,26 @@ class RedesignedMainWindow(QMainWindow):
             if self.user_qualifying_sec > 0:
                 new_qual_ratio = self.calculate_ratio_from_user_time("qual", self.user_qualifying_sec)
                 if new_qual_ratio and abs(new_qual_ratio - self.last_qual_ratio) > 0.000001:
-                    if self._validate_ratio(new_qual_ratio, "QualRatio"):
-                        if self.autopilot_manager.engine._update_aiw_ratio(race_data.aiw_path, "QualRatio", new_qual_ratio):
-                            self.last_qual_ratio = new_qual_ratio
-                            self.qual_panel.update_ratio(new_qual_ratio)
-                            logger.info(f"[AUTORATIO] Updated QualRatio to {new_qual_ratio:.6f} based on user time {self.user_qualifying_sec:.3f}s")
+                    clamped_ratio = self._clamp_ratio(new_qual_ratio)
+                    if clamped_ratio != new_qual_ratio:
+                        show_warning_dialog(self, "QualRatio Adjusted", 
+                            f"QualRatio was calculated as {new_qual_ratio:.6f} but was clamped to {clamped_ratio:.6f} to stay within limits.")
+                    if self.autopilot_manager.engine._update_aiw_ratio(race_data.aiw_path, "QualRatio", clamped_ratio):
+                        self.last_qual_ratio = clamped_ratio
+                        self.qual_panel.update_ratio(clamped_ratio)
+                        logger.info(f"[AUTORATIO] Updated QualRatio to {clamped_ratio:.6f} based on user time {self.user_qualifying_sec:.3f}s")
             
             if self.user_best_lap_sec > 0:
                 new_race_ratio = self.calculate_ratio_from_user_time("race", self.user_best_lap_sec)
                 if new_race_ratio and abs(new_race_ratio - self.last_race_ratio) > 0.000001:
-                    if self._validate_ratio(new_race_ratio, "RaceRatio"):
-                        if self.autopilot_manager.engine._update_aiw_ratio(race_data.aiw_path, "RaceRatio", new_race_ratio):
-                            self.last_race_ratio = new_race_ratio
-                            self.race_panel.update_ratio(new_race_ratio)
-                            logger.info(f"[AUTORATIO] Updated RaceRatio to {new_race_ratio:.6f} based on user time {self.user_best_lap_sec:.3f}s")
+                    clamped_ratio = self._clamp_ratio(new_race_ratio)
+                    if clamped_ratio != new_race_ratio:
+                        show_warning_dialog(self, "RaceRatio Adjusted", 
+                            f"RaceRatio was calculated as {new_race_ratio:.6f} but was clamped to {clamped_ratio:.6f} to stay within limits.")
+                    if self.autopilot_manager.engine._update_aiw_ratio(race_data.aiw_path, "RaceRatio", clamped_ratio):
+                        self.last_race_ratio = clamped_ratio
+                        self.race_panel.update_ratio(clamped_ratio)
+                        logger.info(f"[AUTORATIO] Updated RaceRatio to {clamped_ratio:.6f} based on user time {self.user_best_lap_sec:.3f}s")
         
         self.autopilot_manager.reload_formulas()
         self._update_formulas_from_autopilot()

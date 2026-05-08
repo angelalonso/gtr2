@@ -52,8 +52,6 @@ wine python -m PyInstaller \
     --add-data="gui_session_panel.py;." \
     --add-data="gui_vehicle_manager.py;." \
     --add-data="monitor_file_daemon.py;." \
-    --add-data="cfg.yml;." \
-    --add-data="vehicle_classes.json;." \
     --add-data="dyn_ai_data_manager.py;." \
     --collect-data=pyqtgraph \
     --hidden-import=cfg_funcs \

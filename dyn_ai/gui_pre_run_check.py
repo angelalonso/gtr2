@@ -56,7 +56,7 @@ class PreRunCheckDialog(QDialog):
         super().__init__(parent)
         self.config_file = config_file
         self.check_results = {}
-        self.all_checks_passed = False
+        self.all_critical_passed = False
         self.vehicle_scan_worker = None
         self.datamgmt_process = None
         self.setup_ui()
@@ -278,7 +278,8 @@ class PreRunCheckDialog(QDialog):
             ("Vehicle Definitions Complete", self.check_vehicle_definitions),
         ]
         
-        all_passed = True
+        all_critical_passed = True
+        vehicle_warning = False
         
         for check_name, check_func in checks:
             self.log_check(check_name, "CHECK", "Running...")
@@ -286,18 +287,29 @@ class PreRunCheckDialog(QDialog):
             
             try:
                 passed, message = check_func()
-                status = "PASS" if passed else "FAIL"
-                if not passed:
-                    all_passed = False
+                
+                # Vehicle Definitions Complete is a warning, not a critical failure
+                if check_name == "Vehicle Definitions Complete":
+                    if not passed:
+                        vehicle_warning = True
+                        self.log_check(check_name, "WARN", message)
+                    else:
+                        self.log_check(check_name, "PASS", message)
+                else:
+                    if not passed:
+                        all_critical_passed = False
+                        self.log_check(check_name, "FAIL", message)
+                    else:
+                        self.log_check(check_name, "PASS", message)
+                
                 self.check_results[check_name] = passed
-                self.log_check(check_name, status, message)
             except Exception as e:
-                all_passed = False
+                all_critical_passed = False
                 self.log_check(check_name, "FAIL", str(e))
             
             QApplication.processEvents()
         
-        self.all_checks_passed = all_passed
+        self.all_critical_passed = all_critical_passed
         
         vehicle_check_failed = not self.check_results.get("Vehicle Definitions Complete", False)
         if vehicle_check_failed:
@@ -307,17 +319,25 @@ class PreRunCheckDialog(QDialog):
         if plr_check_failed:
             self.fix_plr_btn.setVisible(True)
         
-        if all_passed:
-            self.result_label.setText("ALL CHECKS PASSED - System is ready")
+        if all_critical_passed:
+            self.result_label.setText("Critical checks PASSED - System is ready")
             self.result_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #4CAF50;")
-            self.log_check("SUMMARY", "INFO", "All checks passed. You can continue to the application.")
+            
+            if vehicle_warning:
+                self.log_check("SUMMARY", "WARN", "Critical checks passed, but some vehicles are not defined in vehicle_classes.json. The application may not properly classify some vehicles.")
+                self.result_label.setText("Critical checks PASSED (with vehicle warnings)")
+                self.result_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #FF9800;")
+            else:
+                self.log_check("SUMMARY", "INFO", "All checks passed. You can continue to the application.")
+            
             self.continue_btn.setEnabled(True)
             self.continue_btn.setFocus()
             self.info_group.setVisible(True)
         else:
-            self.result_label.setText("SOME CHECKS FAILED - Please fix issues and retry")
+            self.result_label.setText("CRITICAL CHECKS FAILED - Please fix issues and retry")
             self.result_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #f44336;")
-            self.log_check("SUMMARY", "FAIL", "Some checks failed. Please fix the issues and retry.")
+            self.log_check("SUMMARY", "FAIL", "Some critical checks failed. Please fix the issues and retry.")
+            self.continue_btn.setEnabled(False)
             
             guidance_msg = "Make sure:\n"
             guidance_msg += "1. cfg.yml exists in the application directory\n"
@@ -325,12 +345,6 @@ class PreRunCheckDialog(QDialog):
             guidance_msg += "3. GTR2 base path is correctly set in cfg.yml\n"
             guidance_msg += "4. GTR2.exe exists in the base path\n"
             guidance_msg += "5. GTR2 PLR file has Extra Stats=\"0\" (not \"1\")\n"
-            
-            if vehicle_check_failed:
-                guidance_msg += "6. All vehicles in GTR2 are defined in vehicle_classes.json\n"
-                guidance_msg += "   Click 'Open Vehicle Manager' to add missing vehicles to classes"
-            else:
-                guidance_msg += "6. All vehicles in GTR2 are defined in vehicle_classes.json"
             
             self.log_check("GUIDANCE", "INFO", guidance_msg)
     
@@ -431,7 +445,8 @@ class PreRunCheckDialog(QDialog):
             new_content = re.sub(pattern_no_quotes, r'\g<1>"0"', new_content, flags=re.IGNORECASE)
             
             if new_content == content:
-                return False, "Could not find Extra Stats setting to modify"
+                QMessageBox.warning(self, "Fix Failed", "Could not find Extra Stats setting to modify")
+                return
             
             plr_path.write_text(new_content, encoding='utf-8')
             
@@ -519,7 +534,8 @@ class PreRunCheckDialog(QDialog):
             return False, f"Error reading vehicle_classes.json: {e}"
 
     def check_vehicle_classes_data(self) -> Tuple[bool, str]:
-        classes_path = Path(__file__).parent / "vehicle_classes.json"
+        from gui_common import get_data_file_path
+        classes_path = get_data_file_path("vehicle_classes.json")
         
         if not classes_path.exists():
             return False, "vehicle_classes.json not found"
@@ -626,7 +642,8 @@ class PreRunCheckDialog(QDialog):
             return False, "No base path configured - cannot scan vehicles"
         
         gtr2_path = Path(base_path)
-        classes_path = Path(__file__).parent / "vehicle_classes.json"
+        from gui_common import get_data_file_path
+        classes_path = get_data_file_path("vehicle_classes.json")
         
         if not classes_path.exists():
             return False, f"vehicle_classes.json not found at {classes_path}"
@@ -666,7 +683,7 @@ class PreRunCheckDialog(QDialog):
                 if missing_count > 10:
                     missing_display += f" and {missing_count - 10} more..."
                 
-                return False, f"{missing_count} vehicle(s) missing from vehicle_classes.json: {missing_display}"
+                return False, f"{missing_count} vehicle(s) missing from vehicle_classes.json: {missing_display} (WARNING only)"
             
             return True, f"All {len(all_vehicles)} vehicles from GTR2 are defined in vehicle_classes.json"
         else:

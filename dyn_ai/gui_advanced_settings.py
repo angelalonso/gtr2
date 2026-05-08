@@ -36,6 +36,15 @@ from gui_common import get_data_file_path
 logger = logging.getLogger(__name__)
 
 
+def clamp_ratio(ratio: float, min_ratio: float, max_ratio: float) -> float:
+    """Clamp ratio to within min and max limits"""
+    if ratio < min_ratio:
+        return min_ratio
+    if ratio > max_ratio:
+        return max_ratio
+    return ratio
+
+
 class AdvancedSettingsDialog(QDialog):
     """Advanced settings window with unified tab layout"""
     
@@ -642,13 +651,11 @@ class AdvancedSettingsDialog(QDialog):
             return
         
         min_ratio, max_ratio = get_ratio_limits()
-        if ratio < min_ratio or ratio > max_ratio:
-            reply = QMessageBox.question(self, "Ratio Out of Range", 
-                f"The calculated {session_type.upper()} Ratio = {ratio:.6f} is outside the allowed range "
-                f"({min_ratio} - {max_ratio}).\n\nContinue anyway?",
-                QMessageBox.Yes | QMessageBox.No)
-            if reply != QMessageBox.Yes:
-                return
+        clamped_ratio = clamp_ratio(ratio, min_ratio, max_ratio)
+        
+        if clamped_ratio != ratio:
+            warning_msg = f"The calculated {session_type.upper()} Ratio = {ratio:.6f} was outside the allowed range ({min_ratio} - {max_ratio}). It has been clamped to {clamped_ratio:.6f}."
+            QMessageBox.warning(self, "Ratio Adjusted", warning_msg)
         
         aiw_path = self._find_aiw_path_from_config()
         
@@ -656,22 +663,22 @@ class AdvancedSettingsDialog(QDialog):
             self._show_aiw_path_error()
             return
         
-        if self._update_aiw_ratio(aiw_path, "QualRatio" if session_type == "qual" else "RaceRatio", ratio):
-            self.ratio_saved.emit(session_type, ratio)
+        if self._update_aiw_ratio(aiw_path, "QualRatio" if session_type == "qual" else "RaceRatio", clamped_ratio):
+            self.ratio_saved.emit(session_type, clamped_ratio)
             if self.curve_graph:
                 if session_type == "qual":
-                    self.curve_graph.user_qual_ratio = ratio
+                    self.curve_graph.user_qual_ratio = clamped_ratio
                 else:
-                    self.curve_graph.user_race_ratio = ratio
+                    self.curve_graph.user_race_ratio = clamped_ratio
                 self.curve_graph.update_graph()
             if self.parent:
                 parent = self.parent() if callable(self.parent) else self.parent
                 if session_type == "qual":
-                    parent.last_qual_ratio = ratio
-                    parent.qual_panel.update_ratio(ratio)
+                    parent.last_qual_ratio = clamped_ratio
+                    parent.qual_panel.update_ratio(clamped_ratio)
                 else:
-                    parent.last_race_ratio = ratio
-                    parent.race_panel.update_ratio(ratio)
+                    parent.last_race_ratio = clamped_ratio
+                    parent.race_panel.update_ratio(clamped_ratio)
     
     def on_auto_fit_requested(self, session_type: str):
         if not self.curve_graph:
