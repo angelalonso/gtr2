@@ -1,4 +1,4 @@
-# dyn_ai — Live AI Tuner for GTR2 - v1.0.7
+# dyn_ai — Live AI Tuner for GTR2 - v1.0.8
 
 ## What it does
 
@@ -8,7 +8,7 @@ Automatically adjusts AI difficulty to match your driving pace. Reads your lap t
 
 ## Current State
 
-Usable, stable release with improved UI, AIW handling, and outlier detection.
+Usable, stable release with improved UI, AIW handling, outlier detection, and comprehensive database management tools.
 
 **USE AT YOUR OWN RISK.** Test on a separate install.
 
@@ -18,6 +18,15 @@ Usable, stable release with improved UI, AIW handling, and outlier detection.
 
 1. Check and edit `cfg.yml` and `vehicle_classes.json` if needed
 2. Run the application
+
+**Windows (easy):** Run the `.exe` from the zip
+
+**From source:**
+```
+pipenv install
+pipenv run python3 dyn_ai.py
+```
+
 3. Pre-run checks will verify your setup:
    - Configuration file (cfg.yml)
    - Vehicle classes file (vehicle_classes.json)
@@ -26,11 +35,6 @@ Usable, stable release with improved UI, AIW handling, and outlier detection.
    - GTR2 PLR file (Extra Stats setting)
 4. Point it to your GTR2 install folder (with `GameData/`) if not already configured - saved to `cfg.yml`
 
-**Windows (easy):** Run the `.exe` from the zip  
-**From source:**
-
-pipenv install
-pipenv run python3 dyn_ai.py
 
 ---
 
@@ -42,9 +46,9 @@ Automatically verifies before launching:
 - vehicle_classes.json exists and has correct structure
 - GTR2 base path is configured and valid
 - GTR2.exe is present
-- GTR2 PLR file has `Extra Stats="0"` (required for race results to be written)
+- GTR2 PLR file has `Extra Stats="0"` (required for race results to be identified and read)
 
-Once all checks pass, usage instructions are displayed. The Continue button is greyed out until all checks pass.
+Once all checks pass, usage instructions are displayed.
 
 ### Auto-harvest Data
 Saves every race session to the database. Builds history of lap times vs AI ratios.
@@ -52,7 +56,7 @@ Saves every race session to the database. Builds history of lap times vs AI rati
 ### Auto-calculate Ratios
 When enabled: detects race results → analyzes historical data → fits curve `T = a/R + b` → updates AIW file.
 
-### Outlier Detection (New)
+### Outlier Detection
 Automatically filters out anomalous data points when auto-fitting curves:
 
 | Method | Description | Default Threshold |
@@ -62,45 +66,85 @@ Automatically filters out anomalous data points when auto-fitting curves:
 | Percentile | Removes points above specified percentile | 90% |
 
 Configure in `cfg.yml`:
-outlier_method: std      # std, iqr, percentile, or none
-outlier_threshold: 2.0   # Method-specific threshold
-outlier_min_points: 3    # Minimum points before attempting detection
+- outlier_method: std (std, iqr, percentile, or none)
+- outlier_threshold: 2.0 (Method-specific threshold)
+- outlier_min_points: 3 (Minimum points before attempting detection)
 
-When outliers are detected, a message shows how many were removed from the fit.
+When outliers are detected, a message shows how many were removed from the fit. If data quality is poor, the auto-fit will show warning dialogs explaining the issues.
+
+### Data Quality Warnings
+When auto-fitting curves, the system now detects and warns about:
+- Duplicate ratio values with widely varying lap times (over 5 seconds difference)
+- Narrow ratio ranges (less than 0.2) causing unreliable fits
+- Weak correlation between ratio and lap time (correlation less than 0.5)
+- High prediction errors after fitting (average error over 2 seconds)
+
+These warnings help identify problematic data that should be reviewed or removed.
 
 ### AI Target Positioning
 
-TBD
+Under development. Warning banner displayed in the Advanced Settings dialog.
 
 ### Manual Controls
-- Edit ratios directly (Edit button)
+- Edit ratios directly (Edit button or press Enter on selected item)
 - Revert to previous ratio (Revert button)
 - Calculate ratio from lap time
 - Save formulas manually
+- Keyboard shortcuts: Enter to edit, Delete to remove selected entries
 
 ---
 
 ## Advanced Features
 
-### Data Management
-- Filter by track/vehicle class
-- Visualize curves and data points
-- Edit a/b parameters
-- Auto-fit curve with outlier detection
-- **Launch Dyn AI Data Manager** - Button to open external vehicle class management tool
+### Dyn AI Data Manager (Standalone Tool)
+Comprehensive database management utility with multiple tabs:
 
-### AI Target Analysis (Advanced → AI Target)
-- **Warning banner** indicates feature is under construction
-- Position your lap time within AI range (percentage or fixed offset)
-- Apply error margin to make AI slightly slower
-- **Dump Analysis buttons** save detailed calculation logs for debugging
-- All settings applied to both Qualifying and Race sessions
+**Laptimes and Ratios Tab:**
+- View all data points in a sortable table
+- Filter by track, vehicle class, and session type
+- Visualize data points on an interactive graph (yellow circles for qualifying, orange squares for race)
+- Click on graph points to select corresponding table rows
+- Ctrl+Click to select/deselect individual points
+- Shift+Click to select ranges of points
+- Select All button for bulk operations
+- Edit multiple points at once with the multi-edit dialog (checkboxes let you choose which fields to change)
+- Delete selected points in bulk
+- Keyboard shortcuts: Enter to edit selected items, Delete to remove selected items
+- Perfect for removing outliers or correcting incorrect data
+
+**Vehicle Classes Tab:**
+- Launch the standalone Vehicle Manager dialog
+- Add, rename, or delete vehicle classes
+- Add, edit, or remove vehicles from classes
+- Import vehicles from GTR2 installation
+- Batch assign unassigned vehicles to classes
+- Changes are saved to vehicle_classes.json
+
+**Race Data Import Tab:**
+- Import race data from CSV files (compatible with historic.csv format)
+- Automatically calculates midpoint = (AI Best + AI Worst) / 2
+- Separates qualifying and race session data
+- Duplicate detection prevents redundant entries
+
+**About Tab:**
+- Complete documentation for all features
+
+### Formula Management (Advanced → Formula Management)
+- Visualize hyperbolic curves and data points
+- Edit a/b parameters with real-time graph updates
+- Auto-fit curve with outlier detection and data quality warnings
+- Toggle qualifying/race data visibility
 
 ### AIW Backup Restore
 Automatic backups (`*_ORIGINAL.AIW`). Restore individual or all tracks.
 
 ### Log Viewer
 Filter by ERROR/WARNING/INFO/DEBUG/ALL levels.
+
+### Configuration Editor (Advanced → Configuration)
+- Edit all cfg.yml settings from within the application
+- Live updates for settings that don't require restart
+- Clear indication of which settings need application restart
 
 ---
 
@@ -130,6 +174,7 @@ Higher R = faster AI | Lower R = slower AI
 | ai_target_dumps/ | Detailed calculation logs from Dump Analysis buttons |
 
 ### cfg.yml Example
+```
 base_path: C:\GTR2
 db_path: ai_data.db
 poll_interval: 5.0
@@ -139,6 +184,7 @@ autopilot_enabled: true
 outlier_method: std
 outlier_threshold: 2.0
 outlier_min_points: 3
+```
 
 ---
 
@@ -148,9 +194,11 @@ outlier_min_points: 3
 - Formulas stored per track AND car class
 - Error margin (0.5-1.0s) makes AI slightly slower
 - Auto-calculate Ratios must be ON for automatic updates
-- Use Dump Analysis buttons to debug AI Target calculations
-- Track name must be selected before AI ratios are displayed
+- Use the Laptimes and Ratios tab in Dyn AI Data Manager to review and remove problematic data points
+- Track name must be selected before AI ratios are displayed (select via Advanced → Formula Management)
 - Outlier detection helps ignore crashes or anomalous laps when auto-fitting
+- Use Ctrl+Click and Shift+Click for multi-selection in the Laptimes and Ratios table
+- Press Enter to edit selected items, Delete to remove them
 
 ---
 
@@ -162,11 +210,13 @@ outlier_min_points: 3
 | AI ratios not updating | Enable Auto-calculate Ratios (green) |
 | Can't find AIW file | Verify GTR2 path and track folder exists |
 | Ratio outside limits | Adjust `min_ratio`/`max_ratio` in cfg.yml - THIS MAY PRODUCE MAYHEM |
-| No ratios shown on main screen | Select a track first via Advanced → Data Management |
+| No ratios shown on main screen | Select a track first via Advanced → Formula Management |
 | AIW file has malformed ratios | Fixed in v1.0.6 - now adds each ratio on separate line |
 | Wrong track AIW gets updated (e.g., Donington 2003 updates Donington 2004) | See Known Issues below |
 | "Extra Stats" error in pre-run checks | Set `Extra Stats="0"` in your GTR2 PLR file (use Fix PLR File button) |
-| Auto-fit includes bad laps | Enable outlier detection in cfg.yml (outlier_method: std) |
+| Auto-fit includes bad laps | Enable outlier detection in cfg.yml (outlier_method: std) or manually remove bad points in Laptimes and Ratios tab |
+| Auto-fit produces poor results | Check the Laptimes and Ratios graph for scattered data. Remove outliers manually using multi-select and delete |
+| Data quality warnings appear | Review your database for inconsistent data points. Use the Laptimes and Ratios tab to identify and remove problematic entries |
 
 ---
 
@@ -182,14 +232,58 @@ outlier_min_points: 3
 1. `raceresults.txt` contains `Scene=...\Testtrack2\Testtrack2.TRK`
 2. The parser extracts `Testtrack2` as the track folder name
 3. The application looks for a folder in `GameData/Locations/` with matching name
-4. It uses `if track_dir.name.lower() == track_lower` for exact matching
-5. If not found, it falls back to `if track_lower in track_dir.name.lower()` (partial match)
+4. It uses exact folder name matching first, then falls back to partial matching
 
 **Current Fix in v1.0.7:** The matching logic now prioritizes exact folder name matching before falling back to partial matching. This should resolve the issue for most cases.
 
 **If you still experience the issue:**
 - Ensure your track folder names in `GameData/Locations/` are unique and descriptive
 - For conflicting tracks (e.g., "Donington" vs "Donington 2003" vs "Donington 2004"), consider renaming folders or using the exact match in `raceresults.txt`
+
+---
+
+## Changelog v1.0.8
+
+**Laptimes and Ratios Tab (Database Manager):**
+
+- Renamed from "Database Manager" to "Laptimes and Ratios" and moved to first tab position
+- Added multi-select support with Ctrl+Click and Shift+Click for selecting multiple data points
+- Added Select All button for bulk operations
+- Replaced "Delete All Filtered" button with Select All + Delete Selected workflow
+- Added multi-edit dialog allowing batch updates to multiple selected points:
+  - Each field has a checkbox to enable/disable changing that field
+  - Fields with mixed values across selection show the current value but can be overridden
+  - Empty/unchanged fields preserve original values
+- Added Delete key shortcut to delete selected items
+- Added Enter key shortcut to edit selected items
+- Removed symbol icons from graph legend, now shows clean text-only labels: "Qualifying (X)" and "Race (Y)"
+- Fixed legend generating vertical lines by implementing text-only pseudo-legend
+- Improved data quality warnings during auto-fit with specific recommendations
+
+**Data Quality Warnings:**
+
+- Auto-fit now detects and warns about:
+  - Duplicate ratio values with lap time variations over 5 seconds
+  - Narrow ratio ranges (less than 0.2)
+  - Weak correlation (less than 0.5) between ratio and lap time
+  - High prediction errors (average error over 2 seconds)
+- Warning dialogs provide specific recommendations for fixing data quality issues
+
+**Dyn AI Data Manager Restructuring:**
+
+- Split monolithic gui_data_manager.py into modular files:
+  - gui_data_manager_common.py: Shared database class
+  - gui_data_manager_database.py: Laptimes and Ratios tab
+  - gui_data_manager_vehicle.py: Vehicle Classes tab
+  - gui_data_manager_import.py: Race Data Import tab
+- Removed redundant Database Info tab
+- Reordered tabs: Laptimes and Ratios, Vehicle Classes, Race Data Import, About
+- Button text now shows keyboard shortcuts: "Edit Selected (Enter)", "Delete Selected (Delete)"
+
+**Manual Lap Time Dialog Fix:**
+
+- Fixed missing QDialog import causing NameError when editing user lap times
+- Enter key now correctly saves the current value instead of canceling
 
 ---
 
@@ -215,7 +309,7 @@ outlier_min_points: 3
 - Continue button is greyed out until all checks pass
 - "How to Use" section with colored text (white for steps, yellow for TIPS header)
 
-**Outlier Detection (New):**
+**Outlier Detection:**
 - Added three outlier detection methods for auto-fit: Std Dev, IQR, Percentile
 - Configurable via cfg.yml (outlier_method, outlier_threshold, outlier_min_points)
 - Shows message when outliers are removed during auto-fit
@@ -280,7 +374,7 @@ outlier_min_points: 3
 
 ## Changelog v1.0.4
 
-- AI Target settings now apply to **ALL** ratio calculations (auto-ratio, manual edits, advanced dialog)
+- AI Target settings now apply to ALL ratio calculations (auto-ratio, manual edits, advanced dialog)
 - Added ratio limits (`min_ratio`/`max_ratio` in cfg.yml) with warning popups
 - Fixed TypeError when AI times are None
 - AIW not found now shows GUI error popup
