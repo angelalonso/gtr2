@@ -215,10 +215,8 @@ class AdvancedSettingsDialog(QDialog):
         
         layout.addWidget(self.tab_widget)
         
-        # Create a button box with only a Close button (no icon)
         button_box = QDialogButtonBox(QDialogButtonBox.Close)
         button_box.rejected.connect(self.reject)
-        # Remove the icon from the close button
         close_button = button_box.button(QDialogButtonBox.Close)
         if close_button:
             close_button.setText("Close")
@@ -371,7 +369,6 @@ class AdvancedSettingsDialog(QDialog):
             restart_required_changes = []
             live_update_possible_changes = []
             
-            # Settings that require restart to take effect
             restart_settings = {
                 'base_path', 'formulas_dir', 'db_path', 'logging_enabled', 
                 'autopilot_enabled', 'autopilot_silent'
@@ -382,7 +379,6 @@ class AdvancedSettingsDialog(QDialog):
                 
                 if isinstance(widget, QLineEdit):
                     new_value = widget.text().strip()
-                    # Handle empty string vs None comparison properly
                     current_str = str(current_value) if current_value is not None else ""
                     if current_str != new_value:
                         config[key] = new_value
@@ -444,7 +440,6 @@ class AdvancedSettingsDialog(QDialog):
             
             if modified:
                 if save_config(config, self.config_file):
-                    # Build detailed message
                     message_parts = []
                     message_parts.append(f"Configuration saved successfully to {self.config_file}\n")
                     
@@ -472,7 +467,6 @@ class AdvancedSettingsDialog(QDialog):
                         message_parts.append("\nThese settings have been applied to the running instance")
                         message_parts.append("and will work immediately.")
                         
-                        # Apply live updates for settings that can be updated immediately
                         self._apply_live_updates(live_update_possible_changes)
                     
                     message_parts.append("\n" + "=" * 50)
@@ -511,7 +505,6 @@ class AdvancedSettingsDialog(QDialog):
     def _apply_live_updates(self, live_changes):
         """Apply settings that can be updated without restart"""
         try:
-            # Update ratio limits in parent window
             if self.parent:
                 for change in live_changes:
                     if 'min_ratio' in change or 'max_ratio' in change:
@@ -526,7 +519,6 @@ class AdvancedSettingsDialog(QDialog):
                         from core_config import get_poll_interval
                         new_interval = get_poll_interval(self.config_file)
                         if hasattr(self.parent, 'daemon') and self.parent.daemon:
-                            # Stop and restart daemon with new interval
                             self.parent.stop_daemon()
                             self.parent.start_daemon()
                         logger.info(f"Live updated poll_interval to {new_interval}")
@@ -536,9 +528,7 @@ class AdvancedSettingsDialog(QDialog):
                         new_settings = get_outlier_settings(self.config_file)
                         logger.info(f"Live updated outlier settings: {new_settings}")
                         
-            # Update the curve graph if it exists
             if hasattr(self, 'curve_graph') and self.curve_graph:
-                # Refresh graph to apply new outlier settings
                 self.curve_graph.full_refresh()
                 
         except Exception as e:
@@ -774,7 +764,6 @@ class AdvancedSettingsDialog(QDialog):
             self.refresh_backup_list()
         elif self.tab_widget.tabText(index) == "Logs":
             self.sync_log_display()
-        # Removed automatic reload when switching to Configuration tab
     
     def scan_aiw_backups(self):
         backups = []
@@ -1027,19 +1016,78 @@ class AdvancedSettingsDialog(QDialog):
             points = points_data.get('quali', [])
         else:
             points = points_data.get('race', [])
+        
         if len(points) < 2:
             QMessageBox.warning(self, "Insufficient Data", f"Need at least 2 data points to auto-fit {session_type} formula. Found {len(points)} points.")
             return
         
+        # Check for data quality issues before fitting
         ratios = [p[0] for p in points]
         times = [p[1] for p in points]
+        
+        # Detect potential data quality issues
+        quality_warnings = []
+        
+        # Check for duplicate ratio values with widely varying lap times
+        ratio_time_map = {}
+        duplicate_ratio_warning = False
+        for r, t in zip(ratios, times):
+            r_key = round(r, 3)
+            if r_key in ratio_time_map:
+                prev_time = ratio_time_map[r_key]
+                if abs(t - prev_time) > 5.0:  # More than 5 second difference at same ratio
+                    duplicate_ratio_warning = True
+            else:
+                ratio_time_map[r_key] = t
+        
+        if duplicate_ratio_warning:
+            quality_warnings.append("- Multiple data points with the same ratio have very different lap times (over 5 seconds apart). This indicates inconsistent AI performance data.")
+        
+        # Check for overlapping ratio ranges
+        min_ratio_data = min(ratios)
+        max_ratio_data = max(ratios)
+        ratio_range = max_ratio_data - min_ratio_data
+        if ratio_range < 0.2:
+            quality_warnings.append(f"- Ratio range is very narrow ({ratio_range:.3f}). Data points are clustered too closely for reliable curve fitting.")
+        
+        # Check for scatter - calculate simple linear correlation to detect if data is random
+        if len(points) >= 3:
+            import numpy as np
+            r_array = np.array(ratios)
+            t_array = np.array(times)
+            inv_r = 1.0 / np.maximum(r_array, 0.01)
+            correlation = np.corrcoef(inv_r, t_array)[0, 1]
+            if abs(correlation) < 0.5:
+                quality_warnings.append(f"- Weak correlation ({correlation:.2f}) between ratio and lap time. Data may be too scattered for accurate curve fitting.")
+        
+        # Show quality warnings if any
+        if quality_warnings:
+            warning_text = "DATA QUALITY ISSUES DETECTED\n\n"
+            warning_text += "The auto-fit may produce inaccurate results because:\n\n"
+            warning_text += "\n".join(quality_warnings)
+            warning_text += "\n\nRecommendations:\n"
+            warning_text += "- Check your database for inconsistent data points\n"
+            warning_text += "- Use the Dyn AI Data Manager to review and remove outliers\n"
+            warning_text += "- Ensure you're collecting data from consistent AI difficulty levels\n"
+            warning_text += "- Consider using manual formula adjustment instead"
+            
+            reply = QMessageBox.question(
+                self, 
+                "Data Quality Warning", 
+                warning_text,
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes
+            )
+            
+            if reply != QMessageBox.Yes:
+                return
         
         from core_config import get_outlier_settings
         outlier_settings = get_outlier_settings()
         
         a, b, avg_err, max_err, outlier_info = fit_curve(
             ratios, times, 
-            verbose=False,
+            verbose=True,
             outlier_method=outlier_settings['method'],
             outlier_threshold=outlier_settings['threshold'],
             min_points_after_filtering=2
@@ -1048,6 +1096,20 @@ class AdvancedSettingsDialog(QDialog):
         if a and b and a > 0 and b > 0:
             b = b
             a = DEFAULT_A_VALUE
+            
+            # Show quality assessment after fitting
+            if avg_err > 2.0:
+                error_warning = QMessageBox.warning(
+                    self,
+                    "High Prediction Error",
+                    f"The fitted formula has an average error of {avg_err:.2f} seconds.\n\n"
+                    f"This is relatively high and may indicate poor data quality.\n\n"
+                    f"Max error: {max_err:.2f}s\n"
+                    f"Data points used: {len(points)}\n\n"
+                    f"The formula may not accurately predict AI performance.\n\n"
+                    f"Consider reviewing your data points in the curve graph and removing outliers.",
+                    QMessageBox.Ok
+                )
             
             if outlier_info and outlier_info.outliers_removed > 0:
                 outlier_msg = f"\n\nOutlier detection ({outlier_info.method_used}, threshold={outlier_info.threshold_used}):\n"
@@ -1082,14 +1144,23 @@ class AdvancedSettingsDialog(QDialog):
                     parent.race_b = b
                 parent.update_display()
             
+            quality_rating = "Good"
+            if avg_err > 3.0:
+                quality_rating = "Poor"
+            elif avg_err > 1.5:
+                quality_rating = "Fair"
+            
             summary_msg = f"Formula fitted to {len(points)} data points"
             if outlier_info and outlier_info.outliers_removed > 0:
                 summary_msg += f" (after removing {outlier_info.outliers_removed} outliers)"
-            summary_msg += f":\nT = {a:.4f} / R + {b:.4f}\nAverage error: {avg_err:.3f}s\nMax error: {max_err:.3f}s"
+            summary_msg += f":\nT = {a:.4f} / R + {b:.4f}\n"
+            summary_msg += f"Average error: {avg_err:.3f}s\n"
+            summary_msg += f"Max error: {max_err:.3f}s\n"
+            summary_msg += f"Quality: {quality_rating}"
             
             QMessageBox.information(self, "Auto-Fit Complete", summary_msg)
         else:
-            QMessageBox.warning(self, "Fit Failed", "Could not fit curve to data.")
+            QMessageBox.warning(self, "Fit Failed", "Could not fit curve to data. The data may be too scattered or have invalid values.")
     
     def refresh_display(self):
         if not self.parent:
@@ -1132,4 +1203,3 @@ class AdvancedSettingsDialog(QDialog):
         if self.log_update_timer:
             self.log_update_timer.stop()
         super().closeEvent(event)
-

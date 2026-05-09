@@ -111,10 +111,17 @@ class ManualLapTimeDialog(QDialog):
         btn_layout.addWidget(cancel_btn)
         
         apply_btn = QPushButton("Apply")
+        apply_btn.setDefault(True)
         apply_btn.clicked.connect(self.accept)
         btn_layout.addWidget(apply_btn)
         
         layout.addLayout(btn_layout)
+    
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
+            self.accept()
+        else:
+            super().keyPressEvent(event)
     
     def accept(self):
         self.new_time = self.time_spin.value()
@@ -218,10 +225,17 @@ class ManualEditDialog(QDialog):
         btn_layout.addWidget(cancel_btn)
         
         apply_btn = QPushButton("Apply")
+        apply_btn.setDefault(True)
         apply_btn.clicked.connect(self.accept)
         btn_layout.addWidget(apply_btn)
         
         layout.addLayout(btn_layout)
+    
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
+            self.accept()
+        else:
+            super().keyPressEvent(event)
     
     def accept(self):
         self.new_ratio = self.ratio_spin.value()

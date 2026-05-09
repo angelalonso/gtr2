@@ -6,7 +6,7 @@ Provides the qualifying and race session control panels
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QGroupBox, QCheckBox, QDoubleSpinBox, QMessageBox
+    QGroupBox, QCheckBox, QDoubleSpinBox, QMessageBox, QDialog
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 
