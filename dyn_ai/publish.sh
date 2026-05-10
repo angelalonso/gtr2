@@ -3,7 +3,7 @@
 set -e
 
 # Get the directory where this script is located
-SCRIPT_DIR="$(cd scripts && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 
 # Color codes for output
@@ -15,57 +15,73 @@ NC='\033[0m' # No Color
 
 # Function to display help
 show_help() {
-    printf "${BLUE}%s${NC}\n" "${SCRIPT_NAME} - Complete build and packaging script for Dyn AI"
-    printf "\n"
-    printf "${YELLOW}USAGE:${NC}\n"
-    printf "    ./${SCRIPT_NAME} [OPTIONS] [VERSION]\n"
-    printf "    ./${SCRIPT_NAME} -h|--help\n"
-    printf "    ./${SCRIPT_NAME} vX.Y.Z\n"
-    printf "\n"
-    printf "${YELLOW}DESCRIPTION:${NC}\n"
-    printf "    This script runs the complete build pipeline:\n"
-    printf "    1. test.sh     - Run tests\n"
-    printf "    2. cross_compile.sh - Build main executable\n"
-    printf "    3. cross_compile_datamgmt.sh - Build data management executable\n"
-    printf "    4. pack.sh     - Package everything\n"
-    printf "    \n"
-    printf "    If a version parameter is provided, it will be passed to pack.sh\n"
-    printf "    for versioned packaging.\n"
-    printf "\n"
-    printf "${YELLOW}OPTIONS:${NC}\n"
-    printf "    -h, --help          Show this help message and exit\n"
-    printf "    -s, --skip-tests    Skip the test phase\n"
-    printf "    -v, --verbose       Enable verbose output (set -x)\n"
-    printf "\n"
-    printf "${YELLOW}VERSION PARAMETER:${NC}\n"
-    printf "    If a version parameter matching the pattern ${GREEN}vX.Y.Z${NC} (where X, Y, Z are digits) \n"
-    printf "    is provided, it will be passed to pack.sh for versioned packaging.\n"
-    printf "    \n"
-    printf "    Examples:\n"
-    printf "        ${GREEN}v1.2.3${NC}      - Version 1.2.3\n"
-    printf "        ${GREEN}v0.1.0${NC}      - Version 0.1.0\n"
-    printf "        ${GREEN}v10.99.5${NC}    - Version 10.99.5\n"
-    printf "\n"
-    printf "${YELLOW}EXAMPLES:${NC}\n"
-    printf "    # Full build and package\n"
-    printf "    ./${SCRIPT_NAME}\n"
-    printf "    \n"
-    printf "    # Build and package with version\n"
-    printf "    ./${SCRIPT_NAME} v1.2.3\n"
-    printf "    \n"
-    printf "    # Skip tests, build and package\n"
-    printf "    ./${SCRIPT_NAME} --skip-tests\n"
-    printf "    \n"
-    printf "    # Skip tests with version\n"
-    printf "    ./${SCRIPT_NAME} -s v2.0.0\n"
-    printf "\n"
-    printf "${YELLOW}EXIT CODES:${NC}\n"
-    printf "    0   - Success\n"
-    printf "    1   - General error\n"
-    printf "    2   - Test failed\n"
-    printf "    3   - Cross-compile failed\n"
-    printf "    4   - Data management build failed\n"
-    printf "    5   - Packaging failed\n"
+    echo ""
+    echo "${SCRIPT_NAME} - Complete build and packaging script for Dyn AI"
+    echo ""
+    echo "USAGE:"
+    echo "    ./${SCRIPT_NAME} [OPTIONS] [VERSION]"
+    echo "    ./${SCRIPT_NAME} -h|--help"
+    echo "    ./${SCRIPT_NAME} vX.Y.Z"
+    echo ""
+    echo "DESCRIPTION:"
+    echo "    This script runs the complete build pipeline:"
+    echo "    1. test.sh     - Run tests"
+    echo "    2. cross_compile.sh - Build main executable"
+    echo "    3. cross_compile_datamgmt.sh - Build data management executable"
+    echo "    4. pack.sh     - Package everything"
+    echo ""
+    echo "    If a version parameter is provided, it will be passed to pack.sh"
+    echo "    for versioned packaging."
+    echo ""
+    echo "OPTIONS:"
+    echo "    -h, --help       Show this help message and exit"
+    echo "    -s, --skiptests  Skip the test phase"
+    echo "    -v, --verbose    Enable verbose output (set -x)"
+    echo "    --formula        Run only formula tests, then exit (no compile, no pack)"
+    echo "    --unit           Run only unit tests, then exit (no compile, no pack)"
+    echo "    --plr            Run only PLR tests, then exit (no compile, no pack)"
+    echo "    --outlier        Run only outlier detection tests, then exit (no compile, no pack)"
+    echo "    --resource       Run only resource path tests, then exit (no compile, no pack)"
+    echo "    --pyinstaller    Run only PyInstaller compatibility tests, then exit (no compile, no pack)"
+    echo "    --datamanager    Run only data manager tests, then exit (no compile, no pack)"
+    echo "    --dialog         Run only GUI dialog tests, then exit (no compile, no pack)"
+    echo ""
+    echo "VERSION PARAMETER:"
+    echo "    If a version parameter matching the pattern vX.Y.Z (where X, Y, Z are digits)"
+    echo "    is provided, it will be passed to pack.sh for versioned packaging."
+    echo ""
+    echo "    Examples:"
+    echo "        v1.2.3      - Version 1.2.3"
+    echo "        v0.1.0      - Version 0.1.0"
+    echo "        v10.99.5    - Version 10.99.5"
+    echo ""
+    echo "EXAMPLES:"
+    echo "    # Full build and package"
+    echo "    ./${SCRIPT_NAME}"
+    echo ""
+    echo "    # Build and package with version"
+    echo "    ./${SCRIPT_NAME} v1.2.3"
+    echo ""
+    echo "    # Skip tests, build and package"
+    echo "    ./${SCRIPT_NAME} --skiptests"
+    echo ""
+    echo "    # Skip tests with version"
+    echo "    ./${SCRIPT_NAME} -s v2.0.0"
+    echo ""
+    echo "    # Run only formula tests"
+    echo "    ./${SCRIPT_NAME} --formula"
+    echo ""
+    echo "    # Run only unit tests"
+    echo "    ./${SCRIPT_NAME} --unit"
+    echo ""
+    echo "EXIT CODES:"
+    echo "    0   - Success"
+    echo "    1   - General error"
+    echo "    2   - Test failed"
+    echo "    3   - Cross-compile failed"
+    echo "    4   - Data management build failed"
+    echo "    5   - Packaging failed"
+    echo ""
 }
 
 # Function to validate version format
@@ -89,6 +105,7 @@ print_step() {
 # Parse command line arguments
 SKIP_TESTS=false
 VERBOSE=false
+TEST_MODE=""
 VERSION=""
 
 while [[ $# -gt 0 ]]; do
@@ -97,7 +114,7 @@ while [[ $# -gt 0 ]]; do
             show_help
             exit 0
             ;;
-        -s|--skip-tests)
+        -s|--skiptests)
             SKIP_TESTS=true
             shift
             ;;
@@ -106,20 +123,50 @@ while [[ $# -gt 0 ]]; do
             set -x
             shift
             ;;
+        --formula)
+            TEST_MODE="formula"
+            shift
+            ;;
+        --unit)
+            TEST_MODE="unit"
+            shift
+            ;;
+        --plr)
+            TEST_MODE="plr"
+            shift
+            ;;
+        --outlier)
+            TEST_MODE="outlier"
+            shift
+            ;;
+        --resource)
+            TEST_MODE="resource"
+            shift
+            ;;
+        --pyinstaller)
+            TEST_MODE="pyinstaller"
+            shift
+            ;;
+        --datamanager)
+            TEST_MODE="datamanager"
+            shift
+            ;;
+        --dialog)
+            TEST_MODE="dialog"
+            shift
+            ;;
         -*)
             print_error "Unknown option: $1"
             echo "Try '$SCRIPT_NAME --help' for more information."
             exit 1
             ;;
         *)
-            # Check if it matches version pattern
             if validate_version "$1"; then
                 VERSION="$1"
                 print_info "Version detected: $VERSION"
                 shift
             else
                 print_error "Invalid parameter: $1"
-                echo "Expected: --help, --skip-tests, --verbose, or version pattern vX.Y.Z"
                 echo "Try '$SCRIPT_NAME --help' for more information."
                 exit 1
             fi
@@ -128,24 +175,38 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Navigate to scripts directory
-cd "${SCRIPT_DIR}"
+cd "${SCRIPT_DIR}/scripts"
 print_info "Working directory: $(pwd)"
 
 # Run test.sh
 if [ "$SKIP_TESTS" = false ]; then
     print_step "Running tests..."
     if [ -f "./test.sh" ]; then
-        ./test.sh || {
-            print_error "Tests failed!"
-            exit 2
-        }
+        if [ -n "$TEST_MODE" ]; then
+            print_info "Running with mode: --${TEST_MODE}"
+            ./test.sh "--${TEST_MODE}" || {
+                print_error "Tests failed!"
+                exit 2
+            }
+        else
+            ./test.sh || {
+                print_error "Tests failed!"
+                exit 2
+            }
+        fi
         print_info "Tests passed"
     else
         print_error "test.sh not found!"
         exit 1
     fi
 else
-    print_info "Skipping tests (--skip-tests)"
+    print_info "Skipping tests (--skiptests)"
+fi
+
+# If we're in any test-only mode, exit after tests
+if [ -n "$TEST_MODE" ]; then
+    print_info "Test-only mode (--${TEST_MODE}), skipping compilation and packaging"
+    exit 0
 fi
 
 # Run cross_compile.sh

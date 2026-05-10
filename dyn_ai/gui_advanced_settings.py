@@ -27,7 +27,7 @@ from PyQt5.QtCore import Qt, pyqtSignal, QTimer
 
 from core_database import CurveDatabase
 from core_formula import fit_curve, DEFAULT_A_VALUE
-from core_config import get_base_path, get_ratio_limits, get_config_with_defaults, load_config, save_config, DEFAULT_CONFIG
+from core_config import get_base_path, get_ratio_limits, get_config_with_defaults, load_config, save_config, DEFAULT_CONFIG, get_nr_last_user_laptimes, update_nr_last_user_laptimes
 from core_autopilot import load_vehicle_classes
 
 from gui_components import AccuracyIndicator
@@ -285,6 +285,7 @@ class AdvancedSettingsDialog(QDialog):
             ("poll_interval", "Poll Interval (seconds):", "float", 5.0),
             ("min_ratio", "Minimum Ratio:", "float", 0.5),
             ("max_ratio", "Maximum Ratio:", "float", 1.5),
+            ("nr_last_user_laptimes", "Number of Last User Laptimes to Keep:", "int", 1),
             ("outlier_method", "Outlier Detection Method:", "combo", "std"),
             ("outlier_threshold", "Outlier Threshold:", "float", 2.0),
             ("outlier_min_points", "Min Points for Outlier Detection:", "int", 3),
@@ -522,6 +523,12 @@ class AdvancedSettingsDialog(QDialog):
                             self.parent.stop_daemon()
                             self.parent.start_daemon()
                         logger.info(f"Live updated poll_interval to {new_interval}")
+                        
+                    elif 'nr_last_user_laptimes' in change:
+                        new_max = get_nr_last_user_laptimes(self.config_file)
+                        if hasattr(self.parent, 'user_laptimes_manager') and self.parent.user_laptimes_manager:
+                            self.parent.user_laptimes_manager.set_max_laptimes(new_max)
+                        logger.info(f"Live updated nr_last_user_laptimes to {new_max}")
                         
                     elif 'outlier_method' in change or 'outlier_threshold' in change or 'outlier_min_points' in change:
                         from core_config import get_outlier_settings
@@ -902,7 +909,6 @@ class AdvancedSettingsDialog(QDialog):
             self.curve_graph.update_graph()
     
     def sync_log_display(self):
-        """Sync the log display with the log window content"""
         if hasattr(self, 'log_display') and self.log_window:
             if hasattr(self.log_window, 'log_text'):
                 html_content = self.log_window.log_text.toHtml()
@@ -1021,21 +1027,18 @@ class AdvancedSettingsDialog(QDialog):
             QMessageBox.warning(self, "Insufficient Data", f"Need at least 2 data points to auto-fit {session_type} formula. Found {len(points)} points.")
             return
         
-        # Check for data quality issues before fitting
         ratios = [p[0] for p in points]
         times = [p[1] for p in points]
         
-        # Detect potential data quality issues
         quality_warnings = []
         
-        # Check for duplicate ratio values with widely varying lap times
         ratio_time_map = {}
         duplicate_ratio_warning = False
         for r, t in zip(ratios, times):
             r_key = round(r, 3)
             if r_key in ratio_time_map:
                 prev_time = ratio_time_map[r_key]
-                if abs(t - prev_time) > 5.0:  # More than 5 second difference at same ratio
+                if abs(t - prev_time) > 5.0:
                     duplicate_ratio_warning = True
             else:
                 ratio_time_map[r_key] = t
@@ -1043,14 +1046,12 @@ class AdvancedSettingsDialog(QDialog):
         if duplicate_ratio_warning:
             quality_warnings.append("- Multiple data points with the same ratio have very different lap times (over 5 seconds apart). This indicates inconsistent AI performance data.")
         
-        # Check for overlapping ratio ranges
         min_ratio_data = min(ratios)
         max_ratio_data = max(ratios)
         ratio_range = max_ratio_data - min_ratio_data
         if ratio_range < 0.2:
             quality_warnings.append(f"- Ratio range is very narrow ({ratio_range:.3f}). Data points are clustered too closely for reliable curve fitting.")
         
-        # Check for scatter - calculate simple linear correlation to detect if data is random
         if len(points) >= 3:
             import numpy as np
             r_array = np.array(ratios)
@@ -1060,7 +1061,6 @@ class AdvancedSettingsDialog(QDialog):
             if abs(correlation) < 0.5:
                 quality_warnings.append(f"- Weak correlation ({correlation:.2f}) between ratio and lap time. Data may be too scattered for accurate curve fitting.")
         
-        # Show quality warnings if any
         if quality_warnings:
             warning_text = "DATA QUALITY ISSUES DETECTED\n\n"
             warning_text += "The auto-fit may produce inaccurate results because:\n\n"
@@ -1097,7 +1097,6 @@ class AdvancedSettingsDialog(QDialog):
             b = b
             a = DEFAULT_A_VALUE
             
-            # Show quality assessment after fitting
             if avg_err > 2.0:
                 error_warning = QMessageBox.warning(
                     self,
@@ -1177,23 +1176,51 @@ class AdvancedSettingsDialog(QDialog):
         last_qual_ratio = getattr(parent, 'last_qual_ratio', None)
         last_race_ratio = getattr(parent, 'last_race_ratio', None)
         
+        # Get user history and median times
+        if hasattr(parent, 'user_laptimes_manager') and parent.user_laptimes_manager:
+            qual_history = parent.user_laptimes_manager.get_laptimes_for_combo(
+                current_track, getattr(parent, 'current_vehicle_class', ''), "qual"
+            ) if current_track and getattr(parent, 'current_vehicle_class', '') else []
+            race_history = parent.user_laptimes_manager.get_laptimes_for_combo(
+                current_track, getattr(parent, 'current_vehicle_class', ''), "race"
+            ) if current_track and getattr(parent, 'current_vehicle_class', '') else []
+            median_qual = parent.user_laptimes_manager.get_median_laptime_for_combo(
+                current_track, getattr(parent, 'current_vehicle_class', ''), "qual"
+            ) if current_track and getattr(parent, 'current_vehicle_class', '') else None
+            median_race = parent.user_laptimes_manager.get_median_laptime_for_combo(
+                current_track, getattr(parent, 'current_vehicle_class', ''), "race"
+            ) if current_track and getattr(parent, 'current_vehicle_class', '') else None
+        else:
+            qual_history = []
+            race_history = []
+            median_qual = None
+            median_race = None
+        
         if self.curve_graph:
             self.curve_graph.update_current_info(
                 track=current_track, vehicle=current_vehicle,
                 qual_time=user_qual_time if user_qual_time > 0 else None,
                 race_time=user_race_time if user_race_time > 0 else None,
-                qual_ratio=last_qual_ratio, race_ratio=last_race_ratio
+                qual_ratio=last_qual_ratio, race_ratio=last_race_ratio,
+                qual_history=qual_history, race_history=race_history,
+                median_qual_time=median_qual, median_race_time=median_race
             )
             self.curve_graph.set_formulas(qual_a, qual_b, race_a, race_b)
             self.curve_graph.update_graph()
+        
         if self.qual_panel:
             self.qual_panel.update_formula(qual_a, qual_b)
             self.qual_panel.update_user_time(user_qual_time)
             self.qual_panel.update_ratio(last_qual_ratio)
+            if median_qual is not None:
+                self.qual_panel.update_median_time(median_qual)
+        
         if self.race_panel:
             self.race_panel.update_formula(race_a, race_b)
             self.race_panel.update_user_time(user_race_time)
             self.race_panel.update_ratio(last_race_ratio)
+            if median_race is not None:
+                self.race_panel.update_median_time(median_race)
     
     def showEvent(self, event):
         self.refresh_display()

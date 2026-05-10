@@ -35,6 +35,7 @@ class SessionPanel(QWidget):
         self.user_time = None
         self.user_ratio = None
         self.current_ratio = None
+        self.median_time = None
         self.calc_button_modified = False
         
         self.setup_ui()
@@ -67,6 +68,12 @@ class SessionPanel(QWidget):
             QPushButton#edit_time_btn:hover {
                 background-color: #1976D2;
             }
+            QLabel#median_label {
+                color: #FFA500;
+                font-family: monospace;
+                font-size: 11px;
+                font-weight: bold;
+            }
         """)
         
         group = QGroupBox(self.title)
@@ -82,7 +89,7 @@ class SessionPanel(QWidget):
         row1.addWidget(self.show_checkbox)
 
         row1.addSpacing(12)
-        row1.addWidget(QLabel("Your Time:"))
+        row1.addWidget(QLabel("Latest Time:"))
         self.user_time_label = QLabel("--")
         self.user_time_label.setStyleSheet(
             "color: #4CAF50; font-weight: bold; font-family: monospace; font-size: 12px;"
@@ -94,6 +101,13 @@ class SessionPanel(QWidget):
         self.edit_time_btn.setFixedSize(50, 20)
         self.edit_time_btn.clicked.connect(self.on_edit_time_clicked)
         row1.addWidget(self.edit_time_btn)
+        
+        row1.addSpacing(12)
+        row1.addWidget(QLabel("Median:"))
+        self.median_label = QLabel("--")
+        self.median_label.setObjectName("median_label")
+        row1.addWidget(self.median_label)
+        
         row1.addStretch()
         group_layout.addLayout(row1)
 
@@ -137,6 +151,16 @@ class SessionPanel(QWidget):
         group_layout.addLayout(row3)
 
         layout.addWidget(group)
+    
+    def update_median_time(self, median_time: float):
+        """Update the displayed median time"""
+        self.median_time = median_time
+        if median_time is not None and median_time > 0:
+            minutes = int(median_time) // 60
+            seconds = median_time % 60
+            self.median_label.setText(f"{minutes}:{seconds:06.3f}")
+        else:
+            self.median_label.setText("--")
     
     def on_edit_time_clicked(self):
         dialog = ManualLapTimeDialog(self, self.session_type, self.user_time)

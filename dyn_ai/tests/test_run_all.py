@@ -29,6 +29,8 @@ from test_error_injection import TestErrorInjection
 from test_simulation_harness import run_simulation_tests
 from test_resource_paths import run_resource_tests
 from test_pyinstaller_compatibility import run_pyinstaller_tests
+from test_unit_data_manager import run_data_manager_tests
+from test_unit_gui_dialogs import run_dialog_tests
 import unittest
 
 
@@ -49,6 +51,23 @@ def run_unit_tests():
     suite.addTests(loader.loadTestsFromTestCase(TestDataExtraction))
     suite.addTests(loader.loadTestsFromTestCase(TestVehicleScanner))
     suite.addTests(loader.loadTestsFromTestCase(TestErrorInjection))
+    
+    runner = unittest.TextTestRunner(verbosity=2)
+    result = runner.run(suite)
+    
+    return result
+
+
+def run_formula_unit_tests():
+    """Run only formula unit tests"""
+    print("\n" + "=" * 60)
+    print("RUNNING FORMULA UNIT TESTS")
+    print("=" * 60)
+    
+    loader = unittest.TestLoader()
+    suite = unittest.TestSuite()
+    
+    suite.addTests(loader.loadTestsFromTestCase(TestFormula))
     
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
@@ -101,6 +120,48 @@ def run_pyinstaller_compatibility_tests():
     return result
 
 
+def run_data_manager_unit_tests():
+    """Run data manager tests"""
+    print("\n" + "=" * 60)
+    print("RUNNING DATA MANAGER TESTS")
+    print("=" * 60)
+    
+    result = run_data_manager_tests()
+    return result
+
+
+def run_gui_dialog_unit_tests():
+    """Run GUI dialog tests"""
+    print("\n" + "=" * 60)
+    print("RUNNING GUI DIALOG TESTS")
+    print("=" * 60)
+    
+    result = run_dialog_tests()
+    return result
+
+# Add this function after existing run functions
+
+def run_user_laptimes_tests():
+    """Run user laptimes tests"""
+    print("\n" + "=" * 60)
+    print("RUNNING USER LAPTIMES TESTS")
+    print("=" * 60)
+    
+    from test_unit_user_laptimes import run_user_laptimes_tests as _run_user_laptimes_tests
+    return _run_user_laptimes_tests()
+
+
+def run_median_ratio_tests():
+    """Run median ratio tests"""
+    print("\n" + "=" * 60)
+    print("RUNNING MEDIAN RATIO TESTS")
+    print("=" * 60)
+    
+    from test_unit_median_ratio import run_median_ratio_tests as _run_median_ratio_tests
+    return _run_median_ratio_tests()
+
+
+# Update run_all_tests function to include new tests
 def run_all_tests():
     """Run all tests including simulations"""
     print("\n" + "=" * 60)
@@ -130,6 +191,14 @@ def run_all_tests():
     
     pyinstaller_result = run_pyinstaller_compatibility_tests()
     
+    data_manager_result = run_data_manager_unit_tests()
+    
+    gui_dialog_result = run_gui_dialog_unit_tests()
+    
+    # New tests for user laptimes and median ratio
+    user_laptimes_result = run_user_laptimes_tests()
+    median_ratio_result = run_median_ratio_tests()
+    
     simulation_results = run_simulation_tests()
     
     backup_manager.restore_all()
@@ -140,16 +209,25 @@ def run_all_tests():
     
     unit_passed = unit_result.wasSuccessful()
     sim_passed = all(r.success for r in simulation_results)
+    user_laptimes_passed = user_laptimes_result.wasSuccessful()
+    median_ratio_passed = median_ratio_result.wasSuccessful()
     
     print(f"Unit Tests: {'PASS' if unit_passed else 'FAIL'}")
     print(f"PLR Tests: {'PASS' if plr_result else 'FAIL'}")
     print(f"Outlier Detection Tests: {'PASS' if outlier_result else 'FAIL'}")
     print(f"Resource Path Tests: {'PASS' if resource_result else 'FAIL'}")
     print(f"PyInstaller Compatibility Tests: {'PASS' if pyinstaller_result else 'FAIL'}")
+    print(f"Data Manager Tests: {'PASS' if data_manager_result.wasSuccessful() else 'FAIL'}")
+    print(f"GUI Dialog Tests: {'PASS' if gui_dialog_result.wasSuccessful() else 'FAIL'}")
+    print(f"User Laptimes Tests: {'PASS' if user_laptimes_passed else 'FAIL'}")
+    print(f"Median Ratio Tests: {'PASS' if median_ratio_passed else 'FAIL'}")
     print(f"Simulation Tests: {'PASS' if sim_passed else 'FAIL'}")
     
     all_passed = (unit_passed and plr_result and outlier_result and 
-                  resource_result and pyinstaller_result and sim_passed)
+                  resource_result and pyinstaller_result and sim_passed and
+                  data_manager_result.wasSuccessful() and
+                  gui_dialog_result.wasSuccessful() and
+                  user_laptimes_passed and median_ratio_passed)
     
     if all_passed:
         print("\nALL TESTS PASSED")
@@ -158,23 +236,28 @@ def run_all_tests():
         print("\nSOME TESTS FAILED")
         return 1
 
-
 def main():
     """Main entry point"""
     import argparse
     
     parser = argparse.ArgumentParser(description='Live AI Tuner Test Suite')
+    parser.add_argument('--formula', action='store_true', help='Run only formula unit tests')
     parser.add_argument('--unit', action='store_true', help='Run only unit tests')
     parser.add_argument('--plr', action='store_true', help='Run only PLR tests')
     parser.add_argument('--outlier', action='store_true', help='Run only outlier detection tests')
     parser.add_argument('--resource', action='store_true', help='Run only resource path tests')
     parser.add_argument('--pyinstaller', action='store_true', help='Run only PyInstaller compatibility tests')
+    parser.add_argument('--datamanager', action='store_true', help='Run only data manager tests')
+    parser.add_argument('--dialogs', action='store_true', help='Run only GUI dialog tests')
     parser.add_argument('--simulation', action='store_true', help='Run only simulation tests')
     parser.add_argument('--all', action='store_true', help='Run all tests')
     
     args = parser.parse_args()
     
-    if args.unit:
+    if args.formula:
+        result = run_formula_unit_tests()
+        return 0 if result.wasSuccessful() else 1
+    elif args.unit:
         result = run_unit_tests()
         return 0 if result.wasSuccessful() else 1
     elif args.plr:
@@ -189,6 +272,12 @@ def main():
     elif args.pyinstaller:
         result = run_pyinstaller_compatibility_tests()
         return 0 if result else 1
+    elif args.datamanager:
+        result = run_data_manager_unit_tests()
+        return 0 if result.wasSuccessful() else 1
+    elif args.dialogs:
+        result = run_gui_dialog_unit_tests()
+        return 0 if result.wasSuccessful() else 1
     elif args.simulation:
         results = run_simulation_tests()
         return 0 if all(r.success for r in results) else 1

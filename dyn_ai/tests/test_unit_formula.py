@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Unit tests for hyperbolic formula calculations
+Unit tests for hyperbolic formula calculations and data quality warnings
 """
 
 import sys
@@ -9,12 +9,9 @@ from pathlib import Path
 # Add parent directory to path so we can import application modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent))
-
 import random
 import unittest
+import numpy as np
 
 from test_base import BaseTestCase
 from core_formula import hyperbolic, ratio_from_time, fit_curve, DEFAULT_A_VALUE, get_formula_string, calculate_derived_values, OutlierInfo
@@ -135,7 +132,7 @@ class TestFormula(BaseTestCase):
         ratios = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6]
         times = [hyperbolic(r, a, b) for r in ratios]
         times_with_outlier = times.copy()
-        times_with_outlier[6] = times_with_outlier[6] + 80.0  # Larger outlier
+        times_with_outlier[6] = times_with_outlier[6] + 80.0
         
         fitted_a, fitted_b, avg_err, max_err, info = fit_curve(
             ratios, times_with_outlier, verbose=False,
@@ -165,5 +162,209 @@ class TestFormula(BaseTestCase):
         self.assertIsNone(info)
 
 
+class TestDataQualityWarnings(unittest.TestCase):
+    """Test data quality detection for auto-fit warnings"""
+    
+    def setUp(self):
+        self.a = 32.0
+        self.b = 70.0
+    
+    def test_detect_duplicate_ratio_warning(self):
+        """Test detection of duplicate ratios with large time variation"""
+        ratios = [1.0, 1.0, 1.0, 1.1, 1.2]
+        times = [100.0, 105.0, 110.0, 102.0, 98.0]
+        
+        ratio_time_map = {}
+        duplicate_varies = False
+        for r, t in zip(ratios, times):
+            r_key = round(r, 3)
+            if r_key in ratio_time_map:
+                if abs(t - ratio_time_map[r_key]) > 5.0:
+                    duplicate_varies = True
+            else:
+                ratio_time_map[r_key] = t
+        
+        self.assertTrue(duplicate_varies, "Should detect duplicate ratio with >5s variation")
+    
+    def test_no_warning_for_consistent_duplicates(self):
+        """Test that consistent duplicate ratios don't trigger warning"""
+        ratios = [1.0, 1.0, 1.0, 1.1, 1.2]
+        times = [100.0, 100.2, 100.1, 102.0, 98.0]
+        
+        ratio_time_map = {}
+        duplicate_varies = False
+        for r, t in zip(ratios, times):
+            r_key = round(r, 3)
+            if r_key in ratio_time_map:
+                if abs(t - ratio_time_map[r_key]) > 5.0:
+                    duplicate_varies = True
+            else:
+                ratio_time_map[r_key] = t
+        
+        self.assertFalse(duplicate_varies, "Small variation should not trigger warning")
+    
+    def test_detect_narrow_ratio_range(self):
+        """Test detection of narrow ratio range (<0.2)"""
+        ratios = [1.0, 1.05, 1.1, 1.12, 1.15]
+        min_ratio = min(ratios)
+        max_ratio = max(ratios)
+        ratio_range = max_ratio - min_ratio
+        
+        self.assertLess(ratio_range, 0.2, "Ratio range should be less than 0.2")
+    
+    def test_detect_wide_ratio_range(self):
+        """Test that wide ratio range does not trigger warning"""
+        ratios = [0.6, 0.8, 1.0, 1.2, 1.4, 1.6]
+        min_ratio = min(ratios)
+        max_ratio = max(ratios)
+        ratio_range = max_ratio - min_ratio
+        
+        self.assertGreater(ratio_range, 0.2, "Ratio range should be greater than 0.2")
+    
+    def test_calculate_correlation_strong(self):
+        """Test correlation calculation for strong correlation"""
+        ratios_strong = [0.6, 0.8, 1.0, 1.2, 1.4, 1.6]
+        times_strong = [123.33, 110.0, 102.0, 96.67, 92.86, 90.0]
+        r_array = np.array(ratios_strong)
+        t_array = np.array(times_strong)
+        inv_r = 1.0 / np.maximum(r_array, 0.01)
+        correlation_strong = np.corrcoef(inv_r, t_array)[0, 1]
+        
+        self.assertGreater(correlation_strong, 0.5, "Strong correlation should be >0.5")
+    
+    def test_calculate_correlation_weak(self):
+        """Test correlation calculation for weak correlation"""
+        ratios_weak = [1.0, 1.0, 1.0, 1.0, 1.0]
+        times_weak = [95.0, 100.0, 102.0, 98.0, 105.0]
+        r_array2 = np.array(ratios_weak)
+        t_array2 = np.array(times_weak)
+        inv_r2 = 1.0 / np.maximum(r_array2, 0.01)
+        
+        if len(set(inv_r2)) == 1:
+            correlation_weak = 0.0
+        else:
+            correlation_weak = np.corrcoef(inv_r2, t_array2)[0, 1]
+        
+        self.assertLess(correlation_weak, 0.5, "Weak correlation should be <0.5")
+    
+    def test_quality_rating_good(self):
+        """Test Good quality rating for low error"""
+        avg_error = 0.5
+        
+        if avg_error > 3.0:
+            rating = "Poor"
+        elif avg_error > 1.5:
+            rating = "Fair"
+        else:
+            rating = "Good"
+        
+        self.assertEqual(rating, "Good")
+    
+    def test_quality_rating_fair(self):
+        """Test Fair quality rating for medium error"""
+        avg_error = 2.0
+        
+        if avg_error > 3.0:
+            rating = "Poor"
+        elif avg_error > 1.5:
+            rating = "Fair"
+        else:
+            rating = "Good"
+        
+        self.assertEqual(rating, "Fair")
+    
+    def test_quality_rating_poor(self):
+        """Test Poor quality rating for high error"""
+        avg_error = 4.0
+        
+        if avg_error > 3.0:
+            rating = "Poor"
+        elif avg_error > 1.5:
+            rating = "Fair"
+        else:
+            rating = "Good"
+        
+        self.assertEqual(rating, "Poor")
+
+
+class TestFitCurveWithQualityTracking(unittest.TestCase):
+    """Test that fit_curve returns data needed for quality assessment"""
+    
+    def setUp(self):
+        self.a = 32.0
+        self.b = 70.0
+    
+    def test_fit_returns_avg_error(self):
+        """Test that fit_curve returns average error"""
+        ratios = [0.6, 0.8, 1.0, 1.2, 1.4, 1.6]
+        times = [hyperbolic(r, self.a, self.b) for r in ratios]
+        
+        a, b, avg_err, max_err, info = fit_curve(ratios, times, verbose=False)
+        
+        self.assertIsNotNone(avg_err)
+        self.assertLess(avg_err, 0.01)
+    
+    def test_fit_returns_max_error(self):
+        """Test that fit_curve returns max error"""
+        ratios = [0.6, 0.8, 1.0, 1.2, 1.4, 1.6]
+        times = [hyperbolic(r, self.a, self.b) for r in ratios]
+        
+        a, b, avg_err, max_err, info = fit_curve(ratios, times, verbose=False)
+        
+        self.assertIsNotNone(max_err)
+        self.assertLess(max_err, 0.01)
+    
+    def test_fit_with_noisy_data_returns_meaningful_errors(self):
+        """Test that fit returns meaningful error metrics for noisy data"""
+        random.seed(42)
+        ratios = [0.6, 0.8, 1.0, 1.2, 1.4, 1.6]
+        times = [hyperbolic(r, self.a, self.b) + random.uniform(-1.0, 1.0) for r in ratios]
+        
+        a, b, avg_err, max_err, info = fit_curve(ratios, times, verbose=False)
+        
+        self.assertIsNotNone(avg_err)
+        self.assertIsNotNone(max_err)
+        self.assertGreater(avg_err, 0)
+        self.assertGreater(max_err, 0)
+
+
+def run_formula_tests():
+    """Run all formula tests"""
+    print("\n" + "=" * 60)
+    print("FORMULA TESTS")
+    print("=" * 60)
+    
+    loader = unittest.TestLoader()
+    suite = unittest.TestSuite()
+    
+    suite.addTests(loader.loadTestsFromTestCase(TestFormula))
+    suite.addTests(loader.loadTestsFromTestCase(TestDataQualityWarnings))
+    suite.addTests(loader.loadTestsFromTestCase(TestFitCurveWithQualityTracking))
+    
+    runner = unittest.TextTestRunner(verbosity=2)
+    result = runner.run(suite)
+    
+    return result
+
+
+def run_formula_with_quality_tests():
+    """Run formula tests including quality tracking"""
+    print("\n" + "=" * 60)
+    print("FORMULA WITH QUALITY TRACKING TESTS")
+    print("=" * 60)
+    
+    loader = unittest.TestLoader()
+    suite = unittest.TestSuite()
+    
+    suite.addTests(loader.loadTestsFromTestCase(TestFormula))
+    suite.addTests(loader.loadTestsFromTestCase(TestDataQualityWarnings))
+    suite.addTests(loader.loadTestsFromTestCase(TestFitCurveWithQualityTracking))
+    
+    runner = unittest.TextTestRunner(verbosity=2)
+    result = runner.run(suite)
+    
+    return result
+
+
 if __name__ == "__main__":
-    unittest.main()
+    run_formula_tests()

@@ -11,7 +11,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QGroupBox, QComboBox, QTableWidget, QTableWidgetItem, QHeaderView,
     QMessageBox, QDialog, QFormLayout, QDoubleSpinBox, QApplication,
-    QShortcut
+    QShortcut, QCheckBox
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QKeySequence

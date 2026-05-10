@@ -19,17 +19,7 @@ mkdir -p ${COMPILEDIR}
 
 # Copy all required files
 echo "Copying files to ${COMPILEDIR}..."
-cp dyn_ai_data_manager.py ${COMPILEDIR}/
-cp gui_data_manager.py ${COMPILEDIR}/
-cp gui_common.py ${COMPILEDIR}/
-cp gui_vehicle_manager.py ${COMPILEDIR}/
-cp gui_common_dialogs.py ${COMPILEDIR}/
-cp core_database.py ${COMPILEDIR}/
-cp core_config.py ${COMPILEDIR}/
-cp core_vehicle_scanner.py ${COMPILEDIR}/
-cp cfg_funcs.py ${COMPILEDIR}/ 2>/dev/null || true
-cp vehicle_classes.json ${COMPILEDIR}/ 2>/dev/null || true
-cp cfg.yml ${COMPILEDIR}/ 2>/dev/null || true
+cp -R ./* ${COMPILEDIR}/
 
 cd ${COMPILEDIR}
 
@@ -48,11 +38,13 @@ wine python -m PyInstaller \
     --add-data="gui_common.py;." \
     --add-data="gui_vehicle_manager.py;." \
     --add-data="gui_common_dialogs.py;." \
+    --add-data="gui_data_manager_common.py;." \
     --add-data="core_database.py;." \
     --add-data="core_config.py;." \
     --add-data="core_vehicle_scanner.py;." \
     --add-data="cfg_funcs.py;." \
     --hidden-import=gui_data_manager \
+    --hidden-import=gui_data_manager_common \
     --hidden-import=gui_common \
     --hidden-import=gui_vehicle_manager \
     --hidden-import=gui_common_dialogs \

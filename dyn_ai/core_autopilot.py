@@ -17,8 +17,9 @@ from datetime import datetime
 from core_formula import hyperbolic, get_formula_string, DEFAULT_A_VALUE
 from core_database import CurveDatabase
 from core_data_extraction import RaceData
-from core_config import get_base_path
+from core_config import get_base_path, get_nr_last_user_laptimes
 from core_aiw_utils import find_aiw_file_from_path, find_aiw_file_by_track, update_aiw_ratio, ensure_aiw_has_ratios
+from core_user_laptimes import UserLapTimesManager
 
 logger = logging.getLogger(__name__)
 
@@ -43,23 +44,17 @@ def load_vehicle_classes(classes_path=None):
         }
     }
     
-    # If no path provided, try to find it
     if classes_path is None:
-        # Try to import the helper from gui_common if available
         try:
             from gui_common import get_data_file_path
             classes_path = get_data_file_path("vehicle_classes.json")
         except ImportError:
-            # Fallback to local path
             classes_path = Path(__file__).parent / "vehicle_classes.json"
     
-    # Convert to Path if string
     if isinstance(classes_path, str):
         classes_path = Path(classes_path)
     
-    # Check if file exists
     if not classes_path.exists():
-        # Create default file
         try:
             classes_path.parent.mkdir(parents=True, exist_ok=True)
             with open(classes_path, 'w') as f:
@@ -327,6 +322,10 @@ class AutopilotEngine:
         self.db = db
         self.formula_manager = formula_manager
         self._class_mapping = load_vehicle_classes()
+        self.user_laptimes_manager = None
+    
+    def set_user_laptimes_manager(self, manager: UserLapTimesManager):
+        self.user_laptimes_manager = manager
     
     def _backup_aiw_file(self, aiw_path: Path) -> bool:
         global _BACKED_UP_AIW_FILES
@@ -383,6 +382,28 @@ class AutopilotEngine:
         target = target + error_margin
         target = max(best_ai_time, min(worst_ai_time + error_margin, target))
         return target
+    
+    def _get_median_user_laptime(self, track: str, vehicle_class: str, session_type: str) -> Optional[float]:
+        """Get median user laptime for a combo from stored history"""
+        if self.user_laptimes_manager:
+            return self.user_laptimes_manager.get_median_laptime_for_combo(track, vehicle_class, session_type)
+        return None
+    
+    def _add_user_laptime(self, track: str, vehicle_class: str, session_type: str, 
+                          lap_time: float, current_ratio: float) -> bool:
+        """Add a new user laptime to the history"""
+        if self.user_laptimes_manager:
+            return self.user_laptimes_manager.add_laptime(track, vehicle_class, session_type, 
+                                                          lap_time, current_ratio)
+        return False
+    
+    def _get_user_laptimes_for_graph(self, track: str, vehicle_class: str, 
+                                      session_type: str) -> List[Tuple[float, float]]:
+        """Get user laptimes for graph display (time, ratio)"""
+        if self.user_laptimes_manager:
+            times = self.user_laptimes_manager.get_laptimes_for_combo(track, vehicle_class, session_type)
+            return [(lt[0], lt[1]) for lt in times]
+        return []
     
     def _get_or_create_formula(self, track: str, vehicle_class: str, session_type: str, 
                                 current_ratio: float, target_time: float) -> Formula:
@@ -482,14 +503,23 @@ class AutopilotEngine:
                 b = 70.0
                 logger.debug(f"  No formula found, using default b={b:.2f}")
         
-        new_ratio = None
+        effective_user_time = user_lap_time
+        
         if user_lap_time > 0:
-            denominator = user_lap_time - b
+            median_time = self._get_median_user_laptime(track, vehicle_class, session_type)
+            if median_time is not None:
+                effective_user_time = median_time
+                logger.debug(f"  Using median user lap time for combo: {median_time:.3f}s (from {self.user_laptimes_manager.get_laptimes_for_combo(track, vehicle_class, session_type) if self.user_laptimes_manager else []})")
+            self._add_user_laptime(track, vehicle_class, session_type, user_lap_time, current_ratio)
+        
+        new_ratio = None
+        if effective_user_time > 0:
+            denominator = effective_user_time - b
             if denominator > 0:
                 new_ratio = a / denominator
-                logger.debug(f"  DIRECT new ratio: {new_ratio:.6f} (T={user_lap_time:.3f}, b={b:.2f})")
+                logger.debug(f"  DIRECT new ratio (using {'median' if effective_user_time != user_lap_time else 'current'} time): {new_ratio:.6f} (T={effective_user_time:.3f}, b={b:.2f})")
             else:
-                logger.debug(f"  Cannot calculate ratio: denominator <= 0: {user_lap_time:.3f} - {b:.2f} = {denominator:.3f}")
+                logger.debug(f"  Cannot calculate ratio: denominator <= 0: {effective_user_time:.3f} - {b:.2f} = {denominator:.3f}")
         
         if ai_target_settings and new_ratio and new_ratio != current_ratio:
             existing_points = self._get_data_points(track, vehicle_class, session_type)
@@ -516,8 +546,8 @@ class AutopilotEngine:
                 logger.error(f"  Failed to update AIW file")
                 result["message"] = f"Failed to update {ratio_name} in AIW file"
         
-        if user_lap_time > 0:
-            target_time_for_formula = user_lap_time
+        if effective_user_time > 0:
+            target_time_for_formula = effective_user_time
             if existing_formula:
                 updated_formula = existing_formula.adjust_height_to_point(current_ratio, target_time_for_formula)
                 self.formula_manager.save_formula(updated_formula)
@@ -530,6 +560,11 @@ class AutopilotEngine:
                 result["formula"] = new_formula
         
         return result
+    
+    def get_user_laptimes_for_combo(self, track: str, vehicle_class: str, 
+                                     session_type: str) -> List[Tuple[float, float]]:
+        """Public method to get user laptimes for graph display"""
+        return self._get_user_laptimes_for_graph(track, vehicle_class, session_type)
     
     def process_race_data(self, race_data: RaceData, aiw_path: Path, ai_target_settings: Dict = None) -> Dict[str, Any]:
         result = {
@@ -635,6 +670,11 @@ class AutopilotManager:
         self.formula_manager = FormulaManager(db)
         self.engine = AutopilotEngine(db, self.formula_manager)
         self.enabled = False
+        self.user_laptimes_manager = None
+    
+    def set_user_laptimes_manager(self, manager: UserLapTimesManager):
+        self.user_laptimes_manager = manager
+        self.engine.set_user_laptimes_manager(manager)
     
     def set_enabled(self, enabled: bool):
         self.enabled = enabled
@@ -657,3 +697,10 @@ class AutopilotManager:
     
     def calculate_ratio(self, track: str, vehicle_class: str, session_type: str, lap_time: float) -> Optional[float]:
         return self.engine.calculate_ratio_from_formula(track, vehicle_class, session_type, lap_time)
+    
+    def get_user_laptimes_for_combo(self, track: str, vehicle_class: str, 
+                                     session_type: str) -> List[Tuple[float, float]]:
+        """Get user laptimes for a combo for graph display"""
+        if self.user_laptimes_manager:
+            return self.user_laptimes_manager.get_laptimes_for_combo(track, vehicle_class, session_type)
+        return []

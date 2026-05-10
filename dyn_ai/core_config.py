@@ -22,10 +22,10 @@ DEFAULT_CONFIG = {
     'poll_interval': 5.0,
     'min_ratio': 0.5,
     'max_ratio': 1.5,
-    # Outlier detection settings
-    'outlier_method': 'std',  # 'std', 'iqr', 'percentile', or 'none'
-    'outlier_threshold': 2.0,  # std multiplier (2.0), IQR multiplier (1.5), or percentile (95.0)
-    'outlier_min_points': 3,   # Minimum points required before attempting outlier detection
+    'nr_last_user_laptimes': 1,
+    'outlier_method': 'std',
+    'outlier_threshold': 2.0,
+    'outlier_min_points': 3,
 }
 
 
@@ -189,6 +189,19 @@ def update_ratio_limits(min_ratio: float, max_ratio: float, config_file: str = "
     return save_config(config, config_file)
 
 
+def get_nr_last_user_laptimes(config_file: str = "cfg.yml") -> int:
+    """Get number of last user laptimes to keep from config"""
+    config = get_config_with_defaults(config_file)
+    return config.get('nr_last_user_laptimes', DEFAULT_CONFIG['nr_last_user_laptimes'])
+
+
+def update_nr_last_user_laptimes(value: int, config_file: str = "cfg.yml") -> bool:
+    """Update nr_last_user_laptimes in config"""
+    config = get_config_with_defaults(config_file)
+    config['nr_last_user_laptimes'] = value
+    return save_config(config, config_file)
+
+
 def get_outlier_settings(config_file: str = "cfg.yml") -> Dict[str, Any]:
     """Get outlier detection settings from config"""
     config = get_config_with_defaults(config_file)
@@ -214,4 +227,5 @@ if __name__ == "__main__":
     config = get_config_with_defaults()
     print(f"Config loaded: {config}")
     print(f"Results file path: {get_results_file_path()}")
+    print(f"Nr last user laptimes: {get_nr_last_user_laptimes()}")
     print(f"Outlier settings: {get_outlier_settings()}")

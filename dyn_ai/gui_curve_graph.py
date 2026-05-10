@@ -37,6 +37,7 @@ class CurveGraphWidget(QWidget):
         self.show_qualifying = True
         self.show_race = True
         self.show_user_points = True
+        self.show_median_point = True
         
         self.all_tracks = []
         self.all_classes = []
@@ -49,6 +50,12 @@ class CurveGraphWidget(QWidget):
         self.user_race_time = None
         self.user_qual_ratio = None
         self.user_race_ratio = None
+        self.user_qual_history = []
+        self.user_race_history = []
+        self.median_qual_time = None
+        self.median_race_time = None
+        self.median_qual_ratio = None
+        self.median_race_ratio = None
         
         self.qual_curve = None
         self.race_curve = None
@@ -57,6 +64,10 @@ class CurveGraphWidget(QWidget):
         self.unknown_scatter = None
         self.user_qual_point = None
         self.user_race_point = None
+        self.user_qual_historical = None
+        self.user_race_historical = None
+        self.median_qual_point = None
+        self.median_race_point = None
         self.legend = None
         self.selected_point_marker = None
         self.user_point_labels = []
@@ -137,7 +148,7 @@ class CurveGraphWidget(QWidget):
         info_layout.addWidget(self.formula_label)
         info_layout.addStretch()
         layout.addLayout(info_layout)
-        
+    
     def _calculate_ratio_for_user_time(self, time_sec: float, session_type: str) -> float:
         if session_type == "qual":
             a, b = self.qual_a, self.qual_b
@@ -214,7 +225,9 @@ class CurveGraphWidget(QWidget):
     
     def update_current_info(self, track: str = None, vehicle: str = None, 
                             qual_time: float = None, race_time: float = None,
-                            qual_ratio: float = None, race_ratio: float = None):
+                            qual_ratio: float = None, race_ratio: float = None,
+                            qual_history: list = None, race_history: list = None,
+                            median_qual_time: float = None, median_race_time: float = None):
         if track is not None and track != self.current_track:
             self.current_track = track
             self.current_track_label.setText(track)
@@ -236,6 +249,36 @@ class CurveGraphWidget(QWidget):
             self.user_qual_ratio = qual_ratio
         if race_ratio is not None:
             self.user_race_ratio = race_ratio
+        if qual_history is not None:
+            self.user_qual_history = qual_history
+        if race_history is not None:
+            self.user_race_history = race_history
+        if median_qual_time is not None:
+            self.median_qual_time = median_qual_time
+            if median_qual_time > 0:
+                self.median_qual_ratio = self._calculate_ratio_for_user_time(median_qual_time, "qual")
+        if median_race_time is not None:
+            self.median_race_time = median_race_time
+            if median_race_time > 0:
+                self.median_race_ratio = self._calculate_ratio_for_user_time(median_race_time, "race")
+        self.update_graph()
+    
+    def set_user_history(self, session_type: str, history: list):
+        if session_type == "qual":
+            self.user_qual_history = history
+        else:
+            self.user_race_history = history
+        self.update_graph()
+    
+    def set_median_time(self, session_type: str, median_time: float):
+        if session_type == "qual":
+            self.median_qual_time = median_time
+            if median_time > 0:
+                self.median_qual_ratio = self._calculate_ratio_for_user_time(median_time, "qual")
+        else:
+            self.median_race_time = median_time
+            if median_time > 0:
+                self.median_race_ratio = self._calculate_ratio_for_user_time(median_time, "race")
         self.update_graph()
     
     def get_user_qual_time(self) -> float:
@@ -243,6 +286,12 @@ class CurveGraphWidget(QWidget):
     
     def get_user_race_time(self) -> float:
         return self.user_race_time
+    
+    def get_median_qual_time(self) -> float:
+        return self.median_qual_time
+    
+    def get_median_race_time(self) -> float:
+        return self.median_race_time
     
     def load_data(self):
         if not self.db.database_exists():
@@ -305,10 +354,8 @@ class CurveGraphWidget(QWidget):
         return result
     
     def _safe_remove_legend(self):
-        """Safely remove the legend without scene errors"""
         if self.legend is not None:
             try:
-                # Check if the legend is still in the scene
                 if self.legend.scene() is not None:
                     self.plot.scene().removeItem(self.legend)
             except Exception:
@@ -316,7 +363,6 @@ class CurveGraphWidget(QWidget):
             self.legend = None
     
     def _safe_remove_item(self, item):
-        """Safely remove a graphics item"""
         if item is not None:
             try:
                 if item.scene() is not None:
@@ -330,12 +376,10 @@ class CurveGraphWidget(QWidget):
         qual_times = self.qual_a / ratios + self.qual_b
         race_times = self.race_a / ratios + self.race_b
         
-        # Update or create qual curve
         if self.show_qualifying:
             if self.qual_curve is None:
                 self.qual_curve = self.plot.plot(ratios, qual_times, pen=pg.mkPen(color='#FFFF00', width=2.5))
             else:
-                # Check if curve is still in scene before updating
                 if self.qual_curve.scene() is None:
                     self.qual_curve = self.plot.plot(ratios, qual_times, pen=pg.mkPen(color='#FFFF00', width=2.5))
                 else:
@@ -344,7 +388,6 @@ class CurveGraphWidget(QWidget):
         elif self.qual_curve is not None:
             self.qual_curve.setVisible(False)
         
-        # Update or create race curve
         if self.show_race:
             if self.race_curve is None:
                 self.race_curve = self.plot.plot(ratios, race_times, pen=pg.mkPen(color='#FF6600', width=2.5))
@@ -357,7 +400,6 @@ class CurveGraphWidget(QWidget):
         elif self.race_curve is not None:
             self.race_curve.setVisible(False)
         
-        # Update qual scatter
         quali_points = points_data.get('quali', [])
         if self.show_qualifying and quali_points:
             r = [p[0] for p in quali_points]
@@ -375,7 +417,6 @@ class CurveGraphWidget(QWidget):
         elif self.qual_scatter is not None:
             self.qual_scatter.setVisible(False)
         
-        # Update race scatter
         race_points = points_data.get('race', [])
         if self.show_race and race_points:
             r = [p[0] for p in race_points]
@@ -393,7 +434,6 @@ class CurveGraphWidget(QWidget):
         elif self.race_scatter is not None:
             self.race_scatter.setVisible(False)
         
-        # Update unknown scatter
         unknown_points = points_data.get('unknown', [])
         if unknown_points:
             r = [p[0] for p in unknown_points]
@@ -411,49 +451,125 @@ class CurveGraphWidget(QWidget):
         elif self.unknown_scatter is not None:
             self.unknown_scatter.setVisible(False)
         
-        # Update user points
-        user_points = []
-        user_labels = []
-        if self.user_qual_time and self.user_qual_time > 0 and self.user_qual_ratio:
-            user_points.append((self.user_qual_ratio, self.user_qual_time))
-            user_labels.append(("Qualifying", self.user_qual_ratio, self.user_qual_time))
-        if self.user_race_time and self.user_race_time > 0 and self.user_race_ratio:
-            user_points.append((self.user_race_ratio, self.user_race_time))
-            user_labels.append(("Race", self.user_race_ratio, self.user_race_time))
+        # Handle user history points - history entries are (lap_time, ratio) or (lap_time, ratio, timestamp)
+        qual_user_points = []
+        race_user_points = []
         
-        if user_points:
-            r = [p[0] for p in user_points]
-            t = [p[1] for p in user_points]
+        for entry in self.user_qual_history:
+            if len(entry) >= 2:
+                lap_time = entry[0]
+                ratio = entry[1]
+                if lap_time > 0 and ratio is not None:
+                    qual_user_points.append((ratio, lap_time))
+        
+        for entry in self.user_race_history:
+            if len(entry) >= 2:
+                lap_time = entry[0]
+                ratio = entry[1]
+                if lap_time > 0 and ratio is not None:
+                    race_user_points.append((ratio, lap_time))
+        
+        # Also include current user point if not in history
+        if self.user_qual_time and self.user_qual_ratio:
+            current_in_history = any(abs(p[1] - self.user_qual_time) < 0.01 for p in qual_user_points)
+            if not current_in_history:
+                qual_user_points.append((self.user_qual_ratio, self.user_qual_time))
+        
+        if self.user_race_time and self.user_race_ratio:
+            current_in_history = any(abs(p[1] - self.user_race_time) < 0.01 for p in race_user_points)
+            if not current_in_history:
+                race_user_points.append((self.user_race_ratio, self.user_race_time))
+        
+        all_user_points = qual_user_points + race_user_points
+        
+        if all_user_points and self.show_user_points:
+            r = [p[0] for p in all_user_points]
+            t = [p[1] for p in all_user_points]
+            if self.user_qual_historical is None:
+                self.user_qual_historical = pg.ScatterPlotItem(r, t, brush=pg.mkBrush('#8888FF'), size=8, symbol='t', pen=pg.mkPen('white', width=1))
+                self.plot.addItem(self.user_qual_historical)
+            else:
+                if self.user_qual_historical.scene() is None:
+                    self.user_qual_historical = pg.ScatterPlotItem(r, t, brush=pg.mkBrush('#8888FF'), size=8, symbol='t', pen=pg.mkPen('white', width=1))
+                    self.plot.addItem(self.user_qual_historical)
+                else:
+                    self.user_qual_historical.setData(r, t)
+                    self.user_qual_historical.setVisible(True)
+        elif self.user_qual_historical is not None:
+            self.user_qual_historical.setVisible(False)
+        
+        median_points = []
+        if self.median_qual_time and self.median_qual_ratio and self.show_median_point:
+            median_points.append((self.median_qual_ratio, self.median_qual_time))
+        if self.median_race_time and self.median_race_ratio and self.show_median_point:
+            median_points.append((self.median_race_ratio, self.median_race_time))
+        
+        if median_points:
+            r = [p[0] for p in median_points]
+            t = [p[1] for p in median_points]
+            if self.median_qual_point is None:
+                self.median_qual_point = pg.ScatterPlotItem(r, t, brush=pg.mkBrush('#FF00FF'), size=14, symbol='d', pen=pg.mkPen('white', width=2))
+                self.plot.addItem(self.median_qual_point)
+                for i, (ratio_val, time_val) in enumerate(median_points):
+                    label_text = "Median Qual" if i == 0 and self.median_qual_time else "Median Race"
+                    if i == 0 and not self.median_qual_time:
+                        label_text = "Median Race"
+                    text_item = pg.TextItem(text=f"  {label_text}", color='#FF00FF', anchor=(0, 0.5))
+                    text_item.setPos(ratio_val, time_val)
+                    self.plot.addItem(text_item)
+            else:
+                if self.median_qual_point.scene() is None:
+                    self.median_qual_point = pg.ScatterPlotItem(r, t, brush=pg.mkBrush('#FF00FF'), size=14, symbol='d', pen=pg.mkPen('white', width=2))
+                    self.plot.addItem(self.median_qual_point)
+                else:
+                    self.median_qual_point.setData(r, t)
+                    self.median_qual_point.setVisible(True)
+        elif self.median_qual_point is not None:
+            self.median_qual_point.setVisible(False)
+        
+        # Current user point (highlighted) - use green triangle
+        current_user_points = []
+        current_labels = []
+        if self.user_qual_time and self.user_qual_ratio:
+            current_user_points.append((self.user_qual_ratio, self.user_qual_time))
+            current_labels.append(("Latest Qual", self.user_qual_ratio, self.user_qual_time))
+        if self.user_race_time and self.user_race_ratio:
+            current_user_points.append((self.user_race_ratio, self.user_race_time))
+            current_labels.append(("Latest Race", self.user_race_ratio, self.user_race_time))
+        
+        if current_user_points:
+            r = [p[0] for p in current_user_points]
+            t = [p[1] for p in current_user_points]
             if self.user_qual_point is None:
-                self.user_qual_point = pg.ScatterPlotItem(r, t, brush=pg.mkBrush('#00FFFF'), size=14, symbol='star', pen=pg.mkPen('white', width=2))
+                self.user_qual_point = pg.ScatterPlotItem(r, t, brush=pg.mkBrush('#00FF00'), size=14, symbol='t', pen=pg.mkPen('white', width=2))
                 self.plot.addItem(self.user_qual_point)
                 self.user_point_labels = []
-                for i, (label, ratio_val, time_val) in enumerate(user_labels):
-                    text_item = pg.TextItem(text=f"  {label}", color='#00FFFF', anchor=(0, 0.5))
+                for label, ratio_val, time_val in current_labels:
+                    text_item = pg.TextItem(text=f"  {label}", color='#00FF00', anchor=(0, 0.5))
                     text_item.setPos(ratio_val, time_val)
                     self.plot.addItem(text_item)
                     self.user_point_labels.append(text_item)
             else:
                 if self.user_qual_point.scene() is None:
-                    self.user_qual_point = pg.ScatterPlotItem(r, t, brush=pg.mkBrush('#00FFFF'), size=14, symbol='star', pen=pg.mkPen('white', width=2))
+                    self.user_qual_point = pg.ScatterPlotItem(r, t, brush=pg.mkBrush('#00FF00'), size=14, symbol='t', pen=pg.mkPen('white', width=2))
                     self.plot.addItem(self.user_qual_point)
                 else:
                     self.user_qual_point.setData(r, t)
                     self.user_qual_point.setVisible(True)
                 
-                # Update or create labels
-                for i, (label, ratio_val, time_val) in enumerate(user_labels):
+                # Update existing labels or create new ones
+                for i, (label, ratio_val, time_val) in enumerate(current_labels):
                     if i < len(self.user_point_labels):
                         if self.user_point_labels[i].scene() is None:
-                            text_item = pg.TextItem(text=f"  {label}", color='#00FFFF', anchor=(0, 0.5))
+                            text_item = pg.TextItem(text=f"  {label}", color='#00FF00', anchor=(0, 0.5))
                             text_item.setPos(ratio_val, time_val)
                             self.plot.addItem(text_item)
                             self.user_point_labels[i] = text_item
                         else:
                             self.user_point_labels[i].setPos(ratio_val, time_val)
-                            self.user_point_labels[i].setHtml(f'  <span style="color:#00FFFF;">{label}</span>')
+                            self.user_point_labels[i].setHtml(f'  <span style="color:#00FF00;">{label}</span>')
                     else:
-                        text_item = pg.TextItem(text=f"  {label}", color='#00FFFF', anchor=(0, 0.5))
+                        text_item = pg.TextItem(text=f"  {label}", color='#00FF00', anchor=(0, 0.5))
                         text_item.setPos(ratio_val, time_val)
                         self.plot.addItem(text_item)
                         self.user_point_labels.append(text_item)
@@ -464,25 +580,22 @@ class CurveGraphWidget(QWidget):
                     self.plot.scene().removeItem(label)
             self.user_point_labels = []
         
-        # Update user vertical/horizontal lines
         if self.user_v_lines:
             for line in self.user_v_lines:
                 self._safe_remove_item(line)
             self.user_v_lines = []
         
-        if user_points and self.show_user_points:
-            for ratio_val, time_val in user_points:
-                v_line = pg.InfiniteLine(pos=ratio_val, angle=90, pen=pg.mkPen(color='#00FFFF', width=1, style=Qt.DashLine))
+        if current_user_points and self.show_user_points:
+            for ratio_val, time_val in current_user_points:
+                v_line = pg.InfiniteLine(pos=ratio_val, angle=90, pen=pg.mkPen(color='#00FF00', width=1, style=Qt.DashLine))
                 self.plot.addItem(v_line)
                 self.user_v_lines.append(v_line)
-                h_line = pg.InfiniteLine(pos=time_val, angle=0, pen=pg.mkPen(color='#00FFFF', width=1, style=Qt.DashLine))
+                h_line = pg.InfiniteLine(pos=time_val, angle=0, pen=pg.mkPen(color='#00FF00', width=1, style=Qt.DashLine))
                 self.plot.addItem(h_line)
                 self.user_v_lines.append(h_line)
         
-        # Update legend - safe removal
         self._safe_remove_legend()
         
-        # Add new legend
         self.legend = self.plot.addLegend()
         if self.show_qualifying and self.qual_curve is not None and self.qual_curve.scene() is not None:
             self.legend.addItem(self.qual_curve, f'Qualifying: T={self.qual_a:.2f}/R+{self.qual_b:.2f}')
@@ -494,17 +607,37 @@ class CurveGraphWidget(QWidget):
             self.legend.addItem(self.race_scatter, f'Race Data ({len(race_points)})')
         if unknown_points and self.unknown_scatter is not None and self.unknown_scatter.scene() is not None:
             self.legend.addItem(self.unknown_scatter, f'Unknown ({len(unknown_points)})')
-        if user_points and self.user_qual_point is not None and self.user_qual_point.scene() is not None:
-            self.legend.addItem(self.user_qual_point, 'Your Lap Times')
+        if all_user_points and self.user_qual_historical is not None and self.user_qual_historical.scene() is not None:
+            self.legend.addItem(self.user_qual_historical, f'Your Lap Times ({len(all_user_points)})')
+        if median_points and self.median_qual_point is not None and self.median_qual_point.scene() is not None:
+            self.legend.addItem(self.median_qual_point, 'Median Lap Time')
+        if current_user_points and self.user_qual_point is not None and self.user_qual_point.scene() is not None:
+            self.legend.addItem(self.user_qual_point, 'Latest Lap')
         
         qual_info = ""
         race_info = ""
         if self.user_qual_time and self.user_qual_ratio:
-            qual_info = f"Qual: T={self.user_qual_time:.2f}s -> R={self.user_qual_ratio:.4f}"
+            qual_minutes = int(self.user_qual_time) // 60
+            qual_seconds = self.user_qual_time % 60
+            qual_info = f"Latest Qual: {qual_minutes}:{qual_seconds:06.3f}s -> R={self.user_qual_ratio:.4f}"
         if self.user_race_time and self.user_race_ratio:
-            race_info = f"Race: T={self.user_race_time:.2f}s -> R={self.user_race_ratio:.4f}"
+            race_minutes = int(self.user_race_time) // 60
+            race_seconds = self.user_race_time % 60
+            race_info = f"Latest Race: {race_minutes}:{race_seconds:06.3f}s -> R={self.user_race_ratio:.4f}"
         separator = "  |  " if qual_info and race_info else ""
-        self.formula_label.setText(f"{qual_info}{separator}{race_info}")
+        median_info = ""
+        if self.median_qual_time:
+            median_minutes = int(self.median_qual_time) // 60
+            median_seconds = self.median_qual_time % 60
+            median_info += f"Median Qual: {median_minutes}:{median_seconds:06.3f}s"
+        if self.median_race_time:
+            if median_info:
+                median_info += " | "
+            median_minutes = int(self.median_race_time) // 60
+            median_seconds = self.median_race_time % 60
+            median_info += f"Median Race: {median_minutes}:{median_seconds:06.3f}s"
+        separator2 = "  |  " if (qual_info or race_info) and median_info else ""
+        self.formula_label.setText(f"{qual_info}{separator}{race_info}{separator2}{median_info}")
     
     def on_plot_click(self, event):
         if self.plot.scene().mouseGrabberItem() is not None:
@@ -521,7 +654,6 @@ class CurveGraphWidget(QWidget):
         closest = min(all_points, key=lambda p: ((p[0] - mouse_point.x())**2 + (p[1] - mouse_point.y())**2))
         ratio, lap_time, session = closest
         
-        # Remove old marker safely
         if self.selected_point_marker:
             self._safe_remove_item(self.selected_point_marker)
         
@@ -538,6 +670,10 @@ class CurveGraphWidget(QWidget):
             self.user_qual_ratio = self._calculate_ratio_for_user_time(self.user_qual_time, "qual")
         if self.user_race_time:
             self.user_race_ratio = self._calculate_ratio_for_user_time(self.user_race_time, "race")
+        if self.median_qual_time:
+            self.median_qual_ratio = self._calculate_ratio_for_user_time(self.median_qual_time, "qual")
+        if self.median_race_time:
+            self.median_race_ratio = self._calculate_ratio_for_user_time(self.median_race_time, "race")
         self.update_graph()
     
     def set_show_qualifying(self, show: bool):

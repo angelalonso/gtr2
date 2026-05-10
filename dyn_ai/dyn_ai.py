@@ -8,7 +8,7 @@ import sys
 import logging
 from pathlib import Path
 
-from PyQt5.QtWidgets import QDialog, QApplication
+from PyQt5.QtWidgets import QDialog, QApplication, QWidget
 
 from gui_pre_run_check import PreRunCheckDialog
 from gui_common import setup_dark_theme

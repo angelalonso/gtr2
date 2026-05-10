@@ -2,13 +2,11 @@
 
 set -e
 
-# Get the script directory
+# Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 
-TESTS_DIR="$(cd ../tests && pwd)"
-
-# Color codes
+# Color codes for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -17,51 +15,56 @@ NC='\033[0m' # No Color
 
 # Function to display help
 show_help() {
-    cat << EOF
-${SCRIPT_NAME} - Run Dyn AI tests
-
-USAGE:
-    ./${SCRIPT_NAME} [OPTIONS]
-
-OPTIONS:
-    -h, --help          Show this help message
-    -s, --skip-race     Skip the race simulation test
-
-EXIT CODES:
-    0   - All tests passed
-    1   - General error
-    2   - test_run_all.py failed
-    3   - test_races_simulation.py failed
-
-EOF
+    echo ""
+    echo "${SCRIPT_NAME} - Test runner for Dyn AI"
+    echo ""
+    echo "USAGE:"
+    echo "    ./${SCRIPT_NAME} [OPTIONS]"
+    echo "    ./${SCRIPT_NAME} -h|--help"
+    echo ""
+    echo "DESCRIPTION:"
+    echo "    This script runs the test suite for Dyn AI."
+    echo ""
+    echo "OPTIONS:"
+    echo "    -h, --help       Show this help message and exit"
+    echo "    --formula        Run only formula tests"
+    echo "    --unit           Run only unit tests"
+    echo "    --plr            Run only PLR tests"
+    echo "    --outlier        Run only outlier detection tests"
+    echo "    --resource       Run only resource path tests"
+    echo "    --pyinstaller    Run only PyInstaller compatibility tests"
+    echo "    --datamanager    Run only data manager tests"
+    echo "    --dialog         Run only GUI dialog tests"
+    echo ""
+    echo "EXAMPLES:"
+    echo "    # Run all tests"
+    echo "    ./${SCRIPT_NAME}"
+    echo ""
+    echo "    # Run only formula tests"
+    echo "    ./${SCRIPT_NAME} --formula"
+    echo ""
+    echo "EXIT CODES:"
+    echo "    0   - Success"
+    echo "    1   - General error"
+    echo "    2   - Test failed"
+    echo ""
 }
 
-# Function to print colored output
-print_success() {
-    echo -e "${GREEN}✓${NC} $1"
+# Function to print colored messages
+print_info() {
+    echo -e "${GREEN}[INFO]${NC} $1"
 }
 
 print_error() {
-    echo -e "${RED}✗${NC} $1"
+    echo -e "${RED}[ERROR]${NC} $1"
 }
 
-print_info() {
-    echo -e "${BLUE}ℹ${NC} $1"
+print_step() {
+    echo -e "${BLUE}[STEP]${NC} $1"
 }
 
-print_warning() {
-    echo -e "${YELLOW}⚠${NC} $1"
-}
-
-print_header() {
-    echo ""
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${BLUE}$1${NC}"
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-}
-
-# Parse arguments
-SKIP_RACE=false
+# Parse command line arguments
+TEST_MODE=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -69,8 +72,36 @@ while [[ $# -gt 0 ]]; do
             show_help
             exit 0
             ;;
-        -s|--skip-race)
-            SKIP_RACE=true
+        --formula)
+            TEST_MODE="formula"
+            shift
+            ;;
+        --unit)
+            TEST_MODE="unit"
+            shift
+            ;;
+        --plr)
+            TEST_MODE="plr"
+            shift
+            ;;
+        --outlier)
+            TEST_MODE="outlier"
+            shift
+            ;;
+        --resource)
+            TEST_MODE="resource"
+            shift
+            ;;
+        --pyinstaller)
+            TEST_MODE="pyinstaller"
+            shift
+            ;;
+        --datamanager)
+            TEST_MODE="datamanager"
+            shift
+            ;;
+        --dialog)
+            TEST_MODE="dialog"
             shift
             ;;
         *)
@@ -81,74 +112,86 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Navigate to project root
+# Navigate to the parent directory (project root where tests/ is located)
 cd "${SCRIPT_DIR}/.."
-PROJECT_ROOT="$(pwd)"
-print_info "Project root: $PROJECT_ROOT"
+print_info "Working directory: $(pwd)"
 
-cd "${TESTS_DIR}"
+# Run tests based on mode
+print_step "Running tests..."
 
-# Check if pipenv is available
-if ! command -v pipenv &> /dev/null; then
-    print_error "pipenv is not installed or not in PATH"
-    echo "Please install pipenv: pip install pipenv"
+# Check if test_run_all.py exists
+TEST_RUNNER="tests/test_run_all.py"
+if [ ! -f "$TEST_RUNNER" ]; then
+    print_error "Test runner not found: $TEST_RUNNER"
     exit 1
 fi
 
-# Run test_run_all.py (preserve interactivity)
-echo ""
-print_header "Running: Main Test Suite (test_run_all.py)"
-echo ""
+# Run tests with the appropriate mode
+case $TEST_MODE in
+    formula)
+        print_info "Running formula tests..."
+        pipenv run python3 "$TEST_RUNNER" --formula || {
+            print_error "Formula tests failed!"
+            exit 2
+        }
+        ;;
+    unit)
+        print_info "Running unit tests..."
+        pipenv run python3 "$TEST_RUNNER" --unit || {
+            print_error "Unit tests failed!"
+            exit 2
+        }
+        ;;
+    plr)
+        print_info "Running PLR tests..."
+        pipenv run python3 "$TEST_RUNNER" --plr || {
+            print_error "PLR tests failed!"
+            exit 2
+        }
+        ;;
+    outlier)
+        print_info "Running outlier detection tests..."
+        pipenv run python3 "$TEST_RUNNER" --outlier || {
+            print_error "Outlier detection tests failed!"
+            exit 2
+        }
+        ;;
+    resource)
+        print_info "Running resource path tests..."
+        pipenv run python3 "$TEST_RUNNER" --resource || {
+            print_error "Resource path tests failed!"
+            exit 2
+        }
+        ;;
+    pyinstaller)
+        print_info "Running PyInstaller compatibility tests..."
+        pipenv run python3 "$TEST_RUNNER" --pyinstaller || {
+            print_error "PyInstaller compatibility tests failed!"
+            exit 2
+        }
+        ;;
+    datamanager)
+        print_info "Running data manager tests..."
+        pipenv run python3 "$TEST_RUNNER" --datamanager || {
+            print_error "Data manager tests failed!"
+            exit 2
+        }
+        ;;
+    dialog)
+        print_info "Running GUI dialog tests..."
+        pipenv run python3 "$TEST_RUNNER" --dialogs || {
+            print_error "GUI dialog tests failed!"
+            exit 2
+        }
+        ;;
+    "")
+        print_info "Running all tests..."
+        pipenv run python3 "$TEST_RUNNER" --all || {
+            print_error "Tests failed!"
+            exit 2
+        }
+        ;;
+esac
 
-pipenv run python3 test_run_all.py
-TEST1_RESULT=$?
-
-if [ $TEST1_RESULT -ne 0 ]; then
-    echo ""
-    print_error "Main test suite failed with exit code: $TEST1_RESULT"
-    exit 2
-else
-    print_success "Main test suite completed successfully"
-fi
-
-# to be corrected
-## Run test_races_simulation.py (preserve interactivity)
-if [ "$SKIP_RACE" = false ]; then
-    echo ""
-    print_header "Running: Race Simulation Test (test_races_simulation.py)"
-    echo ""
-    
-    pipenv run python3 test_races_simulation.py
-    TEST2_RESULT=$?
-    
-    if [ $TEST2_RESULT -ne 0 ]; then
-        echo ""
-        print_error "Race simulation test failed with exit code: $TEST2_RESULT"
-        exit 3
-    else
-        print_success "Race simulation test completed successfully"
-    fi
-else
-    print_warning "Skipping race simulation test (--skip-race)"
-    TEST2_RESULT=0
-fi
-
-# Final summary
-echo ""
-print_header "TEST SUMMARY"
-echo ""
-
-if [ $TEST1_RESULT -eq 0 ] && [ $TEST2_RESULT -eq 0 ]; then
-    print_success "All tests passed successfully!"
-    echo ""
-    echo "  ✓ Main test suite"
-    [ "$SKIP_RACE" = false ] && echo "  ✓ Race simulation test"
-    echo ""
-    print_info "Ready for cross-compilation."
-    exit 0
-else
-    print_error "Some tests failed!"
-    [ $TEST1_RESULT -ne 0 ] && echo "  ✗ Main test suite failed"
-    [ $TEST2_RESULT -ne 0 ] && echo "  ✗ Race simulation test failed"
-    exit 1
-fi
+print_info "All tests passed successfully!"
+exit 0
