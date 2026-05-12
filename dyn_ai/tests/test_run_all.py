@@ -31,6 +31,9 @@ from test_resource_paths import run_resource_tests
 from test_pyinstaller_compatibility import run_pyinstaller_tests
 from test_unit_data_manager import run_data_manager_tests
 from test_unit_gui_dialogs import run_dialog_tests
+from test_unit_user_laptimes import run_user_laptimes_tests
+from test_unit_median_ratio import run_median_ratio_tests
+from test_unit_ratio_calculation import run_ratio_calculation_tests
 import unittest
 
 
@@ -59,7 +62,7 @@ def run_unit_tests():
 
 
 def run_formula_unit_tests():
-    """Run only formula unit tests"""
+    """Run only formula unit tests including ratio calculation"""
     print("\n" + "=" * 60)
     print("RUNNING FORMULA UNIT TESTS")
     print("=" * 60)
@@ -69,8 +72,19 @@ def run_formula_unit_tests():
     
     suite.addTests(loader.loadTestsFromTestCase(TestFormula))
     
+    # Also run ratio calculation tests as part of formula tests
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
+    
+    # Run ratio calculation tests separately and combine results
+    ratio_result = run_ratio_calculation_tests()
+    
+    # Combine results - if either fails, overall fails
+    if result.wasSuccessful() and ratio_result.wasSuccessful():
+        return result
+    else:
+        # Create a failing result
+        return type('Result', (), {'wasSuccessful': lambda: False})()
     
     return result
 
@@ -139,7 +153,6 @@ def run_gui_dialog_unit_tests():
     result = run_dialog_tests()
     return result
 
-# Add this function after existing run functions
 
 def run_user_laptimes_tests():
     """Run user laptimes tests"""
@@ -161,7 +174,16 @@ def run_median_ratio_tests():
     return _run_median_ratio_tests()
 
 
-# Update run_all_tests function to include new tests
+def run_ratio_calculation_tests():
+    """Run ratio calculation tests"""
+    print("\n" + "=" * 60)
+    print("RUNNING RATIO CALCULATION TESTS")
+    print("=" * 60)
+    
+    from test_unit_ratio_calculation import run_ratio_calculation_tests as _run_ratio_calculation_tests
+    return _run_ratio_calculation_tests()
+
+
 def run_all_tests():
     """Run all tests including simulations"""
     print("\n" + "=" * 60)
@@ -195,9 +217,12 @@ def run_all_tests():
     
     gui_dialog_result = run_gui_dialog_unit_tests()
     
-    # New tests for user laptimes and median ratio
+    # User laptimes and median ratio tests
     user_laptimes_result = run_user_laptimes_tests()
     median_ratio_result = run_median_ratio_tests()
+    
+    # Ratio calculation tests (now part of formula tests)
+    ratio_calculation_result = run_ratio_calculation_tests()
     
     simulation_results = run_simulation_tests()
     
@@ -211,6 +236,7 @@ def run_all_tests():
     sim_passed = all(r.success for r in simulation_results)
     user_laptimes_passed = user_laptimes_result.wasSuccessful()
     median_ratio_passed = median_ratio_result.wasSuccessful()
+    ratio_calculation_passed = ratio_calculation_result.wasSuccessful()
     
     print(f"Unit Tests: {'PASS' if unit_passed else 'FAIL'}")
     print(f"PLR Tests: {'PASS' if plr_result else 'FAIL'}")
@@ -221,13 +247,15 @@ def run_all_tests():
     print(f"GUI Dialog Tests: {'PASS' if gui_dialog_result.wasSuccessful() else 'FAIL'}")
     print(f"User Laptimes Tests: {'PASS' if user_laptimes_passed else 'FAIL'}")
     print(f"Median Ratio Tests: {'PASS' if median_ratio_passed else 'FAIL'}")
+    print(f"Ratio Calculation Tests: {'PASS' if ratio_calculation_passed else 'FAIL'}")
     print(f"Simulation Tests: {'PASS' if sim_passed else 'FAIL'}")
     
     all_passed = (unit_passed and plr_result and outlier_result and 
                   resource_result and pyinstaller_result and sim_passed and
                   data_manager_result.wasSuccessful() and
                   gui_dialog_result.wasSuccessful() and
-                  user_laptimes_passed and median_ratio_passed)
+                  user_laptimes_passed and median_ratio_passed and
+                  ratio_calculation_passed)
     
     if all_passed:
         print("\nALL TESTS PASSED")
@@ -236,12 +264,13 @@ def run_all_tests():
         print("\nSOME TESTS FAILED")
         return 1
 
+
 def main():
     """Main entry point"""
     import argparse
     
     parser = argparse.ArgumentParser(description='Live AI Tuner Test Suite')
-    parser.add_argument('--formula', action='store_true', help='Run only formula unit tests')
+    parser.add_argument('--formula', action='store_true', help='Run only formula unit tests (includes ratio calculation)')
     parser.add_argument('--unit', action='store_true', help='Run only unit tests')
     parser.add_argument('--plr', action='store_true', help='Run only PLR tests')
     parser.add_argument('--outlier', action='store_true', help='Run only outlier detection tests')
@@ -250,13 +279,15 @@ def main():
     parser.add_argument('--datamanager', action='store_true', help='Run only data manager tests')
     parser.add_argument('--dialogs', action='store_true', help='Run only GUI dialog tests')
     parser.add_argument('--simulation', action='store_true', help='Run only simulation tests')
+    parser.add_argument('--ratio', action='store_true', help='Run only ratio calculation tests')
     parser.add_argument('--all', action='store_true', help='Run all tests')
     
     args = parser.parse_args()
     
     if args.formula:
         result = run_formula_unit_tests()
-        return 0 if result.wasSuccessful() else 1
+        # result is a TestResult object
+        return 0 if (hasattr(result, 'wasSuccessful') and result.wasSuccessful()) else 1
     elif args.unit:
         result = run_unit_tests()
         return 0 if result.wasSuccessful() else 1
@@ -281,6 +312,9 @@ def main():
     elif args.simulation:
         results = run_simulation_tests()
         return 0 if all(r.success for r in results) else 1
+    elif args.ratio:
+        result = run_ratio_calculation_tests()
+        return 0 if result.wasSuccessful() else 1
     else:
         return run_all_tests()
 
