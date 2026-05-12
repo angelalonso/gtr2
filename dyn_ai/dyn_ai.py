@@ -8,9 +8,10 @@ import sys
 import logging
 from pathlib import Path
 
-from PyQt5.QtWidgets import QDialog, QApplication, QWidget
+from PyQt5.QtWidgets import QApplication, QWidget
 
-from gui_pre_run_check import PreRunCheckDialog
+# Use the lightweight tkinter-based pre-run check
+from gui_pre_run_check_light import run_pre_run_check
 from gui_common import setup_dark_theme
 from core_config import get_config_with_defaults, get_db_path, create_default_config_if_missing
 from core_database import CurveDatabase
@@ -35,13 +36,13 @@ def main():
             print("\nExiting.\n")
             return
     
-    app = QApplication(sys.argv)
-    setup_dark_theme(app)
-    
-    check_dialog = PreRunCheckDialog("cfg.yml")
-    if check_dialog.exec_() != QDialog.Accepted:
+    # Run lightweight pre-run check (returns True if checks passed)
+    if not run_pre_run_check("cfg.yml"):
         print("Pre-run checks failed or cancelled. Exiting.")
         sys.exit(1)
+    
+    app = QApplication(sys.argv)
+    setup_dark_theme(app)
     
     window = RedesignedMainWindow(db_path)
     window.show()

@@ -393,7 +393,12 @@ class VehicleManagerDialog(QDialog):
         self.setup_ui()
         self.load_data()
         
+        # If GTR2 path was provided, update the label and auto-import
         if self.gtr2_path and self.gtr2_path.exists():
+            self.gtr2_path_label.setText(str(self.gtr2_path))
+            self.gtr2_path_label.setStyleSheet("color: #4CAF50; font-family: monospace;")
+            self.import_cars_btn.setEnabled(True)
+            # Auto-import vehicles
             self.import_cars()
     
     def setup_ui(self):
@@ -494,27 +499,31 @@ class VehicleManagerDialog(QDialog):
         self.import_progress.setVisible(False)
         layout.addWidget(self.import_progress)
         
-        if self.mode == "standalone" or not self.gtr2_path:
-            import_group = QGroupBox("Import Vehicles from GTR2 Installation")
-            import_layout = QHBoxLayout(import_group)
-            
-            self.gtr2_path_label = QLabel("No GTR2 folder selected")
+        # Import group - always show for standalone mode or when path is provided
+        import_group = QGroupBox("Import Vehicles from GTR2 Installation")
+        import_layout = QHBoxLayout(import_group)
+        
+        self.gtr2_path_label = QLabel("No GTR2 folder selected")
+        if self.gtr2_path and self.gtr2_path.exists():
+            self.gtr2_path_label.setText(str(self.gtr2_path))
+            self.gtr2_path_label.setStyleSheet("color: #4CAF50; font-family: monospace;")
+        else:
             self.gtr2_path_label.setStyleSheet("color: #888; font-family: monospace;")
-            self.gtr2_path_label.setWordWrap(True)
-            import_layout.addWidget(self.gtr2_path_label, 1)
-            
-            self.select_gtr2_btn = QPushButton("Select GTR2 Folder")
-            self.select_gtr2_btn.clicked.connect(self.select_gtr2_folder)
-            import_layout.addWidget(self.select_gtr2_btn)
-            
-            self.import_cars_btn = QPushButton("Import Cars")
-            self.import_cars_btn.setObjectName("import")
-            self.import_cars_btn.setEnabled(False)
-            self.import_cars_btn.clicked.connect(self.import_cars)
-            import_layout.addWidget(self.import_cars_btn)
-            
-            layout.addWidget(import_group)
-            layout.addSpacing(10)
+        self.gtr2_path_label.setWordWrap(True)
+        import_layout.addWidget(self.gtr2_path_label, 1)
+        
+        self.select_gtr2_btn = QPushButton("Select GTR2 Folder")
+        self.select_gtr2_btn.clicked.connect(self.select_gtr2_folder)
+        import_layout.addWidget(self.select_gtr2_btn)
+        
+        self.import_cars_btn = QPushButton("Import Cars")
+        self.import_cars_btn.setObjectName("import")
+        self.import_cars_btn.setEnabled(self.gtr2_path is not None and self.gtr2_path.exists())
+        self.import_cars_btn.clicked.connect(self.import_cars)
+        import_layout.addWidget(self.import_cars_btn)
+        
+        layout.addWidget(import_group)
+        layout.addSpacing(10)
         
         main_splitter = QSplitter(Qt.Horizontal)
         
@@ -651,10 +660,8 @@ class VehicleManagerDialog(QDialog):
         if reply != QMessageBox.Yes:
             return
         
-        if hasattr(self, 'import_cars_btn'):
-            self.import_cars_btn.setEnabled(False)
-        if hasattr(self, 'select_gtr2_btn'):
-            self.select_gtr2_btn.setEnabled(False)
+        self.import_cars_btn.setEnabled(False)
+        self.select_gtr2_btn.setEnabled(False)
         
         self.import_progress.setVisible(True)
         self.import_status.setText("Importing vehicles... Please wait.")
@@ -676,10 +683,8 @@ class VehicleManagerDialog(QDialog):
         self.imported_vehicles = vehicles
         self.refresh_unassigned_list()
         
-        if hasattr(self, 'import_cars_btn'):
-            self.import_cars_btn.setEnabled(True)
-        if hasattr(self, 'select_gtr2_btn'):
-            self.select_gtr2_btn.setEnabled(True)
+        self.import_cars_btn.setEnabled(True)
+        self.select_gtr2_btn.setEnabled(True)
         
         self.import_progress.setVisible(False)
         
@@ -691,10 +696,8 @@ class VehicleManagerDialog(QDialog):
         self.import_status.setText(f"Import complete: {len(vehicles)} vehicles found")
     
     def on_import_error(self, error_msg: str):
-        if hasattr(self, 'import_cars_btn'):
-            self.import_cars_btn.setEnabled(True)
-        if hasattr(self, 'select_gtr2_btn'):
-            self.select_gtr2_btn.setEnabled(True)
+        self.import_cars_btn.setEnabled(True)
+        self.select_gtr2_btn.setEnabled(True)
         self.import_progress.setVisible(False)
         self.import_status.setText(f"Error: {error_msg}")
         QMessageBox.critical(self, "Import Error", error_msg)
@@ -868,6 +871,14 @@ def launch_vehicle_manager(gtr2_path: Path = None, parent=None):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setStyle('Fusion')
-    dialog = VehicleManagerDialog()
+    
+    # Check if GTR2 path was passed as command line argument
+    gtr2_path = None
+    if len(sys.argv) > 1:
+        gtr2_path = Path(sys.argv[1])
+        if not gtr2_path.exists():
+            gtr2_path = None
+    
+    dialog = VehicleManagerDialog(None, gtr2_path)
     dialog.show()
     sys.exit(app.exec_())
