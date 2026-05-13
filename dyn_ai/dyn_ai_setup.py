@@ -28,6 +28,12 @@ class SetupManager(tk.Tk):
         self.db = CurveDatabase(self.db_path)
         
         self.setup_ui()
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
+    
+    def on_closing(self):
+        """Handle window close event"""
+        self.destroy()
+        self.quit()
     
     def setup_ui(self):
         self.title("Dynamic AI - Setup & Data Manager")
@@ -64,7 +70,7 @@ class SetupManager(tk.Tk):
         self.notebook.add(self.logs_tab, text="Logs")
         
         # Close button
-        close_btn = tk.Button(self, text="Close", command=self.destroy,
+        close_btn = tk.Button(self, text="Close", command=self.on_closing,
                               bg='#4CAF50', fg='white', font=('Arial', 10, 'bold'),
                               relief=tk.FLAT, padx=20, pady=8)
         close_btn.pack(pady=10)
@@ -116,7 +122,9 @@ def main():
         sys.exit(1)
     
     app = SetupManager()
-    app.mainloop()
+    app.run()
+    # Ensure the application exits completely after the window is closed
+    sys.exit(0)
 
 
 if __name__ == "__main__":
