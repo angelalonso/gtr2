@@ -9,6 +9,7 @@ import threading
 import logging
 import sqlite3
 import subprocess
+import re
 from pathlib import Path
 from typing import List, Tuple, Optional, Dict, Any
 from datetime import datetime
@@ -31,13 +32,15 @@ from gui_common import SimpleLogHandler
 from gui_base_path_dialog_tk import BasePathSelectionDialog
 from gui_file_monitor import FileMonitorDaemon, SimplifiedLogger
 
+# Configure logging to show debug messages
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 
 class RatioPanel(tk.Frame):
     """Panel for displaying Qualifying or Race ratio information"""
     
-    def __init__(self, parent, title: str, min_ratio: float, max_ratio: float):
+    def __init__(self, parent, main_window, title: str, min_ratio: float, max_ratio: float):
         super().__init__(parent)
         self.title = title
         self.current_ratio = None
@@ -45,8 +48,9 @@ class RatioPanel(tk.Frame):
         self.previous_ratio = None
         self.min_ratio = min_ratio
         self.max_ratio = max_ratio
-        self.parent_window = parent
+        self.main_window = main_window
         self.setup_ui()
+        logger.debug(f"RatioPanel created for {title} with main_window reference")
         
     def setup_ui(self):
         self.configure(bg='#2b2b2b')
@@ -119,14 +123,32 @@ class RatioPanel(tk.Frame):
         self.progress_bar = ttk.Progressbar(self.accuracy_frame, length=150, mode='determinate')
         self.progress_bar.pack(pady=5)
     
+    def get_current_ratio_value(self) -> Optional[float]:
+        """Get the current ratio value from the panel or main window"""
+        if self.current_ratio is not None:
+            return self.current_ratio
+        if self.last_read_ratio is not None:
+            return self.last_read_ratio
+        if self.main_window:
+            if self.title == "Quali-Ratio":
+                return self.main_window.last_qual_ratio
+            else:
+                return self.main_window.last_race_ratio
+        return None
+    
     def update_ratio(self, ratio: float):
-        if ratio is not None and self.current_ratio is not None and ratio != self.current_ratio:
-            self.previous_ratio = self.current_ratio
-            self.revert_btn.config(state=tk.NORMAL)
-        self.current_ratio = ratio
+        logger.debug(f"[RatioPanel.{self.title}] update_ratio called with ratio={ratio}")
+        
         if ratio is not None:
+            # Store previous ratio before updating
+            if self.current_ratio is not None and ratio != self.current_ratio:
+                self.previous_ratio = self.current_ratio
+                self.revert_btn.config(state=tk.NORMAL)
+                logger.debug(f"[RatioPanel.{self.title}] Stored previous_ratio={self.previous_ratio}")
+            self.current_ratio = ratio
             self.ratio_value.config(text=f"{ratio:.6f}")
         else:
+            self.current_ratio = None
             self.ratio_value.config(text="-")
     
     def update_last_read_ratio(self, ratio: float):
@@ -187,13 +209,22 @@ class RatioPanel(tk.Frame):
         self.edit_btn.config(state=state)
     
     def on_edit(self):
-        if self.current_ratio is None:
-            messagebox.showwarning("No Ratio", f"No {self.title} value available to edit.")
+        logger.debug(f"[RatioPanel.{self.title}] on_edit called")
+        
+        # Get the current ratio value to edit
+        edit_value = self.get_current_ratio_value()
+        
+        if edit_value is None:
+            logger.warning(f"[RatioPanel.{self.title}] No ratio value available to edit")
+            messagebox.showwarning("No Ratio", f"No {self.title} value available to edit. Please select a track or run a race session first.")
             return
         
+        logger.debug(f"[RatioPanel.{self.title}] Using edit_value={edit_value}")
+        
+        # Create edit dialog
         dialog = tk.Toplevel(self)
         dialog.title(f"Edit {self.title}")
-        dialog.geometry("400x250")
+        dialog.geometry("400x300")
         dialog.configure(bg='#2b2b2b')
         dialog.transient(self)
         dialog.grab_set()
@@ -202,40 +233,81 @@ class RatioPanel(tk.Frame):
         frame.pack(fill=tk.BOTH, expand=True)
         
         tk.Label(frame, text=f"Current {self.title}:", bg='#2b2b2b', fg='#888').pack()
-        tk.Label(frame, text=f"{self.current_ratio:.6f}", bg='#2b2b2b', fg='#4CAF50',
-                 font=('Courier', 14)).pack(pady=5)
+        current_value_label = tk.Label(frame, text=f"{edit_value:.6f}", bg='#2b2b2b', fg='#4CAF50',
+                                        font=('Courier', 14))
+        current_value_label.pack(pady=5)
         
         tk.Label(frame, text=f"New {self.title} (min: {self.min_ratio}, max: {self.max_ratio}):",
                  bg='#2b2b2b', fg='#888').pack(pady=(15, 5))
         
-        ratio_var = tk.DoubleVar(value=self.current_ratio)
+        # Use a StringVar so the spinbox always shows exactly what we set.
+        # Reading the value back via spinbox.get() avoids the known DoubleVar
+        # issue where manually typed text is not reflected by the variable.
         spinbox = tk.Spinbox(frame, from_=self.min_ratio, to=self.max_ratio, increment=0.01,
-                              textvariable=ratio_var, width=15, font=('Courier', 12),
+                              width=15, font=('Courier', 12),
                               bg='#3c3c3c', fg='white')
         spinbox.pack()
+        
+        # Explicitly set the initial value after creation so the spinbox
+        # displays the real current ratio, not the from_ default (e.g. 0.5).
+        spinbox.delete(0, tk.END)
+        spinbox.insert(0, f"{edit_value:.6f}")
+        
+        # Preview label
+        preview_var = tk.StringVar(value=f"Will write: {edit_value:.6f}")
+        preview_label = tk.Label(frame, textvariable=preview_var, bg='#2b2b2b', fg='#888', font=('Arial', 9))
+        preview_label.pack(pady=10)
+        
+        def on_spin_change(*args):
+            try:
+                val = float(spinbox.get())
+                preview_var.set(f"Will write: {val:.6f}")
+            except ValueError:
+                pass
+        
+        spinbox.bind('<KeyRelease>', on_spin_change)
+        spinbox.bind('<<Increment>>', on_spin_change)
+        spinbox.bind('<<Decrement>>', on_spin_change)
         
         button_frame = tk.Frame(frame, bg='#2b2b2b')
         button_frame.pack(pady=20)
         
         def apply():
-            new_ratio = ratio_var.get()
+            # Read directly from the spinbox widget so that manually typed
+            # values are captured correctly (DoubleVar.get() only tracks
+            # arrow-button changes, not keyboard input).
+            try:
+                new_ratio = float(spinbox.get())
+            except ValueError:
+                messagebox.showwarning("Invalid Value",
+                    "Please enter a valid number.")
+                return
+            logger.debug(f"[RatioPanel.{self.title}] Apply clicked, new_ratio={new_ratio}")
             dialog.destroy()
-            if hasattr(self.parent_window, 'on_manual_edit'):
-                if self.title == "Quali-Ratio":
-                    self.parent_window.on_manual_edit("qual", new_ratio)
-                else:
-                    self.parent_window.on_manual_edit("race", new_ratio)
+            if self.main_window and hasattr(self.main_window, 'on_manual_edit'):
+                session = "qual" if self.title == "Quali-Ratio" else "race"
+                self.main_window.on_manual_edit(session, new_ratio)
+            else:
+                logger.error(f"[RatioPanel.{self.title}] main_window or on_manual_edit not available")
         
         tk.Button(button_frame, text="Cancel", command=dialog.destroy,
                   bg='#555', fg='white', padx=15, pady=5).pack(side=tk.LEFT, padx=5)
         tk.Button(button_frame, text="Apply", command=apply,
                   bg='#4CAF50', fg='white', padx=15, pady=5).pack(side=tk.LEFT, padx=5)
+        
+        # Bind Enter key to apply
+        spinbox.bind('<Return>', lambda e: apply())
+        dialog.bind('<Return>', lambda e: apply())
     
     def on_revert(self):
+        logger.debug(f"[RatioPanel.{self.title}] on_revert called, previous_ratio={self.previous_ratio}")
+        
         if self.previous_ratio is not None:
-            if hasattr(self.parent_window, 'on_revert_ratio'):
+            if self.main_window and hasattr(self.main_window, 'on_revert_ratio'):
                 session = "qual" if self.title == "Quali-Ratio" else "race"
-                self.parent_window.on_revert_ratio(session)
+                self.main_window.on_revert_ratio(session)
+        else:
+            messagebox.showwarning("Cannot Revert", "No previous ratio value available to revert to.")
     
     def revert_success(self):
         self.previous_ratio = None
@@ -287,6 +359,9 @@ class MainWindowTk:
         self.qual_ab_modified = False
         self.race_ab_modified = False
         
+        logger.info("MainWindowTk initialized")
+        logger.debug(f"min_ratio={self.min_ratio}, max_ratio={self.max_ratio}")
+        
         # Load vehicle classes
         from gui_common import get_data_file_path
         vehicle_classes_path = get_data_file_path("vehicle_classes.json")
@@ -318,12 +393,6 @@ class MainWindowTk:
             self.start_daemon()
         
         self.track_label.config(text="- No Track Selected -")
-        if self.qual_panel:
-            self.qual_panel.update_ratio(None)
-            self.qual_panel.update_last_read_ratio(None)
-        if self.race_panel:
-            self.race_panel.update_ratio(None)
-            self.race_panel.update_last_read_ratio(None)
     
     def setup_ui(self):
         self.root = tk.Tk()
@@ -383,14 +452,14 @@ class MainWindowTk:
         left_panel = tk.Frame(panels_frame, bg='#1e1e1e')
         left_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 15))
         
-        self.qual_panel = RatioPanel(left_panel, "Quali-Ratio", self.min_ratio, self.max_ratio)
+        self.qual_panel = RatioPanel(left_panel, self, "Quali-Ratio", self.min_ratio, self.max_ratio)
         self.qual_panel.pack(fill=tk.BOTH, expand=True)
         
         # Right panel (Race)
         right_panel = tk.Frame(panels_frame, bg='#1e1e1e')
         right_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(15, 0))
         
-        self.race_panel = RatioPanel(right_panel, "Race-Ratio", self.min_ratio, self.max_ratio)
+        self.race_panel = RatioPanel(right_panel, self, "Race-Ratio", self.min_ratio, self.max_ratio)
         self.race_panel.pack(fill=tk.BOTH, expand=True)
         
         # Bottom buttons
@@ -398,7 +467,6 @@ class MainWindowTk:
         bottom_frame.pack(fill=tk.X, pady=(20, 0))
         
         # Toggle switches
-        self.autosave_var = tk.BooleanVar(value=self.autosave_enabled)
         self.autosave_btn = tk.Button(bottom_frame,
                                        text="Auto-harvest Data (ON)" if self.autosave_enabled else "Auto-harvest Data (OFF)",
                                        bg='#4CAF50' if self.autosave_enabled else '#3c3c3c',
@@ -407,7 +475,6 @@ class MainWindowTk:
                                        command=self.toggle_autosave)
         self.autosave_btn.pack(side=tk.LEFT, padx=5)
         
-        self.autoratio_var = tk.BooleanVar(value=self.autoratio_enabled)
         self.autoratio_btn = tk.Button(bottom_frame,
                                         text="Auto-calculate Ratios (ON)" if self.autoratio_enabled else "Auto-calculate Ratios (OFF)",
                                         bg='#4CAF50' if self.autoratio_enabled else '#3c3c3c',
@@ -441,6 +508,8 @@ class MainWindowTk:
         style = ttk.Style()
         style.theme_use('clam')
         style.configure("TProgressbar", background='#4CAF50', troughcolor='#3c3c3c')
+        
+        logger.info("UI setup complete")
     
     def open_advanced_to_data_management(self):
         self.open_advanced_settings()
@@ -516,7 +585,7 @@ class MainWindowTk:
         if track_name and track_name != self.current_track:
             self.current_track = track_name
             self.track_label.config(text=track_name)
-            self.root.title(f"GTR2 Dynamic AI - {track_name}")
+            self.root.title(f"GTR2 Dynamic AI - {self.current_track}")
             
             self.qual_best_ai, self.qual_worst_ai = self.get_ai_times_for_track(track_name, "qual")
             self.race_best_ai, self.race_worst_ai = self.get_ai_times_for_track(track_name, "race")
@@ -599,9 +668,13 @@ class MainWindowTk:
         if session_type == "qual":
             self.last_qual_ratio = ratio
             self.qual_panel.update_ratio(ratio)
+            self.qual_panel.previous_ratio = None
+            self.qual_panel.revert_btn.config(state=tk.DISABLED)
         else:
             self.last_race_ratio = ratio
             self.race_panel.update_ratio(ratio)
+            self.race_panel.previous_ratio = None
+            self.race_panel.revert_btn.config(state=tk.DISABLED)
     
     def on_lap_time_updated_from_advanced(self, session_type: str, lap_time: float):
         if session_type == "qual":
@@ -622,47 +695,48 @@ class MainWindowTk:
                 )
     
     def load_aiw_ratios(self):
+        logger.debug(f"load_aiw_ratios called, current_track={self.current_track}")
+        
         if not self.current_track:
+            logger.warning("load_aiw_ratios: no current track")
             return
         
         aiw_path = self.find_aiw_file(self.current_track)
+        logger.debug(f"load_aiw_ratios: aiw_path={aiw_path}")
+        
         if not aiw_path or not aiw_path.exists():
-            if self.qual_panel:
-                self.qual_panel.update_ratio(None)
-            if self.race_panel:
-                self.race_panel.update_ratio(None)
+            logger.warning(f"load_aiw_ratios: AIW file not found")
             return
         
         qual_ratio, race_ratio = self.read_aiw_ratios(aiw_path)
+        logger.debug(f"load_aiw_ratios: qual_ratio={qual_ratio}, race_ratio={race_ratio}")
         
         if qual_ratio is not None:
             self.last_qual_ratio = qual_ratio
             self.qual_panel.update_ratio(qual_ratio)
+            self.qual_panel.update_last_read_ratio(qual_ratio)
             if self.original_qual_ratio is None:
                 self.original_qual_ratio = qual_ratio
-        else:
-            self.qual_panel.update_ratio(None)
         
         if race_ratio is not None:
             self.last_race_ratio = race_ratio
             self.race_panel.update_ratio(race_ratio)
+            self.race_panel.update_last_read_ratio(race_ratio)
             if self.original_race_ratio is None:
                 self.original_race_ratio = race_ratio
-        else:
-            self.race_panel.update_ratio(None)
         
         self.qual_read_ratio = qual_ratio
         self.race_read_ratio = race_ratio
-        self.qual_panel.update_last_read_ratio(qual_ratio)
-        self.race_panel.update_last_read_ratio(race_ratio)
     
     def find_aiw_file(self, track_name: str) -> Optional[Path]:
         base_path = get_base_path(self.config_file)
         if not base_path:
+            logger.error("find_aiw_file: No base path configured")
             return None
         
         locations_dir = base_path / "GameData" / "Locations"
         if not locations_dir.exists():
+            logger.error(f"find_aiw_file: Locations directory not found: {locations_dir}")
             return None
         
         track_lower = track_name.lower()
@@ -671,23 +745,25 @@ class MainWindowTk:
                 for ext in ["*.AIW", "*.aiw"]:
                     aiw_files = list(track_dir.glob(ext))
                     if aiw_files:
+                        logger.info(f"find_aiw_file: Found AIW file at {aiw_files[0]}")
                         return aiw_files[0]
         
         for ext in ["*.AIW", "*.aiw"]:
             for aiw_file in locations_dir.rglob(ext):
                 if aiw_file.stem.lower() == track_lower or track_lower in aiw_file.stem.lower():
+                    logger.info(f"find_aiw_file: Found AIW file via stem match at {aiw_file}")
                     return aiw_file
         
+        logger.error(f"find_aiw_file: No AIW file found for track {track_name}")
         return None
     
     def read_aiw_ratios(self, aiw_path: Path) -> tuple:
-        import re
         qual_ratio = None
         race_ratio = None
         
         try:
-            raw = aiw_path.read_bytes()
-            content = raw.replace(b"\x00", b"").decode("utf-8", errors="ignore")
+            with open(aiw_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
             
             waypoint_match = re.search(r'\[Waypoint\](.*?)(?=\[|$)', content, re.DOTALL | re.IGNORECASE)
             if waypoint_match:
@@ -715,7 +791,6 @@ class MainWindowTk:
             dialog = BasePathSelectionDialog(self.root)
             if dialog.show() and dialog.selected_path:
                 update_base_path(dialog.selected_path, self.config_file)
-                logger.info(f"Base path set to: {dialog.selected_path}")
                 return True
             else:
                 return False
@@ -731,7 +806,6 @@ class MainWindowTk:
                 dialog = BasePathSelectionDialog(self.root)
                 if dialog.show() and dialog.selected_path:
                     update_base_path(dialog.selected_path, self.config_file)
-                    logger.info(f"Base path updated to: {dialog.selected_path}")
                     return True
             return False
     
@@ -762,6 +836,8 @@ class MainWindowTk:
             self.update_display()
     
     def on_manual_edit(self, session_type: str, new_ratio: float):
+        logger.info(f"on_manual_edit called: session={session_type}, new_ratio={new_ratio}")
+        
         if self.autoratio_enabled:
             messagebox.showwarning("Auto-Ratio Enabled", 
                 "Manual editing is disabled while Auto-calculate Ratios is ON.")
@@ -769,90 +845,180 @@ class MainWindowTk:
         
         ratio_name = "QualRatio" if session_type == "qual" else "RaceRatio"
         
-        if new_ratio < self.min_ratio:
-            clamped = self.min_ratio
-            messagebox.showwarning(f"{ratio_name} Adjusted",
-                f"WARNING: {ratio_name} = {new_ratio:.6f} fell below the minimum allowed value of {self.min_ratio:.3f}.\n\n"
-                f"The ratio has been clamped to {clamped:.6f}.")
-            new_ratio = clamped
-        elif new_ratio > self.max_ratio:
-            clamped = self.max_ratio
-            messagebox.showwarning(f"{ratio_name} Adjusted",
-                f"WARNING: {ratio_name} = {new_ratio:.6f} exceeded the maximum allowed value of {self.max_ratio:.3f}.\n\n"
-                f"The ratio has been clamped to {clamped:.6f}.")
-            new_ratio = clamped
-        
+        # Find the AIW file
         aiw_path = self.find_aiw_file(self.current_track)
-        if not aiw_path or not aiw_path.exists():
-            messagebox.showerror("AIW Not Found", f"Could not find AIW file for track: {self.current_track}")
+        
+        if not aiw_path:
+            logger.error(f"on_manual_edit: AIW file not found for track {self.current_track}")
+            messagebox.showerror("AIW Not Found", 
+                f"Could not find AIW file for track: {self.current_track}\n\n"
+                f"Please make sure the track folder exists in GameData/Locations/")
             return
         
-        if self.update_aiw_ratio(aiw_path, ratio_name, new_ratio):
+        if not aiw_path.exists():
+            logger.error(f"on_manual_edit: AIW file does not exist at {aiw_path}")
+            messagebox.showerror("AIW Not Found", f"AIW file not found at:\n{aiw_path}")
+            return
+        
+        # Validate ratio range
+        clamped_ratio = new_ratio
+        if new_ratio < self.min_ratio:
+            clamped_ratio = self.min_ratio
+            messagebox.showwarning(f"{ratio_name} Adjusted",
+                f"WARNING: {ratio_name} = {new_ratio:.6f} fell below the minimum allowed value of {self.min_ratio:.3f}.\n\n"
+                f"The ratio has been clamped to {clamped_ratio:.6f}.")
+        elif new_ratio > self.max_ratio:
+            clamped_ratio = self.max_ratio
+            messagebox.showwarning(f"{ratio_name} Adjusted",
+                f"WARNING: {ratio_name} = {new_ratio:.6f} exceeded the maximum allowed value of {self.max_ratio:.3f}.\n\n"
+                f"The ratio has been clamped to {clamped_ratio:.6f}.")
+        
+        # Store previous ratio for revert
+        if session_type == "qual":
+            current_ratio = self.last_qual_ratio
+            if current_ratio is not None and abs(clamped_ratio - current_ratio) > 0.000001:
+                self.qual_panel.previous_ratio = current_ratio
+                self.qual_panel.revert_btn.config(state=tk.NORMAL)
+                logger.debug(f"Stored previous qual ratio: {current_ratio}")
+        else:
+            current_ratio = self.last_race_ratio
+            if current_ratio is not None and abs(clamped_ratio - current_ratio) > 0.000001:
+                self.race_panel.previous_ratio = current_ratio
+                self.race_panel.revert_btn.config(state=tk.NORMAL)
+                logger.debug(f"Stored previous race ratio: {current_ratio}")
+        
+        # Write to AIW file
+        if self.update_aiw_ratio(aiw_path, ratio_name, clamped_ratio):
+            logger.info(f"Successfully updated {ratio_name} to {clamped_ratio:.6f}")
+            
             if session_type == "qual":
-                self.last_qual_ratio = new_ratio
-                self.qual_panel.update_ratio(new_ratio)
+                self.last_qual_ratio = clamped_ratio
+                self.qual_panel.update_ratio(clamped_ratio)
+                self.qual_panel.update_last_read_ratio(clamped_ratio)
+                self.qual_read_ratio = clamped_ratio
             else:
-                self.last_race_ratio = new_ratio
-                self.race_panel.update_ratio(new_ratio)
-            self.status_label.config(text=f"{ratio_name} updated to {new_ratio:.6f}")
+                self.last_race_ratio = clamped_ratio
+                self.race_panel.update_ratio(clamped_ratio)
+                self.race_panel.update_last_read_ratio(clamped_ratio)
+                self.race_read_ratio = clamped_ratio
+            
+            self.status_label.config(text=f"{ratio_name} updated to {clamped_ratio:.6f}")
             self.root.after(3000, lambda: self.status_label.config(text="Ready"))
+        else:
+            logger.error(f"Failed to update {ratio_name} in AIW file")
+            messagebox.showerror("Update Failed", f"Failed to update {ratio_name} in the AIW file.")
     
     def update_aiw_ratio(self, aiw_path: Path, ratio_name: str, new_ratio: float) -> bool:
-        import re
+        logger.info(f"update_aiw_ratio: path={aiw_path}, ratio_name={ratio_name}, new_ratio={new_ratio}")
+        
         try:
-            if not aiw_path.exists():
-                return False
+            # Read the file
+            with open(aiw_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
             
-            raw = aiw_path.read_bytes()
-            content = raw.replace(b"\x00", b"").decode("utf-8", errors="ignore")
+            logger.debug(f"File content length: {len(content)} characters")
             
-            pattern = rf'({re.escape(ratio_name)}\s*=\s*\(?)\s*[0-9.eE+-]+\s*(\)?)'
-            new_content, count = re.subn(
-                pattern,
-                lambda m: f"{m.group(1)}{new_ratio:.6f}{m.group(2)}",
-                content,
-                flags=re.IGNORECASE
-            )
+            # Look for the ratio in the Waypoint section first
+            waypoint_match = re.search(r'(\[Waypoint\][^\[]*)', content, re.DOTALL | re.IGNORECASE)
+            if waypoint_match:
+                waypoint_section = waypoint_match.group(1)
+                logger.debug(f"Found Waypoint section, length: {len(waypoint_section)}")
+                
+                # Pattern to match the specific ratio line
+                pattern = rf'({re.escape(ratio_name)}\s*=\s*\(?)\s*([0-9.eE+-]+)\s*(\)?)'
+                
+                def replacer(match):
+                    prefix = match.group(1)
+                    suffix = match.group(3) if match.group(3) else ""
+                    return f"{prefix}{new_ratio:.6f}{suffix}"
+                
+                new_content, count = re.subn(pattern, replacer, waypoint_section, flags=re.IGNORECASE)
+                
+                if count > 0:
+                    # Replace the waypoint section in the full content
+                    full_new_content = content.replace(waypoint_section, new_content)
+                    
+                    # Write back the file
+                    with open(aiw_path, 'w', encoding='utf-8', errors='ignore') as f:
+                        f.write(full_new_content)
+                    
+                    logger.info(f"Successfully updated {ratio_name} to {new_ratio:.6f} in {aiw_path.name} (found {count} match)")
+                    return True
+                else:
+                    logger.warning(f"No {ratio_name} pattern found in Waypoint section")
+            else:
+                logger.warning("No Waypoint section found in AIW file")
+            
+            # Try searching the entire file
+            pattern_full = rf'({re.escape(ratio_name)}\s*=\s*\(?)\s*([0-9.eE+-]+)\s*(\)?)'
+            
+            def replacer_full(match):
+                prefix = match.group(1)
+                suffix = match.group(3) if match.group(3) else ""
+                return f"{prefix}{new_ratio:.6f}{suffix}"
+            
+            new_content, count = re.subn(pattern_full, replacer_full, content, flags=re.IGNORECASE)
             
             if count > 0:
-                aiw_path.write_bytes(new_content.encode("utf-8", errors="ignore"))
+                with open(aiw_path, 'w', encoding='utf-8', errors='ignore') as f:
+                    f.write(new_content)
+                logger.info(f"Successfully updated {ratio_name} to {new_ratio:.6f} (found {count} match in full file)")
                 return True
-            else:
-                return False
+            
+            logger.error(f"Could not find {ratio_name} anywhere in the AIW file")
+            return False
                 
         except Exception as e:
-            logger.error(f"Error updating AIW ratio: {e}")
+            logger.error(f"Error updating AIW ratio: {e}", exc_info=True)
             return False
     
     def on_revert_ratio(self, session_type: str):
+        logger.debug(f"on_revert_ratio called: session={session_type}")
+        
         if session_type == "qual":
             old_ratio = self.qual_panel.previous_ratio
             if old_ratio is None:
+                messagebox.showwarning("Cannot Revert", "No previous ratio value available to revert to.")
                 return
+            
             aiw_path = self.find_aiw_file(self.current_track)
-            if not aiw_path:
+            if not aiw_path or not aiw_path.exists():
                 messagebox.showerror("AIW Not Found", "Could not find AIW file to revert.")
                 return
+            
             if self.update_aiw_ratio(aiw_path, "QualRatio", old_ratio):
                 self.last_qual_ratio = old_ratio
                 self.qual_panel.update_ratio(old_ratio)
+                self.qual_panel.update_last_read_ratio(old_ratio)
+                self.qual_read_ratio = old_ratio
                 self.qual_panel.revert_success()
                 self.status_label.config(text=f"QualRatio reverted to {old_ratio:.6f}")
                 self.root.after(3000, lambda: self.status_label.config(text="Ready"))
+                logger.info(f"QualRatio reverted to {old_ratio}")
+            else:
+                messagebox.showerror("Revert Failed", "Failed to update the AIW file.")
         else:
             old_ratio = self.race_panel.previous_ratio
             if old_ratio is None:
+                messagebox.showwarning("Cannot Revert", "No previous ratio value available to revert to.")
                 return
+            
             aiw_path = self.find_aiw_file(self.current_track)
-            if not aiw_path:
+            if not aiw_path or not aiw_path.exists():
                 messagebox.showerror("AIW Not Found", "Could not find AIW file to revert.")
                 return
+            
             if self.update_aiw_ratio(aiw_path, "RaceRatio", old_ratio):
                 self.last_race_ratio = old_ratio
                 self.race_panel.update_ratio(old_ratio)
+                self.race_panel.update_last_read_ratio(old_ratio)
+                self.race_read_ratio = old_ratio
                 self.race_panel.revert_success()
                 self.status_label.config(text=f"RaceRatio reverted to {old_ratio:.6f}")
                 self.root.after(3000, lambda: self.status_label.config(text="Ready"))
+                logger.info(f"RaceRatio reverted to {old_ratio}")
+            else:
+                messagebox.showerror("Revert Failed", "Failed to update the AIW file.")
     
     def calculate_ratio_from_user_time(self, session_type: str, user_time: float) -> Optional[float]:
         a = DEFAULT_A_VALUE
@@ -893,32 +1059,25 @@ class MainWindowTk:
             self.current_track = race_data.track_name
             self.track_label.config(text=self.current_track)
             self.root.title(f"GTR2 Dynamic AI - {self.current_track}")
-            logger.info(f"[MAIN] Track set to: {self.current_track}")
         
         if race_data.user_qualifying_sec:
             self.user_qualifying_sec = race_data.user_qualifying_sec
-            logger.info(f"[MAIN] User qualifying time: {self.user_qualifying_sec}")
         if race_data.user_best_lap_sec:
             self.user_best_lap_sec = race_data.user_best_lap_sec
-            logger.info(f"[MAIN] User best lap: {self.user_best_lap_sec}")
         
         if race_data.qual_ratio:
             self.qual_read_ratio = race_data.qual_ratio
             if self.qual_panel:
                 self.qual_panel.update_last_read_ratio(self.qual_read_ratio)
-            logger.info(f"[MAIN] Qual ratio read: {self.qual_read_ratio}")
         if race_data.race_ratio:
             self.race_read_ratio = race_data.race_ratio
             if self.race_panel:
                 self.race_panel.update_last_read_ratio(self.race_read_ratio)
-            logger.info(f"[MAIN] Race ratio read: {self.race_read_ratio}")
         
         if race_data.qual_ratio:
             self.last_qual_ratio = race_data.qual_ratio
-            logger.info(f"[MAIN] Last qual ratio set to: {self.last_qual_ratio}")
         if race_data.race_ratio:
             self.last_race_ratio = race_data.race_ratio
-            logger.info(f"[MAIN] Last race ratio set to: {self.last_race_ratio}")
         
         if race_data.qual_best_ai_lap_sec:
             self.qual_best_ai = race_data.qual_best_ai_lap_sec
@@ -933,12 +1092,10 @@ class MainWindowTk:
             self.current_vehicle = race_data.user_vehicle
             self.current_vehicle_class = get_vehicle_class(self.current_vehicle, self.class_mapping)
             self.car_class_label.config(text=self.current_vehicle_class)
-            logger.info(f"[MAIN] Vehicle: {self.current_vehicle}, Class: {self.current_vehicle_class}")
         
         # Save race session to database
         race_dict = race_data.to_dict()
         race_id = self.db.save_race_session(race_dict)
-        logger.info(f"[MAIN] Race session saved with ID: {race_id}")
         
         # Save data points if autosave is enabled
         if race_id and self.autosave_enabled:
@@ -948,7 +1105,6 @@ class MainWindowTk:
                     vehicle_class = get_vehicle_class(vehicle_name, self.class_mapping)
                     if self.db.add_data_point(track, vehicle_class, float(ratio), float(lap_time), session_type):
                         points_added += 1
-                        logger.info(f"[MAIN] Added data point: {track}/{vehicle_class}/{session_type} ratio={ratio} time={lap_time}")
                 except (ValueError, TypeError) as e:
                     logger.error(f"[MAIN] Failed to add data point: {e}")
             if points_added > 0:
@@ -969,7 +1125,12 @@ class MainWindowTk:
         if self.autoratio_enabled and race_data.aiw_path:
             logger.info("[MAIN] Auto-ratio is enabled, calculating new ratios")
             
-            # Add user laptimes to history
+            if self.last_qual_ratio is not None:
+                self.qual_panel.previous_ratio = self.last_qual_ratio
+            
+            if self.last_race_ratio is not None:
+                self.race_panel.previous_ratio = self.last_race_ratio
+            
             if self.user_qualifying_sec > 0:
                 self.user_laptimes_manager.add_laptime(
                     self.current_track, self.current_vehicle_class, "qual",
@@ -979,7 +1140,6 @@ class MainWindowTk:
                     self.current_track, self.current_vehicle_class, "qual"
                 )
                 effective_time = median_time if median_time is not None else self.user_qualifying_sec
-                logger.info(f"[MAIN] Qual effective time: {effective_time} (median={median_time})")
                 
                 new_qual_ratio = self.calculate_ratio_from_user_time("qual", effective_time)
                 if new_qual_ratio and abs(new_qual_ratio - self.last_qual_ratio) > 0.000001:
@@ -987,7 +1147,7 @@ class MainWindowTk:
                     if self.update_aiw_ratio(race_data.aiw_path, "QualRatio", clamped):
                         self.last_qual_ratio = clamped
                         self.qual_panel.update_ratio(clamped)
-                        logger.info(f"[MAIN] Updated QualRatio to {clamped:.6f}")
+                        self.qual_panel.revert_btn.config(state=tk.NORMAL)
             
             if self.user_best_lap_sec > 0:
                 self.user_laptimes_manager.add_laptime(
@@ -998,7 +1158,6 @@ class MainWindowTk:
                     self.current_track, self.current_vehicle_class, "race"
                 )
                 effective_time = median_time if median_time is not None else self.user_best_lap_sec
-                logger.info(f"[MAIN] Race effective time: {effective_time} (median={median_time})")
                 
                 new_race_ratio = self.calculate_ratio_from_user_time("race", effective_time)
                 if new_race_ratio and abs(new_race_ratio - self.last_race_ratio) > 0.000001:
@@ -1006,19 +1165,16 @@ class MainWindowTk:
                     if self.update_aiw_ratio(race_data.aiw_path, "RaceRatio", clamped):
                         self.last_race_ratio = clamped
                         self.race_panel.update_ratio(clamped)
-                        logger.info(f"[MAIN] Updated RaceRatio to {clamped:.6f}")
+                        self.race_panel.revert_btn.config(state=tk.NORMAL)
         
         self.autopilot_manager.reload_formulas()
         self.update_formulas_from_autopilot()
         self.update_display()
         
-        # Update status label - FIXED: properly format the string
         qual_display = f"{self.last_qual_ratio:.6f}" if self.last_qual_ratio is not None else "N/A"
         race_display = f"{self.last_race_ratio:.6f}" if self.last_race_ratio is not None else "N/A"
         self.status_label.config(text=f"Data processed: {self.current_track} - Qual: {qual_display} / Race: {race_display}")
         self.root.after(5000, lambda: self.status_label.config(text="Ready"))
-        
-        logger.info("[MAIN] File change processing complete")
     
     def _update_formula_from_new_data(self, race_data: RaceData, session_type: str) -> bool:
         """Update formula from new race data"""
@@ -1058,7 +1214,6 @@ class MainWindowTk:
         if not ai_times:
             return False
         
-        # Calculate new b value
         a = DEFAULT_A_VALUE
         b_values = []
         for ai_time in ai_times:
@@ -1088,7 +1243,6 @@ class MainWindowTk:
                 self.qual_b = new_b
             else:
                 self.race_b = new_b
-            logger.info(f"[MAIN] Updated {session_type} formula b to {new_b:.2f}")
             return True
         return False
     

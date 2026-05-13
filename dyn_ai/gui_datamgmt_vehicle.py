@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import List, Set, Optional
 
 from core_vehicle_scanner import scan_vehicles_from_gtr2
-from core_config import get_base_path
+from core_config import get_base_path, get_config_with_defaults
 
 
 def get_vehicle_classes_path() -> Path:
@@ -255,7 +255,6 @@ class AddEditClassDialog(tk.Toplevel):
         
         tk.Label(frame, text="Vehicles in this class:", bg='#2b2b2b', fg='white').pack(anchor=tk.W, pady=(10, 5))
         
-        # Listbox with scrollbar
         list_frame = tk.Frame(frame, bg='#2b2b2b')
         list_frame.pack(fill=tk.BOTH, expand=True, pady=5)
         
@@ -264,11 +263,11 @@ class AddEditClassDialog(tk.Toplevel):
         
         self.vehicles_listbox = tk.Listbox(list_frame, bg='#3c3c3c', fg='white',
                                             selectmode=tk.EXTENDED,
+                                            exportselection=False,
                                             yscrollcommand=scrollbar.set)
         self.vehicles_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.config(command=self.vehicles_listbox.yview)
         
-        # Buttons for vehicle management
         btn_frame = tk.Frame(frame, bg='#2b2b2b')
         btn_frame.pack(fill=tk.X, pady=10)
         
@@ -279,7 +278,6 @@ class AddEditClassDialog(tk.Toplevel):
         tk.Button(btn_frame, text="Remove Vehicle(s)", bg='#f44336', fg='white',
                   command=self.remove_vehicles).pack(side=tk.LEFT, padx=5)
         
-        # Dialog buttons
         dialog_btn_frame = tk.Frame(frame, bg='#2b2b2b')
         dialog_btn_frame.pack(fill=tk.X, pady=(20, 0))
         
@@ -389,15 +387,16 @@ class AddEditClassDialog(tk.Toplevel):
 class VehicleImportWorker(threading.Thread):
     """Worker thread for importing vehicles from GTR2"""
     
-    def __init__(self, gtr2_path: Path, callback):
+    def __init__(self, gtr2_path: Path, callback, progress_callback=None):
         super().__init__()
         self.gtr2_path = gtr2_path
         self.callback = callback
+        self.progress_callback = progress_callback
         self.daemon = True
     
     def run(self):
         try:
-            vehicles = scan_vehicles_from_gtr2(self.gtr2_path, None)
+            vehicles = scan_vehicles_from_gtr2(self.gtr2_path, self.progress_callback)
             self.callback(vehicles, None)
         except Exception as e:
             self.callback(None, str(e))
@@ -412,10 +411,27 @@ class VehicleTab(tk.Frame):
         self.manager = VehicleClassesManager()
         self.imported_vehicles = set()
         self.current_class = None
+        self.gtr2_path = None
         
         self.configure(bg='#1e1e1e')
         self.setup_ui()
         self.load_classes()
+        self.load_gtr2_path_from_config()
+    
+    def load_gtr2_path_from_config(self):
+        """Load GTR2 path from cfg.yml and update the display"""
+        config = get_config_with_defaults()
+        base_path = config.get('base_path', '')
+        
+        if base_path and Path(base_path).exists():
+            self.gtr2_path = Path(base_path)
+            self.gtr2_path_label.config(text=str(self.gtr2_path), fg='#4CAF50')
+            self.import_btn.config(state=tk.NORMAL)
+            self.import_status.config(text="GTR2 path loaded from cfg.yml. Click 'Import Cars' to scan vehicles.")
+        else:
+            self.gtr2_path_label.config(text="No GTR2 folder selected. Please browse to select or configure in cfg.yml.", fg='#888')
+            self.import_btn.config(state=tk.DISABLED)
+            self.import_status.config(text="")
     
     def setup_ui(self):
         # Main horizontal split
@@ -429,22 +445,25 @@ class VehicleTab(tk.Frame):
         tk.Label(left_frame, text="Vehicle Classes:", bg='#1e1e1e', fg='white',
                  font=('Arial', 11, 'bold')).pack(anchor=tk.W, pady=(0, 5))
         
-        # Class listbox
         list_frame = tk.Frame(left_frame, bg='#1e1e1e')
         list_frame.pack(fill=tk.BOTH, expand=True)
         
         scrollbar = tk.Scrollbar(list_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
+        # exportselection=False prevents this listbox from losing its highlight
+        # when the user clicks in another listbox (vehicles or unassigned).
         self.class_listbox = tk.Listbox(list_frame, bg='#2b2b2b', fg='#4CAF50',
                                          selectmode=tk.SINGLE,
+                                         exportselection=False,
                                          yscrollcommand=scrollbar.set,
                                          font=('Arial', 10))
         self.class_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        self.class_listbox.bind('<<ListboxSelect>>', self.on_class_selected)
         scrollbar.config(command=self.class_listbox.yview)
         
-        # Class buttons
+        # Bind only to selection changes, not to focus events
+        self.class_listbox.bind('<<ListboxSelect>>', self.on_class_selected)
+        
         class_btn_frame = tk.Frame(left_frame, bg='#1e1e1e')
         class_btn_frame.pack(fill=tk.X, pady=10)
         
@@ -466,21 +485,22 @@ class VehicleTab(tk.Frame):
         
         tk.Label(middle_frame, text="Vehicles in this class:", bg='#1e1e1e', fg='white').pack(anchor=tk.W)
         
-        # Vehicles listbox
         vehicle_list_frame = tk.Frame(middle_frame, bg='#1e1e1e')
         vehicle_list_frame.pack(fill=tk.BOTH, expand=True, pady=5)
         
         vehicle_scrollbar = tk.Scrollbar(vehicle_list_frame)
         vehicle_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
+        # exportselection=False prevents this listbox from clearing its selection
+        # when the user clicks in another listbox.
         self.vehicles_listbox = tk.Listbox(vehicle_list_frame, bg='#2b2b2b', fg='white',
                                             selectmode=tk.EXTENDED,
+                                            exportselection=False,
                                             yscrollcommand=vehicle_scrollbar.set,
                                             font=('Courier', 10))
         self.vehicles_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         vehicle_scrollbar.config(command=self.vehicles_listbox.yview)
         
-        # Vehicle buttons
         vehicle_btn_frame = tk.Frame(middle_frame, bg='#1e1e1e')
         vehicle_btn_frame.pack(fill=tk.X, pady=10)
         
@@ -495,7 +515,6 @@ class VehicleTab(tk.Frame):
         right_frame = tk.Frame(paned, bg='#1e1e1e')
         paned.add(right_frame, width=400)
         
-        # Import section
         import_frame = tk.LabelFrame(right_frame, text="Import from GTR2", bg='#1e1e1e',
                                       fg='#4CAF50', font=('Arial', 10, 'bold'))
         import_frame.pack(fill=tk.X, pady=(0, 10))
@@ -503,15 +522,17 @@ class VehicleTab(tk.Frame):
         import_inner = tk.Frame(import_frame, bg='#1e1e1e')
         import_inner.pack(padx=10, pady=10, fill=tk.X)
         
-        self.gtr2_path_label = tk.Label(import_inner, text="No GTR2 folder selected",
-                                         bg='#1e1e1e', fg='#888', font=('Courier', 9))
+        self.gtr2_path_label = tk.Label(import_inner, text="",
+                                         bg='#1e1e1e', fg='#888', font=('Courier', 9), wraplength=350)
         self.gtr2_path_label.pack(anchor=tk.W, pady=5)
         
         import_btn_frame = tk.Frame(import_inner, bg='#1e1e1e')
         import_btn_frame.pack(fill=tk.X, pady=5)
         
-        tk.Button(import_btn_frame, text="Select GTR2 Folder", bg='#2196F3', fg='white',
-                  command=self.select_gtr2_folder).pack(side=tk.LEFT, padx=2)
+        select_gtr2_btn = tk.Button(import_btn_frame, text="Select GTR2 Folder", bg='#2196F3', fg='white',
+                  command=self.select_gtr2_folder)
+        select_gtr2_btn.pack(side=tk.LEFT, padx=2)
+        self.select_gtr2_btn = select_gtr2_btn
         
         self.import_btn = tk.Button(import_btn_frame, text="Import Cars", bg='#FF9800', fg='white',
                                      command=self.import_cars, state=tk.DISABLED)
@@ -532,21 +553,27 @@ class VehicleTab(tk.Frame):
         unassigned_inner = tk.Frame(unassigned_frame, bg='#1e1e1e')
         unassigned_inner.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # Unassigned listbox
         unassigned_list_frame = tk.Frame(unassigned_inner, bg='#1e1e1e')
         unassigned_list_frame.pack(fill=tk.BOTH, expand=True)
         
         unassigned_scrollbar = tk.Scrollbar(unassigned_list_frame)
         unassigned_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
+        # exportselection=False is the key fix: without it, clicking here would
+        # steal the selection from class_listbox, triggering <<ListboxSelect>>
+        # on it, which caused on_class_selected to clear current_class and the
+        # vehicles list.
         self.unassigned_listbox = tk.Listbox(unassigned_list_frame, bg='#2b2b2b', fg='#FFA500',
                                               selectmode=tk.EXTENDED,
+                                              exportselection=False,
                                               yscrollcommand=unassigned_scrollbar.set,
                                               font=('Courier', 10))
         self.unassigned_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         unassigned_scrollbar.config(command=self.unassigned_listbox.yview)
         
-        # Transfer buttons
+        # Bind unassigned selection - does NOT clear the class selection
+        self.unassigned_listbox.bind('<<ListboxSelect>>', self.on_unassigned_selected)
+        
         transfer_frame = tk.Frame(unassigned_inner, bg='#1e1e1e')
         transfer_frame.pack(fill=tk.X, pady=10)
         
@@ -558,41 +585,78 @@ class VehicleTab(tk.Frame):
         tk.Button(transfer_frame, text="Refresh", bg='#2196F3', fg='white',
                   command=self.refresh_unassigned_list).pack(side=tk.LEFT, padx=2)
         
-        # Save button at bottom
         save_frame = tk.Frame(self, bg='#1e1e1e')
         save_frame.pack(fill=tk.X, padx=10, pady=10)
         
-        tk.Button(save_frame, text="Save Changes", bg='#4CAF50', fg='white',
-                  font=('Arial', 11, 'bold'), padx=20, pady=8,
-                  command=self.save_changes).pack(side=tk.RIGHT)
+        close_btn = tk.Button(save_frame, text="Close without Saving", bg='#555', fg='white',
+                               font=('Arial', 11, 'bold'), padx=20, pady=8,
+                               command=self.close_without_saving)
+        close_btn.pack(side=tk.RIGHT, padx=5)
+        
+        save_btn = tk.Button(save_frame, text="Save and Close", bg='#4CAF50', fg='white',
+                              font=('Arial', 11, 'bold'), padx=20, pady=8,
+                              command=self.save_and_close)
+        save_btn.pack(side=tk.RIGHT, padx=5)
+    
+    def close_without_saving(self):
+        if self.parent and hasattr(self.parent, 'destroy'):
+            self.parent.destroy()
+    
+    def save_and_close(self):
+        if self.manager.save():
+            messagebox.showinfo("Success", "Vehicle classes saved successfully!")
+            if self.parent and hasattr(self.parent, 'destroy'):
+                self.parent.destroy()
+        else:
+            messagebox.showerror("Error", "Failed to save vehicle classes.")
     
     def load_classes(self):
-        """Load classes into the listbox"""
         self.class_listbox.delete(0, tk.END)
         for class_name in self.manager.get_all_classes():
             self.class_listbox.insert(tk.END, class_name)
     
     def on_class_selected(self, event=None):
-        """Handle class selection"""
+        """Called only when the class listbox selection actually changes"""
         selection = self.class_listbox.curselection()
         if not selection:
-            self.current_class = None
-            self.selected_class_label.config(text="No class selected")
-            self.vehicles_listbox.delete(0, tk.END)
-            self.add_to_class_btn.config(state=tk.DISABLED)
-            return
+            # No class selected - keep current_class as None
+            if self.current_class is not None:
+                self.current_class = None
+                self.selected_class_label.config(text="No class selected")
+                self.vehicles_listbox.delete(0, tk.END)
+        else:
+            class_name = self.class_listbox.get(selection[0])
+            if class_name != self.current_class:
+                self.current_class = class_name
+                self.selected_class_label.config(text=f"Class: {self.current_class}")
+                self.refresh_vehicles_list()
         
-        self.current_class = self.class_listbox.get(selection[0])
-        self.selected_class_label.config(text=f"Class: {self.current_class}")
-        self.add_to_class_btn.config(state=tk.NORMAL)
-        
-        # Load vehicles for this class
+        # Update add button state
+        self.update_add_button_state()
+    
+    def refresh_vehicles_list(self):
+        """Refresh the vehicles listbox for the current class"""
         self.vehicles_listbox.delete(0, tk.END)
-        for vehicle in self.manager.get_vehicles_for_class(self.current_class):
-            self.vehicles_listbox.insert(tk.END, vehicle)
+        if self.current_class:
+            for vehicle in self.manager.get_vehicles_for_class(self.current_class):
+                self.vehicles_listbox.insert(tk.END, vehicle)
+    
+    def on_unassigned_selected(self, event=None):
+        """Called when unassigned vehicles are selected - does NOT change class selection"""
+        # Just update the button state - preserve self.current_class
+        self.update_add_button_state()
+    
+    def update_add_button_state(self):
+        """Enable add button only if a class is selected AND at least one unassigned vehicle is selected"""
+        class_selected = (self.current_class is not None)
+        unassigned_selected = bool(self.unassigned_listbox.curselection())
+        
+        if class_selected and unassigned_selected:
+            self.add_to_class_btn.config(state=tk.NORMAL)
+        else:
+            self.add_to_class_btn.config(state=tk.DISABLED)
     
     def add_class(self):
-        """Add a new class"""
         dialog = AddEditClassDialog(self)
         self.wait_window(dialog)
         
@@ -605,7 +669,6 @@ class VehicleTab(tk.Frame):
                 messagebox.showerror("Error", f"Class '{class_name}' already exists.")
     
     def rename_class(self):
-        """Rename the selected class"""
         if not self.current_class:
             messagebox.showwarning("No Selection", "Please select a class to rename.")
             return
@@ -631,6 +694,16 @@ class VehicleTab(tk.Frame):
             if new_name and new_name != self.current_class:
                 if self.manager.rename_class(self.current_class, new_name):
                     self.load_classes()
+                    # Find the renamed class in the list and select it
+                    for i in range(self.class_listbox.size()):
+                        if self.class_listbox.get(i) == new_name:
+                            self.class_listbox.selection_clear(0, tk.END)
+                            self.class_listbox.selection_set(i)
+                            self.class_listbox.see(i)
+                            self.current_class = new_name
+                            self.selected_class_label.config(text=f"Class: {self.current_class}")
+                            self.refresh_vehicles_list()
+                            break
                     messagebox.showinfo("Success", f"Renamed to '{new_name}'")
                 else:
                     messagebox.showerror("Error", f"Name '{new_name}' may already exist.")
@@ -644,7 +717,6 @@ class VehicleTab(tk.Frame):
         entry.bind('<Return>', lambda e: save())
     
     def delete_class(self):
-        """Delete the selected class"""
         if not self.current_class:
             messagebox.showwarning("No Selection", "Please select a class to delete.")
             return
@@ -653,16 +725,16 @@ class VehicleTab(tk.Frame):
                                       f"Delete class '{self.current_class}' and all its vehicles?\nThis cannot be undone.")
         
         if result:
-            if self.manager.delete_class(self.current_class):
+            deleted_class = self.current_class
+            if self.manager.delete_class(deleted_class):
                 self.load_classes()
                 self.current_class = None
                 self.selected_class_label.config(text="No class selected")
                 self.vehicles_listbox.delete(0, tk.END)
                 self.refresh_unassigned_list()
-                messagebox.showinfo("Success", f"Deleted class: {self.current_class}")
+                messagebox.showinfo("Success", f"Deleted class: {deleted_class}")
     
     def add_vehicle(self):
-        """Add a vehicle to the selected class"""
         if not self.current_class:
             messagebox.showwarning("No Selection", "Please select a class first.")
             return
@@ -687,7 +759,7 @@ class VehicleTab(tk.Frame):
             name = entry.get().strip()
             if name:
                 if self.manager.add_vehicle(self.current_class, name):
-                    self.on_class_selected()
+                    self.refresh_vehicles_list()
                     self.refresh_unassigned_list()
                     messagebox.showinfo("Success", f"Added '{name}' to '{self.current_class}'")
                 else:
@@ -702,7 +774,6 @@ class VehicleTab(tk.Frame):
         entry.bind('<Return>', lambda e: save())
     
     def edit_vehicle(self):
-        """Edit the selected vehicle"""
         if not self.current_class:
             messagebox.showwarning("No Selection", "Please select a class.")
             return
@@ -734,7 +805,7 @@ class VehicleTab(tk.Frame):
             new_name = entry.get().strip()
             if new_name and new_name != old_name:
                 if self.manager.update_vehicle(self.current_class, old_name, new_name):
-                    self.on_class_selected()
+                    self.refresh_vehicles_list()
                     self.refresh_unassigned_list()
                     messagebox.showinfo("Success", "Vehicle updated")
                 else:
@@ -749,7 +820,6 @@ class VehicleTab(tk.Frame):
         entry.bind('<Return>', lambda e: save())
     
     def remove_vehicles(self):
-        """Remove selected vehicles from the current class"""
         if not self.current_class:
             messagebox.showwarning("No Selection", "Please select a class.")
             return
@@ -766,12 +836,11 @@ class VehicleTab(tk.Frame):
         
         if result:
             removed = self.manager.remove_vehicles_batch(self.current_class, vehicle_names)
-            self.on_class_selected()
+            self.refresh_vehicles_list()
             self.refresh_unassigned_list()
             messagebox.showinfo("Success", f"Removed {removed} vehicle(s).")
     
     def select_gtr2_folder(self):
-        """Select GTR2 installation folder"""
         folder = filedialog.askdirectory(title="Select GTR2 Installation Folder")
         if folder:
             self.gtr2_path = Path(folder)
@@ -779,11 +848,17 @@ class VehicleTab(tk.Frame):
             self.import_btn.config(state=tk.NORMAL)
             self.import_status.config(text="Ready to import. Click 'Import Cars'")
     
+    def update_progress_on_main_thread(self, current, total, message):
+        if total > 0:
+            self.import_progress['maximum'] = total
+            self.import_progress['value'] = current
+        self.import_status.config(text=f"{message} ({current}/{total})")
+    
     def import_cars(self):
-        """Import vehicles from GTR2 installation"""
-        if not hasattr(self, 'gtr2_path') or not self.gtr2_path:
+        if not self.gtr2_path:
             messagebox.showwarning("No Folder", "Please select GTR2 installation folder first.")
-            return        
+            return
+        
         teams_dir = self.gtr2_path / "GameData" / "Teams"
         if not teams_dir.exists():
             messagebox.showerror("Invalid Path", 
@@ -791,36 +866,44 @@ class VehicleTab(tk.Frame):
             return
         
         self.import_btn.config(state=tk.DISABLED)
+        self.select_gtr2_btn.config(state=tk.DISABLED)
         self.import_progress.pack(fill=tk.X, pady=5)
         self.import_progress.start()
         self.import_status.config(text="Importing vehicles... Please wait.")
         
-        def on_import_complete(vehicles, error):
-            self.import_progress.stop()
-            self.import_progress.pack_forget()
-            self.import_btn.config(state=tk.NORMAL)
-            
-            if error:
-                self.import_status.config(text=f"Error: {error}")
-                messagebox.showerror("Import Error", error)
-            else:
-                self.imported_vehicles = vehicles
-                self.refresh_unassigned_list()
-                self.import_status.config(text=f"Imported {len(vehicles)} vehicles")
-                messagebox.showinfo("Import Complete",
-                                      f"Found {len(vehicles)} unique vehicles.\n\n"
-                                      f"Unassigned vehicles are shown in the right panel.\n"
-                                      f"Select a class, then select vehicles and click 'Add Selected to Class'.")
+        def on_progress(current, total, message):
+            self.after(0, lambda: self.update_progress_on_main_thread(current, total, message))
         
-        worker = VehicleImportWorker(self.gtr2_path, on_import_complete)
+        def on_import_complete(vehicles, error):
+            self.after(0, lambda: self._handle_import_complete(vehicles, error))
+        
+        worker = VehicleImportWorker(self.gtr2_path, on_import_complete, on_progress)
         worker.start()
     
+    def _handle_import_complete(self, vehicles, error):
+        self.import_progress.stop()
+        self.import_progress.pack_forget()
+        self.import_btn.config(state=tk.NORMAL)
+        self.select_gtr2_btn.config(state=tk.NORMAL)
+        
+        if error:
+            self.import_status.config(text=f"Error: {error}")
+            messagebox.showerror("Import Error", error)
+        else:
+            self.imported_vehicles = vehicles
+            self.refresh_unassigned_list()
+            self.import_status.config(text=f"Imported {len(vehicles)} vehicles")
+            messagebox.showinfo("Import Complete",
+                                  f"Found {len(vehicles)} unique vehicles.\n\n"
+                                  f"Unassigned vehicles are shown in the right panel.\n"
+                                  f"Select a class, then select vehicles and click 'Add Selected to Class'.")
+    
     def refresh_unassigned_list(self):
-        """Refresh the unassigned vehicles list"""
         self.unassigned_listbox.delete(0, tk.END)
         
         if not hasattr(self, 'imported_vehicles') or not self.imported_vehicles:
             self.unassigned_listbox.insert(tk.END, "No vehicles imported yet. Click 'Import Cars' first.")
+            self.update_add_button_state()
             return
         
         unassigned = self.manager.get_unassigned_vehicles(self.imported_vehicles)
@@ -830,9 +913,10 @@ class VehicleTab(tk.Frame):
                 self.unassigned_listbox.insert(tk.END, vehicle)
         else:
             self.unassigned_listbox.insert(tk.END, "All vehicles are assigned to classes!")
+        
+        self.update_add_button_state()
     
     def add_selected_to_class(self):
-        """Add selected unassigned vehicles to the current class"""
         if not self.current_class:
             messagebox.showwarning("No Class", "Please select a class first.")
             return
@@ -851,14 +935,7 @@ class VehicleTab(tk.Frame):
             added = self.manager.add_vehicles_batch(self.current_class, vehicle_names)
             if added > 0:
                 self.refresh_unassigned_list()
-                self.on_class_selected()
+                self.refresh_vehicles_list()
                 messagebox.showinfo("Success", f"Added {added} vehicle(s) to '{self.current_class}'")
             else:
                 messagebox.showerror("Error", "Failed to add vehicles.")
-    
-    def save_changes(self):
-        """Save all changes to the vehicle classes file"""
-        if self.manager.save():
-            messagebox.showinfo("Success", "Vehicle classes saved successfully!")
-        else:
-            messagebox.showerror("Error", "Failed to save vehicle classes.")
