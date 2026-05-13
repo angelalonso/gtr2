@@ -147,8 +147,9 @@ class PreRunCheckDialog:
     Returns True if checks passed and user wants to continue.
     """
     
-    def __init__(self, config_file: str = "cfg.yml"):
+    def __init__(self, config_file: str = "cfg.yml", accept_enter: bool = False):
         self.config_file = config_file
+        self.accept_enter = accept_enter
         self.check_results: List[CheckResult] = []
         self.all_critical_passed = False
         self.vehicle_scan_worker = None
@@ -175,6 +176,11 @@ class PreRunCheckDialog:
         
         self._setup_ui()
         self._apply_styles()
+        
+        # Bind Enter key to continue button
+        if self.accept_enter:
+            self.dialog.bind('<Return>', lambda event: self._accept())
+            self.dialog.bind('<KP_Enter>', lambda event: self._accept())
         
         # Make dialog modal
         self.dialog.grab_set()
@@ -844,10 +850,16 @@ class PreRunCheckDialog:
         return self.result
 
 
-def run_pre_run_check(config_file: str = "cfg.yml") -> bool:
+def run_pre_run_check(config_file: str = "cfg.yml", accept_enter: bool = False) -> bool:
     """
     Run the pre-run check dialog.
-    Returns True if checks passed and user wants to continue.
+    
+    Args:
+        config_file: Path to the configuration file
+        accept_enter: If True, the Enter key will trigger the Continue button
+    
+    Returns:
+        True if checks passed and user wants to continue
     """
-    dialog = PreRunCheckDialog(config_file)
+    dialog = PreRunCheckDialog(config_file, accept_enter)
     return dialog.show()

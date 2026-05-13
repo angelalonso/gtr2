@@ -102,8 +102,8 @@ def main():
     if not Path(db_path).exists():
         CurveDatabase(db_path)
     
-    # Run pre-run checks
-    if not run_pre_run_check("cfg.yml"):
+    # Run pre-run checks - pass accept_enter=True to enable Enter key to continue
+    if not run_pre_run_check("cfg.yml", accept_enter=True):
         print("Pre-run checks failed or cancelled. Exiting.")
         sys.exit(1)
     

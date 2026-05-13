@@ -36,7 +36,8 @@ def main():
             return
     
     # Run lightweight pre-run check (returns True if checks passed)
-    if not run_pre_run_check("cfg.yml"):
+    # Pass accept_enter=True to enable Enter key to continue
+    if not run_pre_run_check("cfg.yml", accept_enter=True):
         print("Pre-run checks failed or cancelled. Exiting.")
         sys.exit(1)
     
