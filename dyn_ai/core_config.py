@@ -7,7 +7,10 @@ Handles loading, saving, and validating the configuration from cfg.yml
 import yaml
 from pathlib import Path
 import os
+import logging
 from typing import Optional, Dict, Any
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_CONFIG = {
@@ -33,15 +36,19 @@ def load_config(config_file: str = "cfg.yml") -> Optional[Dict[str, Any]]:
     """Load configuration from YAML file"""
     config_path = Path(config_file)
     
+    logger.info(f"[CONFIG] Loading config from: {config_path.absolute()}")
+    
     if not config_path.exists():
+        logger.warning(f"[CONFIG] Config file not found: {config_path}")
         return None
     
     try:
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
+            logger.info(f"[CONFIG] Loaded config with base_path: {config.get('base_path', 'NOT SET')}")
             return config
     except Exception as e:
-        print(f"Error reading {config_file}: {e}")
+        logger.error(f"[CONFIG] Error reading {config_file}: {e}")
         return None
 
 
@@ -50,9 +57,10 @@ def save_config(config: Dict[str, Any], config_file: str = "cfg.yml") -> bool:
     try:
         with open(config_file, 'w') as f:
             yaml.dump(config, f, default_flow_style=False, indent=2)
+        logger.info(f"[CONFIG] Saved config to {config_file}")
         return True
     except Exception as e:
-        print(f"Error saving to {config_file}: {e}")
+        logger.error(f"[CONFIG] Error saving to {config_file}: {e}")
         return False
 
 
@@ -61,6 +69,7 @@ def get_config_with_defaults(config_file: str = "cfg.yml") -> Dict[str, Any]:
     config = load_config(config_file)
     
     if config is None:
+        logger.info("[CONFIG] No config found, using defaults")
         return DEFAULT_CONFIG.copy()
     
     modified = False
@@ -68,6 +77,7 @@ def get_config_with_defaults(config_file: str = "cfg.yml") -> Dict[str, Any]:
         if key not in config:
             config[key] = default_value
             modified = True
+            logger.debug(f"[CONFIG] Added missing key: {key}={default_value}")
     
     if modified:
         save_config(config, config_file)
@@ -81,9 +91,13 @@ def get_base_path(config_file: str = "cfg.yml") -> Optional[Path]:
     
     if config and config.get('base_path'):
         path = Path(config['base_path'])
+        logger.info(f"[CONFIG] Base path from config: {path}")
         if path.exists():
             return path
+        else:
+            logger.warning(f"[CONFIG] Base path does not exist: {path}")
     
+    logger.warning("[CONFIG] No valid base path in config")
     return None
 
 
@@ -91,6 +105,7 @@ def update_base_path(new_path: Path, config_file: str = "cfg.yml") -> bool:
     """Update base path in config"""
     config = get_config_with_defaults(config_file)
     config['base_path'] = str(new_path)
+    logger.info(f"[CONFIG] Updating base_path to: {new_path}")
     return save_config(config, config_file)
 
 
@@ -98,14 +113,18 @@ def get_results_file_path(config_file: str = "cfg.yml") -> Optional[Path]:
     """Get the full path to raceresults.txt from config"""
     base_path = get_base_path(config_file)
     if base_path:
-        return base_path / 'UserData' / 'Log' / 'Results' / 'raceresults.txt'
+        results_path = base_path / 'UserData' / 'Log' / 'Results' / 'raceresults.txt'
+        logger.info(f"[CONFIG] Results file path: {results_path}")
+        return results_path
     return None
 
 
 def get_poll_interval(config_file: str = "cfg.yml") -> float:
     """Get file poll interval from config"""
     config = get_config_with_defaults(config_file)
-    return config.get('poll_interval', DEFAULT_CONFIG['poll_interval'])
+    interval = config.get('poll_interval', DEFAULT_CONFIG['poll_interval'])
+    logger.debug(f"[CONFIG] Poll interval: {interval}")
+    return interval
 
 
 def update_poll_interval(interval: float, config_file: str = "cfg.yml") -> bool:
@@ -118,7 +137,9 @@ def update_poll_interval(interval: float, config_file: str = "cfg.yml") -> bool:
 def get_db_path(config_file: str = "cfg.yml") -> str:
     """Get database path from config"""
     config = get_config_with_defaults(config_file)
-    return config.get('db_path', DEFAULT_CONFIG['db_path'])
+    db_path = config.get('db_path', DEFAULT_CONFIG['db_path'])
+    logger.info(f"[CONFIG] Database path: {db_path}")
+    return db_path
 
 
 def update_db_path(path: str, config_file: str = "cfg.yml") -> bool:
@@ -169,6 +190,7 @@ def get_logging_enabled(config_file: str = "cfg.yml") -> bool:
 def create_default_config_if_missing(config_file: str = "cfg.yml") -> bool:
     """Create default config file if it doesn't exist"""
     if not Path(config_file).exists():
+        logger.info(f"[CONFIG] Creating default config file: {config_file}")
         return save_config(DEFAULT_CONFIG, config_file)
     return True
 

@@ -140,33 +140,47 @@ class DataExtractor:
     def __init__(self, base_path: Optional[Path] = None):
         self.base_path = Path(base_path) if base_path else None
         self._aiw_cache: Dict[str, Path] = {}
+        logger.info(f"[EXTRACTOR] Initialized with base_path: {self.base_path}")
     
     def parse_race_results(self, file_path: Path) -> Optional[RaceData]:
         try:
+            logger.info(f"[EXTRACTOR] Parsing race results from: {file_path}")
+            
             if not file_path.exists():
-                print(f"File not found: {file_path}")
+                logger.error(f"[EXTRACTOR] File not found: {file_path}")
                 return None
             
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
             
+            logger.info(f"[EXTRACTOR] Read {len(content)} bytes from file")
+            
+            # Print first few lines for debugging
+            lines = content.split('\n')[:10]
+            logger.info(f"[EXTRACTOR] File preview:")
+            for i, line in enumerate(lines):
+                logger.info(f"  {i+1}: {line[:100]}")
+            
             data = RaceData()
             data.raw_content = content
             
             self._parse_header(content, data)
-            self._parse_drivers(content, data)
+            logger.info(f"[EXTRACTOR] Header parsed: track_name={data.track_name}, aiw_file={data.aiw_file}")
             
-            print(f"\n[DataExtractor] Parsed race data for {data.track_name or 'Unknown'}:")
-            print(f"  User: {data.user_name or 'Unknown'} ({data.user_vehicle or 'Unknown'})")
-            print(f"  AI Drivers: {data.ai_count}")
+            self._parse_drivers(content, data)
+            logger.info(f"[EXTRACTOR] Drivers parsed: ai_count={data.ai_count}, user={data.user_name}")
             
             if data.aiw_relative_path and self.base_path:
+                logger.info(f"[EXTRACTOR] Resolving AIW from relative path: {data.aiw_relative_path}")
                 self._resolve_aiw_path(data)
+            else:
+                logger.warning(f"[EXTRACTOR] Cannot resolve AIW: relative_path={data.aiw_relative_path}, base_path={self.base_path}")
             
+            logger.info(f"[EXTRACTOR] Extraction complete: has_data={data.has_data()}")
             return data
             
         except Exception as e:
-            print(f"Error parsing race results: {e}")
+            logger.error(f"[EXTRACTOR] Error parsing race results: {e}")
             traceback.print_exc()
             return None
     
@@ -174,49 +188,58 @@ class DataExtractor:
         race_match = re.search(r'\[Race\](.*?)(?=\[|$)', content, re.DOTALL)
         if race_match:
             race_section = race_match.group(1)
+            logger.debug(f"[EXTRACTOR] Found [Race] section, length={len(race_section)}")
             
             scene_match = self.SCENE_PATTERN.search(race_section)
+            logger.debug(f"[EXTRACTOR] Scene pattern search result: {scene_match}")
+            
             if scene_match:
                 scene = scene_match.group(1).strip().replace('\\', '/')
+                logger.info(f"[EXTRACTOR] Scene raw: '{scene}'")
                 scene_path = Path(scene)
                 data.track_folder = scene_path.parent.name
                 track_name = scene_path.stem
                 track_name = re.sub(r'^\d+', '', track_name)
                 data.track_name = track_name
+                logger.info(f"[EXTRACTOR] Track name extracted: {data.track_name} (folder={data.track_folder})")
             
             aiw_match = self.AIDB_PATTERN.search(race_section)
             if aiw_match:
                 aiw_path_str = aiw_match.group(1).strip().replace('\\', '/')
+                logger.info(f"[EXTRACTOR] AIW path raw: '{aiw_path_str}'")
                 data.aiw_relative_path = aiw_path_str
                 data.aiw_file = Path(aiw_path_str).name
+                logger.info(f"[EXTRACTOR] AIW file extracted: {data.aiw_file}")
+        else:
+            logger.warning("[EXTRACTOR] No [Race] section found in file")
     
     def _resolve_aiw_path(self, data: RaceData):
         if not data.aiw_relative_path or not self.base_path:
             error_msg = f"No AIW relative path or base path to resolve (path={data.aiw_relative_path}, base={self.base_path})"
-            logger.error(error_msg)
+            logger.error(f"[EXTRACTOR] {error_msg}")
             data.aiw_error = error_msg
             return
         
-        logger.info(f"Resolving AIW path from: {data.aiw_relative_path}")
-        logger.info(f"Base path: {self.base_path}")
+        logger.info(f"[EXTRACTOR] Resolving AIW path from: {data.aiw_relative_path}")
+        logger.info(f"[EXTRACTOR] Base path: {self.base_path}")
         
         aiw_path = find_aiw_file_from_path(data.aiw_relative_path, self.base_path)
         
         if aiw_path and aiw_path.exists():
             data.aiw_path = aiw_path
-            logger.info(f"Successfully resolved AIW path: {aiw_path}")
+            logger.info(f"[EXTRACTOR] Successfully resolved AIW path: {aiw_path}")
             self._parse_aiw_ratios(data)
         else:
             error_msg = f"AIW file not found for path: {data.aiw_relative_path}"
-            logger.error(error_msg)
-            logger.error(f"  Full base path: {self.base_path}")
-            logger.error(f"  Expected location: {self.base_path / data.aiw_relative_path}")
+            logger.error(f"[EXTRACTOR] {error_msg}")
+            logger.error(f"[EXTRACTOR] Full base path: {self.base_path}")
+            logger.error(f"[EXTRACTOR] Expected location: {self.base_path / data.aiw_relative_path}")
             data.aiw_error = error_msg
     
     def _parse_aiw_ratios(self, data: RaceData):
         if not data.aiw_path or not data.aiw_path.exists():
             error_msg = f"AIW file not found: {data.aiw_path}"
-            logger.error(error_msg)
+            logger.error(f"[EXTRACTOR] {error_msg}")
             data.aiw_error = error_msg
             return
         
@@ -225,30 +248,38 @@ class DataExtractor:
                 raw = f.read()
             
             content = raw.replace(b'\x00', b'').decode('utf-8', errors='ignore')
+            logger.debug(f"[EXTRACTOR] AIW content length: {len(content)}")
             
             wp_match = self.WAYPOINT_PATTERN.search(content)
             if wp_match:
                 section = wp_match.group(1)
+                logger.debug(f"[EXTRACTOR] Found Waypoint section")
                 
                 q_match = self.QUAL_RATIO_PATTERN.search(section)
                 if q_match:
                     data.qual_ratio = float(q_match.group(1))
-                    print(f"  QualRatio from AIW: {data.qual_ratio:.6f}")
+                    logger.info(f"[EXTRACTOR] QualRatio from AIW: {data.qual_ratio:.6f}")
                 
                 r_match = self.RACE_RATIO_PATTERN.search(section)
                 if r_match:
                     data.race_ratio = float(r_match.group(1))
-                    print(f"  RaceRatio from AIW: {data.race_ratio:.6f}")
+                    logger.info(f"[EXTRACTOR] RaceRatio from AIW: {data.race_ratio:.6f}")
+            else:
+                logger.warning(f"[EXTRACTOR] No Waypoint section found in AIW")
                     
         except Exception as e:
-            print(f"Error parsing AIW ratios: {e}")
+            logger.error(f"[EXTRACTOR] Error parsing AIW ratios: {e}")
     
     def _parse_drivers(self, content: str, data: RaceData):
         ai_times_qual = []
         ai_times_race = []
         
-        for slot_str, slot_content in self.SLOT_PATTERN.findall(content):
+        slots_found = list(self.SLOT_PATTERN.findall(content))
+        logger.info(f"[EXTRACTOR] Found {len(slots_found)} slot sections")
+        
+        for slot_str, slot_content in slots_found:
             slot = int(slot_str)
+            logger.debug(f"[EXTRACTOR] Parsing slot {slot}")
             
             name = self._extract(slot_content, self.DRIVER_PATTERN)
             vehicle = self._extract(slot_content, self.VEHICLE_PATTERN)
@@ -257,6 +288,8 @@ class DataExtractor:
             best = self._extract(slot_content, self.BEST_LAP_PATTERN)
             rtime = self._extract(slot_content, self.RACE_TIME_PATTERN)
             laps_s = self._extract(slot_content, self.LAPS_PATTERN)
+            
+            logger.debug(f"[EXTRACTOR] Slot {slot}: driver={name}, vehicle={vehicle}, qual={qual}, best={best}")
             
             laps = int(laps_s) if laps_s and laps_s.isdigit() else None
             qual_sec = self._to_sec(qual)
@@ -270,6 +303,7 @@ class DataExtractor:
                 data.user_best_lap_sec = best_sec or 0.0
                 data.user_qualifying = qual
                 data.user_qualifying_sec = qual_sec or 0.0
+                logger.info(f"[EXTRACTOR] User: {name} driving {vehicle}")
             else:
                 data.ai_count += 1
                 ai_result = {
@@ -296,13 +330,13 @@ class DataExtractor:
             ai_times_qual.sort(key=lambda x: x[0])
             data.qual_best_ai_lap_sec, data.qual_best_ai_lap, _ = ai_times_qual[0]
             data.qual_worst_ai_lap_sec, data.qual_worst_ai_lap, _ = ai_times_qual[-1]
-            print(f"  Qualifying: {len(ai_times_qual)} AI times, best={data.qual_best_ai_lap_sec:.3f}s, worst={data.qual_worst_ai_lap_sec:.3f}s")
+            logger.info(f"[EXTRACTOR] Qualifying: {len(ai_times_qual)} AI times, best={data.qual_best_ai_lap_sec:.3f}s, worst={data.qual_worst_ai_lap_sec:.3f}s")
         
         if ai_times_race:
             ai_times_race.sort(key=lambda x: x[0])
             data.best_ai_lap_sec, data.best_ai_lap, _ = ai_times_race[0]
             data.worst_ai_lap_sec, data.worst_ai_lap, _ = ai_times_race[-1]
-            print(f"  Race: {len(ai_times_race)} AI times, best={data.best_ai_lap_sec:.3f}s, worst={data.worst_ai_lap_sec:.3f}s")
+            logger.info(f"[EXTRACTOR] Race: {len(ai_times_race)} AI times, best={data.best_ai_lap_sec:.3f}s, worst={data.worst_ai_lap_sec:.3f}s")
     
     def _extract(self, text: str, pattern: re.Pattern) -> Optional[str]:
         m = pattern.search(text)

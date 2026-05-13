@@ -6,7 +6,6 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[
-        ('cfg_funcs.py', '.'),
         ('core_aiw_utils.py', '.'),
         ('core_autopilot.py', '.'),
         ('core_config.py', '.'),
@@ -23,9 +22,6 @@ a = Analysis(
         ('gui_curve_graph.py', '.'),
         ('gui_data_manager.py', '.'),
         ('gui_file_monitor.py', '.'),
-        ('gui_log_window.py', '.'),
-        ('gui_main_window.py', '.'),
-        ('gui_pre_run_check.py', '.'),
         ('gui_ratio_panel.py', '.'),
         ('gui_session_panel.py', '.'),
         ('gui_vehicle_manager.py', '.'),
@@ -33,13 +29,12 @@ a = Analysis(
         ('cfg.yml', '.'),
     ],
     hiddenimports=[
-        'cfg_funcs', 'core_aiw_utils', 'core_autopilot', 'core_config',
+        'core_aiw_utils', 'core_autopilot', 'core_config',
         'core_database', 'core_data_extraction', 'core_formula',
         'core_vehicle_scanner', 'dyn_ai', 'gui_advanced_settings',
         'gui_base_path_dialog', 'gui_common', 'gui_common_dialogs',
         'gui_components', 'gui_curve_graph', 'gui_data_manager',
-        'gui_file_monitor', 'gui_log_window', 'gui_main_window',
-        'gui_pre_run_check', 'gui_ratio_panel', 'gui_session_panel',
+        'gui_file_monitor', 'gui_ratio_panel', 'gui_session_panel',
         'gui_vehicle_manager', 'monitor_file_daemon'
     ],
     hookspath=[],

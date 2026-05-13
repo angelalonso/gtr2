@@ -727,14 +727,7 @@ class PreRunCheckDialog:
         self.dialog.lift()
         self.dialog.focus_set()
         
-        reply = messagebox.askyesno("Retry Checks",
-            "After you finish editing vehicle classes in the Vehicle Manager,\n"
-            "click Yes to retry the checks, or No to continue without retrying.\n\n"
-            "Note: In the Vehicle Manager, click 'Select GTR2 Folder' if prompted,\n"
-            "or click 'Import Cars' to scan your GTR2 installation for vehicles.")
-        
-        if reply:
-            self.run_checks()
+        self.run_checks()
     
     def _check_vehicle_definitions(self) -> Tuple[bool, str]:
         """Check that all vehicles from GTR2 are defined in vehicle_classes.json"""

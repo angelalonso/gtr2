@@ -326,9 +326,8 @@ class LogWindow(QDialog):
         self.log_buffer.clear()
         self.log_text.clear()
 
-
 class SimpleLogHandler(logging.Handler):
-    def __init__(self, log_window: LogWindow):
+    def __init__(self, log_window):
         super().__init__()
         self.log_window = log_window
     
@@ -336,7 +335,8 @@ class SimpleLogHandler(logging.Handler):
         try:
             level = record.levelname
             message = self.format(record)
-            self.log_window.add_log(level, message)
+            if self.log_window:
+                self.log_window.add_log(level, message)
         except Exception:
             pass
 

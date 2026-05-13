@@ -74,6 +74,24 @@ class AdvancedSettingsDialog(QDialog):
         self.config_file = "cfg.yml"
         
         self.setup_ui()
+        
+        # Load data directly from database if parent is None
+        if self.parent is None and self.db:
+            self.load_data_from_database()
+
+    def load_data_from_database(self):
+        """Load data directly from database when parent is None"""
+        if not self.db:
+            return
+        
+        # Get all tracks from database
+        if hasattr(self.db, 'get_all_tracks'):
+            tracks = self.db.get_all_tracks()
+            if tracks and self.curve_graph:
+                self.curve_graph.current_track = tracks[0]
+                self.curve_graph.current_track_label.setText(tracks[0])
+                self.curve_graph.load_data()
+                self.curve_graph.full_refresh()
 
     def _find_aiw_path_from_config(self) -> Optional[Path]:
         base_path = get_base_path()
@@ -1162,8 +1180,21 @@ class AdvancedSettingsDialog(QDialog):
             QMessageBox.warning(self, "Fit Failed", "Could not fit curve to data. The data may be too scattered or have invalid values.")
     
     def refresh_display(self):
-        if not self.parent:
+        """Refresh the display with current data from parent or database"""
+        # Handle case where parent is None (tkinter main window)
+        if self.parent is None:
+            # Try to get data from database directly
+            if self.db and self.curve_graph:
+                # Load tracks from database if available
+                if hasattr(self.db, 'get_all_tracks'):
+                    tracks = self.db.get_all_tracks()
+                    if tracks and not self.curve_graph.current_track:
+                        self.curve_graph.current_track = tracks[0]
+                        self.curve_graph.current_track_label.setText(tracks[0])
+                        self.curve_graph.load_data()
+                        self.curve_graph.full_refresh()
             return
+        
         parent = self.parent() if callable(self.parent) else self.parent
         current_track = getattr(parent, 'current_track', None)
         current_vehicle = getattr(parent, 'current_vehicle', None)
