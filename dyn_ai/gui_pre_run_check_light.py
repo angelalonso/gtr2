@@ -123,11 +123,22 @@ class VehicleScanWorker(threading.Thread):
 
 def get_vehicle_classes_path() -> Path:
     """Get the path to vehicle_classes.json"""
-    try:
-        from gui_common import get_data_file_path
-        return get_data_file_path("vehicle_classes.json")
-    except ImportError:
+    # For frozen executable, look in the same directory as the executable
+    if getattr(sys, 'frozen', False):
+        # Running as compiled executable - look in executable directory
+        exe_dir = Path(sys.executable).parent
+        classes_path = exe_dir / "vehicle_classes.json"
+        if classes_path.exists():
+            return classes_path
+        # Fall back to current working directory
         return Path.cwd() / "vehicle_classes.json"
+    else:
+        # Development mode
+        try:
+            from gui_common import get_data_file_path
+            return get_data_file_path("vehicle_classes.json")
+        except ImportError:
+            return Path.cwd() / "vehicle_classes.json"
 
 
 class PreRunCheckDialog:
@@ -681,27 +692,41 @@ class PreRunCheckDialog:
             messagebox.showerror("Error Fixing PLR File", f"Failed to fix PLR file:\n{str(e)}")
     
     def open_vehicle_manager(self):
-        """Open the vehicle manager dialog - launch as separate process with GTR2 path"""
-        # Get the GTR2 path from config
+        """Open the vehicle manager dialog - direct dialog launch"""
         config = get_config_with_defaults(self.config_file)
         base_path = config.get('base_path', '')
+        gtr2_path = Path(base_path) if base_path and Path(base_path).exists() else None
         
-        # Find the vehicle manager script
-        script_dir = Path(__file__).parent
-        vehicle_manager_path = script_dir / "gui_vehicle_manager.py"
+        # Hide the tkinter dialog temporarily
+        self.dialog.withdraw()
         
-        if vehicle_manager_path.exists():
-            # Launch as separate Python process with the GTR2 path as argument
-            try:
-                subprocess.Popen([sys.executable, str(vehicle_manager_path), base_path], 
-                               stdout=subprocess.DEVNULL, 
-                               stderr=subprocess.DEVNULL)
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to launch Vehicle Manager:\n{str(e)}")
-        else:
-            messagebox.showerror("Error", f"Vehicle Manager not found at:\n{vehicle_manager_path}")
+        try:
+            from PyQt5.QtWidgets import QApplication, QDialog
+            from gui_vehicle_manager import VehicleManagerDialog
+            
+            # Check if a QApplication instance exists, create one if not
+            qt_app = QApplication.instance()
+            if qt_app is None:
+                qt_app = QApplication(sys.argv)
+            
+            # Create and show the dialog
+            dialog = VehicleManagerDialog(None, gtr2_path)
+            dialog.exec_()
+            
+        except ImportError as e:
+            messagebox.showerror("Import Error", f"Failed to import VehicleManagerDialog:\n{str(e)}\n\nPlease ensure the application is properly installed.")
+            self.dialog.deiconify()
+            return
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to open Vehicle Manager:\n{str(e)}")
+            self.dialog.deiconify()
+            return
         
-        # Ask user to retry after they close the vehicle manager
+        # Show the tkinter dialog again
+        self.dialog.deiconify()
+        self.dialog.lift()
+        self.dialog.focus_set()
+        
         reply = messagebox.askyesno("Retry Checks",
             "After you finish editing vehicle classes in the Vehicle Manager,\n"
             "click Yes to retry the checks, or No to continue without retrying.\n\n"

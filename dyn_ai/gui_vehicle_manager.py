@@ -20,11 +20,30 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 
 from core_vehicle_scanner import scan_vehicles_from_gtr2
-from gui_common import get_data_file_path
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_VEHICLE_CLASSES_PATH = get_data_file_path("vehicle_classes.json")
+
+def get_vehicle_classes_path() -> Path:
+    """Get the path to vehicle_classes.json"""
+    if getattr(sys, 'frozen', False):
+        # Running as compiled executable - look in executable directory
+        exe_dir = Path(sys.executable).parent
+        classes_path = exe_dir / "vehicle_classes.json"
+        if classes_path.exists():
+            return classes_path
+        # Fall back to current working directory
+        return Path.cwd() / "vehicle_classes.json"
+    else:
+        # Development mode
+        try:
+            from gui_common import get_data_file_path
+            return get_data_file_path("vehicle_classes.json")
+        except ImportError:
+            return Path.cwd() / "vehicle_classes.json"
+
+
+DEFAULT_VEHICLE_CLASSES_PATH = get_vehicle_classes_path()
 
 DEFAULT_VEHICLE_CLASSES = {
     "GT_0304": {
