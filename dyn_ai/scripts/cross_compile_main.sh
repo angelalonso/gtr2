@@ -26,19 +26,47 @@ cd ${COMPILEDIR}
 # Install dependencies (including PyInstaller)
 echo "Installing dependencies..."
 wine python -m pip install --upgrade pip
-wine python -m pip install watchdog pyyaml numpy matplotlib PyQt5 pyinstaller
+wine python -m pip install watchdog pyyaml numpy scipy matplotlib PyQt5 pyinstaller
 
 # Build with PyInstaller - using --add-data for all required files
 echo "Building executable with PyInstaller..."
+
 wine python -m PyInstaller \
     --onefile \
     --windowed \
     --name="dyn_ai" \
-    --strip \
-    --noupx \
+    --add-data="core_aiw_utils.py;." \
+    --add-data="core_autopilot.py;." \
+    --add-data="core_config.py;." \
+    --add-data="core_database.py;." \
+    --add-data="core_data_extraction.py;." \
+    --add-data="core_formula.py;." \
+    --add-data="core_user_laptimes.py;." \
+    --add-data="core_vehicle_scanner.py;." \
+    --add-data="dyn_ai.py;." \
+    --add-data="gui_advanced_settings.py;." \
+    --add-data="gui_ai_time_manager.py;." \
+    --add-data="gui_base_path_dialog.py;." \
+    --add-data="gui_common.py;." \
+    --add-data="gui_common_dialogs.py;." \
+    --add-data="gui_components.py;." \
+    --add-data="gui_curve_graph.py;." \
+    --add-data="gui_data_manager.py;." \
+    --add-data="gui_data_manager_common.py;." \
+    --add-data="gui_data_manager_database.py;." \
+    --add-data="gui_data_manager_import.py;." \
+    --add-data="gui_data_manager_vehicle.py;." \
+    --add-data="gui_file_monitor.py;." \
+    --add-data="gui_main_window_components.py;." \
+    --add-data="gui_main_window_ui.py;." \
+    --add-data="gui_ratio_panel.py;." \
+    --add-data="gui_session_panel.py;." \
+    --add-data="gui_target_manager.py;." \
+    --add-data="gui_vehicle_manager.py;." \
+    --add-data="monitor_file_daemon.py;." \
+    --add-data="dyn_ai_data_manager.py;." \
     --collect-data=pyqtgraph \
     --hidden-import=cfg_funcs \
-    --hidden-import=core_aiw_utils \
     --hidden-import=core_autopilot \
     --hidden-import=core_config \
     --hidden-import=core_database \
@@ -60,11 +88,8 @@ wine python -m PyInstaller \
     --hidden-import=gui_data_manager_import \
     --hidden-import=gui_data_manager_vehicle \
     --hidden-import=gui_file_monitor \
-    --hidden-import=gui_log_window \
-    --hidden-import=gui_main_window \
     --hidden-import=gui_main_window_components \
     --hidden-import=gui_main_window_ui \
-    --hidden-import=gui_pre_run_check \
     --hidden-import=gui_ratio_panel \
     --hidden-import=gui_session_panel \
     --hidden-import=gui_target_manager \
