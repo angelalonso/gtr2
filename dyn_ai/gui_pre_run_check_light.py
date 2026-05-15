@@ -882,12 +882,6 @@ class PreRunCheckDialog:
         self.dialog.lift()
         self.dialog.focus_set()
         
-        if success:
-            reply = messagebox.askyesno("Retry Checks", 
-                "Setup manager has been closed.\n\nClick Yes to retry the checks.")
-            if reply:
-                self.run_checks()
-    
     def _check_vehicle_definitions(self) -> Tuple[bool, str]:
         """Check that all vehicles from GTR2 are defined in vehicle_classes.json"""
         config = get_config_with_defaults(self.config_file)

@@ -293,7 +293,7 @@ class AdvancedSettingsDialog(QDialog):
         
         fields = [
             ("base_path", "GTR2 Base Path:", "text", ""),
-            ("formulas_dir", "Formulas Directory:", "text", "./track_formulas"),
+           # ("formulas_dir", "Formulas Directory:", "text", "./track_formulas"),
             ("db_path", "Database Path:", "text", "ai_data.db"),
             ("auto_apply", "Auto Apply:", "bool", False),
             ("backup_enabled", "Backup Enabled:", "bool", True),
@@ -389,7 +389,8 @@ class AdvancedSettingsDialog(QDialog):
             live_update_possible_changes = []
             
             restart_settings = {
-                'base_path', 'formulas_dir', 'db_path', 'logging_enabled', 
+                #'base_path', 'formulas_dir', 'db_path', 'logging_enabled', 
+                'base_path', 'db_path', 'logging_enabled', 
                 'autopilot_enabled', 'autopilot_silent'
             }
             

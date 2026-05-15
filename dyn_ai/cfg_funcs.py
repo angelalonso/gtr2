@@ -12,7 +12,7 @@ from typing import Optional, Dict, Any
 
 DEFAULT_CONFIG = {
     'base_path': '',
-    'formulas_dir': './track_formulas',
+   # 'formulas_dir': './track_formulas',
     'db_path': 'ai_data.db',
     'auto_apply': False,
     'backup_enabled': True,

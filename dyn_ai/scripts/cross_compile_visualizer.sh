@@ -23,6 +23,7 @@ echo "Copying files to ${COMPILEDIR}..."
 cp dyn_ai_visualizer.py ${COMPILEDIR}/
 cp core_aiw_utils.py ${COMPILEDIR}/
 cp core_autopilot.py ${COMPILEDIR}/
+cp core_common.py ${COMPILEDIR}/
 cp core_config.py ${COMPILEDIR}/
 cp core_database.py ${COMPILEDIR}/
 cp core_data_extraction.py ${COMPILEDIR}/
@@ -62,6 +63,7 @@ wine python -m PyInstaller \
     --hidden-import=cfg_funcs \
     --hidden-import=core_aiw_utils \
     --hidden-import=core_autopilot \
+    --hidden-import=core_common \
     --hidden-import=core_config \
     --hidden-import=core_database \
     --hidden-import=core_data_extracion \

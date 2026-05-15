@@ -126,7 +126,7 @@ class ConfigTab(tk.Frame):
         # browse_type can be: None, "directory", "file"
         fields = [
             ("base_path", "GTR2 Base Path:", "entry", "", "directory"),
-            ("formulas_dir", "Formulas Directory:", "entry", "./track_formulas", "directory"),
+           # ("formulas_dir", "Formulas Directory:", "entry", "./track_formulas", "directory"),
             ("db_path", "Database Path:", "entry", "ai_data.db", "file"),
             ("auto_apply", "Auto Apply:", "check", False, None),
             ("backup_enabled", "Backup Enabled:", "check", True, None),
@@ -299,7 +299,7 @@ class ConfigTab(tk.Frame):
         """Get the human-readable label for a field"""
         labels = {
             "base_path": "GTR2 Base Path",
-            "formulas_dir": "Formulas Directory",
+            # "formulas_dir": "Formulas Directory",
             "db_path": "Database Path"
         }
         return labels.get(key, key)
@@ -308,7 +308,7 @@ class ConfigTab(tk.Frame):
         """Get tooltip text for a field"""
         tooltips = {
             "base_path": "Root folder of your GTR2 installation (contains GameData and UserData)",
-            "formulas_dir": "Directory where track-specific formula files are stored",
+           # "formulas_dir": "Directory where track-specific formula files are stored",
             "db_path": "Path to the SQLite database file for storing data points",
             "outlier_method": "std: standard deviation\niqr: interquartile range\npercentile: percentile threshold\nnone: no outlier detection",
             "outlier_threshold": "Threshold for outlier detection (higher = fewer outliers removed)",

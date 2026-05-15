@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG = {
     'base_path': '',
-    'formulas_dir': './track_formulas',
+    # 'formulas_dir': './track_formulas',
     'db_path': 'ai_data.db',
     'auto_apply': False,
     'backup_enabled': True,

@@ -581,7 +581,7 @@ class VehicleTab(tk.Frame):
         self.gtr2_path_label.pack(side=tk.LEFT) ## 
         
         self.import_btn = tk.Button(import_btn_frame, text="Import Cars from: ", bg='#FF9800', fg='white',
-                                     command=self.import_cars, state=tk.DISABLED)
+                                     command=self.get_cars_and_json, state=tk.DISABLED)
         self.import_btn.pack(side=tk.LEFT, padx=2)
 
         self.import_status = tk.Label(import_inner, text="", bg='#1e1e1e', fg='#888', font=('Arial', 9))
@@ -854,6 +854,10 @@ class VehicleTab(tk.Frame):
             self.import_progress['value'] = current
         self.import_status.config(text=f"{message} ({current}/{total})")
     
+    def get_cars_and_json(self):
+        self.manager.load()
+        self.import_cars()
+    
     def import_cars(self):
         if not self.gtr2_path:
             messagebox.showwarning("No Folder", "Please select GTR2 installation folder first.")
@@ -906,11 +910,13 @@ class VehicleTab(tk.Frame):
         
         unassigned = self.manager.get_unassigned_vehicles(self.imported_vehicles)
         
-        if unassigned:
+        if unassigned: 
+            self.add_to_class_btn.config(state=tk.NORMAL)
             for vehicle in unassigned:
                 self.unassigned_listbox.insert(tk.END, vehicle)
         else:
             self.unassigned_listbox.insert(tk.END, "All vehicles are assigned to classes!")
+            self.add_to_class_btn.config(state=tk.DISABLED)
         
         self.update_add_button_state()
     
