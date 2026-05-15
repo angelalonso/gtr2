@@ -19,7 +19,6 @@ from core_config import get_db_path, get_config_with_defaults, create_default_co
 from gui_curve_graph import CurveGraphWidget
 from gui_session_panel import SessionPanel
 from gui_common import setup_dark_theme
-from gui_pre_run_check_light import run_pre_run_check
 
 
 logger = logging.getLogger(__name__)
@@ -163,11 +162,6 @@ def main():
     db_path = get_db_path()
     if not Path(db_path).exists():
         CurveDatabase(db_path)
-
-    # Run pre-run checks - pass accept_enter=True to enable Enter key to continue
-    if not run_pre_run_check("cfg.yml", accept_enter=True):
-        print("Pre-run checks failed or cancelled. Exiting.")
-        sys.exit(1)
 
     setup_dark_theme(QApplication.instance() or QApplication(sys.argv))
 

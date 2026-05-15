@@ -46,7 +46,7 @@ def load_vehicle_classes(classes_path=None):
     
     if classes_path is None:
         try:
-            from gui_common import get_data_file_path
+            from core_common import get_data_file_path
             classes_path = get_data_file_path("vehicle_classes.json")
         except ImportError:
             classes_path = Path(__file__).parent / "vehicle_classes.json"

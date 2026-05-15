@@ -440,31 +440,34 @@ class VehicleTab(tk.Frame):
         
         # Left panel - Class list
         left_frame = tk.Frame(paned, bg='#1e1e1e')
-        paned.add(left_frame, width=250)
+        paned.add(left_frame, width=400)
         
-        tk.Label(left_frame, text="Vehicle Classes:", bg='#1e1e1e', fg='white',
-                 font=('Arial', 11, 'bold')).pack(anchor=tk.W, pady=(0, 5))
+        classes_frame = tk.LabelFrame(left_frame, text="Vehicle Classes", bg='#1e1e1e',
+                      fg='#FFA500', font=('Arial', 10, 'bold'))
+        classes_frame.pack(fill=tk.BOTH, expand=True)
         
-        list_frame = tk.Frame(left_frame, bg='#1e1e1e')
-        list_frame.pack(fill=tk.BOTH, expand=True)
+        classes_inner = tk.Frame(classes_frame, bg='#1e1e1e')
+        classes_inner.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        scrollbar = tk.Scrollbar(list_frame)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        classes_list_frame = tk.Frame(classes_inner, bg='#1e1e1e')
+        classes_list_frame.pack(fill=tk.BOTH, expand=True)
         
+        classes_scrollbar = tk.Scrollbar(classes_list_frame)
+        classes_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
         # exportselection=False prevents this listbox from losing its highlight
         # when the user clicks in another listbox (vehicles or unassigned).
-        self.class_listbox = tk.Listbox(list_frame, bg='#2b2b2b', fg='#4CAF50',
+        self.classes_listbox = tk.Listbox(classes_list_frame, bg='#2b2b2b', fg='#4CAF50',
                                          selectmode=tk.SINGLE,
                                          exportselection=False,
-                                         yscrollcommand=scrollbar.set,
+                                         yscrollcommand=classes_scrollbar.set,
                                          font=('Arial', 10))
-        self.class_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.config(command=self.class_listbox.yview)
+        self.classes_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        classes_scrollbar.config(command=self.classes_listbox.yview)
         
-        # Bind only to selection changes, not to focus events
-        self.class_listbox.bind('<<ListboxSelect>>', self.on_class_selected)
+        self.classes_listbox.bind('<<ListboxSelect>>', self.on_class_selected)
         
-        class_btn_frame = tk.Frame(left_frame, bg='#1e1e1e')
+        class_btn_frame = tk.Frame(classes_frame, bg='#1e1e1e')
         class_btn_frame.pack(fill=tk.X, pady=10)
         
         tk.Button(class_btn_frame, text="Add Class", bg='#4CAF50', fg='white',
@@ -476,7 +479,7 @@ class VehicleTab(tk.Frame):
         
         # Middle panel - Vehicles in selected class
         middle_frame = tk.Frame(paned, bg='#1e1e1e')
-        paned.add(middle_frame, width=350)
+        paned.add(middle_frame, width=500)
         
         self.selected_class_label = tk.Label(middle_frame, text="No class selected",
                                               bg='#1e1e1e', fg='#FFA500',
@@ -486,7 +489,7 @@ class VehicleTab(tk.Frame):
         tk.Label(middle_frame, text="Vehicles in this class:", bg='#1e1e1e', fg='white').pack(anchor=tk.W)
         
         vehicle_list_frame = tk.Frame(middle_frame, bg='#1e1e1e')
-        vehicle_list_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        vehicle_list_frame.pack(fill=tk.BOTH, expand=True)
         
         vehicle_scrollbar = tk.Scrollbar(vehicle_list_frame)
         vehicle_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
@@ -511,44 +514,14 @@ class VehicleTab(tk.Frame):
         tk.Button(vehicle_btn_frame, text="Remove Vehicle(s)", bg='#f44336', fg='white',
                   command=self.remove_vehicles).pack(side=tk.LEFT, padx=2)
         
-        # Right panel - Import and unassigned vehicles
+        # Right panel - Unassigned vehicles
         right_frame = tk.Frame(paned, bg='#1e1e1e')
-        paned.add(right_frame, width=400)
-        
-        import_frame = tk.LabelFrame(right_frame, text="Import from GTR2", bg='#1e1e1e',
-                                      fg='#4CAF50', font=('Arial', 10, 'bold'))
-        import_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        import_inner = tk.Frame(import_frame, bg='#1e1e1e')
-        import_inner.pack(padx=10, pady=10, fill=tk.X)
-        
-        self.gtr2_path_label = tk.Label(import_inner, text="",
-                                         bg='#1e1e1e', fg='#888', font=('Courier', 9), wraplength=350)
-        self.gtr2_path_label.pack(anchor=tk.W, pady=5)
-        
-        import_btn_frame = tk.Frame(import_inner, bg='#1e1e1e')
-        import_btn_frame.pack(fill=tk.X, pady=5)
-        
-        select_gtr2_btn = tk.Button(import_btn_frame, text="Select GTR2 Folder", bg='#2196F3', fg='white',
-                  command=self.select_gtr2_folder)
-        select_gtr2_btn.pack(side=tk.LEFT, padx=2)
-        self.select_gtr2_btn = select_gtr2_btn
-        
-        self.import_btn = tk.Button(import_btn_frame, text="Import Cars", bg='#FF9800', fg='white',
-                                     command=self.import_cars, state=tk.DISABLED)
-        self.import_btn.pack(side=tk.LEFT, padx=2)
-        
-        self.import_progress = ttk.Progressbar(import_inner, mode='indeterminate')
-        self.import_progress.pack(fill=tk.X, pady=5)
-        self.import_progress.pack_forget()
-        
-        self.import_status = tk.Label(import_inner, text="", bg='#1e1e1e', fg='#888', font=('Arial', 9))
-        self.import_status.pack(anchor=tk.W)
+        paned.add(right_frame, width=450)
         
         # Unassigned vehicles section
         unassigned_frame = tk.LabelFrame(right_frame, text="Unassigned Vehicles", bg='#1e1e1e',
                                           fg='#FFA500', font=('Arial', 10, 'bold'))
-        unassigned_frame.pack(fill=tk.BOTH, expand=True)
+        unassigned_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
         
         unassigned_inner = tk.Frame(unassigned_frame, bg='#1e1e1e')
         unassigned_inner.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -567,11 +540,10 @@ class VehicleTab(tk.Frame):
                                               selectmode=tk.EXTENDED,
                                               exportselection=False,
                                               yscrollcommand=unassigned_scrollbar.set,
-                                              font=('Courier', 10))
+                                              font=('Ariel', 10))
         self.unassigned_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         unassigned_scrollbar.config(command=self.unassigned_listbox.yview)
         
-        # Bind unassigned selection - does NOT clear the class selection
         self.unassigned_listbox.bind('<<ListboxSelect>>', self.on_unassigned_selected)
         
         transfer_frame = tk.Frame(unassigned_inner, bg='#1e1e1e')
@@ -585,22 +557,50 @@ class VehicleTab(tk.Frame):
         tk.Button(transfer_frame, text="Refresh", bg='#2196F3', fg='white',
                   command=self.refresh_unassigned_list).pack(side=tk.LEFT, padx=2)
         
-        save_frame = tk.Frame(self, bg='#1e1e1e')
-        save_frame.pack(fill=tk.X, padx=10, pady=10)
+        bottom_frame = tk.Frame(self, bg='#1e1e1e')
+        bottom_frame.pack(fill=tk.X, padx=10, pady=10)
         
-        close_btn = tk.Button(save_frame, text="Close without Saving", bg='#555', fg='white',
-                               font=('Arial', 11, 'bold'), padx=20, pady=8,
-                               command=self.close_without_saving)
-        close_btn.pack(side=tk.RIGHT, padx=5)
-        
-        save_btn = tk.Button(save_frame, text="Save and Close", bg='#4CAF50', fg='white',
-                              font=('Arial', 11, 'bold'), padx=20, pady=8,
-                              command=self.save_and_close)
+        save_btn = tk.Button(bottom_frame, text="Save", bg='#4CAF50', fg='white',
+                              font=('Arial', 14, 'bold'), padx=50, pady=18,
+                              command=self.save_data)
         save_btn.pack(side=tk.RIGHT, padx=5)
+
+        import_frame = tk.LabelFrame(bottom_frame, text="Get list of vehicles installed", bg='#1e1e1e',
+                                      fg='#4CAF50', font=('Arial', 10, 'bold'))
+        import_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        import_inner = tk.Frame(import_frame, bg='#1e1e1e')
+        import_inner.pack(padx=10, pady=10, fill=tk.X)
+        
+        
+        import_btn_frame = tk.Frame(import_inner, bg='#1e1e1e')
+        import_btn_frame.pack(side=tk.LEFT) ##
+
+        self.gtr2_path_label = tk.Label(import_inner, text="",
+                                         bg='#1e1e1e', fg='#888', font=('Arial', 10))
+        self.gtr2_path_label.pack(side=tk.LEFT) ## 
+        
+        self.import_btn = tk.Button(import_btn_frame, text="Import Cars from: ", bg='#FF9800', fg='white',
+                                     command=self.import_cars, state=tk.DISABLED)
+        self.import_btn.pack(side=tk.LEFT, padx=2)
+
+        self.import_status = tk.Label(import_inner, text="", bg='#1e1e1e', fg='#888', font=('Arial', 9))
+        self.import_status.pack(side=tk.RIGHT) ##
+        
+        self.import_progress = ttk.Progressbar(import_inner, mode='indeterminate')
+        self.import_progress.pack(fill=tk.X, pady=5)
+        self.import_progress.pack_forget()
+        
     
     def close_without_saving(self):
         if self.parent and hasattr(self.parent, 'destroy'):
             self.parent.destroy()
+    
+    def save_data(self):
+        if self.manager.save():
+            messagebox.showinfo("Success", "Vehicle classes saved successfully!")
+        else:
+            messagebox.showerror("Error", "Failed to save vehicle classes.")
     
     def save_and_close(self):
         if self.manager.save():
@@ -611,13 +611,13 @@ class VehicleTab(tk.Frame):
             messagebox.showerror("Error", "Failed to save vehicle classes.")
     
     def load_classes(self):
-        self.class_listbox.delete(0, tk.END)
+        self.classes_listbox.delete(0, tk.END)
         for class_name in self.manager.get_all_classes():
-            self.class_listbox.insert(tk.END, class_name)
+            self.classes_listbox.insert(tk.END, class_name)
     
     def on_class_selected(self, event=None):
         """Called only when the class listbox selection actually changes"""
-        selection = self.class_listbox.curselection()
+        selection = self.classes_listbox.curselection()
         if not selection:
             # No class selected - keep current_class as None
             if self.current_class is not None:
@@ -625,7 +625,7 @@ class VehicleTab(tk.Frame):
                 self.selected_class_label.config(text="No class selected")
                 self.vehicles_listbox.delete(0, tk.END)
         else:
-            class_name = self.class_listbox.get(selection[0])
+            class_name = self.classes_listbox.get(selection[0])
             if class_name != self.current_class:
                 self.current_class = class_name
                 self.selected_class_label.config(text=f"Class: {self.current_class}")
@@ -866,7 +866,6 @@ class VehicleTab(tk.Frame):
             return
         
         self.import_btn.config(state=tk.DISABLED)
-        self.select_gtr2_btn.config(state=tk.DISABLED)
         self.import_progress.pack(fill=tk.X, pady=5)
         self.import_progress.start()
         self.import_status.config(text="Importing vehicles... Please wait.")
@@ -884,7 +883,6 @@ class VehicleTab(tk.Frame):
         self.import_progress.stop()
         self.import_progress.pack_forget()
         self.import_btn.config(state=tk.NORMAL)
-        self.select_gtr2_btn.config(state=tk.NORMAL)
         
         if error:
             self.import_status.config(text=f"Error: {error}")

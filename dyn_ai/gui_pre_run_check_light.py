@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import Tuple, Set, Optional, List
 from dataclasses import dataclass
 
-# Use tkinter for lightweight UI
 import tkinter as tk
 from tkinter import ttk, messagebox
 
@@ -135,7 +134,7 @@ def get_vehicle_classes_path() -> Path:
     else:
         # Development mode
         try:
-            from gui_common import get_data_file_path
+            from core_common import get_data_file_path
             return get_data_file_path("vehicle_classes.json")
         except ImportError:
             return Path.cwd() / "vehicle_classes.json"
@@ -143,7 +142,7 @@ def get_vehicle_classes_path() -> Path:
 
 class PreRunCheckDialog:
     """
-    Lightweight pre-run check dialog using tkinter.
+    Pre-run check dialog using tkinter.
     Returns True if checks passed and user wants to continue.
     """
     
@@ -237,12 +236,12 @@ class PreRunCheckDialog:
         button_container = tk.Frame(button_frame, bg='#1e1e1e')
         button_container.pack(anchor=tk.CENTER)
         
-        self.fix_vehicles_btn = tk.Button(button_container, text="Open Vehicle Manager to Fix Missing Vehicles",
-                                           bg='#9C27B0', fg='white', font=('Arial', 10, 'bold'),
-                                           relief=tk.FLAT, padx=12, pady=8,
-                                           command=self.open_vehicle_manager)
-        self.fix_vehicles_btn.pack(side=tk.LEFT, padx=5)
-        self.fix_vehicles_btn.pack_forget()
+        ## self.fix_vehicles_btn = tk.Button(button_container, text="Open Vehicle Manager to Fix Missing Vehicles",
+        ##                                    bg='#9C27B0', fg='white', font=('Arial', 10, 'bold'),
+        ##                                    relief=tk.FLAT, padx=12, pady=8,
+        ##                                    command=self.open_vehicle_manager)
+        ## self.fix_vehicles_btn.pack(side=tk.LEFT, padx=5)
+        ## self.fix_vehicles_btn.pack_forget()
         
         self.fix_plr_btn = tk.Button(button_container, text="Fix PLR File (Set Extra Stats=0)",
                                       bg='#2196F3', fg='white', font=('Arial', 10, 'bold'),
@@ -252,8 +251,8 @@ class PreRunCheckDialog:
         self.fix_plr_btn.pack_forget()
         
         self.retry_btn = tk.Button(button_container, text="Retry Checks",
-                                    bg='#FF9800', fg='white', font=('Arial', 10, 'bold'),
-                                    relief=tk.FLAT, padx=12, pady=8,
+                                    bg='#555', fg='white', font=('Arial', 10, 'bold'),
+                                    relief=tk.FLAT, padx=12, pady=8, state=tk.DISABLED,
                                     command=self.run_checks)
         self.retry_btn.pack(side=tk.LEFT, padx=5)
         
@@ -270,7 +269,7 @@ class PreRunCheckDialog:
         info_frame.pack(fill=tk.X, pady=(0, 0))
         
         info_text = (
-            "1. LEAVE THIS APPLICATION RUNNING\n\n"
+            "1. Click <Continue> and LEAVE THE APPLICATION RUNNING\n\n"
             "2. Launch GTR2 and start your race session\n\n"
             "TIPS:\n"
             " - Complete qualifying and the race normally\n"
@@ -359,7 +358,7 @@ class PreRunCheckDialog:
         self.status_text.delete(1.0, tk.END)
         self.check_results.clear()
         self.continue_btn.config(state=tk.DISABLED)
-        self.fix_vehicles_btn.pack_forget()
+        ## self.fix_vehicles_btn.pack_forget()
         self.fix_plr_btn.pack_forget()
         self.info_frame.pack_forget()
         self.result_label.config(text="")
@@ -403,25 +402,28 @@ class PreRunCheckDialog:
         vehicle_check_failed = any(r.name == "Vehicle Definitions" and not r.passed for r in self.check_results)
         plr_check_failed = any(r.name == "GTR2 PLR File" and not r.passed for r in self.check_results)
         
-        if vehicle_check_failed:
-            self.fix_vehicles_btn.pack(side=tk.LEFT, padx=5)
+        ## if vehicle_check_failed:
+        ##     self.fix_vehicles_btn.pack(side=tk.LEFT, padx=5)
         if plr_check_failed:
             self.fix_plr_btn.pack(side=tk.LEFT, padx=5)
         
         if all_critical_passed:
             if vehicle_warning:
-                self.result_label.config(text="Critical checks PASSED (with vehicle warnings)", fg="#FFCC00")
-                self._log("WARN", "Summary", "Critical checks passed, but some vehicles are not defined")
+                self.result_label.config(text="Requirements are OK (with vehicle warnings)", fg="#FFCC00")
+                self._log("WARN", "Summary", "All checks passed, but some vehicles are not defined")
+                self.retry_btn.config(bg="#FF9800", state=tk.NORMAL)
             else:
-                self.result_label.config(text="Critical checks PASSED - System is ready", fg="#4CAF50")
-                self._log("INFO", "Summary", "All checks passed. You can continue to the application.")
+                self.result_label.config(text="System ready, Click <Continue> to continue", fg="#4CAF50")
+                self._log("INFO", "Summary", "All checks passed. Click <Continue> to open the application.")
+                self.retry_btn.config(bg="#555", state=tk.DISABLED)
             
             self.continue_btn.config(state=tk.NORMAL)
             self.info_frame.pack(fill=tk.X, pady=(15, 0))
             self.continue_btn.focus_set()
         else:
-            self.result_label.config(text="CRITICAL CHECKS FAILED - Please fix issues and retry", fg="#f44336")
-            self._log("FAIL", "Summary", "Some critical checks failed. Please fix the issues and retry.")
+            self.result_label.config(text="SOME REQUIREMENTS NOT READY - Please fix issues and retry", fg="#f44336")
+            self._log("FAIL", "Summary", "Some requirements are not ready. Please fix the issues and retry.")
+            self.retry_btn.config(bg="#FF9800", state=tk.NORMAL)
             
             guidance = self._get_guidance()
             if guidance:
@@ -697,43 +699,43 @@ class PreRunCheckDialog:
         except Exception as e:
             messagebox.showerror("Error Fixing PLR File", f"Failed to fix PLR file:\n{str(e)}")
     
-    def open_vehicle_manager(self):
-        """Open the vehicle manager dialog - direct dialog launch"""
-        config = get_config_with_defaults(self.config_file)
-        base_path = config.get('base_path', '')
-        gtr2_path = Path(base_path) if base_path and Path(base_path).exists() else None
-        
-        # Hide the tkinter dialog temporarily
-        self.dialog.withdraw()
-        
-        try:
-            from PyQt5.QtWidgets import QApplication, QDialog
-            from gui_vehicle_manager import VehicleManagerDialog
-            
-            # Check if a QApplication instance exists, create one if not
-            qt_app = QApplication.instance()
-            if qt_app is None:
-                qt_app = QApplication(sys.argv)
-            
-            # Create and show the dialog
-            dialog = VehicleManagerDialog(None, gtr2_path)
-            dialog.exec_()
-            
-        except ImportError as e:
-            messagebox.showerror("Import Error", f"Failed to import VehicleManagerDialog:\n{str(e)}\n\nPlease ensure the application is properly installed.")
-            self.dialog.deiconify()
-            return
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to open Vehicle Manager:\n{str(e)}")
-            self.dialog.deiconify()
-            return
-        
-        # Show the tkinter dialog again
-        self.dialog.deiconify()
-        self.dialog.lift()
-        self.dialog.focus_set()
-        
-        self.run_checks()
+##     def open_vehicle_manager(self):
+##         """Open the vehicle manager dialog - direct dialog launch"""
+##         config = get_config_with_defaults(self.config_file)
+##         base_path = config.get('base_path', '')
+##         gtr2_path = Path(base_path) if base_path and Path(base_path).exists() else None
+##         
+##         # Hide the tkinter dialog temporarily
+##         self.dialog.withdraw()
+##         
+##         try:
+##             from PyQt5.QtWidgets import QApplication, QDialog
+##             from gui_vehicle_manager import VehicleManagerDialog
+##             
+##             # Check if a QApplication instance exists, create one if not
+##             qt_app = QApplication.instance()
+##             if qt_app is None:
+##                 qt_app = QApplication(sys.argv)
+##             
+##             # Create and show the dialog
+##             dialog = VehicleManagerDialog(None, gtr2_path)
+##             dialog.exec_()
+##             
+##         except ImportError as e:
+##             messagebox.showerror("Import Error", f"Failed to import VehicleManagerDialog:\n{str(e)}\n\nPlease ensure the application is properly installed.")
+##             self.dialog.deiconify()
+##             return
+##         except Exception as e:
+##             messagebox.showerror("Error", f"Failed to open Vehicle Manager:\n{str(e)}")
+##             self.dialog.deiconify()
+##             return
+##         
+##         # Show the tkinter dialog again
+##         self.dialog.deiconify()
+##         self.dialog.lift()
+##         self.dialog.focus_set()
+##         
+##         self.run_checks()
     
     def _check_vehicle_definitions(self) -> Tuple[bool, str]:
         """Check that all vehicles from GTR2 are defined in vehicle_classes.json"""

@@ -28,7 +28,7 @@ from core_data_extraction import RaceData
 from core_autopilot import AutopilotManager, get_vehicle_class, load_vehicle_classes
 from core_user_laptimes import UserLapTimesManager
 
-from gui_common import SimpleLogHandler
+from core_common import SimpleLogHandler
 from gui_base_path_dialog_tk import BasePathSelectionDialog
 from gui_file_monitor import FileMonitorDaemon, SimplifiedLogger
 
@@ -69,14 +69,14 @@ class RatioPanel(tk.Frame):
         button_frame = tk.Frame(title_frame, bg='#2b2b2b')
         button_frame.pack(side=tk.RIGHT)
         
-        self.revert_btn = tk.Button(button_frame, text="Revert", bg='#FF9800', fg='white',
+        self.revert_btn = tk.Button(button_frame, text="Revert", bg='#FF9800', fg='black',
                                      font=('Arial', 10, 'bold'), relief=tk.FLAT, padx=12, pady=4,
                                      state=tk.DISABLED, command=self.on_revert)
         self.revert_btn.pack(side=tk.LEFT, padx=5)
         
-        self.edit_btn = tk.Button(button_frame, text="Edit", bg='#2196F3', fg='white',
+        self.edit_btn = tk.Button(button_frame, text="Edit", bg='#555', fg='black',
                                    font=('Arial', 10, 'bold'), relief=tk.FLAT, padx=12, pady=4,
-                                   command=self.on_edit)
+                                   command=self.on_edit, state=tk.DISABLED)
         self.edit_btn.pack(side=tk.LEFT, padx=5)
         
         # Ratio display
@@ -206,7 +206,7 @@ class RatioPanel(tk.Frame):
     
     def set_edit_enabled(self, enabled: bool):
         state = tk.NORMAL if enabled else tk.DISABLED
-        self.edit_btn.config(state=state)
+        self.edit_btn.config(state=state, bg=f"{'#84C7FC' if enabled else '#555'}")
     
     def on_edit(self):
         logger.debug(f"[RatioPanel.{self.title}] on_edit called")
@@ -214,10 +214,13 @@ class RatioPanel(tk.Frame):
         # Get the current ratio value to edit
         edit_value = self.get_current_ratio_value()
         
+        ## if edit_value is None:
+        ##     logger.warning(f"[RatioPanel.{self.title}] No ratio value available to edit")
+        ##     messagebox.showwarning("No Ratio", f"No {self.title} value available to edit. Please select a track or run a race session first.")
+        ##     return
+
         if edit_value is None:
-            logger.warning(f"[RatioPanel.{self.title}] No ratio value available to edit")
-            messagebox.showwarning("No Ratio", f"No {self.title} value available to edit. Please select a track or run a race session first.")
-            return
+            edit_value = 1.000
         
         logger.debug(f"[RatioPanel.{self.title}] Using edit_value={edit_value}")
         
@@ -363,7 +366,7 @@ class MainWindowTk:
         logger.debug(f"min_ratio={self.min_ratio}, max_ratio={self.max_ratio}")
         
         # Load vehicle classes
-        from gui_common import get_data_file_path
+        from core_common import get_data_file_path
         vehicle_classes_path = get_data_file_path("vehicle_classes.json")
         self.class_mapping = load_vehicle_classes(vehicle_classes_path)
         
@@ -410,16 +413,20 @@ class MainWindowTk:
         top_frame = tk.Frame(main_frame, bg='#1e1e1e')
         top_frame.pack(fill=tk.X, pady=(0, 20))
         
-        # Header with track info
+        # Header with track  and car class info
         header_frame = tk.Frame(top_frame, bg='#1e1e1e')
         header_frame.pack(fill=tk.X)
         
-        title_label = tk.Label(header_frame, text="GTR2", fg='#888', bg='#1e1e1e',
+        title_label1 = tk.Label(header_frame, text="GTR", fg='#888', bg='#1e1e1e',
                                 font=('Arial', 40, 'bold'))
-        title_label.pack(side=tk.LEFT)
+        title_label1.pack(side=tk.LEFT)
+        title_label2 = tk.Label(header_frame, text="2", fg='#d20a0a', bg='#1e1e1e',
+                                font=('Arial', 26, 'bold'))
+        title_label2.pack(side=tk.LEFT, pady=(8, 20))
         
+        # Track container
         track_container = tk.Frame(header_frame, bg='#2b2b2b', relief=tk.FLAT, bd=0)
-        track_container.pack(side=tk.RIGHT, padx=10)
+        track_container.pack(side=tk.TOP, fill=tk.BOTH, padx=5, pady=5)
         
         tk.Label(track_container, text="Track:", bg='#2b2b2b', fg='#888',
                  font=('Arial', 11)).pack(side=tk.LEFT, padx=(10, 5), pady=5)
@@ -428,21 +435,21 @@ class MainWindowTk:
                                      fg='#FFA500', font=('Arial', 14, 'bold'))
         self.track_label.pack(side=tk.LEFT, padx=5, pady=5)
         
-        select_track_btn = tk.Button(track_container, text="Configure", bg='#9C27B0', fg='white',
-                                      font=('Arial', 10, 'bold'), relief=tk.FLAT, padx=12, pady=4,
-                                      command=self.open_advanced_to_data_management)
-        select_track_btn.pack(side=tk.LEFT, padx=(10, 10), pady=5)
-        
         # Car class container
-        class_container = tk.Frame(top_frame, bg='#2b2b2b', relief=tk.FLAT, bd=0)
-        class_container.pack(fill=tk.X, pady=(10, 0))
+        class_container = tk.Frame(header_frame, bg='#2b2b2b', relief=tk.FLAT, bd=0)
+        class_container.pack(side=tk.BOTTOM, fill=tk.BOTH, padx=5, pady=5)
         
         tk.Label(class_container, text="Car Class:", bg='#2b2b2b', fg='#888',
                  font=('Arial', 11)).pack(side=tk.LEFT, padx=(10, 5), pady=5)
         
-        self.car_class_label = tk.Label(class_container, text="-", bg='#2b2b2b',
-                                         fg='#4CAF50', font=('Arial', 14, 'bold'))
+        self.car_class_label = tk.Label(class_container, text="- No Car Selected -", bg='#2b2b2b',
+                                         fg='#FFA500', font=('Arial', 14, 'bold'))
         self.car_class_label.pack(side=tk.LEFT, padx=5, pady=5)
+        
+        ## select_track_btn = tk.Button(track_container, text="Configure", bg='#9C27B0', fg='white',
+        ##                               font=('Arial', 10, 'bold'), relief=tk.FLAT, padx=12, pady=4,
+        ##                               command=self.open_advanced_to_data_management)
+        ## select_track_btn.pack(side=tk.LEFT, padx=(10, 10), pady=5)
         
         # Panels container
         panels_frame = tk.Frame(main_frame, bg='#1e1e1e')
@@ -487,12 +494,12 @@ class MainWindowTk:
         tk.Frame(bottom_frame, bg='#1e1e1e', width=50).pack(side=tk.LEFT, expand=True)
         
         # Advanced and Exit buttons
-        advanced_btn = tk.Button(bottom_frame, text="Advanced", bg='#9C27B0', fg='white',
-                                  font=('Arial', 11, 'bold'), relief=tk.FLAT, padx=24, pady=8,
-                                  command=self.open_advanced_settings)
-        advanced_btn.pack(side=tk.RIGHT, padx=5)
+        ## advanced_btn = tk.Button(bottom_frame, text="Advanced", bg='#9C27B0', fg='white',
+        ##                           font=('Arial', 11, 'bold'), relief=tk.FLAT, padx=24, pady=8,
+        ##                           command=self.open_advanced_settings)
+        ## advanced_btn.pack(side=tk.RIGHT, padx=5)
         
-        exit_btn = tk.Button(bottom_frame, text="Exit", bg='#555', fg='white',
+        exit_btn = tk.Button(bottom_frame, text="Exit", bg='#d20a0a', fg='white',
                               font=('Arial', 11, 'bold'), relief=tk.FLAT, padx=24, pady=8,
                               command=self.on_close)
         exit_btn.pack(side=tk.RIGHT, padx=5)
@@ -511,75 +518,75 @@ class MainWindowTk:
         
         logger.info("UI setup complete")
     
-    def open_advanced_to_data_management(self):
-        self.open_advanced_settings()
+##    def open_advanced_to_data_management(self):
+##        self.open_advanced_settings()
     
-    def open_advanced_settings(self):
-        if self.advanced_window is None or not self.advanced_window.winfo_exists():
-            self.launch_advanced_dialog()
-        else:
-            self.advanced_window.lift()
-            self.advanced_window.focus()
+##    def open_advanced_settings(self):
+##        if self.advanced_window is None or not self.advanced_window.winfo_exists():
+##            self.launch_advanced_dialog()
+##        else:
+##            self.advanced_window.lift()
+##            self.advanced_window.focus()
     
-    def launch_advanced_dialog(self):
-        # Hide the tkinter window temporarily
-        self.root.withdraw()
-        
-        try:
-            from PyQt5.QtWidgets import QApplication
-            from gui_advanced_settings import AdvancedSettingsDialog
-            
-            # Check if a QApplication instance exists, create one if not
-            qt_app = QApplication.instance()
-            if qt_app is None:
-                qt_app = QApplication(sys.argv)
-            
-            # Create and show the dialog - pass None as parent
-            self.advanced_window = AdvancedSettingsDialog(None, self.db, None)
-            
-            # Connect signals
-            self.advanced_window.data_updated.connect(self.on_data_updated)
-            self.advanced_window.formula_updated.connect(self.on_formula_updated)
-            self.advanced_window.ratio_saved.connect(self.on_ratio_saved_from_advanced)
-            self.advanced_window.lap_time_updated.connect(self.on_lap_time_updated_from_advanced)
-            self.advanced_window.track_selected.connect(self.on_track_selected_from_advanced)
-            
-            # Manually set the data in the dialog
-            if hasattr(self.advanced_window, 'curve_graph'):
-                self.advanced_window.curve_graph.current_track = self.current_track
-                self.advanced_window.curve_graph.current_vehicle = self.current_vehicle
-                self.advanced_window.curve_graph.user_qual_time = self.user_qualifying_sec if self.user_qualifying_sec > 0 else None
-                self.advanced_window.curve_graph.user_race_time = self.user_best_lap_sec if self.user_best_lap_sec > 0 else None
-                self.advanced_window.curve_graph.user_qual_ratio = self.last_qual_ratio
-                self.advanced_window.curve_graph.user_race_ratio = self.last_race_ratio
-                self.advanced_window.curve_graph.set_formulas(self.qual_a, self.qual_b, self.race_a, self.race_b)
-                self.advanced_window.curve_graph.load_data()
-                self.advanced_window.curve_graph.full_refresh()
-            
-            if hasattr(self.advanced_window, 'qual_panel'):
-                self.advanced_window.qual_panel.update_formula(self.qual_a, self.qual_b)
-                self.advanced_window.qual_panel.update_user_time(self.user_qualifying_sec)
-                self.advanced_window.qual_panel.update_ratio(self.last_qual_ratio)
-            
-            if hasattr(self.advanced_window, 'race_panel'):
-                self.advanced_window.race_panel.update_formula(self.race_a, self.race_b)
-                self.advanced_window.race_panel.update_user_time(self.user_best_lap_sec)
-                self.advanced_window.race_panel.update_ratio(self.last_race_ratio)
-            
-            self.advanced_window.show()
-            
-            # When dialog closes, show tkinter window again
-            def on_dialog_close():
-                self.advanced_window = None
-                self.root.deiconify()
-                self.root.lift()
-                self.root.focus()
-            
-            self.advanced_window.finished.connect(on_dialog_close)
-            
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to open Advanced Settings:\n{str(e)}")
-            self.root.deiconify()
+##    def launch_advanced_dialog(self):
+##        # Hide the tkinter window temporarily
+##        self.root.withdraw()
+##        
+##        try:
+##            from PyQt5.QtWidgets import QApplication
+##            from gui_advanced_settings import AdvancedSettingsDialog
+##            
+##            # Check if a QApplication instance exists, create one if not
+##            qt_app = QApplication.instance()
+##            if qt_app is None:
+##                qt_app = QApplication(sys.argv)
+##            
+##            # Create and show the dialog - pass None as parent
+##            self.advanced_window = AdvancedSettingsDialog(None, self.db, None)
+##            
+##            # Connect signals
+##            self.advanced_window.data_updated.connect(self.on_data_updated)
+##            self.advanced_window.formula_updated.connect(self.on_formula_updated)
+##            self.advanced_window.ratio_saved.connect(self.on_ratio_saved_from_advanced)
+##            self.advanced_window.lap_time_updated.connect(self.on_lap_time_updated_from_advanced)
+##            self.advanced_window.track_selected.connect(self.on_track_selected_from_advanced)
+##            
+##            # Manually set the data in the dialog
+##            if hasattr(self.advanced_window, 'curve_graph'):
+##                self.advanced_window.curve_graph.current_track = self.current_track
+##                self.advanced_window.curve_graph.current_vehicle = self.current_vehicle
+##                self.advanced_window.curve_graph.user_qual_time = self.user_qualifying_sec if self.user_qualifying_sec > 0 else None
+##                self.advanced_window.curve_graph.user_race_time = self.user_best_lap_sec if self.user_best_lap_sec > 0 else None
+##                self.advanced_window.curve_graph.user_qual_ratio = self.last_qual_ratio
+##                self.advanced_window.curve_graph.user_race_ratio = self.last_race_ratio
+##                self.advanced_window.curve_graph.set_formulas(self.qual_a, self.qual_b, self.race_a, self.race_b)
+##                self.advanced_window.curve_graph.load_data()
+##                self.advanced_window.curve_graph.full_refresh()
+##            
+##            if hasattr(self.advanced_window, 'qual_panel'):
+##                self.advanced_window.qual_panel.update_formula(self.qual_a, self.qual_b)
+##                self.advanced_window.qual_panel.update_user_time(self.user_qualifying_sec)
+##                self.advanced_window.qual_panel.update_ratio(self.last_qual_ratio)
+##            
+##            if hasattr(self.advanced_window, 'race_panel'):
+##                self.advanced_window.race_panel.update_formula(self.race_a, self.race_b)
+##                self.advanced_window.race_panel.update_user_time(self.user_best_lap_sec)
+##                self.advanced_window.race_panel.update_ratio(self.last_race_ratio)
+##            
+##            self.advanced_window.show()
+##            
+##            # When dialog closes, show tkinter window again
+##            def on_dialog_close():
+##                self.advanced_window = None
+##                self.root.deiconify()
+##                self.root.lift()
+##                self.root.focus()
+##            
+##            self.advanced_window.finished.connect(on_dialog_close)
+##            
+##        except Exception as e:
+##            messagebox.showerror("Error", f"Failed to open Advanced Settings:\n{str(e)}")
+##            self.root.deiconify()
     
     def on_track_selected_from_advanced(self, track_name: str):
         if track_name and track_name != self.current_track:
@@ -729,6 +736,10 @@ class MainWindowTk:
         self.race_read_ratio = race_ratio
     
     def find_aiw_file(self, track_name: str) -> Optional[Path]:
+        if track_name == '':
+            logger.error(f"find_aiw_file: No Track Name provided!")
+            return None
+
         base_path = get_base_path(self.config_file)
         if not base_path:
             logger.error("find_aiw_file: No base path configured")
@@ -739,6 +750,7 @@ class MainWindowTk:
             logger.error(f"find_aiw_file: Locations directory not found: {locations_dir}")
             return None
         
+
         track_lower = track_name.lower()
         for track_dir in locations_dir.iterdir():
             if track_dir.is_dir() and track_dir.name.lower() == track_lower:
@@ -845,6 +857,13 @@ class MainWindowTk:
         
         ratio_name = "QualRatio" if session_type == "qual" else "RaceRatio"
         
+        if self.current_track == '':
+            logger.error(f"on_manual_edit: No Track name provided")
+            messagebox.showerror("AIW Not Found", 
+                f"Could not find AIW file because no track was provided\n\n"
+                f"You may need to run a session on that Track before you can modify its Ratio!")
+            return
+
         # Find the AIW file
         aiw_path = self.find_aiw_file(self.current_track)
         
@@ -1124,7 +1143,7 @@ class MainWindowTk:
         # Auto-ratio update if enabled
         if self.autoratio_enabled and race_data.aiw_path:
             logger.info("[MAIN] Auto-ratio is enabled, calculating new ratios")
-            
+
             if self.last_qual_ratio is not None:
                 self.qual_panel.previous_ratio = self.last_qual_ratio
             

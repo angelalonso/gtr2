@@ -14,7 +14,6 @@ from typing import List, Tuple
 
 from core_config import get_config_with_defaults, get_db_path, create_default_config_if_missing
 from core_database import CurveDatabase
-from gui_pre_run_check_light import run_pre_run_check
 
 
 class SetupManager(tk.Tk):
@@ -45,6 +44,10 @@ class SetupManager(tk.Tk):
         self.notebook = ttk.Notebook(self)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
+        # Configuration tab
+        self.config_tab = self.create_config_tab()
+        self.notebook.add(self.config_tab, text="Configuration")
+        
         # Laptimes and Ratios tab (from data manager)
         self.laptimes_tab = self.create_laptimes_tab()
         self.notebook.add(self.laptimes_tab, text="Laptimes and Ratios")
@@ -57,10 +60,6 @@ class SetupManager(tk.Tk):
         self.import_tab = self.create_import_tab()
         self.notebook.add(self.import_tab, text="Race Data Import")
         
-        # Configuration tab
-        self.config_tab = self.create_config_tab()
-        self.notebook.add(self.config_tab, text="Configuration")
-        
         # Backup Restore tab
         self.backup_tab = self.create_backup_tab()
         self.notebook.add(self.backup_tab, text="Backup Restore")
@@ -69,11 +68,11 @@ class SetupManager(tk.Tk):
         self.logs_tab = self.create_logs_tab()
         self.notebook.add(self.logs_tab, text="Logs")
         
-        # Close button
-        close_btn = tk.Button(self, text="Close", command=self.on_closing,
-                              bg='#4CAF50', fg='white', font=('Arial', 10, 'bold'),
-                              relief=tk.FLAT, padx=20, pady=8)
-        close_btn.pack(pady=10)
+        # Exit button
+        exit_btn = tk.Button(self, text="Exit", bg='#d20a0a', fg='white',
+                              font=('Arial', 11, 'bold'), relief=tk.FLAT, padx=24, pady=8,
+                              command=self.on_closing)
+        exit_btn.pack(side=tk.RIGHT, padx=5)
     
     def create_laptimes_tab(self) -> tk.Frame:
         """Create the Laptimes and Ratios tab (from Data Manager)"""
@@ -115,11 +114,6 @@ def main():
     db_path = get_db_path()
     if not Path(db_path).exists():
         CurveDatabase(db_path)
-    
-    # Run pre-run checks - pass accept_enter=True to enable Enter key to continue
-    if not run_pre_run_check("cfg.yml", accept_enter=True):
-        print("Pre-run checks failed or cancelled. Exiting.")
-        sys.exit(1)
     
     app = SetupManager()
     app.run()
