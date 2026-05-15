@@ -121,16 +121,22 @@ if [ ! -f "dyn_ai.exe" ]; then
     exit 1
 fi
 
-if [ ! -f "datamgmt_dyn_ai.exe" ]; then
-    echo "ERROR: datamgmt_dyn_ai.exe not found in $(pwd)"
-    echo "Please run cross_compile_datamgmt.sh first"
+if [ ! -f "dyn_ai_setup.exe" ]; then
+    echo "ERROR: dyn_ai_setup.exe not found in $(pwd)"
+    echo "Please run cross_compile_setup.sh first"
+    exit 1
+fi
+
+if [ ! -f "dyn_ai_visualizer.exe" ]; then
+    echo "ERROR: dyn_ai_visualizer.exe not found in $(pwd)"
+    echo "Please run cross_compile_visualizer.sh first"
     exit 1
 fi
 
 echo "  ✓ Required files found"
 
 # Prepare file list for zipping
-ZIP_FILES="dyn_ai.exe datamgmt_dyn_ai.exe README.md vehicle_classes.json"
+ZIP_FILES="dyn_ai.exe dyn_ai_setup.exe dyn_ai_visualizer.exe README.md vehicle_classes.json"
 if [ -f "ai_data.db" ]; then
     ZIP_FILES="$ZIP_FILES ai_data.db"
     echo "  ✓ Including ai_data.db"
