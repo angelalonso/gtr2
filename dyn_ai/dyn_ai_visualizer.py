@@ -374,9 +374,6 @@ class FormulaVisualizer(QMainWindow):
         layout.setSpacing(10)
 
         # Info bar (shows track and car class)
-        info_bar = self.create_info_bar()
-        layout.addWidget(info_bar)
-
         # Curve graph
         self.curve_graph = CurveGraphWidget(self.db, self)
         layout.addWidget(self.curve_graph, stretch=3)
@@ -396,68 +393,6 @@ class FormulaVisualizer(QMainWindow):
         middle_layout.addWidget(self.race_panel)
 
         layout.addLayout(middle_layout, stretch=1)
-
-    def create_info_bar(self):
-        """Create the info bar showing track and car class"""
-        info_bar = QFrame()
-        info_bar.setStyleSheet("""
-            QFrame {
-                background-color: #2b2b2b;
-                border-radius: 8px;
-            }
-            QLabel {
-                color: white;
-            }
-        """)
-        info_layout = QHBoxLayout(info_bar)
-        info_layout.setContentsMargins(15, 10, 15, 10)
-
-        # Track info
-        track_container = QFrame()
-        track_container.setStyleSheet("background-color: #1e1e1e; border-radius: 4px;")
-        track_layout = QHBoxLayout(track_container)
-        track_layout.setContentsMargins(10, 5, 10, 5)
-        track_layout.addWidget(QLabel("Track:"))
-        self.track_label = QLabel("- No Track Selected -")
-        self.track_label.setStyleSheet("color: #FFA500; font-weight: bold;")
-        track_layout.addWidget(self.track_label)
-        info_layout.addWidget(track_container)
-
-        info_layout.addSpacing(20)
-
-        # Car class info
-        class_container = QFrame()
-        class_container.setStyleSheet("background-color: #1e1e1e; border-radius: 4px;")
-        class_layout = QHBoxLayout(class_container)
-        class_layout.setContentsMargins(10, 5, 10, 5)
-        class_layout.addWidget(QLabel("Car Class:"))
-        self.class_label = QLabel("- No Car Selected -")
-        self.class_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
-        class_layout.addWidget(self.class_label)
-        info_layout.addWidget(class_container)
-
-        info_layout.addStretch()
-
-        # Refresh button
-        refresh_btn = QPushButton("Refresh")
-        refresh_btn.setFixedWidth(80)
-        refresh_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 6px 12px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-        """)
-        refresh_btn.clicked.connect(self._do_full_refresh)
-        info_layout.addWidget(refresh_btn)
-
-        return info_bar
 
     # ------------------------------------------------------------------
     # Data loading
