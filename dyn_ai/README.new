@@ -1,0 +1,27 @@
+# v1.0.8
+
+I did this release to:
+- Take back control of the code
+- Make smaller, more lightweight executables
+- Polish the user's experience
+  - This was limited by having to produce 3 different programs instead of integratiing everything in one.
+
+# How it all works
+## dyn_ai.exe
+- It first checks that the user has everything in place for it to run.
+- Then it starts listening for changes on RaceResults.txt
+- When it finds out the file has changed, it adds the content to a local SQlite DB (ai_data.db)
+- Aftewards it re-calculates the default formula that matches Ratio and AI laptimes. This is done for a given combo of Track and Car Class (*).
+- With that new formula, it calculates the Ratio needed for the AI to be "the closest possible" to the latest user's best laptime.
+- Then it updates the AIW file for the Track in use, to reflect the new Ratio.
+- the previous 3 steps are done twice: once for the quali ratio and once for the race ratio.
+
+(*) vehicle_classes.json is a data structure to group cars into different classes.
+
+
+## Improvements
+- I cleaned up the wine/cross-compilation to remove unused Libraries.
+  - I also separated files to avoid loading unnecessary libraries (e.g.: PyQt5 on a program that only uses tkinter)
+  - additionally I added compression
+  - All this was done to avoid hitting github/gitlab limits of file size.
+  - only the visualizer is now bigger than 50Mb, because it depends on things like Qt5

@@ -10,6 +10,7 @@ import logging
 import sqlite3
 import subprocess
 import re
+import os
 from pathlib import Path
 from typing import List, Tuple, Optional, Dict, Any
 from datetime import datetime
@@ -35,6 +36,143 @@ from gui_file_monitor import FileMonitorDaemon, SimplifiedLogger
 # Configure logging to show debug messages
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+
+class TrackSelectorDialog:
+    """Dialog for manually selecting a track from available AIW files"""
+    
+    def __init__(self, parent, base_path: Path):
+        self.parent = parent
+        self.base_path = base_path
+        self.selected_track = None
+        self.dialog = None
+        self.track_listbox = None
+        self.tracks = []
+    
+    def show(self) -> Optional[str]:
+        """Show the dialog and return the selected track name"""
+        self.dialog = tk.Toplevel(self.parent)
+        self.dialog.title("Select Track Manually")
+        self.dialog.geometry("500x400")
+        self.dialog.minsize(400, 300)
+        self.dialog.configure(bg='#2b2b2b')
+        self.dialog.transient(self.parent)
+        self.dialog.grab_set()
+        
+        self.setup_ui()
+        self.scan_tracks()
+        
+        self.dialog.wait_window()
+        return self.selected_track
+    
+    def setup_ui(self):
+        main_frame = tk.Frame(self.dialog, bg='#2b2b2b', padx=20, pady=20)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        title = tk.Label(main_frame, text="Select Track", bg='#2b2b2b',
+                         fg='#FFA500', font=('Arial', 16, 'bold'))
+        title.pack(pady=(0, 15))
+        
+        info_label = tk.Label(main_frame, text="Select a track from the list below:",
+                              bg='#2b2b2b', fg='#888', font=('Arial', 10))
+        info_label.pack(pady=(0, 10))
+        
+        # Search frame
+        search_frame = tk.Frame(main_frame, bg='#2b2b2b')
+        search_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        tk.Label(search_frame, text="Search:", bg='#2b2b2b', fg='white').pack(side=tk.LEFT, padx=(0, 10))
+        self.search_var = tk.StringVar()
+        self.search_var.trace('w', lambda *args: self.filter_tracks())
+        search_entry = tk.Entry(search_frame, textvariable=self.search_var, bg='#3c3c3c',
+                                 fg='white', font=('Arial', 10), relief=tk.FLAT)
+        search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        # Track list with scrollbar
+        list_frame = tk.Frame(main_frame, bg='#2b2b2b')
+        list_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        
+        scrollbar = tk.Scrollbar(list_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        self.track_listbox = tk.Listbox(list_frame, bg='#1e1e1e', fg='#4CAF50',
+                                         font=('Courier', 11), selectmode=tk.SINGLE,
+                                         yscrollcommand=scrollbar.set)
+        self.track_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=self.track_listbox.yview)
+        
+        self.track_listbox.bind('<Double-Button-1>', lambda e: self.accept())
+        self.track_listbox.bind('<Return>', lambda e: self.accept())
+        
+        # Status label
+        self.status_label = tk.Label(main_frame, text="", bg='#2b2b2b', fg='#888',
+                                      font=('Arial', 9))
+        self.status_label.pack(pady=(0, 10))
+        
+        # Buttons
+        button_frame = tk.Frame(main_frame, bg='#2b2b2b')
+        button_frame.pack(fill=tk.X)
+        
+        cancel_btn = tk.Button(button_frame, text="Cancel", bg='#555', fg='white',
+                                font=('Arial', 10, 'bold'), relief=tk.FLAT, padx=20, pady=6,
+                                command=self.cancel)
+        cancel_btn.pack(side=tk.RIGHT, padx=5)
+        
+        select_btn = tk.Button(button_frame, text="Select Track", bg='#4CAF50', fg='white',
+                                font=('Arial', 10, 'bold'), relief=tk.FLAT, padx=20, pady=6,
+                                command=self.accept)
+        select_btn.pack(side=tk.RIGHT, padx=5)
+    
+    def scan_tracks(self):
+        """Scan for available tracks in the Locations directory"""
+        if not self.base_path or not self.base_path.exists():
+            self.status_label.config(text="Base path not configured", fg='#f44336')
+            return
+        
+        locations_dir = self.base_path / "GameData" / "Locations"
+        if not locations_dir.exists():
+            locations_dir = self.base_path / "GAMEDATA" / "Locations"
+        
+        if not locations_dir.exists():
+            self.status_label.config(text=f"Locations directory not found", fg='#f44336')
+            return
+        
+        self.tracks = []
+        for track_dir in locations_dir.iterdir():
+            if track_dir.is_dir():
+                # Check for AIW files in the directory
+                for ext in ["*.AIW", "*.aiw"]:
+                    aiw_files = list(track_dir.glob(ext))
+                    if aiw_files:
+                        self.tracks.append(track_dir.name)
+                        break
+        
+        self.tracks.sort()
+        self.filter_tracks()
+        self.status_label.config(text=f"Found {len(self.tracks)} tracks")
+    
+    def filter_tracks(self):
+        """Filter tracks based on search text"""
+        self.track_listbox.delete(0, tk.END)
+        search_text = self.search_var.get().lower()
+        
+        for track in self.tracks:
+            if search_text in track.lower():
+                self.track_listbox.insert(tk.END, track)
+    
+    def accept(self):
+        """Accept the selected track"""
+        selection = self.track_listbox.curselection()
+        if selection:
+            self.selected_track = self.track_listbox.get(selection[0])
+            self.dialog.destroy()
+        else:
+            messagebox.showwarning("No Selection", "Please select a track from the list.")
+    
+    def cancel(self):
+        """Cancel the selection"""
+        self.selected_track = None
+        self.dialog.destroy()
 
 
 class RatioPanel(tk.Frame):
@@ -214,11 +352,6 @@ class RatioPanel(tk.Frame):
         # Get the current ratio value to edit
         edit_value = self.get_current_ratio_value()
         
-        ## if edit_value is None:
-        ##     logger.warning(f"[RatioPanel.{self.title}] No ratio value available to edit")
-        ##     messagebox.showwarning("No Ratio", f"No {self.title} value available to edit. Please select a track or run a race session first.")
-        ##     return
-
         if edit_value is None:
             edit_value = 1.000
         
@@ -244,15 +377,12 @@ class RatioPanel(tk.Frame):
                  bg='#2b2b2b', fg='#888').pack(pady=(15, 5))
         
         # Use a StringVar so the spinbox always shows exactly what we set.
-        # Reading the value back via spinbox.get() avoids the known DoubleVar
-        # issue where manually typed text is not reflected by the variable.
         spinbox = tk.Spinbox(frame, from_=self.min_ratio, to=self.max_ratio, increment=0.01,
                               width=15, font=('Courier', 12),
                               bg='#3c3c3c', fg='white')
         spinbox.pack()
         
-        # Explicitly set the initial value after creation so the spinbox
-        # displays the real current ratio, not the from_ default (e.g. 0.5).
+        # Explicitly set the initial value
         spinbox.delete(0, tk.END)
         spinbox.insert(0, f"{edit_value:.6f}")
         
@@ -276,9 +406,6 @@ class RatioPanel(tk.Frame):
         button_frame.pack(pady=20)
         
         def apply():
-            # Read directly from the spinbox widget so that manually typed
-            # values are captured correctly (DoubleVar.get() only tracks
-            # arrow-button changes, not keyboard input).
             try:
                 new_ratio = float(spinbox.get())
             except ValueError:
@@ -413,7 +540,7 @@ class MainWindowTk:
         top_frame = tk.Frame(main_frame, bg='#1e1e1e')
         top_frame.pack(fill=tk.X, pady=(0, 20))
         
-        # Header with track  and car class info
+        # Header with track and car class info
         header_frame = tk.Frame(top_frame, bg='#1e1e1e')
         header_frame.pack(fill=tk.X)
         
@@ -435,6 +562,12 @@ class MainWindowTk:
                                      fg='#FFA500', font=('Arial', 14, 'bold'))
         self.track_label.pack(side=tk.LEFT, padx=5, pady=5)
         
+        # Manual track selection button (to the right of track name)
+        select_track_btn = tk.Button(track_container, text="Select Track", bg='#2196F3', fg='white',
+                                      font=('Arial', 10, 'bold'), relief=tk.FLAT, padx=12, pady=4,
+                                      command=self.manual_track_selection)
+        select_track_btn.pack(side=tk.LEFT, padx=(10, 0), pady=5)
+        
         # Car class container
         class_container = tk.Frame(header_frame, bg='#2b2b2b', relief=tk.FLAT, bd=0)
         class_container.pack(side=tk.BOTTOM, fill=tk.BOTH, padx=5, pady=5)
@@ -445,11 +578,6 @@ class MainWindowTk:
         self.car_class_label = tk.Label(class_container, text="- No Car Selected -", bg='#2b2b2b',
                                          fg='#FFA500', font=('Arial', 14, 'bold'))
         self.car_class_label.pack(side=tk.LEFT, padx=5, pady=5)
-        
-        ## select_track_btn = tk.Button(track_container, text="Configure", bg='#9C27B0', fg='white',
-        ##                               font=('Arial', 10, 'bold'), relief=tk.FLAT, padx=12, pady=4,
-        ##                               command=self.open_advanced_to_data_management)
-        ## select_track_btn.pack(side=tk.LEFT, padx=(10, 10), pady=5)
         
         # Panels container
         panels_frame = tk.Frame(main_frame, bg='#1e1e1e')
@@ -493,12 +621,7 @@ class MainWindowTk:
         # Spacer
         tk.Frame(bottom_frame, bg='#1e1e1e', width=50).pack(side=tk.LEFT, expand=True)
         
-        # Advanced and Exit buttons
-        ## advanced_btn = tk.Button(bottom_frame, text="Advanced", bg='#9C27B0', fg='white',
-        ##                           font=('Arial', 11, 'bold'), relief=tk.FLAT, padx=24, pady=8,
-        ##                           command=self.open_advanced_settings)
-        ## advanced_btn.pack(side=tk.RIGHT, padx=5)
-        
+        # Exit button
         exit_btn = tk.Button(bottom_frame, text="Exit", bg='#d20a0a', fg='white',
                               font=('Arial', 11, 'bold'), relief=tk.FLAT, padx=24, pady=8,
                               command=self.on_close)
@@ -518,90 +641,50 @@ class MainWindowTk:
         
         logger.info("UI setup complete")
     
-##    def open_advanced_to_data_management(self):
-##        self.open_advanced_settings()
-    
-##    def open_advanced_settings(self):
-##        if self.advanced_window is None or not self.advanced_window.winfo_exists():
-##            self.launch_advanced_dialog()
-##        else:
-##            self.advanced_window.lift()
-##            self.advanced_window.focus()
-    
-##    def launch_advanced_dialog(self):
-##        # Hide the tkinter window temporarily
-##        self.root.withdraw()
-##        
-##        try:
-##            from PyQt5.QtWidgets import QApplication
-##            from gui_advanced_settings import AdvancedSettingsDialog
-##            
-##            # Check if a QApplication instance exists, create one if not
-##            qt_app = QApplication.instance()
-##            if qt_app is None:
-##                qt_app = QApplication(sys.argv)
-##            
-##            # Create and show the dialog - pass None as parent
-##            self.advanced_window = AdvancedSettingsDialog(None, self.db, None)
-##            
-##            # Connect signals
-##            self.advanced_window.data_updated.connect(self.on_data_updated)
-##            self.advanced_window.formula_updated.connect(self.on_formula_updated)
-##            self.advanced_window.ratio_saved.connect(self.on_ratio_saved_from_advanced)
-##            self.advanced_window.lap_time_updated.connect(self.on_lap_time_updated_from_advanced)
-##            self.advanced_window.track_selected.connect(self.on_track_selected_from_advanced)
-##            
-##            # Manually set the data in the dialog
-##            if hasattr(self.advanced_window, 'curve_graph'):
-##                self.advanced_window.curve_graph.current_track = self.current_track
-##                self.advanced_window.curve_graph.current_vehicle = self.current_vehicle
-##                self.advanced_window.curve_graph.user_qual_time = self.user_qualifying_sec if self.user_qualifying_sec > 0 else None
-##                self.advanced_window.curve_graph.user_race_time = self.user_best_lap_sec if self.user_best_lap_sec > 0 else None
-##                self.advanced_window.curve_graph.user_qual_ratio = self.last_qual_ratio
-##                self.advanced_window.curve_graph.user_race_ratio = self.last_race_ratio
-##                self.advanced_window.curve_graph.set_formulas(self.qual_a, self.qual_b, self.race_a, self.race_b)
-##                self.advanced_window.curve_graph.load_data()
-##                self.advanced_window.curve_graph.full_refresh()
-##            
-##            if hasattr(self.advanced_window, 'qual_panel'):
-##                self.advanced_window.qual_panel.update_formula(self.qual_a, self.qual_b)
-##                self.advanced_window.qual_panel.update_user_time(self.user_qualifying_sec)
-##                self.advanced_window.qual_panel.update_ratio(self.last_qual_ratio)
-##            
-##            if hasattr(self.advanced_window, 'race_panel'):
-##                self.advanced_window.race_panel.update_formula(self.race_a, self.race_b)
-##                self.advanced_window.race_panel.update_user_time(self.user_best_lap_sec)
-##                self.advanced_window.race_panel.update_ratio(self.last_race_ratio)
-##            
-##            self.advanced_window.show()
-##            
-##            # When dialog closes, show tkinter window again
-##            def on_dialog_close():
-##                self.advanced_window = None
-##                self.root.deiconify()
-##                self.root.lift()
-##                self.root.focus()
-##            
-##            self.advanced_window.finished.connect(on_dialog_close)
-##            
-##        except Exception as e:
-##            messagebox.showerror("Error", f"Failed to open Advanced Settings:\n{str(e)}")
-##            self.root.deiconify()
-    
-    def on_track_selected_from_advanced(self, track_name: str):
-        if track_name and track_name != self.current_track:
-            self.current_track = track_name
-            self.track_label.config(text=track_name)
+    def manual_track_selection(self):
+        """Open dialog for manual track selection"""
+        base_path = get_base_path(self.config_file)
+        
+        if not base_path or not base_path.exists():
+            messagebox.showerror("Base Path Error", 
+                "GTR2 base path is not configured or does not exist.\n\n"
+                "Please configure the correct GTR2 installation path in the setup manager.")
+            
+            # Ask if user wants to open setup manager
+            reply = messagebox.askyesno("Open Setup Manager", 
+                "Would you like to open the Setup Manager to configure the GTR2 path?")
+            if reply:
+                self.open_setup_manager()
+            return
+        
+        dialog = TrackSelectorDialog(self.root, base_path)
+        selected_track = dialog.show()
+        
+        if selected_track:
+            logger.info(f"Manually selected track: {selected_track}")
+            self.current_track = selected_track
+            self.track_label.config(text=selected_track)
             self.root.title(f"GTR2 Dynamic AI - {self.current_track}")
             
-            self.qual_best_ai, self.qual_worst_ai = self.get_ai_times_for_track(track_name, "qual")
-            self.race_best_ai, self.race_worst_ai = self.get_ai_times_for_track(track_name, "race")
+            # Load AI times for this track
+            self.qual_best_ai, self.qual_worst_ai = self.get_ai_times_for_track(selected_track, "qual")
+            self.race_best_ai, self.race_worst_ai = self.get_ai_times_for_track(selected_track, "race")
             
+            # Update formulas from autopilot
             self.update_formulas_from_autopilot()
             self.update_display()
             self.load_aiw_ratios()
+            
+            self.status_label.config(text=f"Track selected: {selected_track}")
+            self.root.after(3000, lambda: self.status_label.config(text="Ready"))
+    
+    def open_setup_manager(self):
+        """Open the setup manager (dyn_ai_setup)"""
+        from gui_pre_run_check_light import launch_setup_manager
+        launch_setup_manager()
     
     def get_ai_times_for_track(self, track: str, session_type: str) -> Tuple[Optional[float], Optional[float]]:
+        """Get best and worst AI times for a track"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -658,49 +741,6 @@ class MainWindowTk:
         if race_formula and race_formula.is_valid():
             self.race_b = race_formula.b
     
-    def on_data_updated(self):
-        self.load_data()
-        self.update_display()
-    
-    def on_formula_updated(self, session_type: str, a: float, b: float):
-        if session_type == "qual":
-            self.qual_b = b
-            self.qual_ab_modified = True
-        else:
-            self.race_b = b
-            self.race_ab_modified = True
-        self.update_display()
-    
-    def on_ratio_saved_from_advanced(self, session_type: str, ratio: float):
-        if session_type == "qual":
-            self.last_qual_ratio = ratio
-            self.qual_panel.update_ratio(ratio)
-            self.qual_panel.previous_ratio = None
-            self.qual_panel.revert_btn.config(state=tk.DISABLED)
-        else:
-            self.last_race_ratio = ratio
-            self.race_panel.update_ratio(ratio)
-            self.race_panel.previous_ratio = None
-            self.race_panel.revert_btn.config(state=tk.DISABLED)
-    
-    def on_lap_time_updated_from_advanced(self, session_type: str, lap_time: float):
-        if session_type == "qual":
-            self.user_qualifying_sec = lap_time
-            self.qual_panel.update_user_time(lap_time)
-            if hasattr(self, 'current_track') and hasattr(self, 'current_vehicle_class'):
-                self.user_laptimes_manager.add_laptime(
-                    self.current_track, self.current_vehicle_class, "qual",
-                    lap_time, self.last_qual_ratio
-                )
-        else:
-            self.user_best_lap_sec = lap_time
-            self.race_panel.update_user_time(lap_time)
-            if hasattr(self, 'current_track') and hasattr(self, 'current_vehicle_class'):
-                self.user_laptimes_manager.add_laptime(
-                    self.current_track, self.current_vehicle_class, "race",
-                    lap_time, self.last_race_ratio
-                )
-    
     def load_aiw_ratios(self):
         logger.debug(f"load_aiw_ratios called, current_track={self.current_track}")
         
@@ -747,10 +787,11 @@ class MainWindowTk:
         
         locations_dir = base_path / "GameData" / "Locations"
         if not locations_dir.exists():
+            locations_dir = base_path / "GAMEDATA" / "Locations"
+        if not locations_dir.exists():
             logger.error(f"find_aiw_file: Locations directory not found: {locations_dir}")
             return None
         
-
         track_lower = track_name.lower()
         for track_dir in locations_dir.iterdir():
             if track_dir.is_dir() and track_dir.name.lower() == track_lower:

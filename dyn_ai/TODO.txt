@@ -1,0 +1,31 @@
+# dyn_ai.py
+- Remove retry checks pop up
+- tests:
+ - buttons disabled when they must be
+ - AIW is correct everytime - no track, different versions of a track...etc
+
+# dyn_ai_setup.py
+- vehicle tab-> when no car, it cannot be added (message should remain, though)
+- config scroll does not work
+- import tab -> option to import from "extra stats=1", better explanation
+- tests:
+ - data used is updated dynamically
+ - vehicles dont match json, add them, save them,then they must match
+
+# dyn_ai_visualizer.py
+- it does not see the latest user laptimes, ratios...
+- tests:
+ - data used is updated dynamically
+
+# ALL
+- We save Ratio for a combo.
+- We save user's latest laptimes for each combo
+- open setup > cfg when pre checks dont work
+- one script to run all cross-compilers
+- once everything works -> clean up
+- add ai target
+- check use of aiRange
+- check data(weather? AI level?) from current PLR and add to data
+- focused tests
+  - test pre-check tests
+  -  

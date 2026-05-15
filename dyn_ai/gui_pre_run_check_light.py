@@ -12,6 +12,8 @@ import threading
 import subprocess
 import time
 import logging
+import os
+import traceback
 from pathlib import Path
 from typing import Tuple, Set, Optional, List
 from dataclasses import dataclass
@@ -50,6 +52,7 @@ class VehicleScanWorker(threading.Thread):
         self.callback = callback
         self.progress_callback = progress_callback
         self._is_running = True
+        self.error_details = None
         self.daemon = True
     
     def stop(self):
@@ -62,13 +65,13 @@ class VehicleScanWorker(threading.Thread):
             if result:
                 all_vehicles, defined_vehicles, missing_vehicles = result
                 logger.info(f"Scan complete: {len(all_vehicles)} vehicles found, {len(missing_vehicles)} missing")
-                self.callback(all_vehicles, defined_vehicles, missing_vehicles, None)
+                self.callback(all_vehicles, defined_vehicles, missing_vehicles, None, None)
             else:
                 logger.error("Scan returned no results")
-                self.callback(None, None, None, "Scan returned no results")
+                self.callback(None, None, None, "Scan returned no results", self.error_details)
         except Exception as e:
             logger.exception(f"Scan error: {e}")
-            self.callback(None, None, None, str(e))
+            self.callback(None, None, None, str(e), traceback.format_exc())
     
     def _scan_vehicles_efficient(self):
         """Efficient vehicle scanning using optimized file reading"""
@@ -76,15 +79,29 @@ class VehicleScanWorker(threading.Thread):
             from core_vehicle_scanner import scan_vehicles_from_gtr2, load_vehicle_classes, get_all_defined_vehicles
             
             if not self.gtr2_path or not self.gtr2_path.exists():
-                logger.error(f"GTR2 path invalid: {self.gtr2_path}")
+                self.error_details = f"GTR2 path does not exist: {self.gtr2_path}"
+                logger.error(self.error_details)
                 return None
             
             teams_dir = self.gtr2_path / "GameData" / "Teams"
             if not teams_dir.exists():
-                logger.error(f"Teams directory not found: {teams_dir}")
+                self.error_details = f"Teams directory not found at: {teams_dir}\nPlease verify your GTR2 installation path."
+                logger.error(self.error_details)
                 return None
             
             logger.info(f"Teams directory exists: {teams_dir}")
+            
+            # Count car files first to show progress
+            car_files = []
+            for ext in ['*.car', '*.CAR']:
+                car_files.extend(list(teams_dir.rglob(ext)))
+            
+            if not car_files:
+                self.error_details = f"No .car files found in {teams_dir}\nGTR2 installation may be incomplete or corrupted."
+                logger.warning(self.error_details)
+                return None
+            
+            logger.info(f"Found {len(car_files)} .car files to scan")
             
             # Scan vehicles from GTR2
             all_vehicles = scan_vehicles_from_gtr2(
@@ -93,12 +110,17 @@ class VehicleScanWorker(threading.Thread):
             )
             
             if not all_vehicles:
-                logger.warning("No vehicles found in GTR2 installation")
+                self.error_details = f"Scan completed but no vehicle names were extracted from {len(car_files)} .car files.\nThis may indicate that the .car files have an unexpected format."
+                logger.warning(self.error_details)
                 return None
             
             logger.info(f"Found {len(all_vehicles)} vehicles in GTR2")
             
             # Load defined vehicles from classes file
+            if not self.classes_path.exists():
+                self.error_details = f"Vehicle classes file not found at: {self.classes_path}\nCreating default file."
+                logger.warning(self.error_details)
+            
             classes_data = load_vehicle_classes(self.classes_path)
             defined_vehicles = get_all_defined_vehicles(classes_data)
             
@@ -113,9 +135,11 @@ class VehicleScanWorker(threading.Thread):
             return all_vehicles, defined_vehicles, missing_vehicles
             
         except ImportError as e:
-            logger.exception(f"Import error: {e}")
+            self.error_details = f"Import error: {e}\nMake sure core_vehicle_scanner.py is present."
+            logger.exception(self.error_details)
             return None
         except Exception as e:
+            self.error_details = f"Unexpected error: {e}\n{traceback.format_exc()}"
             logger.exception(f"Scan error: {e}")
             return None
 
@@ -140,6 +164,64 @@ def get_vehicle_classes_path() -> Path:
             return Path.cwd() / "vehicle_classes.json"
 
 
+def is_running_as_exe() -> bool:
+    """Return True if the program is running as a compiled executable"""
+    return getattr(sys, 'frozen', False)
+
+
+def get_setup_launcher_path() -> Path:
+    """Get the path to the setup program (dyn_ai_setup)"""
+    if is_running_as_exe():
+        # Running as exe - look for dyn_ai_setup.exe in same directory
+        exe_dir = Path(sys.executable).parent
+        setup_path = exe_dir / "dyn_ai_setup.exe"
+        if setup_path.exists():
+            return setup_path
+        # Also try uppercase
+        setup_path_upper = exe_dir / "DYN_AI_SETUP.EXE"
+        if setup_path_upper.exists():
+            return setup_path_upper
+        # Fall back to current directory
+        return Path.cwd() / "dyn_ai_setup.exe"
+    else:
+        # Running as Python script - look for dyn_ai_setup.py in script directory
+        try:
+            script_dir = Path(__file__).parent
+            setup_path = script_dir / "dyn_ai_setup.py"
+            if setup_path.exists():
+                return setup_path
+        except Exception:
+            pass
+        # Fall back to current directory
+        return Path.cwd() / "dyn_ai_setup.py"
+
+
+def launch_setup_manager():
+    """Launch the setup manager (dyn_ai_setup)"""
+    setup_path = get_setup_launcher_path()
+    
+    if not setup_path.exists():
+        messagebox.showerror("Setup Not Found", 
+            f"Setup manager not found at:\n{setup_path}\n\n"
+            f"Please ensure dyn_ai_setup is in the same directory.\n\n"
+            f"Running as EXE: {is_running_as_exe()}\n"
+            f"Executable directory: {Path(sys.executable).parent if getattr(sys, 'frozen', False) else 'N/A'}")
+        return False
+    
+    try:
+        if is_running_as_exe():
+            # Launch the exe directly
+            subprocess.Popen([str(setup_path)], shell=False)
+        else:
+            # Launch as Python script
+            python_exe = sys.executable
+            subprocess.Popen([python_exe, str(setup_path)], shell=False)
+        return True
+    except Exception as e:
+        messagebox.showerror("Launch Error", f"Failed to launch setup manager:\n{str(e)}")
+        return False
+
+
 class PreRunCheckDialog:
     """
     Pre-run check dialog using tkinter.
@@ -154,6 +236,8 @@ class PreRunCheckDialog:
         self.vehicle_scan_worker = None
         self.vehicle_classes_path = get_vehicle_classes_path()
         self.result = False
+        self.scan_error_details = None
+        self.scan_traceback = None
         
         # Create root window but hide it (we use our own window)
         self.root = tk.Tk()
@@ -162,16 +246,16 @@ class PreRunCheckDialog:
         # Create dialog window
         self.dialog = tk.Toplevel(self.root)
         self.dialog.title("Dynamic AI - Pre-Run Checks")
-        self.dialog.geometry("850x900")
-        self.dialog.minsize(800, 700)
+        self.dialog.geometry("850x950")
+        self.dialog.minsize(800, 750)
         self.dialog.configure(bg='#1e1e1e')
         self.dialog.protocol("WM_DELETE_WINDOW", self._on_close)
         
         # Center the window
         self.dialog.update_idletasks()
         x = (self.dialog.winfo_screenwidth() // 2) - (850 // 2)
-        y = (self.dialog.winfo_screenheight() // 2) - (900 // 2)
-        self.dialog.geometry(f"850x900+{x}+{y}")
+        y = (self.dialog.winfo_screenheight() // 2) - (950 // 2)
+        self.dialog.geometry(f"850x950+{x}+{y}")
         
         self._setup_ui()
         self._apply_styles()
@@ -236,19 +320,26 @@ class PreRunCheckDialog:
         button_container = tk.Frame(button_frame, bg='#1e1e1e')
         button_container.pack(anchor=tk.CENTER)
         
-        ## self.fix_vehicles_btn = tk.Button(button_container, text="Open Vehicle Manager to Fix Missing Vehicles",
-        ##                                    bg='#9C27B0', fg='white', font=('Arial', 10, 'bold'),
-        ##                                    relief=tk.FLAT, padx=12, pady=8,
-        ##                                    command=self.open_vehicle_manager)
-        ## self.fix_vehicles_btn.pack(side=tk.LEFT, padx=5)
-        ## self.fix_vehicles_btn.pack_forget()
-        
         self.fix_plr_btn = tk.Button(button_container, text="Fix PLR File (Set Extra Stats=0)",
                                       bg='#2196F3', fg='white', font=('Arial', 10, 'bold'),
                                       relief=tk.FLAT, padx=12, pady=8,
                                       command=self.fix_plr_file)
         self.fix_plr_btn.pack(side=tk.LEFT, padx=5)
         self.fix_plr_btn.pack_forget()
+        
+        self.open_setup_btn = tk.Button(button_container, text="Open Setup Manager",
+                                         bg='#9C27B0', fg='white', font=('Arial', 10, 'bold'),
+                                         relief=tk.FLAT, padx=12, pady=8,
+                                         command=self.open_setup_manager)
+        self.open_setup_btn.pack(side=tk.LEFT, padx=5)
+        self.open_setup_btn.pack_forget()
+        
+        self.show_details_btn = tk.Button(button_container, text="Show Error Details",
+                                           bg='#FF9800', fg='white', font=('Arial', 10, 'bold'),
+                                           relief=tk.FLAT, padx=12, pady=8,
+                                           command=self.show_error_details)
+        self.show_details_btn.pack(side=tk.LEFT, padx=5)
+        self.show_details_btn.pack_forget()
         
         self.retry_btn = tk.Button(button_container, text="Retry Checks",
                                     bg='#555', fg='white', font=('Arial', 10, 'bold'),
@@ -269,7 +360,7 @@ class PreRunCheckDialog:
         info_frame.pack(fill=tk.X, pady=(0, 0))
         
         info_text = (
-            "1. Click <Continue> and LEAVE THE APPLICATION RUNNING\n\n"
+            "1. Click Continue and LEAVE THE APPLICATION RUNNING\n\n"
             "2. Launch GTR2 and start your race session\n\n"
             "TIPS:\n"
             " - Complete qualifying and the race normally\n"
@@ -313,7 +404,8 @@ class PreRunCheckDialog:
             "WARN": "#FFCC00",
             "CHECK": "#C0C0C0",
             "INFO": "#888",
-            "ERROR": "#f44336"
+            "ERROR": "#f44336",
+            "DETAIL": "#FFA500"
         }
         
         color = color_map.get(status, "#ffffff")
@@ -322,6 +414,8 @@ class PreRunCheckDialog:
         
         if status == "CHECK":
             self.status_text.insert(tk.END, f"[CHECK] {message}...\n", f'color_{color}')
+        elif status == "DETAIL":
+            self.status_text.insert(tk.END, f"  -> {message}\n", f'color_{color}')
         elif status in ("PASS", "FAIL", "WARN", "INFO", "ERROR"):
             self.status_text.insert(tk.END, f"[{status}] ", f'color_{color}_bold')
             self.status_text.insert(tk.END, f"{message}", f'color_{color}')
@@ -358,8 +452,9 @@ class PreRunCheckDialog:
         self.status_text.delete(1.0, tk.END)
         self.check_results.clear()
         self.continue_btn.config(state=tk.DISABLED)
-        ## self.fix_vehicles_btn.pack_forget()
         self.fix_plr_btn.pack_forget()
+        self.open_setup_btn.pack_forget()
+        self.show_details_btn.pack_forget()
         self.info_frame.pack_forget()
         self.result_label.config(text="")
         self.progress_bar.pack_forget()
@@ -378,7 +473,7 @@ class PreRunCheckDialog:
         ]
         
         all_critical_passed = True
-        vehicle_warning = False
+        has_any_warning = False
         
         for check_name, check_func, critical, is_warning in checks:
             try:
@@ -388,12 +483,13 @@ class PreRunCheckDialog:
                 if critical and not passed:
                     all_critical_passed = False
                 if is_warning and not passed:
-                    vehicle_warning = True
+                    has_any_warning = True
                     
             except Exception as e:
                 self._add_result(check_name, False, str(e), critical, False)
                 if critical:
                     all_critical_passed = False
+                has_any_warning = True
             
             self.dialog.update_idletasks()
         
@@ -401,20 +497,29 @@ class PreRunCheckDialog:
         
         vehicle_check_failed = any(r.name == "Vehicle Definitions" and not r.passed for r in self.check_results)
         plr_check_failed = any(r.name == "GTR2 PLR File" and not r.passed for r in self.check_results)
+        base_path_check_failed = any(r.name == "GTR2 Base Path" and not r.passed for r in self.check_results)
+        config_check_failed = any(r.name == "Configuration File" and not r.passed for r in self.check_results)
+        vehicle_classes_check_failed = any(r.name == "Vehicle Classes File" and not r.passed for r in self.check_results)
         
-        ## if vehicle_check_failed:
-        ##     self.fix_vehicles_btn.pack(side=tk.LEFT, padx=5)
+        # Show Open Setup Manager button for ANY warning or failed check
+        if has_any_warning or not all_critical_passed:
+            self.open_setup_btn.pack(side=tk.LEFT, padx=5)
+        
+        # Show error details button if there's a scan error
+        if self.scan_error_details or self.scan_traceback:
+            self.show_details_btn.pack(side=tk.LEFT, padx=5)
+        
         if plr_check_failed:
             self.fix_plr_btn.pack(side=tk.LEFT, padx=5)
         
         if all_critical_passed:
-            if vehicle_warning:
-                self.result_label.config(text="Requirements are OK (with vehicle warnings)", fg="#FFCC00")
-                self._log("WARN", "Summary", "All checks passed, but some vehicles are not defined")
+            if has_any_warning:
+                self.result_label.config(text="Requirements are OK (with warnings)", fg="#FFCC00")
+                self._log("WARN", "Summary", "All critical checks passed, but some warnings were found")
                 self.retry_btn.config(bg="#FF9800", state=tk.NORMAL)
             else:
-                self.result_label.config(text="System ready, Click <Continue> to continue", fg="#4CAF50")
-                self._log("INFO", "Summary", "All checks passed. Click <Continue> to open the application.")
+                self.result_label.config(text="System ready, Click Continue to continue", fg="#4CAF50")
+                self._log("INFO", "Summary", "All checks passed. Click Continue to open the application.")
                 self.retry_btn.config(bg="#555", state=tk.DISABLED)
             
             self.continue_btn.config(state=tk.NORMAL)
@@ -428,6 +533,73 @@ class PreRunCheckDialog:
             guidance = self._get_guidance()
             if guidance:
                 self._log("INFO", "Guidance", guidance)
+    
+    def show_error_details(self):
+        """Show detailed error information in a separate dialog"""
+        if not self.scan_error_details and not self.scan_traceback:
+            messagebox.showinfo("No Details", "No detailed error information available.")
+            return
+        
+        detail_dialog = tk.Toplevel(self.dialog)
+        detail_dialog.title("Error Details - Vehicle Scan")
+        detail_dialog.geometry("700x500")
+        detail_dialog.configure(bg='#2b2b2b')
+        detail_dialog.transient(self.dialog)
+        detail_dialog.grab_set()
+        
+        frame = tk.Frame(detail_dialog, bg='#2b2b2b', padx=15, pady=15)
+        frame.pack(fill=tk.BOTH, expand=True)
+        
+        tk.Label(frame, text="Vehicle Scan Error Details", bg='#2b2b2b', fg='#FFA500',
+                 font=('Arial', 14, 'bold')).pack(pady=(0, 10))
+        
+        text_widget = tk.Text(frame, bg='#1e1e1e', fg='#d4d4d4', font=('Courier', 10),
+                               wrap=tk.WORD, relief=tk.FLAT)
+        text_widget.pack(fill=tk.BOTH, expand=True)
+        
+        scrollbar = tk.Scrollbar(text_widget)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        text_widget.config(yscrollcommand=scrollbar.set)
+        scrollbar.config(command=text_widget.yview)
+        
+        content = ""
+        if self.scan_error_details:
+            content += "ERROR MESSAGE:\n"
+            content += "=" * 50 + "\n"
+            content += self.scan_error_details + "\n\n"
+        
+        if self.scan_traceback:
+            content += "TRACEBACK:\n"
+            content += "=" * 50 + "\n"
+            content += self.scan_traceback + "\n\n"
+        
+        # Add system info
+        content += "SYSTEM INFORMATION:\n"
+        content += "=" * 50 + "\n"
+        content += f"Running as EXE: {is_running_as_exe()}\n"
+        content += f"Python executable: {sys.executable}\n"
+        content += f"Current directory: {Path.cwd()}\n"
+        content += f"Vehicle classes path: {self.vehicle_classes_path}\n"
+        content += f"Vehicle classes exists: {self.vehicle_classes_path.exists()}\n"
+        
+        config = get_config_with_defaults(self.config_file)
+        base_path = config.get('base_path', '')
+        content += f"GTR2 Base Path: {base_path}\n"
+        
+        if base_path:
+            teams_dir = Path(base_path) / "GameData" / "Teams"
+            content += f"Teams directory exists: {teams_dir.exists()}\n"
+            if teams_dir.exists():
+                car_files = list(teams_dir.rglob("*.car")) + list(teams_dir.rglob("*.CAR"))
+                content += f"Number of .car files: {len(car_files)}\n"
+        
+        text_widget.insert(tk.END, content)
+        text_widget.config(state=tk.DISABLED)
+        
+        close_btn = tk.Button(frame, text="Close", bg='#4CAF50', fg='white',
+                               font=('Arial', 10, 'bold'), relief=tk.FLAT, padx=15, pady=5,
+                               command=detail_dialog.destroy)
+        close_btn.pack(pady=10)
     
     def _get_guidance(self) -> str:
         """Get guidance message for failed checks"""
@@ -699,43 +871,22 @@ class PreRunCheckDialog:
         except Exception as e:
             messagebox.showerror("Error Fixing PLR File", f"Failed to fix PLR file:\n{str(e)}")
     
-##     def open_vehicle_manager(self):
-##         """Open the vehicle manager dialog - direct dialog launch"""
-##         config = get_config_with_defaults(self.config_file)
-##         base_path = config.get('base_path', '')
-##         gtr2_path = Path(base_path) if base_path and Path(base_path).exists() else None
-##         
-##         # Hide the tkinter dialog temporarily
-##         self.dialog.withdraw()
-##         
-##         try:
-##             from PyQt5.QtWidgets import QApplication, QDialog
-##             from gui_vehicle_manager import VehicleManagerDialog
-##             
-##             # Check if a QApplication instance exists, create one if not
-##             qt_app = QApplication.instance()
-##             if qt_app is None:
-##                 qt_app = QApplication(sys.argv)
-##             
-##             # Create and show the dialog
-##             dialog = VehicleManagerDialog(None, gtr2_path)
-##             dialog.exec_()
-##             
-##         except ImportError as e:
-##             messagebox.showerror("Import Error", f"Failed to import VehicleManagerDialog:\n{str(e)}\n\nPlease ensure the application is properly installed.")
-##             self.dialog.deiconify()
-##             return
-##         except Exception as e:
-##             messagebox.showerror("Error", f"Failed to open Vehicle Manager:\n{str(e)}")
-##             self.dialog.deiconify()
-##             return
-##         
-##         # Show the tkinter dialog again
-##         self.dialog.deiconify()
-##         self.dialog.lift()
-##         self.dialog.focus_set()
-##         
-##         self.run_checks()
+    def open_setup_manager(self):
+        """Open the setup manager dialog"""
+        self.dialog.withdraw()
+        
+        success = launch_setup_manager()
+        
+        # Show the dialog again after setup closes
+        self.dialog.deiconify()
+        self.dialog.lift()
+        self.dialog.focus_set()
+        
+        if success:
+            reply = messagebox.askyesno("Retry Checks", 
+                "Setup manager has been closed.\n\nClick Yes to retry the checks.")
+            if reply:
+                self.run_checks()
     
     def _check_vehicle_definitions(self) -> Tuple[bool, str]:
         """Check that all vehicles from GTR2 are defined in vehicle_classes.json"""
@@ -743,21 +894,37 @@ class PreRunCheckDialog:
         base_path = config.get('base_path', '')
         
         if not base_path:
-            return False, "No base path configured - cannot scan vehicles"
+            error_msg = "No base path configured - cannot scan vehicles"
+            self.scan_error_details = error_msg
+            return False, error_msg
         
         gtr2_path = Path(base_path)
         
         if not self.vehicle_classes_path.exists():
-            return False, "vehicle_classes.json not found"
+            error_msg = f"vehicle_classes.json not found at {self.vehicle_classes_path}"
+            self.scan_error_details = error_msg
+            return False, error_msg
         
         teams_dir = gtr2_path / "GameData" / "Teams"
         if not teams_dir.exists():
-            return False, f"Teams directory not found: {teams_dir}"
+            # Try alternative casing
+            teams_dir = gtr2_path / "GameData" / "teams"
+            if not teams_dir.exists():
+                teams_dir = gtr2_path / "GAMEDATA" / "Teams"
+                if not teams_dir.exists():
+                    error_msg = f"Teams directory not found.\nSearched in:\n- {gtr2_path / 'GameData' / 'Teams'}\n- {gtr2_path / 'GameData' / 'teams'}\n- {gtr2_path / 'GAMEDATA' / 'Teams'}"
+                    self.scan_error_details = error_msg
+                    return False, f"Teams directory not found"
         
         # Count car files to see if there are any
-        car_files = list(teams_dir.rglob("*.car")) + list(teams_dir.rglob("*.CAR"))
+        car_files = []
+        for ext in ['*.car', '*.CAR']:
+            car_files.extend(list(teams_dir.rglob(ext)))
+        
         if not car_files:
-            return False, f"No .car files found in {teams_dir}"
+            error_msg = f"No .car files found in {teams_dir}\nThis may indicate that GTR2 is not installed properly or the Teams directory is empty.\nFound {len(list(teams_dir.glob('*')))} items in the directory."
+            self.scan_error_details = error_msg
+            return False, f"No .car files found"
         
         self._log("INFO", "Vehicle Scan", f"Found {len(car_files)} car files to scan")
         
@@ -771,6 +938,8 @@ class PreRunCheckDialog:
         self.scan_complete = False
         self.scan_result = None
         self.scan_error = None
+        self.scan_error_details = None
+        self.scan_traceback = None
         
         def on_progress(current, total, message):
             if self.progress_bar.winfo_exists():
@@ -780,8 +949,10 @@ class PreRunCheckDialog:
                 self.progress_label.config(text=f"{message} ({current}/{total})")
                 self.dialog.update_idletasks()
         
-        def on_finished(all_vehicles, defined_vehicles, missing_vehicles, error=None):
+        def on_finished(all_vehicles, defined_vehicles, missing_vehicles, error=None, traceback_str=None):
             self.scan_error = error
+            self.scan_error_details = error
+            self.scan_traceback = traceback_str
             if error:
                 self.scan_result = None
             elif all_vehicles is None:
@@ -807,16 +978,20 @@ class PreRunCheckDialog:
         if not self.scan_complete:
             if self.vehicle_scan_worker:
                 self.vehicle_scan_worker.stop()
-            return False, "Vehicle scan timed out after 120 seconds. Your GTR2 installation may have many car files."
+            error_msg = "Vehicle scan timed out after 120 seconds. Your GTR2 installation may have many car files."
+            self.scan_error_details = error_msg
+            return False, error_msg
         
         if self.scan_error:
-            return False, f"Scan error: {self.scan_error}"
+            return False, f"Scan error: {self.scan_error[:100]}"
         
         if self.scan_result:
             all_vehicles, defined_vehicles, missing_vehicles = self.scan_result
             
             if not all_vehicles:
-                return False, "No vehicles found in GTR2 installation. Check that .car files exist in GameData/Teams/"
+                error_msg = f"No vehicles found in GTR2 installation. Check that .car files exist in {teams_dir}"
+                self.scan_error_details = error_msg
+                return False, error_msg
             
             missing_count = len(missing_vehicles)
             
@@ -826,10 +1001,14 @@ class PreRunCheckDialog:
                 if missing_count > 10:
                     missing_display += f" and {missing_count - 10} more..."
                 
+                self.scan_error_details = f"Missing {missing_count} vehicles:\n{missing_display}\n\nYou can fix this by opening the Setup Manager and assigning these vehicles to appropriate classes."
+                
                 return False, f"{missing_count} vehicle(s) missing from classes: {missing_display}"
             
             return True, f"All {len(all_vehicles)} vehicles are defined"
         else:
+            if not self.scan_error_details:
+                self.scan_error_details = "Failed to scan vehicles from GTR2 installation. Unknown reason."
             return False, "Failed to scan vehicles from GTR2 installation"
     
     def _accept(self):

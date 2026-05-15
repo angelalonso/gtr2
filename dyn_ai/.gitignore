@@ -3,5 +3,4 @@ dist/**
 Pipfile.lock
 __pycache__/**
 track_formulas/**
-dyn_ai.exe
 
