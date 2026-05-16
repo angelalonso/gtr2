@@ -1,4 +1,4 @@
-# dyn_ai — Live AI Tuner for GTR2 - v1.0.8
+# dyn_ai — Live AI Tuner for GTR2 - v1.1.0
 
 ## What it does
 
@@ -8,24 +8,21 @@ Automatically adjusts AI difficulty to match your driving pace. Reads your lap t
 
 ## Current State
 
-Usable, stable release with improved UI, AIW handling, outlier detection, and comprehensive database management tools.
+Usable, stable release with less requirements.
 
-**USE AT YOUR OWN RISK.** Test on a separate install.
+**USE AT YOUR OWN RISK.** Test on a separate GTR2 install.
 
 ---
 
 ## Quick Start
 
-1. Check and edit `cfg.yml` and `vehicle_classes.json` if needed
-2. Run the application
+1. Download dyn_ai.exe and dyn_ai_setup.exe from this repository.
+2. Run dyn_ai.exe, follow instructions.
+3. Leave it running and boot GTR2.
 
-**Windows (easy):** Run the `.exe` from the zip
 
-**From source:**
-```
-pipenv install
-pipenv run python3 dyn_ai.py
-```
+---------------------------
+
 
 3. Pre-run checks will verify your setup:
    - Configuration file (cfg.yml)

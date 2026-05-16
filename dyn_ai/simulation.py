@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test Harness for Live AI Tuner
+Test Harness for Dyn AI
 Launches the application with test configuration and simulates game behavior
 UPDATED: Works with test_mocks/ directory and restores ALL modified files
 
@@ -284,12 +284,12 @@ class LiveAITunerTestHarness:
             config['db_path'] = 'ai_data.db'
         if 'poll_interval' not in config:
             config['poll_interval'] = 1.0  # Faster polling for tests
-        if 'autopilot_enabled' not in config:
-            config['autopilot_enabled'] = False
-        if 'backup_enabled' not in config:
-            config['backup_enabled'] = True
-        if 'logging_enabled' not in config:
-            config['logging_enabled'] = True
+        ## if 'autopilot_enabled' not in config:
+        ##     config['autopilot_enabled'] = False
+        ## if 'backup_enabled' not in config:
+        ##     config['backup_enabled'] = True
+        ## if 'logging_enabled' not in config:
+        ##     config['logging_enabled'] = True
         
         # Write modified config
         try:
@@ -848,61 +848,6 @@ class LiveAITunerTestHarness:
 
             self.app_process = None
 
-    # ------------------------------------------------------------------
-    # Integration tests
-    # ------------------------------------------------------------------
-
-    def run_integration_tests(self) -> bool:
-        """Run integration tests to verify setup"""
-        logger.info("\n" + "=" * 60)
-        logger.info("Running Integration Tests")
-        logger.info("=" * 60)
-
-        try:
-            logger.info("\n[Test 1] Checking mock race results...")
-            result_files = self._get_sorted_result_files()
-            if not result_files:
-                logger.error(f"  No result files found in {self.mock_results_dir}")
-                return False
-            logger.info(f"  ✓ Found {len(result_files)} result files")
-
-            logger.info("\n[Test 2] Testing filename parsing...")
-            for f in result_files[:3]:
-                ratios = self._parse_filename_for_ratios(f.name)
-                if ratios:
-                    logger.info(f"  ✓ {f.name} → Qual={ratios['qual_ratio']}, Race={ratios['race_ratio']}")
-
-            logger.info("\n[Test 3] Testing track / AIW extraction from file content...")
-            for f in result_files[:3]:
-                ti = self._parse_track_from_result_file(f)
-                aiw = self._find_aiw_path(ti["track_folder"], ti["aiw_file"])
-                logger.info(f"  {'✓' if aiw else '⚠'} {f.name} → folder={ti['track_folder']}, aiw={ti['aiw_file']}, found={'yes' if aiw else 'no'}")
-
-            logger.info("\n[Test 4] Checking results directory...")
-            if not self.log_results_dir.exists():
-                self.log_results_dir.mkdir(parents=True, exist_ok=True)
-            logger.info(f"  ✓ Results directory ready: {self.log_results_dir}")
-
-            logger.info("\n[Test 5] Testing file copy...")
-            if result_files:
-                self._copy_result_to_target(result_files[0])
-                if self.target_results_file.exists() and self.target_results_file.stat().st_size > 0:
-                    logger.info(f"  ✓ Target file has content ({self.target_results_file.stat().st_size} bytes)")
-                else:
-                    logger.error("  ✗ Target file is empty or missing")
-
-            logger.info("\n" + "=" * 60)
-            logger.info("✓ All integration tests passed!")
-            logger.info("=" * 60)
-            return True
-
-        except Exception as e:
-            logger.error(f"Integration test failed: {e}", exc_info=True)
-            return False
-
-    # ------------------------------------------------------------------
-    # Full cleanup
-    # ------------------------------------------------------------------
 
     def _full_cleanup(self):
         """Restore ALL modified files: AIWs, raceresults.txt, cfg.yml, database"""
@@ -917,9 +862,6 @@ class LiveAITunerTestHarness:
         
         logger.info("=" * 60 + "\n")
 
-    # ------------------------------------------------------------------
-    # High-level test runners
-    # ------------------------------------------------------------------
 
     def run_full_test_with_files(self):
         """Run full test reading all result files in order"""
@@ -957,11 +899,7 @@ class LiveAITunerTestHarness:
         # Step 5: Backup original test results file
         self.backup_original_results()
 
-        # Step 6: Run integration tests
-        if not self.run_integration_tests():
-            logger.warning("Integration tests had issues, but continuing...")
-
-        # Step 7: Launch application
+        # Step 6: Launch application
         if not self.launch_application(no_gui=False):
             logger.error("Failed to launch application")
             self._full_cleanup()
@@ -1094,14 +1032,13 @@ def main():
     print("\nSelect test mode:")
     print("  1. User-interactive test - one change after delay")
     print("  2. Full test - read all race result files in order (DEFAULT)")
-    print("  3. Integration tests only")
     print("\nDefault option (2) will be selected in 3 seconds...")
     print("=" * 60)
 
     user_input = [None]
     timeout = 3
 
-    print("\nEnter choice (1-3) or press Enter for default: ", end="", flush=True)
+    print("\nEnter choice (1-2) or press Enter for default: ", end="", flush=True)
 
     def get_input():
         try:
@@ -1116,14 +1053,14 @@ def main():
     for i in range(timeout, 0, -1):
         if user_input[0] is not None:
             break
-        print(f"\rEnter choice (1-3) or press Enter for default: (waiting {i}s) ", end="", flush=True)
+        print(f"\rEnter choice (1-2) or press Enter for default: (waiting {i}s) ", end="", flush=True)
         time.sleep(1)
 
     choice = user_input[0] if user_input[0] is not None else "2"
     if not choice:
         choice = "2"
 
-    if choice not in ("1", "2", "3"):
+    if choice not in ("1", "2"):
         print(f"\nInvalid choice: {choice!r} — using default (2)")
         choice = "2"
 
@@ -1133,12 +1070,10 @@ def main():
     if choice == "1":
         print("\nRunning user-interactive test...")
         success = harness.run_user_interactive_test()
-    elif choice == "2":
+    else:
         print("\nRunning full test with result files...")
         success = harness.run_full_test_with_files()
-    else:  # "3"
-        print("\nRunning integration tests only...")
-        success = harness.run_integration_tests()
+        #success = harness.run_integration_tests()
 
     sys.exit(0 if success else 1)
 

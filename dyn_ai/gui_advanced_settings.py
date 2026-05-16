@@ -295,11 +295,11 @@ class AdvancedSettingsDialog(QDialog):
             ("base_path", "GTR2 Base Path:", "text", ""),
            # ("formulas_dir", "Formulas Directory:", "text", "./track_formulas"),
             ("db_path", "Database Path:", "text", "ai_data.db"),
-            ("auto_apply", "Auto Apply:", "bool", False),
-            ("backup_enabled", "Backup Enabled:", "bool", True),
-            ("logging_enabled", "Logging Enabled:", "bool", False),
-            ("autopilot_enabled", "Autopilot Enabled:", "bool", False),
-            ("autopilot_silent", "Autopilot Silent:", "bool", False),
+           # ("auto_apply", "Auto Apply:", "bool", False),
+           # ("backup_enabled", "Backup Enabled:", "bool", True),
+           # ("logging_enabled", "Logging Enabled:", "bool", False),
+           # ("autopilot_enabled", "Autopilot Enabled:", "bool", False),
+           # ("autopilot_silent", "Autopilot Silent:", "bool", False),
             ("poll_interval", "Poll Interval (seconds):", "float", 5.0),
             ("min_ratio", "Minimum Ratio:", "float", 0.5),
             ("max_ratio", "Maximum Ratio:", "float", 1.5),
@@ -390,8 +390,8 @@ class AdvancedSettingsDialog(QDialog):
             
             restart_settings = {
                 #'base_path', 'formulas_dir', 'db_path', 'logging_enabled', 
-                'base_path', 'db_path', 'logging_enabled', 
-                'autopilot_enabled', 'autopilot_silent'
+                'base_path', 'db_path'
+                #'autopilot_enabled', 'autopilot_silent'
             }
             
             for key, widget in self.config_widgets.items():

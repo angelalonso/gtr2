@@ -17,11 +17,11 @@ DEFAULT_CONFIG = {
     'base_path': '',
     # 'formulas_dir': './track_formulas',
     'db_path': 'ai_data.db',
-    'auto_apply': False,
-    'backup_enabled': True,
-    'logging_enabled': False,
-    'autopilot_enabled': False,
-    'autopilot_silent': False,
+    # 'auto_apply': False,
+    # 'backup_enabled': True,
+    # 'logging_enabled': False,
+    # 'autopilot_enabled': False,
+    # 'autopilot_silent': False,
     'poll_interval': 5.0,
     'min_ratio': 0.5,
     'max_ratio': 1.5,
@@ -149,42 +149,42 @@ def update_db_path(path: str, config_file: str = "cfg.yml") -> bool:
     return save_config(config, config_file)
 
 
-def get_autopilot_enabled(config_file: str = "cfg.yml") -> bool:
-    """Get autopilot enabled status from config"""
-    config = get_config_with_defaults(config_file)
-    return config.get('autopilot_enabled', False)
+## def get_autopilot_enabled(config_file: str = "cfg.yml") -> bool:
+##     """Get autopilot enabled status from config"""
+##     config = get_config_with_defaults(config_file)
+##     return config.get('autopilot_enabled', False)
+## 
+## 
+## def update_autopilot_enabled(enabled: bool, config_file: str = "cfg.yml") -> bool:
+##     """Update autopilot enabled status in config"""
+##     config = get_config_with_defaults(config_file)
+##     config['autopilot_enabled'] = enabled
+##     return save_config(config, config_file)
 
 
-def update_autopilot_enabled(enabled: bool, config_file: str = "cfg.yml") -> bool:
-    """Update autopilot enabled status in config"""
-    config = get_config_with_defaults(config_file)
-    config['autopilot_enabled'] = enabled
-    return save_config(config, config_file)
+## def get_autopilot_silent(config_file: str = "cfg.yml") -> bool:
+##     """Get autopilot silent mode from config"""
+##     config = get_config_with_defaults(config_file)
+##     return config.get('autopilot_silent', False)
+## 
+## 
+## def update_autopilot_silent(silent: bool, config_file: str = "cfg.yml") -> bool:
+##     """Update autopilot silent mode in config"""
+##     config = get_config_with_defaults(config_file)
+##     config['autopilot_silent'] = silent
+##     return save_config(config, config_file)
 
 
-def get_autopilot_silent(config_file: str = "cfg.yml") -> bool:
-    """Get autopilot silent mode from config"""
-    config = get_config_with_defaults(config_file)
-    return config.get('autopilot_silent', False)
+## def get_backup_enabled(config_file: str = "cfg.yml") -> bool:
+##     """Get backup enabled status from config"""
+##     config = get_config_with_defaults(config_file)
+##     return config.get('backup_enabled', True)
 
 
-def update_autopilot_silent(silent: bool, config_file: str = "cfg.yml") -> bool:
-    """Update autopilot silent mode in config"""
-    config = get_config_with_defaults(config_file)
-    config['autopilot_silent'] = silent
-    return save_config(config, config_file)
-
-
-def get_backup_enabled(config_file: str = "cfg.yml") -> bool:
-    """Get backup enabled status from config"""
-    config = get_config_with_defaults(config_file)
-    return config.get('backup_enabled', True)
-
-
-def get_logging_enabled(config_file: str = "cfg.yml") -> bool:
-    """Get logging enabled status from config"""
-    config = get_config_with_defaults(config_file)
-    return config.get('logging_enabled', False)
+## def get_logging_enabled(config_file: str = "cfg.yml") -> bool:
+##     """Get logging enabled status from config"""
+##     config = get_config_with_defaults(config_file)
+##     return config.get('logging_enabled', False)
 
 
 def create_default_config_if_missing(config_file: str = "cfg.yml") -> bool:

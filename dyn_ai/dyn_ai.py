@@ -6,6 +6,7 @@ Dyn AI - Main Entry Point
 import sys
 import logging
 from pathlib import Path
+from tkinter import messagebox
 
 from gui_pre_run_check_light import run_pre_run_check
 from gui_main_window_tk import MainWindowTk
@@ -22,15 +23,14 @@ def main():
     db_path = get_db_path()
     
     if not Path(db_path).exists():
-        print(f"\nDatabase '{db_path}' does not exist.")
-        response = input("Create empty database? (y/n): ").lower().strip()
-        if response == 'y':
+        create_new_db = messagebox.askyesno("No DB found", f"Database '{db_path}' does not exist.\nCreate empty database?")
+        if create_new_db:
             CurveDatabase(db_path)
-            print(f"Created empty database: {db_path}\n")
+            messagebox.showinfo("Success", f"Created empty database: {db_path}")
         else:
-            print("\nExiting.\n")
+            messagebox.showerror("Error", "Failed to start without a DB")
             return
-    
+
     # Run lightweight pre-run check (returns True if checks passed)
     # Pass accept_enter=True to enable Enter key to continue
     if not run_pre_run_check("cfg.yml", accept_enter=True):

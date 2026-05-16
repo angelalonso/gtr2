@@ -1,9 +1,15 @@
 # dyn_ai.py
+- on checks: launch app after 2 seconds
+- Add Setup button on regular
+  - Make it similar to pre checks.
+  - Here and on prechecks: disable setup button until setup closes
 - tests:
  - buttons disabled when they must be
  - AIW is correct everytime - no track, different versions of a track...etc
 
 # dyn_ai_setup.py
+- cfg.yml ticks are not visible (but they work)
+- cfg changes: please restart dyn_ai to apply these changes
 - import tab -> option to import from "extra stats=1", better explanation
 - tests:
  - data used is updated dynamically
@@ -14,17 +20,13 @@
  - data used is updated dynamically
 
 # ALL
-- We save Ratio for a combo.
-  - test with sqlitebrowser
-- We save user's latest laptimes for each combo
-  - test with sqlitebrowser
-- one script to run all cross-compilers
-- once everything works -> clean up
+- Add logging system to be retrieved by setup
+- Are backups enabled by default?
+- simulation better tests
+  - reallistic laptimes
+  - outliers to test limits
 - add ai target
 - check use of aiRange
 - check data(weather? AI level?) from current PLR and add to data
 - focused tests
   - test pre-check tests
-
-## Known issues
-- on dyn_ai_setup, if you modify vehicle_classes.json manually while the program runs, the lists will not be up to date. Reopen the application and it should be fine again.

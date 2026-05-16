@@ -25,10 +25,11 @@ show_help() {
     echo ""
     echo "DESCRIPTION:"
     echo "    This script runs the complete build pipeline:"
-    echo "    1. test.sh     - Run tests"
-    echo "    2. cross_compile.sh - Build main executable"
-    echo "    3. cross_compile_datamgmt.sh - Build data management executable"
-    echo "    4. pack.sh     - Package everything"
+    echo "    1. test.sh                     - Run tests"
+    echo "    2. cross_compile_main.sh       - Build main executable"
+    echo "    3. cross_compile_setup.sh      - Build setup companion executable"
+    echo "    4. cross_compile_visualizer.sh - Build data visualizer companion executable"
+    echo "    5. pack.sh                     - Package everything"
     echo ""
     echo "    If a version parameter is provided, it will be passed to pack.sh"
     echo "    for versioned packaging."
@@ -209,29 +210,42 @@ if [ -n "$TEST_MODE" ]; then
     exit 0
 fi
 
-# Run cross_compile.sh
+# Run cross_compile_main.sh
 print_step "Building main executable..."
-if [ -f "./cross_compile.sh" ]; then
-    ./cross_compile.sh || {
-        print_error "Cross-compile failed!"
+if [ -f "./cross_compile_main.sh" ]; then
+    ./cross_compile_main.sh || {
+        print_error "Cross-compile of dyn_ai failed!"
         exit 3
     }
     print_info "Main executable built successfully"
 else
-    print_error "cross_compile.sh not found!"
+    print_error "cross_compile_main.sh not found!"
     exit 1
 fi
 
-# Run cross_compile_datamgmt.sh
-print_step "Building data management executable..."
-if [ -f "./cross_compile_datamgmt.sh" ]; then
-    ./cross_compile_datamgmt.sh || {
-        print_error "Data management build failed!"
-        exit 4
+# Run cross_compile_setup.sh
+print_step "Building main executable..."
+if [ -f "./cross_compile_setup.sh" ]; then
+    ./cross_compile_setup.sh || {
+        print_error "Cross-compile of dyn_ai_setup failed!"
+        exit 3
     }
-    print_info "Data management executable built successfully"
+    print_info "Main executable built successfully"
 else
-    print_error "cross_compile_datamgmt.sh not found!"
+    print_error "cross_compile_setup.sh not found!"
+    exit 1
+fi
+
+# Run cross_compile_visualizer.sh
+print_step "Building main executable..."
+if [ -f "./cross_compile_visualizer.sh" ]; then
+    ./cross_compile_visualizer.sh || {
+        print_error "Cross-compile of dyn_ai_visualizer failed!"
+        exit 3
+    }
+    print_info "Main executable built successfully"
+else
+    print_error "cross_compile_visualizer.sh not found!"
     exit 1
 fi
 

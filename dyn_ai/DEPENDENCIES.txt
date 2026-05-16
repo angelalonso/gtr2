@@ -1,0 +1,267 @@
+
+Based on my analysis of the three main programs and all the provided files, here is the detailed breakdown:
+
+Files Needed by Each Main Program
+1. dyn_ai.py (Main Entry Point)
+Direct imports:
+
+gui_pre_run_check_light.py
+
+gui_main_window_tk.py
+
+core_config.py
+
+core_database.py
+
+Recursive dependencies:
+
+core_config.py → cfg.yml (external file)
+
+gui_main_window_tk.py → gui_base_path_dialog_tk.py, gui_file_monitor.py, core_data_extraction.py, core_autopilot.py, core_user_laptimes.py, gui_common.py
+
+gui_file_monitor.py → core_config.py, core_data_extraction.py
+
+core_data_extraction.py → core_aiw_utils.py
+
+core_autopilot.py → core_formula.py, core_database.py, core_data_extraction.py, core_user_laptimes.py, core_aiw_utils.py, vehicle_classes.json (external)
+
+core_user_laptimes.py → core_config.py
+
+gui_common.py → (no other internal files)
+
+gui_base_path_dialog_tk.py → core_config.py
+
+Complete list for dyn_ai.py:
+
+cfg.yml (external config file)
+
+vehicle_classes.json (external data file)
+
+gui_pre_run_check_light.py
+
+gui_main_window_tk.py
+
+gui_base_path_dialog_tk.py
+
+gui_file_monitor.py
+
+gui_common.py
+
+core_config.py
+
+core_database.py
+
+core_data_extraction.py
+
+core_aiw_utils.py
+
+core_autopilot.py
+
+core_formula.py
+
+core_user_laptimes.py
+
+core_vehicle_scanner.py (used by gui_pre_run_check_light)
+
+2. dyn_ai_visualizer.py (Formula Visualizer)
+Direct imports:
+
+core_database.py
+
+core_config.py
+
+gui_curve_graph.py
+
+gui_session_panel.py
+
+gui_common.py
+
+gui_pre_run_check_light.py
+
+Recursive dependencies:
+
+gui_curve_graph.py → core_formula.py, core_autopilot.py
+
+gui_session_panel.py → core_config.py, core_formula.py, gui_common_dialogs.py
+
+gui_common.py → (no other internal files)
+
+gui_common_dialogs.py → core_config.py
+
+core_autopilot.py → (same as above)
+
+gui_pre_run_check_light.py → core_config.py, core_vehicle_scanner.py
+
+Complete list for dyn_ai_visualizer.py:
+
+cfg.yml (external config file)
+
+vehicle_classes.json (external data file)
+
+gui_pre_run_check_light.py
+
+gui_curve_graph.py
+
+gui_session_panel.py
+
+gui_common.py
+
+gui_common_dialogs.py
+
+core_database.py
+
+core_config.py
+
+core_formula.py
+
+core_autopilot.py
+
+core_vehicle_scanner.py
+
+core_aiw_utils.py (through core_autopilot)
+
+core_data_extraction.py (through core_autopilot)
+
+core_user_laptimes.py (through core_autopilot)
+
+3. dyn_ai_setup.py (Setup & Data Manager)
+Direct imports:
+
+core_config.py
+
+core_database.py
+
+gui_pre_run_check_light.py
+
+gui_datamgmt_laptimes.py
+
+gui_datamgmt_vehicle.py
+
+gui_datamgmt_import.py
+
+gui_advanced_settings_tk.py
+
+gui_backup_tk.py
+
+gui_logs_tk.py
+
+Recursive dependencies:
+
+gui_datamgmt_laptimes.py → (only sqlite3, tkinter)
+
+gui_datamgmt_vehicle.py → core_vehicle_scanner.py, core_config.py
+
+gui_datamgmt_import.py → (only csv, sqlite3)
+
+gui_advanced_settings_tk.py → core_config.py
+
+gui_backup_tk.py → core_config.py
+
+gui_logs_tk.py → (only logging, tkinter)
+
+gui_pre_run_check_light.py → core_config.py, core_vehicle_scanner.py
+
+Complete list for dyn_ai_setup.py:
+
+cfg.yml (external config file)
+
+vehicle_classes.json (external data file)
+
+gui_pre_run_check_light.py
+
+gui_datamgmt_laptimes.py
+
+gui_datamgmt_vehicle.py
+
+gui_datamgmt_import.py
+
+gui_advanced_settings_tk.py
+
+gui_backup_tk.py
+
+gui_logs_tk.py
+
+core_config.py
+
+core_database.py
+
+core_vehicle_scanner.py
+
+Files NOT Needed (Safe to Delete)
+Based on the analysis above, these files are not imported or used by any of the three main programs:
+
+PyQt5 GUI Files (not used by any main program):
+gui_advanced_settings.py - Uses PyQt5 but dyn_ai.py uses tkinter version
+
+gui_ai_time_manager.py - Not imported anywhere
+
+gui_base_path_dialog.py - PyQt5 version, not used (tkinter version used)
+
+gui_components.py - PyQt5 components, not imported
+
+gui_data_manager.py - Standalone app, not imported
+
+gui_data_manager_common.py - Only used by gui_data_manager.py
+
+gui_data_manager_database.py - Only used by gui_data_manager.py
+
+gui_data_manager_import.py - Only used by gui_data_manager.py
+
+gui_data_manager_vehicle.py - Only used by gui_data_manager.py
+
+gui_main_window_components.py - PyQt5 components for main window (not used)
+
+gui_main_window_ui.py - PyQt5 UI for main window (not used)
+
+gui_ratio_panel.py - PyQt5 version (tkinter version used)
+
+gui_target_manager.py - Not imported anywhere
+
+gui_vehicle_manager.py - Standalone, not imported by main programs
+
+monitor_file_daemon.py - Standalone daemon, not imported
+
+Duplicate/Unused Files:
+cfg_funcs.py - Duplicate of core_config.py (core_config.py is used instead)
+
+gui_datamgmt_tk.py - Not imported (only used as standalone? but not called)
+
+gui_pre_run_check_light.py - KEEP (used by all three)
+
+PyQt5-Specific That Might Be Needed:
+gui_common_dialogs.py - Used by gui_session_panel.py (needed for dyn_ai_visualizer.py) ✅ KEEP
+
+Summary - Files to Delete:
+bash
+# PyQt5 GUI files (not used by tkinter-based main programs)
+gui_advanced_settings.py
+gui_ai_time_manager.py
+gui_base_path_dialog.py
+gui_components.py
+gui_data_manager.py
+gui_data_manager_common.py
+gui_data_manager_database.py
+gui_data_manager_import.py
+gui_data_manager_vehicle.py
+gui_main_window_components.py
+gui_main_window_ui.py
+gui_ratio_panel.py
+gui_target_manager.py
+gui_vehicle_manager.py
+monitor_file_daemon.py
+
+# Duplicate/unused files
+cfg_funcs.py
+gui_datamgmt_tk.py
+Total files to delete: 17 files
+
+Final Note:
+The three main programs successfully use the tkinter-based GUI components:
+
+gui_main_window_tk.py (not PyQt5 version)
+
+gui_advanced_settings_tk.py (not PyQt5 version)
+
+gui_backup_tk.py, gui_logs_tk.py, etc.
+
+The PyQt5 files appear to be from an earlier version or alternative implementation that is no longer used by the main entry points. The tkinter versions provide the same functionality without the PyQt5 dependency.

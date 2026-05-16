@@ -85,7 +85,7 @@ class VehicleScanWorker(threading.Thread):
             
             teams_dir = self.gtr2_path / "GameData" / "Teams"
             if not teams_dir.exists():
-                self.error_details = f"Teams directory not found at: {teams_dir}\nPlease verify your GTR2 installation path."
+                self.error_details = f"Teams directory not found at: {teams_dir}\nPlease verify your GTR2 Base Path in SETUP."
                 logger.error(self.error_details)
                 return None
             
@@ -327,14 +327,14 @@ class PreRunCheckDialog:
         self.fix_plr_btn.pack(side=tk.LEFT, padx=5)
         self.fix_plr_btn.pack_forget()
         
-        self.open_setup_btn = tk.Button(button_container, text="Open Setup Manager",
+        self.open_setup_btn = tk.Button(button_container, text="Setup",
                                          bg='#9C27B0', fg='white', font=('Arial', 10, 'bold'),
                                          relief=tk.FLAT, padx=12, pady=8,
                                          command=self.open_setup_manager)
         self.open_setup_btn.pack(side=tk.LEFT, padx=5)
         self.open_setup_btn.pack_forget()
         
-        self.show_details_btn = tk.Button(button_container, text="Show Error Details",
+        self.show_details_btn = tk.Button(button_container, text="Error Logs",
                                            bg='#FF9800', fg='white', font=('Arial', 10, 'bold'),
                                            relief=tk.FLAT, padx=12, pady=8,
                                            command=self.show_error_details)
@@ -463,7 +463,6 @@ class PreRunCheckDialog:
         self._log("CHECK", "Running pre-run checks", "")
         
         checks = [
-            ("Configuration File", self._check_config_file, True, False),
             ("Vehicle Classes File", self._check_vehicle_classes_file, True, False),
             ("Vehicle Classes Data", self._check_vehicle_classes_data, True, False),
             ("GTR2 Base Path", self._check_base_path, True, False),
@@ -623,29 +622,6 @@ class PreRunCheckDialog:
         
         return "Make sure: " + ", ".join(guidance)
     
-    def _check_config_file(self) -> Tuple[bool, str]:
-        """Check that cfg.yml exists and is valid"""
-        config_path = Path(self.config_file)
-        
-        if not config_path.exists():
-            if create_default_config_if_missing(self.config_file):
-                return True, "Created default cfg.yml"
-            return False, f"File not found: {self.config_file}"
-        
-        try:
-            config = load_config(self.config_file)
-            if config is None:
-                return False, "Failed to load config (invalid YAML)"
-            
-            required_keys = ['base_path', 'db_path']
-            for key in required_keys:
-                if key not in config:
-                    return False, f"Missing required key: {key}"
-            
-            return True, "Valid config file"
-        except Exception as e:
-            return False, f"Error reading config: {str(e)}"
-    
     def _check_vehicle_classes_file(self) -> Tuple[bool, str]:
         """Check that vehicle_classes.json exists"""
         if not self.vehicle_classes_path.exists():
@@ -717,7 +693,7 @@ class PreRunCheckDialog:
         base_path = config.get('base_path', '')
         
         if not base_path:
-            return False, "No base path configured in cfg.yml"
+            return False, "No base path in cfg.yml. Run SETUP"
         
         path = Path(base_path)
         
@@ -737,7 +713,7 @@ class PreRunCheckDialog:
             missing.append("UserData")
         
         if missing:
-            return False, f"Missing directories: {', '.join(missing)}"
+            return False, f"Missing directories: {', '.join(missing)}. Check Path in SETUP"
         
         return True, "Valid GTR2 path"
     
@@ -747,7 +723,7 @@ class PreRunCheckDialog:
         base_path = config.get('base_path', '')
         
         if not base_path:
-            return False, "No base path configured"
+            return False, "No base path in cfg.yml. Check Path in SETUP"
         
         base_path_obj = Path(base_path)
         
@@ -763,7 +739,7 @@ class PreRunCheckDialog:
             if exe_candidate.name.lower() == "gtr2.exe":
                 return True, f"Found at: {exe_candidate.name}"
         
-        return False, "GTR2.exe not found in the GTR2 installation path"
+        return False, "GTR2.exe not found in the GTR2 Base Path. Check Path in SETUP"
     
     def _find_plr_file(self) -> Tuple[Optional[Path], str]:
         """Find the active PLR file in the UserData directory"""
@@ -774,7 +750,7 @@ class PreRunCheckDialog:
         
         userdata_dir = base_path / "UserData"
         if not userdata_dir.exists():
-            return None, "UserData directory not found"
+            return None, "UserData directory not found. Check with SETUP"
         
         for ext in ["*.PLR", "*.plr"]:
             plr_files = list(userdata_dir.glob(ext))
@@ -788,7 +764,7 @@ class PreRunCheckDialog:
                     if plr_files:
                         return plr_files[0], f"Found: {plr_files[0].name} (in {item.name})"
         
-        return None, "No .PLR file found in UserData"
+        return None, "No .PLR file found in UserData. Check with SETUP"
     
     def _check_plr_file(self) -> Tuple[bool, str]:
         """Check that the PLR file has Extra Stats set to 0"""
@@ -908,7 +884,7 @@ class PreRunCheckDialog:
                 if not teams_dir.exists():
                     error_msg = f"Teams directory not found.\nSearched in:\n- {gtr2_path / 'GameData' / 'Teams'}\n- {gtr2_path / 'GameData' / 'teams'}\n- {gtr2_path / 'GAMEDATA' / 'Teams'}"
                     self.scan_error_details = error_msg
-                    return False, f"Teams directory not found"
+                    return False, f"Teams directory not found. Check your Base Path in SETUP"
         
         # Count car files to see if there are any
         car_files = []
@@ -997,7 +973,7 @@ class PreRunCheckDialog:
                 
                 self.scan_error_details = f"Missing {missing_count} vehicles:\n{missing_display}\n\nYou can fix this by opening the Setup Manager and assigning these vehicles to appropriate classes."
                 
-                return False, f"{missing_count} vehicle(s) missing from classes: {missing_display}"
+                return False, f"{missing_count} vehicle(s) missing from classes: {missing_display}. Run SETUP > Vehicle Classes to add those."
             
             return True, f"All {len(all_vehicles)} vehicles are defined"
         else:

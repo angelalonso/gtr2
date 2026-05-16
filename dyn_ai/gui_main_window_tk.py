@@ -18,6 +18,7 @@ from datetime import datetime
 import tkinter as tk
 from tkinter import ttk, messagebox
 
+from gui_pre_run_check_light import  launch_setup_manager
 from core_database import CurveDatabase
 from core_formula import DEFAULT_A_VALUE
 from core_config import (
@@ -626,6 +627,14 @@ class MainWindowTk:
                               font=('Arial', 11, 'bold'), relief=tk.FLAT, padx=24, pady=8,
                               command=self.on_close)
         exit_btn.pack(side=tk.RIGHT, padx=5)
+
+        # Setup Button
+        setup_btn = tk.Button(bottom_frame, text="Setup", bg='#9C27B0', fg='white',
+                              font=('Arial', 10, 'bold'),
+                              relief=tk.FLAT, padx=12, pady=8,
+                              command=self.on_setup_open)
+        setup_btn.pack(side=tk.RIGHT, padx=5)
+
         
         # Status bar
         self.status_bar = tk.Frame(self.root, bg='#2b2b2b', height=25)
@@ -1331,6 +1340,17 @@ class MainWindowTk:
             if self.race_read_ratio is not None:
                 self.race_panel.update_last_read_ratio(self.race_read_ratio)
     
+    def on_setup_open(self):
+        """Open the setup manager dialog"""
+        ## self.dialog.withdraw()
+        
+        success = launch_setup_manager()
+        
+        # Show the dialog again after setup closes
+        ## self.dialog.deiconify()
+        ## self.dialog.lift()
+        ## self.dialog.focus_set()
+
     def on_close(self):
         self.stop_daemon()
         if self.advanced_window:

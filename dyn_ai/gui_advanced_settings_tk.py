@@ -98,10 +98,6 @@ class ConfigTab(tk.Frame):
             text="These settings are saved to cfg.yml. Some changes may require restart.",
             bg='#2b2b2b', fg='#888', font=('Arial', 10))
         info_desc.pack(pady=(0, 10))
-        
-        # Create form fields
-        self.create_form_fields()
-        
         # Buttons
         button_frame = tk.Frame(self.scrollable_frame, bg='#1e1e1e')
         button_frame.pack(pady=20)
@@ -117,6 +113,9 @@ class ConfigTab(tk.Frame):
                                relief=tk.FLAT, padx=20, pady=8,
                                command=self.load_configuration)
         reload_btn.pack(side=tk.LEFT, padx=10)
+        
+        # Create form fields
+        self.create_form_fields()
     
     def create_form_fields(self):
         """Create all configuration form fields"""
@@ -128,11 +127,11 @@ class ConfigTab(tk.Frame):
             ("base_path", "GTR2 Base Path:", "entry", "", "directory"),
            # ("formulas_dir", "Formulas Directory:", "entry", "./track_formulas", "directory"),
             ("db_path", "Database Path:", "entry", "ai_data.db", "file"),
-            ("auto_apply", "Auto Apply:", "check", False, None),
-            ("backup_enabled", "Backup Enabled:", "check", True, None),
-            ("logging_enabled", "Logging Enabled:", "check", False, None),
-            ("autopilot_enabled", "Autopilot Enabled:", "check", False, None),
-            ("autopilot_silent", "Autopilot Silent:", "check", False, None),
+           # ("auto_apply", "Auto Apply:", "check", False, None),
+           # ("backup_enabled", "Backup Enabled:", "check", True, None),
+           # ("logging_enabled", "Logging Enabled:", "check", False, None),
+           # ("autopilot_enabled", "Autopilot Enabled:", "check", False, None),
+           # ("autopilot_silent", "Autopilot Silent:", "check", False, None),
             ("poll_interval", "Poll Interval (seconds):", "float", 5.0, None),
             ("min_ratio", "Minimum Ratio:", "float", 0.5, None),
             ("max_ratio", "Maximum Ratio:", "float", 1.5, None),
@@ -181,7 +180,7 @@ class ConfigTab(tk.Frame):
             elif field_type == "check":
                 var = tk.BooleanVar(value=default)
                 widget = tk.Checkbutton(value_frame, variable=var, bg='#2b2b2b',
-                                         activebackground='#2b2b2b', fg='white')
+                                         activebackground='#2b2b2b', fg='black')
                 widget.pack(side=tk.LEFT)
                 self.config_widgets[key] = var
                 
@@ -395,7 +394,7 @@ class ConfigTab(tk.Frame):
         if changes:
             if save_config(config, self.config_file):
                 messagebox.showinfo("Success", 
-                    f"Configuration saved successfully!\n\nChanges:\n" + "\n".join(changes))
+                    f"Configuration saved successfully!\n\nChanges:\n" + "\n".join(changes) + "\n Please RESTART dyn_ai!")
                 # Update parent config if needed
                 if hasattr(self.parent, 'config'):
                     self.parent.config = config

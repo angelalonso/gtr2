@@ -14,7 +14,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from test_base import BaseTestCase
-from gui_vehicle_manager import VehicleClassesManager
+from gui_datamgmt_vehicle import VehicleClassesManager
 
 
 class TestVehicleClasses(BaseTestCase):
@@ -93,16 +93,7 @@ class TestVehicleClasses(BaseTestCase):
         vehicle_class = manager.get_vehicle_class("Test Car GT")
         self.assertEqual(vehicle_class, "GT_0304")
     
-    def test_get_vehicle_class_partial_match(self):
-        """Test partial matching for vehicle class"""
-        manager = VehicleClassesManager(self.temp_env.classes_path)
-        
-        # Add a vehicle that will match partially
-        manager.add_vehicle("GT_0304", "Special GT Car")
-        
-        vehicle_class = manager.get_vehicle_class("GT Car")
-        # Should find the class containing GT Car
-        self.assertIsNotNone(vehicle_class)
+    # def test_get_vehicle_class_partial_match(self): # We don't want partial matches
     
     def test_get_vehicle_class_not_found(self):
         """Test getting class for unknown vehicle"""

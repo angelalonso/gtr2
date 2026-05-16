@@ -1,10 +1,14 @@
-# v1.0.8
+# v1.1.0
 
-I did this release to:
+Previous release notes are now obsolete since this is to a great extent a new program.
+
+## Goals of this restart:
+
 - Take back control of the code
 - Make smaller, more lightweight executables
 - Polish the user's experience
-  - This was limited by having to produce 3 different programs instead of integratiing everything in one.
+  - This is limited by having to produce 3 different programs instead of integratiing everything in one.
+  - On the other hand, the main program now only does one thing.
 
 # How it all works
 ## dyn_ai.exe
