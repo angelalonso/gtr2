@@ -145,12 +145,16 @@ class SessionPanel(QWidget):
 
         self.auto_fit_btn = QPushButton("Auto-Fit")
         self.auto_fit_btn.setStyleSheet("background-color: #2196F3;")
-        self.auto_fit_btn.clicked.connect(lambda: self.auto_fit_requested.emit(self.session_type))
+        self.auto_fit_btn.clicked.connect(self.on_auto_fit_clicked)
         row3.addWidget(self.auto_fit_btn)
         row3.addStretch()
         group_layout.addLayout(row3)
 
         layout.addWidget(group)
+    
+    def on_auto_fit_clicked(self):
+        """Emit auto_fit_requested signal"""
+        self.auto_fit_requested.emit(self.session_type)
     
     def update_median_time(self, median_time: float):
         """Update the displayed median time"""

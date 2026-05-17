@@ -132,3 +132,23 @@ def find_missing_vehicles(gtr2_path: Path, classes_path: Path, progress_callback
     missing_vehicles = all_vehicles - defined_vehicles
     
     return all_vehicles, defined_vehicles, missing_vehicles
+
+
+def clear_vehicle_scan_cache() -> bool:
+    """
+    Clear the vehicle scan cache file.
+    This should be called when vehicle_classes.json is modified.
+    
+    Returns:
+        True if cache was deleted, False otherwise
+    """
+    cache_file = Path(".vehicle_scan_cache.json")
+    if cache_file.exists():
+        try:
+            cache_file.unlink()
+            logger.info("Vehicle scan cache cleared")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to clear vehicle scan cache: {e}")
+            return False
+    return False

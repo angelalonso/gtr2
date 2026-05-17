@@ -1,32 +1,29 @@
-# dyn_ai.py
-- on checks: launch app after 2 seconds
-- Add Setup button on regular
-  - Make it similar to pre checks.
-  - Here and on prechecks: disable setup button until setup closes
-- tests:
+# TO DO
+
+## URGENT
+
+-
+
+## Wishlist
+
+main - Disable setup button until setup closes
+all - check use of aiRange
+all - check data(weather? AI level?) from current PLR and add to data
+all - make files smaller
+main - tests:
+ - test pre-check tests
  - buttons disabled when they must be
  - AIW is correct everytime - no track, different versions of a track...etc
-
-# dyn_ai_setup.py
-- cfg.yml ticks are not visible (but they work)
-- cfg changes: please restart dyn_ai to apply these changes
-- import tab -> option to import from "extra stats=1", better explanation
-- tests:
+ - different laptimes for 1 take and for median over 4 or 5
+setup - tests:
+ - import different extra-stats
+ - calculations from there work
  - data used is updated dynamically
  - vehicles dont match json, add them, save them,then they must match
-
-# dyn_ai_visualizer.py
-- tests:
+visualizer - tests:
  - data used is updated dynamically
-
-# ALL
-- Add logging system to be retrieved by setup
-- Are backups enabled by default?
-- simulation better tests
-  - reallistic laptimes
+all - simulation better tests
+  - realistic laptimes
   - outliers to test limits
-- add ai target
-- check use of aiRange
-- check data(weather? AI level?) from current PLR and add to data
-- focused tests
-  - test pre-check tests
+  - test different track names to force errors
+  - tests with ai target

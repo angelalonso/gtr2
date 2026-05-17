@@ -215,7 +215,11 @@ def update_aiw_ratio(aiw_path: Path, ratio_name: str, new_ratio: float, backup_d
             backup_path = backup_dir / f"{aiw_path.stem}_ORIGINAL{aiw_path.suffix}"
             if not backup_path.exists():
                 shutil.copy2(aiw_path, backup_path)
-                logger.debug(f"Created backup: {backup_path}")
+                logger.info(f"Created backup: {backup_path}")
+            else:
+                logger.info(f"Original backup exists: {backup_path}")
+        else:
+            logger.error(f"{backup_dir} does not exist")
         
         raw = aiw_path.read_bytes()
         content = raw.replace(b"\x00", b"").decode("utf-8", errors="ignore")
@@ -280,7 +284,7 @@ def ensure_aiw_has_ratios(aiw_path: Path, backup_dir: Optional[Path] = None) -> 
             backup_path = backup_dir / f"{aiw_path.stem}_ORIGINAL{aiw_path.suffix}"
             if not backup_path.exists():
                 shutil.copy2(aiw_path, backup_path)
-                logger.info(f"Created backup before adding ratios: {backup_path}")
+                logger.info(f"------------------- Created backup before adding ratios: {backup_path}")
         
         waypoint_pattern = re.compile(r'(\[Waypoint\](.*?)(?=\[|$))', re.DOTALL | re.IGNORECASE)
         waypoint_match = waypoint_pattern.search(content)

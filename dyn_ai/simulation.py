@@ -736,7 +736,7 @@ class LiveAITunerTestHarness:
         logger.info("Launching Live AI Tuner...")
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        app_logs_dir = self.project_dir / "app_logs"
+        app_logs_dir = self.project_dir / "simulation_logs"
         app_logs_dir.mkdir(parents=True, exist_ok=True)
         self.app_log_file = app_logs_dir / f"app_log_{timestamp}.txt"
 

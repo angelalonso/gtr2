@@ -79,51 +79,6 @@ class CurveGraphWidget(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         
-        top_frame = QFrame()
-        top_frame.setStyleSheet("QFrame { background-color: #2b2b2b; border-radius: 5px; padding: 8px; }")
-        top_layout = QHBoxLayout(top_frame)
-        
-        track_group = QFrame()
-        track_group.setStyleSheet("background-color: #1e1e1e; border-radius: 3px;")
-        track_layout = QHBoxLayout(track_group)
-        track_layout.setContentsMargins(8, 4, 8, 4)
-        track_layout.addWidget(QLabel("Track:"))
-        self.current_track_label = QLabel("-")
-        self.current_track_label.setStyleSheet("color: #FFA500; font-weight: bold;")
-        track_layout.addWidget(self.current_track_label)
-        
-        self.select_track_btn = QPushButton("Change")
-        self.select_track_btn.setFixedWidth(70)
-        self.select_track_btn.setStyleSheet("background-color: #2196F3; padding: 2px 8px;")
-        self.select_track_btn.clicked.connect(self.select_track)
-        track_layout.addWidget(self.select_track_btn)
-        top_layout.addWidget(track_group)
-        
-        class_group = QFrame()
-        class_group.setStyleSheet("background-color: #1e1e1e; border-radius: 3px;")
-        class_layout = QHBoxLayout(class_group)
-        class_layout.setContentsMargins(8, 4, 8, 4)
-        class_layout.addWidget(QLabel("Class:"))
-        self.current_class_label = QLabel("-")
-        self.current_class_label.setStyleSheet("color: #FF6600; font-weight: bold;")
-        class_layout.addWidget(self.current_class_label)
-        
-        self.select_class_btn = QPushButton("Change")
-        self.select_class_btn.setFixedWidth(70)
-        self.select_class_btn.setStyleSheet("background-color: #2196F3; padding: 2px 8px;")
-        self.select_class_btn.clicked.connect(self.select_classes)
-        class_layout.addWidget(self.select_class_btn)
-        top_layout.addWidget(class_group)
-        
-        top_layout.addStretch()
-        
-        self.refresh_btn = QPushButton("Refresh Data")
-        self.refresh_btn.setStyleSheet("background-color: #4CAF50;")
-        self.refresh_btn.clicked.connect(self.full_refresh)
-        top_layout.addWidget(self.refresh_btn)
-        
-        layout.addWidget(top_frame)
-        layout.addSpacing(5)
         
         self.plot_widget = pg.GraphicsLayoutWidget()
         self.plot_widget.setBackground('#2b2b2b')
@@ -235,7 +190,6 @@ class CurveGraphWidget(QWidget):
         if vehicle is not None and vehicle != self.current_vehicle:
             self.current_vehicle = vehicle
             self.current_vehicle_class = get_vehicle_class(vehicle, self.class_mapping)
-            self.current_class_label.setText(self.current_vehicle_class)
             if self.current_vehicle_class not in self.selected_classes:
                 self.selected_classes = [self.current_vehicle_class]
             self.load_data()

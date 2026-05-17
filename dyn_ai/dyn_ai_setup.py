@@ -6,6 +6,7 @@ Runs its own pre-run checks before starting
 """
 
 import sys
+import logging
 import sqlite3
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
@@ -14,6 +15,16 @@ from typing import List, Tuple
 
 from core_config import get_config_with_defaults, get_db_path, create_default_config_if_missing
 from core_database import CurveDatabase
+from core_log_manager import setup_rotating_logging
+
+
+# Set up rotating logging before anything else
+rotating_handler = setup_rotating_logging(log_level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+logger.info("=" * 60)
+logger.info("Dynamic AI Setup Manager Starting")
+logger.info("=" * 60)
 
 
 class SetupManager(tk.Tk):
@@ -26,18 +37,31 @@ class SetupManager(tk.Tk):
         self.db_path = get_db_path(config_file)
         self.db = CurveDatabase(self.db_path)
         
+        self.config_tab = None
+        self.vehicle_tab = None
+        
         self.setup_ui()
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
     
     def on_closing(self):
         """Handle window close event"""
+        logger.info("Setup Manager closing")
         self.destroy()
         self.quit()
     
+    def on_config_changed(self):
+        """Called when configuration is saved in the Config tab"""
+        logger.info("Configuration changed, notifying other tabs")
+        # Reload config from file
+        self.config = get_config_with_defaults(self.config_file)
+        # Notify vehicle tab if it exists and has the method
+        if self.vehicle_tab and hasattr(self.vehicle_tab, 'on_config_changed'):
+            self.vehicle_tab.on_config_changed()
+    
     def setup_ui(self):
         self.title("Dynamic AI - Setup & Data Manager")
-        self.geometry("1400x900")
-        self.minsize(1200, 800)
+        self.geometry("1200x850")
+        self.minsize(1200, 600)
         self.configure(bg='#1e1e1e')
         
         # Notebook (tabbed interface)
@@ -91,20 +115,22 @@ class SetupManager(tk.Tk):
     
     def create_config_tab(self) -> tk.Frame:
         """Create the configuration tab"""
-        from gui_advanced_settings_tk import ConfigTab
+        from gui_setup_cfg import ConfigTab
+        # Pass self as parent so ConfigTab can call back to us
         return ConfigTab(self, self.config_file, self.db)
     
     def create_backup_tab(self) -> tk.Frame:
         """Create the backup restore tab"""
-        from gui_backup_tk import BackupTab
+        from gui_setup_backup import BackupTab
         return BackupTab(self, self.db)
     
     def create_logs_tab(self) -> tk.Frame:
         """Create the logs tab"""
-        from gui_logs_tk import LogsTab
+        from gui_setup_logs import LogsTab
         return LogsTab(self)
     
     def run(self):
+        logger.info("Setup Manager UI started")
         self.mainloop()
 
 
@@ -114,6 +140,11 @@ def main():
     db_path = get_db_path()
     if not Path(db_path).exists():
         CurveDatabase(db_path)
+    
+    # Log the current log file location
+    current_log = rotating_handler.get_current_log_path()
+    if current_log:
+        logger.info(f"Log file: {current_log}")
     
     app = SetupManager()
     app.run()

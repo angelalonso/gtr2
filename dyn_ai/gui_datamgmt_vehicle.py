@@ -4,6 +4,7 @@ Vehicle Classes tab for Setup Manager (Tkinter version)
 Manages vehicle classes and assignments - embedded directly in the tab
 """
 
+import time
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import json
@@ -11,7 +12,7 @@ import threading
 from pathlib import Path
 from typing import List, Set, Optional
 
-from core_vehicle_scanner import scan_vehicles_from_gtr2
+from core_vehicle_scanner import scan_vehicles_from_gtr2, clear_vehicle_scan_cache
 from core_config import get_base_path, get_config_with_defaults
 
 
@@ -112,6 +113,8 @@ class VehicleClassesManager:
             self.file_path.parent.mkdir(parents=True, exist_ok=True)
             with open(self.file_path, 'w', encoding='utf-8') as f:
                 json.dump(self.data, f, indent=2, ensure_ascii=False)
+            # Clear the vehicle scan cache whenever classes are saved
+            clear_vehicle_scan_cache()
             return True
         except Exception as e:
             print(f"Error saving vehicle classes: {e}")
@@ -220,6 +223,43 @@ class VehicleClassesManager:
         assigned = self.get_all_vehicles()
         unassigned = all_vehicles - assigned
         return sorted(unassigned)
+
+    def save_vehicle_cache(self, gtr2_path: Path) -> bool:
+        """Create the vehicle cache file after scanning"""
+        from core_vehicle_scanner import scan_vehicles_from_gtr2, load_vehicle_classes, get_all_defined_vehicles
+        
+        try:
+            # Scan vehicles from GTR2
+            all_vehicles = scan_vehicles_from_gtr2(gtr2_path)
+            
+            # Get defined vehicles from current data
+            defined_vehicles = self.get_all_vehicles()
+            
+            # Calculate missing vehicles
+            missing_vehicles = all_vehicles - defined_vehicles
+            
+            # Create cache data
+            cache_data = {
+                'gtr2_path': str(gtr2_path),
+                'scan_timestamp': time.time(),
+                'all_vehicles': list(all_vehicles),
+                'defined_vehicles': list(defined_vehicles),
+                'missing_vehicles': list(missing_vehicles)
+            }
+            
+            # Write to cache file in the application directory
+            from gui_pre_run_check import get_cache_file_path
+            cache_file = get_cache_file_path()
+            cache_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            with open(cache_file, 'w', encoding='utf-8') as f:
+                json.dump(cache_data, f, indent=2)
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error saving vehicle cache: {e}")
+            return False
 
 
 class AddEditClassDialog(tk.Toplevel):
@@ -412,11 +452,34 @@ class VehicleTab(tk.Frame):
         self.imported_vehicles = set()
         self.current_class = None
         self.gtr2_path = None
+        self._reload_timer = None
         
         self.configure(bg='#1e1e1e')
         self.setup_ui()
         self.load_classes()
         self.load_gtr2_path_from_config()
+    
+    def on_config_changed(self):
+        """Called when configuration changes in the Config tab"""
+        # Schedule reload with a small delay to avoid multiple rapid reloads
+        if self._reload_timer is not None:
+            self._reload_timer.cancel()
+        
+        self._reload_timer = self.after(100, self._do_reload_config)
+    
+    def _do_reload_config(self):
+        """Actually reload the configuration"""
+        self.load_gtr2_path_from_config()
+        # Also refresh the unassigned list if vehicles were imported
+        if hasattr(self, 'imported_vehicles') and self.imported_vehicles:
+            self.refresh_unassigned_list()
+        # Update status message
+        if hasattr(self, 'import_status'):
+            if self.gtr2_path:
+                self.import_status.config(text="Configuration reloaded. GTR2 path updated.")
+            else:
+                self.import_status.config(text="Configuration reloaded. No GTR2 path found.")
+        self._reload_timer = None
     
     def load_gtr2_path_from_config(self):
         """Load GTR2 path from cfg.yml and update the display"""
@@ -429,6 +492,7 @@ class VehicleTab(tk.Frame):
             self.import_btn.config(state=tk.NORMAL)
             self.import_status.config(text="GTR2 path loaded from cfg.yml. Click 'Import Cars' to scan vehicles.")
         else:
+            self.gtr2_path = None
             self.gtr2_path_label.config(text="No GTR2 folder selected. Please browse to select or configure in cfg.yml.", fg='#888')
             self.import_btn.config(state=tk.DISABLED)
             self.import_status.config(text="")
@@ -561,7 +625,7 @@ class VehicleTab(tk.Frame):
         bottom_frame.pack(fill=tk.X, padx=10, pady=10)
         
         save_btn = tk.Button(bottom_frame, text="Save", bg='#4CAF50', fg='white',
-                              font=('Arial', 14, 'bold'), padx=50, pady=18,
+                              font=('Arial', 14, 'bold'), padx=50, pady=12,
                               command=self.save_data)
         save_btn.pack(side=tk.RIGHT, padx=5)
 
@@ -598,10 +662,13 @@ class VehicleTab(tk.Frame):
     
     def save_data(self):
         if self.manager.save():
-            messagebox.showinfo("Success", "Vehicle classes saved successfully!")
+            # Update the cache file after saving changes
+            if hasattr(self, 'gtr2_path') and self.gtr2_path:
+                self.manager.save_vehicle_cache(self.gtr2_path)
+            messagebox.showinfo("Success", "Vehicle classes saved and cache updated!")
         else:
             messagebox.showerror("Error", "Failed to save vehicle classes.")
-    
+
     def save_and_close(self):
         if self.manager.save():
             messagebox.showinfo("Success", "Vehicle classes saved successfully!")
@@ -695,11 +762,11 @@ class VehicleTab(tk.Frame):
                 if self.manager.rename_class(self.current_class, new_name):
                     self.load_classes()
                     # Find the renamed class in the list and select it
-                    for i in range(self.class_listbox.size()):
-                        if self.class_listbox.get(i) == new_name:
-                            self.class_listbox.selection_clear(0, tk.END)
-                            self.class_listbox.selection_set(i)
-                            self.class_listbox.see(i)
+                    for i in range(self.classes_listbox.size()):
+                        if self.classes_listbox.get(i) == new_name:
+                            self.classes_listbox.selection_clear(0, tk.END)
+                            self.classes_listbox.selection_set(i)
+                            self.classes_listbox.see(i)
                             self.current_class = new_name
                             self.selected_class_label.config(text=f"Class: {self.current_class}")
                             self.refresh_vehicles_list()
@@ -895,10 +962,18 @@ class VehicleTab(tk.Frame):
             self.imported_vehicles = vehicles
             self.refresh_unassigned_list()
             self.import_status.config(text=f"Imported {len(vehicles)} vehicles")
+            
+            # Save the vehicle cache file for pre-run checks
+            if self.manager.save_vehicle_cache(self.gtr2_path):
+                self.import_status.config(text=f"Imported {len(vehicles)} vehicles - Cache saved")
+            else:
+                self.import_status.config(text=f"Imported {len(vehicles)} vehicles - Cache save failed")
+            
             messagebox.showinfo("Import Complete",
                                   f"Found {len(vehicles)} unique vehicles.\n\n"
                                   f"Unassigned vehicles are shown in the right panel.\n"
-                                  f"Select a class, then select vehicles and click 'Add Selected to Class'.")
+                                  f"Select a class, then select vehicles and click 'Add Selected to Class'.\n\n"
+                                  f"After assigning vehicles, click Save to update the cache.")
     
     def refresh_unassigned_list(self):
         self.unassigned_listbox.delete(0, tk.END)

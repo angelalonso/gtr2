@@ -16,39 +16,17 @@ Usable, stable release with less requirements.
 
 ## Quick Start
 
-1. Download dyn_ai.exe and dyn_ai_setup.exe from this repository.
-2. Run dyn_ai.exe, follow instructions.
-3. Leave it running and boot GTR2.
-
-
----------------------------
-
-
-3. Pre-run checks will verify your setup:
-   - Configuration file (cfg.yml)
-   - Vehicle classes file (vehicle_classes.json)
-   - GTR2 base path (must contain GameData/ and UserData/)
-   - GTR2 executable
-   - GTR2 PLR file (Extra Stats setting)
-4. Point it to your GTR2 install folder (with `GameData/`) if not already configured - saved to `cfg.yml`
-
+1. Download dyn_ai.zip and dyn_ai.z01 
+2. Uncompress to a folder of your liking. Get in that folder.
+3. Run dyn_ai.exe, follow instructions.
+4. Leave it running and boot GTR2.
 
 ---
 
 ## Main Features
 
-### Pre-Run Checks
-Automatically verifies before launching:
-- cfg.yml exists and is valid
-- vehicle_classes.json exists and has correct structure
-- GTR2 base path is configured and valid
-- GTR2.exe is present
-- GTR2 PLR file has `Extra Stats="0"` (required for race results to be identified and read)
-
-Once all checks pass, usage instructions are displayed.
-
 ### Auto-harvest Data
-Saves every race session to the database. Builds history of lap times vs AI ratios.
+Saves every race session to the database. Builds history of lap times + Track + Car class + AI ratios.
 
 ### Auto-calculate Ratios
 When enabled: detects race results → analyzes historical data → fits curve `T = a/R + b` → updates AIW file.
@@ -70,6 +48,7 @@ Configure in `cfg.yml`:
 When outliers are detected, a message shows how many were removed from the fit. If data quality is poor, the auto-fit will show warning dialogs explaining the issues.
 
 ### Data Quality Warnings
+TODO: Adapt this doc
 When auto-fitting curves, the system now detects and warns about:
 - Duplicate ratio values with widely varying lap times (over 5 seconds difference)
 - Narrow ratio ranges (less than 0.2) causing unreliable fits
@@ -78,22 +57,18 @@ When auto-fitting curves, the system now detects and warns about:
 
 These warnings help identify problematic data that should be reviewed or removed.
 
-### AI Target Positioning
-
-Under development. Warning banner displayed in the Advanced Settings dialog.
-
 ### Manual Controls
 - Edit ratios directly (Edit button or press Enter on selected item)
 - Revert to previous ratio (Revert button)
 - Calculate ratio from lap time
-- Save formulas manually
-- Keyboard shortcuts: Enter to edit, Delete to remove selected entries
+- Change formulas manually
 
 ---
 
 ## Advanced Features
 
-### Dyn AI Data Manager (Standalone Tool)
+### Dyn AI Setup (Standalone Tool)
+TODO: Adapt this doc
 Comprehensive database management utility with multiple tabs:
 
 **Laptimes and Ratios Tab:**

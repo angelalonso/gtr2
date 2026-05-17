@@ -20,19 +20,20 @@ mkdir -p ${COMPILEDIR}
 # Copy ALL files from current directory
 echo "Copying files to ${COMPILEDIR}..."
 
-cp gui_pre_run_check_light.py ${COMPILEDIR}/
-cp gui_main_window_tk.py ${COMPILEDIR}/
-cp core_config.py ${COMPILEDIR}/
-cp core_database.py ${COMPILEDIR}/
-cp core_formula.py ${COMPILEDIR}/
-cp core_data_extraction.py ${COMPILEDIR}/
+cp core_aiw_utils.py ${COMPILEDIR}/
 cp core_autopilot.py ${COMPILEDIR}/
 cp core_common.py ${COMPILEDIR}/
-cp core_vehicle_scanner.py ${COMPILEDIR}/
-cp gui_base_path_dialog_tk.py ${COMPILEDIR}/
-cp gui_file_monitor.py ${COMPILEDIR}/
-cp core_aiw_utils.py ${COMPILEDIR}/
+cp core_config.py ${COMPILEDIR}/
+cp core_data_extraction.py ${COMPILEDIR}/
+cp core_database.py ${COMPILEDIR}/
+cp core_formula.py ${COMPILEDIR}/
+cp core_log_manager.py ${COMPILEDIR}/
 cp core_user_laptimes.py ${COMPILEDIR}/
+cp core_vehicle_scanner.py ${COMPILEDIR}/
+cp gui_base_path_dialog.py ${COMPILEDIR}/
+cp gui_file_monitor.py ${COMPILEDIR}/
+cp gui_main_window.py ${COMPILEDIR}/
+cp gui_pre_run_check.py ${COMPILEDIR}/
 cp dyn_ai.py ${COMPILEDIR}/
 
 cd ${COMPILEDIR}
@@ -80,19 +81,20 @@ wine python -m PyInstaller \
     --exclude-module scipy \
     --exclude-module watchdog \
     --name="dyn_ai" \
-    --hidden-import=gui_pre_run_check_light \
-    --hidden-import=gui_main_window_tk \
-    --hidden-import=core_config \
-    --hidden-import=core_database \
-    --hidden-import=core_formula \
-    --hidden-import=core_data_extraction \
+    --hidden-import=core_aiw_utils \
     --hidden-import=core_autopilot \
     --hidden-import=core_common \
-    --hidden-import=core_vehicle_scanner \
-    --hidden-import=gui_base_path_dialog_tk \
-    --hidden-import=gui_file_monitor \
-    --hidden-import=core_aiw_utils \
+    --hidden-import=core_config \
+    --hidden-import=core_data_extraction \
+    --hidden-import=core_database \
+    --hidden-import=core_formula \
+    --hidden-import=core_log_manager \
     --hidden-import=core_user_laptimes \
+    --hidden-import=core_vehicle_scanner \
+    --hidden-import=gui_base_path_dialog \
+    --hidden-import=gui_file_monitor \
+    --hidden-import=gui_main_window \
+    --hidden-import=gui_pre_run_check \
     dyn_ai.py
 
 # Check if build succeeded
