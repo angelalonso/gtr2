@@ -13,9 +13,10 @@ from pathlib import Path
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QFrame, QMessageBox, QListWidget, QListWidgetItem,
-    QAbstractItemView, QDialog, QDialogButtonBox, QLineEdit
+    QAbstractItemView, QDialog, QDialogButtonBox, QLineEdit, QScrollArea
 )
 from PyQt5.QtCore import Qt, QFileSystemWatcher, QTimer, pyqtSignal
+from PyQt5.QtGui import QScreen
 
 from core_database import CurveDatabase
 from core_config import get_db_path, get_config_with_defaults, create_default_config_if_missing, get_base_path, get_ratio_limits
@@ -339,8 +340,31 @@ class FormulaVisualizer(QMainWindow):
         self.user_qual_history = []
         self.user_race_history = []
 
+        # Get screen size and set appropriate window size
+        screen = QApplication.primaryScreen()
+        if screen:
+            screen_geometry = screen.availableGeometry()
+            screen_width = screen_geometry.width()
+            screen_height = screen_geometry.height()
+        else:
+            screen_width = 1920
+            screen_height = 1080
+        
+        if screen_width >= 1920 and screen_height >= 1080:
+            window_width = 1400
+            window_height = 1000
+        elif screen_width >= 1366:
+            window_width = 1200
+            window_height = 900
+        else:
+            window_width = 1000
+            window_height = 700
+        
+        x = (screen_width - window_width) // 2
+        y = (screen_height - window_height) // 2
+        
         self.setWindowTitle("Dynamic AI - Formula Visualizer")
-        self.setGeometry(100, 100, 1200, 900)
+        self.setGeometry(x, y, window_width, window_height)
         self.setMinimumWidth(1000)
         self.setMinimumHeight(800)
 
@@ -680,25 +704,36 @@ class FormulaVisualizer(QMainWindow):
         self.curve_graph.point_selected.connect(self.on_point_selected)
         layout.addWidget(self.curve_graph, stretch=3)
 
-        # Session panels
+        # Session panels with scroll areas for small screens
         middle_layout = QHBoxLayout()
         middle_layout.setSpacing(15)
 
+        # Create scroll areas for each panel
+        qual_scroll = QScrollArea()
+        qual_scroll.setWidgetResizable(True)
+        qual_scroll.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
+        
         self.qual_panel = SessionPanel("qual", "Qualifying Session", self.db, self)
         self.qual_panel.formula_changed.connect(self.on_qual_formula_changed)
         self.qual_panel.show_data_toggled.connect(self.on_show_data_toggled)
         self.qual_panel.calculate_ratio.connect(self.on_calculate_ratio)
         self.qual_panel.auto_fit_requested.connect(self.on_auto_fit)
         self.qual_panel.lap_time_edited.connect(self.on_lap_time_edited)
-        middle_layout.addWidget(self.qual_panel)
+        qual_scroll.setWidget(self.qual_panel)
+        middle_layout.addWidget(qual_scroll)
 
+        race_scroll = QScrollArea()
+        race_scroll.setWidgetResizable(True)
+        race_scroll.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
+        
         self.race_panel = SessionPanel("race", "Race Session", self.db, self)
         self.race_panel.formula_changed.connect(self.on_race_formula_changed)
         self.race_panel.show_data_toggled.connect(self.on_show_data_toggled)
         self.race_panel.calculate_ratio.connect(self.on_calculate_ratio)
         self.race_panel.auto_fit_requested.connect(self.on_auto_fit)
         self.race_panel.lap_time_edited.connect(self.on_lap_time_edited)
-        middle_layout.addWidget(self.race_panel)
+        race_scroll.setWidget(self.race_panel)
+        middle_layout.addWidget(race_scroll)
 
         layout.addLayout(middle_layout, stretch=1)
 
@@ -1021,11 +1056,11 @@ def main():
     # Configure logging to show INFO level for debugging formula loading
     logging.getLogger().setLevel(logging.INFO)
     
-    setup_dark_theme(QApplication.instance() or QApplication(sys.argv))
-
     app = QApplication.instance()
     if app is None:
         app = QApplication(sys.argv)
+    
+    setup_dark_theme(app)
 
     window = FormulaVisualizer()
     window.show()

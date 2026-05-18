@@ -199,7 +199,23 @@ class RatioPanel(tk.Frame):
     def setup_ui(self):
         self.configure(bg='#2b2b2b')
         
-        main_frame = tk.Frame(self, bg='#2b2b2b')
+        # Make panel scrollable for small screens
+        canvas = tk.Canvas(self, bg='#2b2b2b', highlightthickness=0)
+        scrollbar = tk.Scrollbar(self, orient=tk.VERTICAL, command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas, bg='#2b2b2b')
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        main_frame = tk.Frame(scrollable_frame, bg='#2b2b2b')
         main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
         
         # Title and buttons row
@@ -481,6 +497,7 @@ class MainWindowTk:
         self.daemon = None
         self.advanced_window = None
         self.setup_launch_in_progress = False
+        self.graph_launch_in_progress = False
         
         self.qual_a = DEFAULT_A_VALUE
         self.qual_b = 70.0
@@ -611,7 +628,24 @@ class MainWindowTk:
     def setup_ui(self):
         self.root = tk.Tk()
         self.root.title("GTR2 Dynamic AI")
-        self.root.geometry("950x700")
+        
+        # Get screen size and set appropriate window size
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        
+        if screen_width >= 1920 and screen_height >= 1080:
+            window_width = 1100
+            window_height = 800
+        elif screen_width >= 1366:
+            window_width = 1000
+            window_height = 700
+        else:
+            window_width = 900
+            window_height = 600
+        
+        x = (screen_width - window_width) // 2
+        y = (screen_height - window_height) // 2
+        self.root.geometry(f"{window_width}x{window_height}+{x}+{y}")
         self.root.minsize(850, 600)
         self.root.configure(bg='#1e1e1e')
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -718,6 +752,12 @@ class MainWindowTk:
                                     command=self.on_setup_open)
         self.setup_btn.pack(side=tk.RIGHT, padx=5)
 
+        # Graph Button
+        self.graph_btn = tk.Button(bottom_frame, text="Graph", bg='#FF9800', fg='white',
+                                    font=('Arial', 10, 'bold'),
+                                    relief=tk.FLAT, padx=12, pady=8,
+                                    command=self.on_graph_open)
+        self.graph_btn.pack(side=tk.RIGHT, padx=5)
         
         # Status bar
         self.status_bar = tk.Frame(self.root, bg='#2b2b2b', height=25)
@@ -1480,16 +1520,20 @@ class MainWindowTk:
                 self.race_formula_avg_error
             )
     
-    def _disable_setup_buttons(self):
-        """Disable all setup-related buttons"""
+    def _disable_buttons(self):
+        """Disable both Setup and Graph buttons when one is open"""
         if hasattr(self, 'setup_btn'):
             self.setup_btn.config(state=tk.DISABLED, text="Loading...")
+        if hasattr(self, 'graph_btn'):
+            self.graph_btn.config(state=tk.DISABLED, text="Loading...")
         self.root.update_idletasks()
     
-    def _enable_setup_buttons(self):
-        """Re-enable all setup-related buttons"""
+    def _enable_buttons(self):
+        """Re-enable Setup and Graph buttons after closing"""
         if hasattr(self, 'setup_btn'):
             self.setup_btn.config(state=tk.NORMAL, text="Setup")
+        if hasattr(self, 'graph_btn'):
+            self.graph_btn.config(state=tk.NORMAL, text="Graph")
         self.root.update_idletasks()
     
     def on_setup_open(self):
@@ -1498,7 +1542,7 @@ class MainWindowTk:
             return
         
         self.setup_launch_in_progress = True
-        self._disable_setup_buttons()
+        self._disable_buttons()
         
         def launch_thread():
             try:
@@ -1513,7 +1557,46 @@ class MainWindowTk:
     def _on_setup_closed(self):
         """Called when setup manager has closed"""
         self.setup_launch_in_progress = False
-        self._enable_setup_buttons()
+        self._enable_buttons()
+    
+    def on_graph_open(self):
+        """Open the graph/visualizer window"""
+        if self.graph_launch_in_progress:
+            return
+        
+        self.graph_launch_in_progress = True
+        self._disable_buttons()
+        
+        def launch_thread():
+            try:
+                if getattr(sys, 'frozen', False):
+                    visualizer_path = Path(sys.executable).parent / "dyn_ai_visualizer.exe"
+                    if not visualizer_path.exists():
+                        visualizer_path = Path(sys.executable).parent / "DYN_AI_VISUALIZER.EXE"
+                else:
+                    visualizer_path = Path(__file__).parent / "dyn_ai_visualizer.py"
+                
+                if visualizer_path.exists():
+                    if getattr(sys, 'frozen', False):
+                        subprocess.Popen([str(visualizer_path)], shell=False)
+                    else:
+                        python_exe = sys.executable
+                        subprocess.Popen([python_exe, str(visualizer_path)], shell=False)
+                else:
+                    self._show_warning_safe("Visualizer Not Found", 
+                        f"Visualizer not found at:\n{visualizer_path}")
+            except Exception as e:
+                logger.error(f"Failed to launch visualizer: {e}")
+                self._show_warning_safe("Launch Error", f"Failed to launch visualizer:\n{str(e)}")
+            finally:
+                self.root.after(0, self._on_graph_closed)
+        
+        threading.Thread(target=launch_thread, daemon=True).start()
+    
+    def _on_graph_closed(self):
+        """Called when graph window has closed"""
+        self.graph_launch_in_progress = False
+        self._enable_buttons()
 
     def on_close(self):
         self.stop_daemon()
