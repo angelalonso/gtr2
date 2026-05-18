@@ -31,8 +31,8 @@ show_help() {
     echo "    4. cross_compile_visualizer.sh - Build data visualizer companion executable"
     echo "    5. pack.sh                     - Package everything"
     echo ""
-    echo "    If a version parameter is provided, it will be passed to pack.sh"
-    echo "    for versioned packaging."
+    echo "    If a version parameter is provided, it will be stored in VERSION.md"
+    echo "    and used for reference, but zip files will be named without version."
     echo ""
     echo "OPTIONS:"
     echo "    -h, --help       Show this help message and exit"
@@ -49,7 +49,7 @@ show_help() {
     echo ""
     echo "VERSION PARAMETER:"
     echo "    If a version parameter matching the pattern vX.Y.Z (where X, Y, Z are digits)"
-    echo "    is provided, it will be passed to pack.sh for versioned packaging."
+    echo "    is provided, it will be stored in VERSION.md file."
     echo ""
     echo "    Examples:"
     echo "        v1.2.3      - Version 1.2.3"
@@ -224,46 +224,47 @@ else
 fi
 
 # Run cross_compile_setup.sh
-print_step "Building main executable..."
+print_step "Building setup executable..."
 if [ -f "./cross_compile_setup.sh" ]; then
     ./cross_compile_setup.sh || {
         print_error "Cross-compile of dyn_ai_setup failed!"
         exit 3
     }
-    print_info "Main executable built successfully"
+    print_info "Setup executable built successfully"
 else
     print_error "cross_compile_setup.sh not found!"
     exit 1
 fi
 
 # Run cross_compile_visualizer.sh
-print_step "Building main executable..."
+print_step "Building visualizer executable..."
 if [ -f "./cross_compile_visualizer.sh" ]; then
     ./cross_compile_visualizer.sh || {
         print_error "Cross-compile of dyn_ai_visualizer failed!"
         exit 3
     }
-    print_info "Main executable built successfully"
+    print_info "Visualizer executable built successfully"
 else
     print_error "cross_compile_visualizer.sh not found!"
     exit 1
 fi
 
-# Run pack.sh with version if provided
+# Write version to VERSION.md if provided
+if [ -n "$VERSION" ]; then
+    print_step "Writing version to VERSION.md..."
+    cd "${SCRIPT_DIR}"
+    echo "$VERSION" > VERSION.md
+    print_info "Version $VERSION written to VERSION.md"
+    cd "${SCRIPT_DIR}/scripts"
+fi
+
+# Run pack.sh (no version parameter needed anymore)
 print_step "Packaging..."
 if [ -f "./pack.sh" ]; then
-    if [ -n "$VERSION" ]; then
-        print_info "Passing version $VERSION to pack.sh"
-        ./pack.sh "$VERSION" || {
-            print_error "Packaging failed!"
-            exit 5
-        }
-    else
-        ./pack.sh || {
-            print_error "Packaging failed!"
-            exit 5
-        }
-    fi
+    ./pack.sh || {
+        print_error "Packaging failed!"
+        exit 5
+    }
     print_info "Packaging completed successfully"
 else
     print_error "pack.sh not found!"

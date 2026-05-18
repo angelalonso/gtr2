@@ -2,11 +2,15 @@
 
 ## URGENT
 
--
+main - Disable setup button until setup closes
+all - create small README.md
+all - create in-depth FURTHER_README.md
+all - create usage videos - first time, visualization
+all - better UI - control size depending on screen size
 
 ## Wishlist
 
-main - Disable setup button until setup closes
+all - code cleanup
 all - check use of aiRange
 all - check data(weather? AI level?) from current PLR and add to data
 all - make files smaller
