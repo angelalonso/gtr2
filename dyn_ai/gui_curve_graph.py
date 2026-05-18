@@ -34,6 +34,8 @@ class CurveGraphWidget(QWidget):
         self.qual_b = 70.0
         self.race_a = DEFAULT_A_VALUE
         self.race_b = 70.0
+        self.qual_is_default = True
+        self.race_is_default = True
         self.show_qualifying = True
         self.show_race = True
         self.show_user_points = True
@@ -104,6 +106,13 @@ class CurveGraphWidget(QWidget):
         info_layout.addStretch()
         layout.addLayout(info_layout)
     
+    def set_formula_is_default(self, session_type: str, is_default: bool):
+        """Set whether the formula is the default for a session type"""
+        if session_type == "qual":
+            self.qual_is_default = is_default
+        else:
+            self.race_is_default = is_default
+    
     def _calculate_ratio_for_user_time(self, time_sec: float, session_type: str) -> float:
         if session_type == "qual":
             a, b = self.qual_a, self.qual_b
@@ -124,6 +133,7 @@ class CurveGraphWidget(QWidget):
         dialog.setModal(True)
         layout = QVBoxLayout(dialog)
         list_widget = QListWidget()
+        list_widget.setSelectionMode(QAbstractItemView.SingleSelection)
         for track in self.all_tracks:
             list_widget.addItem(track)
         items = list_widget.findItems(self.current_track, Qt.MatchExactly)
@@ -138,7 +148,6 @@ class CurveGraphWidget(QWidget):
             selected = list_widget.currentItem().text()
             if selected != self.current_track:
                 self.current_track = selected
-                self.current_track_label.setText(selected)
                 self.load_data()
                 self.update_graph()
                 self.data_updated.emit()
@@ -169,7 +178,6 @@ class CurveGraphWidget(QWidget):
             self.selected_classes = [item.text() for item in list_widget.selectedItems()]
             if not self.selected_classes:
                 self.selected_classes = self.all_classes.copy()
-            self.current_class_label.setText(f"{len(self.selected_classes)} class(es)")
             self.load_data()
             self.update_graph()
             self.data_updated.emit()
@@ -185,7 +193,6 @@ class CurveGraphWidget(QWidget):
                             median_qual_time: float = None, median_race_time: float = None):
         if track is not None and track != self.current_track:
             self.current_track = track
-            self.current_track_label.setText(track)
             self.load_data()
         if vehicle is not None and vehicle != self.current_vehicle:
             self.current_vehicle = vehicle
@@ -263,10 +270,8 @@ class CurveGraphWidget(QWidget):
         self.all_classes = sorted(class_set)
         if not self.current_track and self.all_tracks:
             self.current_track = self.all_tracks[0]
-            self.current_track_label.setText(self.current_track)
         if not self.selected_classes and self.all_classes:
             self.selected_classes = self.all_classes.copy()
-            self.current_class_label.setText(f"{len(self.selected_classes)} class(es)")
         conn.close()
         self.data_updated.emit()
 
@@ -330,26 +335,32 @@ class CurveGraphWidget(QWidget):
         qual_times = self.qual_a / ratios + self.qual_b
         race_times = self.race_a / ratios + self.race_b
         
+        # Determine pen styles based on whether formulas are default
+        qual_pen = pg.mkPen(color='#888888', width=2.0, style=Qt.DashLine) if self.qual_is_default else pg.mkPen(color='#FFFF00', width=2.5)
+        race_pen = pg.mkPen(color='#888888', width=2.0, style=Qt.DashLine) if self.race_is_default else pg.mkPen(color='#FF6600', width=2.5)
+        
         if self.show_qualifying:
             if self.qual_curve is None:
-                self.qual_curve = self.plot.plot(ratios, qual_times, pen=pg.mkPen(color='#FFFF00', width=2.5))
+                self.qual_curve = self.plot.plot(ratios, qual_times, pen=qual_pen)
             else:
                 if self.qual_curve.scene() is None:
-                    self.qual_curve = self.plot.plot(ratios, qual_times, pen=pg.mkPen(color='#FFFF00', width=2.5))
+                    self.qual_curve = self.plot.plot(ratios, qual_times, pen=qual_pen)
                 else:
                     self.qual_curve.setData(ratios, qual_times)
+                    self.qual_curve.setPen(qual_pen)
                     self.qual_curve.setVisible(True)
         elif self.qual_curve is not None:
             self.qual_curve.setVisible(False)
         
         if self.show_race:
             if self.race_curve is None:
-                self.race_curve = self.plot.plot(ratios, race_times, pen=pg.mkPen(color='#FF6600', width=2.5))
+                self.race_curve = self.plot.plot(ratios, race_times, pen=race_pen)
             else:
                 if self.race_curve.scene() is None:
-                    self.race_curve = self.plot.plot(ratios, race_times, pen=pg.mkPen(color='#FF6600', width=2.5))
+                    self.race_curve = self.plot.plot(ratios, race_times, pen=race_pen)
                 else:
                     self.race_curve.setData(ratios, race_times)
+                    self.race_curve.setPen(race_pen)
                     self.race_curve.setVisible(True)
         elif self.race_curve is not None:
             self.race_curve.setVisible(False)
@@ -513,24 +524,27 @@ class CurveGraphWidget(QWidget):
                 
                 # Update existing labels or create new ones
                 for i, (label, ratio_val, time_val) in enumerate(current_labels):
-                    if i < len(self.user_point_labels):
-                        if self.user_point_labels[i].scene() is None:
+                    if i < len(self.user_point_labels) and self.user_point_labels[i] is not None:
+                        if self.user_point_labels[i].scene() is not None:
+                            self.user_point_labels[i].setPos(ratio_val, time_val)
+                            self.user_point_labels[i].setHtml(f'  <span style="color:#00FF00;">{label}</span>')
+                        else:
                             text_item = pg.TextItem(text=f"  {label}", color='#00FF00', anchor=(0, 0.5))
                             text_item.setPos(ratio_val, time_val)
                             self.plot.addItem(text_item)
                             self.user_point_labels[i] = text_item
-                        else:
-                            self.user_point_labels[i].setPos(ratio_val, time_val)
-                            self.user_point_labels[i].setHtml(f'  <span style="color:#00FF00;">{label}</span>')
                     else:
                         text_item = pg.TextItem(text=f"  {label}", color='#00FF00', anchor=(0, 0.5))
                         text_item.setPos(ratio_val, time_val)
                         self.plot.addItem(text_item)
-                        self.user_point_labels.append(text_item)
+                        if i < len(self.user_point_labels):
+                            self.user_point_labels[i] = text_item
+                        else:
+                            self.user_point_labels.append(text_item)
         elif self.user_qual_point is not None:
             self.user_qual_point.setVisible(False)
             for label in self.user_point_labels:
-                if label.scene() is not None:
+                if label is not None and label.scene() is not None:
                     self.plot.scene().removeItem(label)
             self.user_point_labels = []
         
@@ -551,10 +565,19 @@ class CurveGraphWidget(QWidget):
         self._safe_remove_legend()
         
         self.legend = self.plot.addLegend()
+        
+        qual_label = f'Qualifying: T={self.qual_a:.2f}/R+{self.qual_b:.2f}'
+        if self.qual_is_default:
+            qual_label += " (default)"
+        
+        race_label = f'Race: T={self.race_a:.2f}/R+{self.race_b:.2f}'
+        if self.race_is_default:
+            race_label += " (default)"
+        
         if self.show_qualifying and self.qual_curve is not None and self.qual_curve.scene() is not None:
-            self.legend.addItem(self.qual_curve, f'Qualifying: T={self.qual_a:.2f}/R+{self.qual_b:.2f}')
+            self.legend.addItem(self.qual_curve, qual_label)
         if self.show_race and self.race_curve is not None and self.race_curve.scene() is not None:
-            self.legend.addItem(self.race_curve, f'Race: T={self.race_a:.2f}/R+{self.race_b:.2f}')
+            self.legend.addItem(self.race_curve, race_label)
         if self.show_qualifying and quali_points and self.qual_scatter is not None and self.qual_scatter.scene() is not None:
             self.legend.addItem(self.qual_scatter, f'Qual Data ({len(quali_points)})')
         if self.show_race and race_points and self.race_scatter is not None and self.race_scatter.scene() is not None:

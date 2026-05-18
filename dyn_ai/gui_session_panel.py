@@ -37,6 +37,7 @@ class SessionPanel(QWidget):
         self.current_ratio = None
         self.median_time = None
         self.calc_button_modified = False
+        self.formula_is_default = True
         
         self.setup_ui()
         
@@ -70,6 +71,12 @@ class SessionPanel(QWidget):
             }
             QLabel#median_label {
                 color: #FFA500;
+                font-family: monospace;
+                font-size: 11px;
+                font-weight: bold;
+            }
+            QLabel#ratio_label {
+                color: #00FF00;
                 font-family: monospace;
                 font-size: 11px;
                 font-weight: bold;
@@ -139,18 +146,45 @@ class SessionPanel(QWidget):
         group_layout.addLayout(row2)
 
         row3 = QHBoxLayout()
+        row3.addWidget(QLabel("Current Ratio:"))
+        self.ratio_value_label = QLabel("--")
+        self.ratio_value_label.setObjectName("ratio_label")
+        row3.addWidget(self.ratio_value_label)
+        row3.addStretch()
+        group_layout.addLayout(row3)
+
+        row4 = QHBoxLayout()
         self.calc_btn = QPushButton("Calculate Ratio")
         self.calc_btn.clicked.connect(self.on_calculate_ratio)
-        row3.addWidget(self.calc_btn)
+        row4.addWidget(self.calc_btn)
 
         self.auto_fit_btn = QPushButton("Auto-Fit")
         self.auto_fit_btn.setStyleSheet("background-color: #2196F3;")
         self.auto_fit_btn.clicked.connect(self.on_auto_fit_clicked)
-        row3.addWidget(self.auto_fit_btn)
-        row3.addStretch()
-        group_layout.addLayout(row3)
+        row4.addWidget(self.auto_fit_btn)
+        row4.addStretch()
+        group_layout.addLayout(row4)
 
         layout.addWidget(group)
+    
+    def update_current_ratio(self, ratio: float):
+        """Update the displayed current ratio"""
+        if ratio is not None:
+            self.ratio_value_label.setText(f"{ratio:.6f}")
+        else:
+            self.ratio_value_label.setText("--")
+    
+    def set_formula_is_default(self, is_default: bool):
+        """Set whether the current formula is the default"""
+        self.formula_is_default = is_default
+        self._update_formula_style()
+    
+    def _update_formula_style(self):
+        """Update formula label style based on default status"""
+        if self.formula_is_default:
+            self.formula_label.setStyleSheet("color: #888888; font-family: monospace; font-style: italic;")
+        else:
+            self.formula_label.setStyleSheet("color: #FFA500; font-family: monospace;")
     
     def on_auto_fit_clicked(self):
         """Emit auto_fit_requested signal"""
@@ -184,6 +218,10 @@ class SessionPanel(QWidget):
         self.formula_label.setText(f"T = {self.a:.2f} / R + {self.b:.2f}")
         self.formula_changed.emit(self.session_type, self.a, self.b)
         self.set_calc_button_modified(True)
+        # When user manually edits parameters, it's no longer the default formula
+        if self.formula_is_default:
+            self.formula_is_default = False
+            self._update_formula_style()
     
     def set_calc_button_modified(self, modified: bool):
         self.calc_button_modified = modified
@@ -208,6 +246,7 @@ class SessionPanel(QWidget):
                 return
             
             self.current_ratio = ratio
+            self.ratio_value_label.setText(f"{ratio:.6f}")
             
             min_ratio, max_ratio = get_ratio_limits()
             if ratio < min_ratio or ratio > max_ratio:
@@ -237,6 +276,7 @@ class SessionPanel(QWidget):
         self.b_spin.blockSignals(False)
         self.formula_label.setText(f"T = {a:.2f} / R + {b:.2f}")
         self.set_calc_button_modified(False)
+        self._update_formula_style()
         
     def update_user_time(self, time_sec: float):
         self.user_time = time_sec if time_sec > 0 else None

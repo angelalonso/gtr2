@@ -41,7 +41,7 @@ class TrackClassSelector(QWidget):
         super().__init__(parent)
         self.db = db
         self.all_tracks = []
-        self.all_classes = []
+        self.all_classes_for_track = {}
         self.current_track = ""
         self.current_class = ""
         
@@ -58,7 +58,7 @@ class TrackClassSelector(QWidget):
         track_layout = QHBoxLayout(track_group)
         track_layout.setContentsMargins(10, 5, 10, 5)
         
-        track_layout.addWidget(QLabel("TrackXX:"))
+        track_layout.addWidget(QLabel("Track:"))
         self.track_label = QLabel("- Select Track -")
         self.track_label.setStyleSheet("color: #FFA500; font-weight: bold;")
         track_layout.addWidget(self.track_label)
@@ -85,7 +85,7 @@ class TrackClassSelector(QWidget):
         self.select_class_btn = QPushButton("Change")
         self.select_class_btn.setFixedWidth(70)
         self.select_class_btn.setStyleSheet("background-color: #2196F3;")
-        self.select_class_btn.clicked.connect(self.select_classes)
+        self.select_class_btn.clicked.connect(self.select_class)
         class_layout.addWidget(self.select_class_btn)
         
         layout.addWidget(class_group)
@@ -112,16 +112,45 @@ class TrackClassSelector(QWidget):
             cursor.execute("SELECT DISTINCT track_name FROM race_sessions WHERE track_name IS NOT NULL ORDER BY track_name")
             self.all_tracks = [row[0] for row in cursor.fetchall()]
         
-        cursor.execute("SELECT DISTINCT vehicle_class FROM data_points ORDER BY vehicle_class")
-        all_vehicles = [row[0] for row in cursor.fetchall()]
+        # Also check formulas table for tracks
+        try:
+            cursor.execute("SELECT DISTINCT track FROM formulas WHERE track IS NOT NULL ORDER BY track")
+            formula_tracks = [row[0] for row in cursor.fetchall()]
+            for track in formula_tracks:
+                if track not in self.all_tracks:
+                    self.all_tracks.append(track)
+            self.all_tracks.sort()
+        except sqlite3.OperationalError:
+            # formulas table might not exist yet
+            pass
         
+        # Build class mapping for each track
         from core_autopilot import load_vehicle_classes
         class_mapping = load_vehicle_classes()
-        class_set = set()
-        for vehicle in all_vehicles:
-            vehicle_class = get_vehicle_class(vehicle, class_mapping)
-            class_set.add(vehicle_class)
-        self.all_classes = sorted(class_set)
+        
+        for track in self.all_tracks:
+            cursor.execute("""
+                SELECT DISTINCT vehicle_class FROM data_points 
+                WHERE track = ? AND vehicle_class IS NOT NULL
+            """, (track,))
+            all_vehicles = [row[0] for row in cursor.fetchall()]
+            
+            # Also check formulas table for this track
+            try:
+                cursor.execute("""
+                    SELECT DISTINCT vehicle_class FROM formulas 
+                    WHERE track = ? AND vehicle_class IS NOT NULL
+                """, (track,))
+                formula_vehicles = [row[0] for row in cursor.fetchall()]
+                all_vehicles.extend([v for v in formula_vehicles if v not in all_vehicles])
+            except sqlite3.OperationalError:
+                pass
+            
+            class_set = set()
+            for vehicle in all_vehicles:
+                vehicle_class = get_vehicle_class(vehicle, class_mapping)
+                class_set.add(vehicle_class)
+            self.all_classes_for_track[track] = sorted(class_set)
         
         conn.close()
         
@@ -129,10 +158,19 @@ class TrackClassSelector(QWidget):
         if self.all_tracks and not self.current_track:
             self.current_track = self.all_tracks[0]
             self.track_label.setText(self.current_track)
-        
-        if self.all_classes and not self.current_class:
-            self.current_class = self.all_classes[0]
-            self.class_label.setText(self.current_class)
+            self._update_classes_for_track()
+    
+    def _update_classes_for_track(self):
+        """Update the available classes for the current track"""
+        if self.current_track in self.all_classes_for_track:
+            track_classes = self.all_classes_for_track[self.current_track]
+            if track_classes:
+                if self.current_class not in track_classes:
+                    self.current_class = track_classes[0]
+                self.class_label.setText(self.current_class)
+            else:
+                self.current_class = ""
+                self.class_label.setText("- No Classes -")
     
     def select_track(self):
         """Open dialog to select a track"""
@@ -155,6 +193,7 @@ class TrackClassSelector(QWidget):
         layout.addWidget(search_edit)
         
         list_widget = QListWidget()
+        list_widget.setSelectionMode(QAbstractItemView.SingleSelection)
         for track in self.all_tracks:
             list_widget.addItem(track)
         
@@ -187,12 +226,18 @@ class TrackClassSelector(QWidget):
             if selected != self.current_track:
                 self.current_track = selected
                 self.track_label.setText(selected)
+                self._update_classes_for_track()
                 self.selection_changed.emit(self.current_track, self.current_class)
     
-    def select_classes(self):
-        """Open dialog to select vehicle classes"""
-        if not self.all_classes:
-            QMessageBox.warning(self, "No Classes", "No vehicle classes available in database.")
+    def select_class(self):
+        """Open dialog to select a vehicle class"""
+        if self.current_track not in self.all_classes_for_track:
+            QMessageBox.warning(self, "No Classes", "No vehicle classes available for this track.")
+            return
+        
+        track_classes = self.all_classes_for_track[self.current_track]
+        if not track_classes:
+            QMessageBox.warning(self, "No Classes", "No vehicle classes available for this track.")
             return
         
         dialog = QDialog(self)
@@ -206,7 +251,8 @@ class TrackClassSelector(QWidget):
         layout.addWidget(label)
         
         list_widget = QListWidget()
-        for cls in self.all_classes:
+        list_widget.setSelectionMode(QAbstractItemView.SingleSelection)
+        for cls in track_classes:
             list_widget.addItem(cls)
         
         items = list_widget.findItems(self.current_class, Qt.MatchExactly)
@@ -267,11 +313,13 @@ class FormulaVisualizer(QMainWindow):
         self.current_track = ""
         self.current_vehicle_class = ""
         
-        # Formula values
+        # Formula values with default flags
         self.qual_a = DEFAULT_A_VALUE
         self.qual_b = 70.0
         self.race_a = DEFAULT_A_VALUE
         self.race_b = 70.0
+        self.qual_is_default = True
+        self.race_is_default = True
         
         # User times
         self.user_qual_time = None
@@ -292,9 +340,9 @@ class FormulaVisualizer(QMainWindow):
         self.user_race_history = []
 
         self.setWindowTitle("Dynamic AI - Formula Visualizer")
-        self.setGeometry(100, 100, 1200, 800)
+        self.setGeometry(100, 100, 1200, 900)
         self.setMinimumWidth(1000)
-        self.setMinimumHeight(700)
+        self.setMinimumHeight(800)
 
         self.setup_ui()
         self.setup_db_watcher()
@@ -302,7 +350,13 @@ class FormulaVisualizer(QMainWindow):
         
         # Load initial data after UI is ready
         self.selector.load_data()
-        # The selector's selection_changed signal will trigger initial data load
+        # Trigger initial selection after a short delay to ensure UI is fully initialized
+        QTimer.singleShot(100, self._emit_initial_selection)
+
+    def _emit_initial_selection(self):
+        """Emit the initial selection after UI is ready"""
+        if self.current_track and self.current_vehicle_class:
+            self.on_selection_changed(self.current_track, self.current_vehicle_class)
 
     # ------------------------------------------------------------------
     # Database file watcher
@@ -369,24 +423,39 @@ class FormulaVisualizer(QMainWindow):
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
+        # Check what columns exist in formulas table
+        try:
+            cursor.execute("PRAGMA table_info(formulas)")
+            formula_columns = [col[1] for col in cursor.fetchall()]
+            logger.debug(f"Formulas table columns: {formula_columns}")
+        except sqlite3.OperationalError:
+            formula_columns = []
+            logger.debug("Formulas table does not exist yet")
+        
         # Load formulas for current track/class
-        qual_formula = self.autopilot_manager.formula_manager.get_formula_by_class(
-            self.current_track, self.current_vehicle_class, "qual")
-        if qual_formula and qual_formula.is_valid():
-            self.qual_a = qual_formula.a
-            self.qual_b = qual_formula.b
+        qual_formula = self._get_formula_direct(cursor, self.current_track, self.current_vehicle_class, "qual", formula_columns)
+        if qual_formula:
+            self.qual_a = qual_formula[0]
+            self.qual_b = qual_formula[1]
+            self.qual_is_default = False
+            logger.info(f"Loaded qual formula: T={self.qual_a:.4f}/R+{self.qual_b:.4f}")
         else:
             self.qual_a = DEFAULT_A_VALUE
             self.qual_b = 70.0
+            self.qual_is_default = True
+            logger.info(f"No qual formula found, using default: T={self.qual_a:.4f}/R+{self.qual_b:.4f}")
         
-        race_formula = self.autopilot_manager.formula_manager.get_formula_by_class(
-            self.current_track, self.current_vehicle_class, "race")
-        if race_formula and race_formula.is_valid():
-            self.race_a = race_formula.a
-            self.race_b = race_formula.b
+        race_formula = self._get_formula_direct(cursor, self.current_track, self.current_vehicle_class, "race", formula_columns)
+        if race_formula:
+            self.race_a = race_formula[0]
+            self.race_b = race_formula[1]
+            self.race_is_default = False
+            logger.info(f"Loaded race formula: T={self.race_a:.4f}/R+{self.race_b:.4f}")
         else:
             self.race_a = DEFAULT_A_VALUE
             self.race_b = 70.0
+            self.race_is_default = True
+            logger.info(f"No race formula found, using default: T={self.race_a:.4f}/R+{self.race_b:.4f}")
         
         # Load user laptimes
         cursor.execute("""
@@ -446,30 +515,76 @@ class FormulaVisualizer(QMainWindow):
         self.median_race_time = self._calculate_median(race_times) if race_times else None
         
         # AI times for range
-        self.qual_best_ai, self.qual_worst_ai = self._get_ai_times_for_track(self.current_track, "qual")
-        self.race_best_ai, self.race_worst_ai = self._get_ai_times_for_track(self.current_track, "race")
+        self.qual_best_ai, self.qual_worst_ai = self._get_ai_times_for_track(self.current_track, "qual", self.current_vehicle_class)
+        self.race_best_ai, self.race_worst_ai = self._get_ai_times_for_track(self.current_track, "race", self.current_vehicle_class)
         
         conn.close()
         
         logger.debug(f"Loaded data for track={self.current_track}, class={self.current_vehicle_class}")
 
-    def _get_ai_times_for_track(self, track: str, session_type: str):
-        """Get best and worst AI times for a track"""
+    def _get_formula_direct(self, cursor, track: str, vehicle_class: str, session_type: str, formula_columns: list):
+        """Get formula directly from database"""
+        # Build query based on available columns
+        if 'updated_at' in formula_columns:
+            order_by = "ORDER BY updated_at DESC"
+        else:
+            order_by = "ORDER BY rowid DESC"
+        
+        # Try to get the most recent formula (regardless of is_active)
+        query = f"""
+            SELECT a, b FROM formulas 
+            WHERE track = ? AND vehicle_class = ? AND session_type = ?
+            {order_by}
+            LIMIT 1
+        """
+        
+        try:
+            cursor.execute(query, (track, vehicle_class, session_type))
+            row = cursor.fetchone()
+            if row:
+                logger.info(f"Found formula for {track}/{vehicle_class}/{session_type}: a={row[0]:.4f}, b={row[1]:.4f}")
+                return row
+        except sqlite3.OperationalError as e:
+            logger.debug(f"Error querying formulas: {e}")
+        
+        return None
+
+    def _get_ai_times_for_track(self, track: str, session_type: str, vehicle_class: str):
+        """Get best and worst AI times for a track and vehicle class"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
-        if session_type == "qual":
-            cursor.execute("""
-                SELECT MIN(qual_time_sec), MAX(qual_time_sec) FROM ai_results ar
-                JOIN race_sessions rs ON ar.race_id = rs.race_id
-                WHERE rs.track_name = ? AND ar.qual_time_sec > 0
-            """, (track,))
+        # First check if vehicle_class column exists in ai_results
+        cursor.execute("PRAGMA table_info(ai_results)")
+        columns = [col[1] for col in cursor.fetchall()]
+        
+        if 'vehicle_class' in columns:
+            if session_type == "qual":
+                cursor.execute("""
+                    SELECT MIN(ar.qual_time_sec), MAX(ar.qual_time_sec) FROM ai_results ar
+                    JOIN race_sessions rs ON ar.race_id = rs.race_id
+                    WHERE rs.track_name = ? AND ar.vehicle_class = ? AND ar.qual_time_sec > 0
+                """, (track, vehicle_class))
+            else:
+                cursor.execute("""
+                    SELECT MIN(ar.best_lap_sec), MAX(ar.best_lap_sec) FROM ai_results ar
+                    JOIN race_sessions rs ON ar.race_id = rs.race_id
+                    WHERE rs.track_name = ? AND ar.vehicle_class = ? AND ar.best_lap_sec > 0
+                """, (track, vehicle_class))
         else:
-            cursor.execute("""
-                SELECT MIN(best_lap_sec), MAX(best_lap_sec) FROM ai_results ar
-                JOIN race_sessions rs ON ar.race_id = rs.race_id
-                WHERE rs.track_name = ? AND ar.best_lap_sec > 0
-            """, (track,))
+            # Fallback if vehicle_class column doesn't exist - get all AI times for the track
+            if session_type == "qual":
+                cursor.execute("""
+                    SELECT MIN(ar.qual_time_sec), MAX(ar.qual_time_sec) FROM ai_results ar
+                    JOIN race_sessions rs ON ar.race_id = rs.race_id
+                    WHERE rs.track_name = ? AND ar.qual_time_sec > 0
+                """, (track,))
+            else:
+                cursor.execute("""
+                    SELECT MIN(ar.best_lap_sec), MAX(ar.best_lap_sec) FROM ai_results ar
+                    JOIN race_sessions rs ON ar.race_id = rs.race_id
+                    WHERE rs.track_name = ? AND ar.best_lap_sec > 0
+                """, (track,))
         
         row = cursor.fetchone()
         conn.close()
@@ -492,6 +607,7 @@ class FormulaVisualizer(QMainWindow):
         
         # Update session panels
         if hasattr(self, 'qual_panel'):
+            self.qual_panel.set_formula_is_default(self.qual_is_default)
             self.qual_panel.update_formula(self.qual_a, self.qual_b)
             if self.user_qual_time:
                 self.qual_panel.update_user_time(self.user_qual_time)
@@ -499,8 +615,10 @@ class FormulaVisualizer(QMainWindow):
                 self.qual_panel.update_median_time(self.median_qual_time)
             if self.last_qual_ratio:
                 self.qual_panel.update_ratio(self.last_qual_ratio)
+            self.qual_panel.update_current_ratio(self.last_qual_ratio)
         
         if hasattr(self, 'race_panel'):
+            self.race_panel.set_formula_is_default(self.race_is_default)
             self.race_panel.update_formula(self.race_a, self.race_b)
             if self.user_race_time:
                 self.race_panel.update_user_time(self.user_race_time)
@@ -508,9 +626,12 @@ class FormulaVisualizer(QMainWindow):
                 self.race_panel.update_median_time(self.median_race_time)
             if self.last_race_ratio:
                 self.race_panel.update_ratio(self.last_race_ratio)
+            self.race_panel.update_current_ratio(self.last_race_ratio)
         
         # Update curve graph
         if hasattr(self, 'curve_graph') and self.curve_graph:
+            self.curve_graph.set_formula_is_default("qual", self.qual_is_default)
+            self.curve_graph.set_formula_is_default("race", self.race_is_default)
             self.curve_graph.set_formulas(self.qual_a, self.qual_b, self.race_a, self.race_b)
             self.curve_graph.update_current_info(
                 track=self.current_track,
@@ -527,7 +648,16 @@ class FormulaVisualizer(QMainWindow):
             self.curve_graph.update_graph()
         
         # Update window title
-        self.setWindowTitle(f"Dynamic AI - Formula Visualizer - {self.current_track} - {self.current_vehicle_class}")
+        title = f"Dynamic AI - Formula Visualizer - {self.current_track} - {self.current_vehicle_class}"
+        if not self.qual_is_default or not self.race_is_default:
+            formulas = []
+            if not self.qual_is_default:
+                formulas.append(f"Qual: T={self.qual_a:.2f}/R+{self.qual_b:.2f}")
+            if not self.race_is_default:
+                formulas.append(f"Race: T={self.race_a:.2f}/R+{self.race_b:.2f}")
+            if formulas:
+                title += f" [{' | '.join(formulas)}]"
+        self.setWindowTitle(title)
 
     # ------------------------------------------------------------------
     # UI setup
@@ -547,6 +677,7 @@ class FormulaVisualizer(QMainWindow):
 
         # Curve graph
         self.curve_graph = CurveGraphWidget(self.db, self)
+        self.curve_graph.point_selected.connect(self.on_point_selected)
         layout.addWidget(self.curve_graph, stretch=3)
 
         # Session panels
@@ -571,9 +702,32 @@ class FormulaVisualizer(QMainWindow):
 
         layout.addLayout(middle_layout, stretch=1)
 
+        # Info panel for displaying clicked point data
+        info_frame = QFrame()
+        info_frame.setStyleSheet("background-color: #2b2b2b; border-radius: 5px; padding: 5px;")
+        info_layout = QHBoxLayout(info_frame)
+        info_layout.setContentsMargins(10, 5, 10, 5)
+        
+        info_layout.addWidget(QLabel("Selected Data Point:"))
+        self.info_text = QLabel("Click on any data point to see its ratio and lap time")
+        self.info_text.setStyleSheet("color: #4CAF50; font-family: monospace;")
+        self.info_text.setWordWrap(True)
+        info_layout.addWidget(self.info_text, stretch=1)
+        
+        layout.addWidget(info_frame)
+
     # ------------------------------------------------------------------
     # Signal handlers
     # ------------------------------------------------------------------
+
+    def on_point_selected(self, track: str, session_type: str, ratio: float, lap_time: float):
+        """Handle point selection from the graph"""
+        minutes = int(lap_time) // 60
+        seconds = lap_time % 60
+        self.info_text.setText(
+            f"Track: {track} | Session: {session_type} | "
+            f"Ratio: {ratio:.6f} | Lap Time: {minutes}:{seconds:06.3f}"
+        )
 
     def on_selection_changed(self, track: str, vehicle_class: str):
         """Handle track/class selection change"""
@@ -603,7 +757,9 @@ class FormulaVisualizer(QMainWindow):
         """Handle formula changes from qualifying panel"""
         self.qual_a = a
         self.qual_b = b
+        self.qual_is_default = False
         if self.curve_graph:
+            self.curve_graph.set_formula_is_default("qual", False)
             self.curve_graph.qual_a = a
             self.curve_graph.qual_b = b
             self.curve_graph.update_graph()
@@ -622,12 +778,17 @@ class FormulaVisualizer(QMainWindow):
             if formula.is_valid():
                 self.autopilot_manager.formula_manager.save_formula(formula)
                 logger.info(f"Saved qual formula for {self.current_track}/{self.current_vehicle_class}: T={a:.2f}/R+{b:.2f}")
+                # Force a refresh to show the newly saved formula
+                QTimer.singleShot(100, lambda: self.load_current_data())
+                QTimer.singleShot(150, lambda: self.update_all_display())
 
     def on_race_formula_changed(self, session_type: str, a: float, b: float):
         """Handle formula changes from race panel"""
         self.race_a = a
         self.race_b = b
+        self.race_is_default = False
         if self.curve_graph:
+            self.curve_graph.set_formula_is_default("race", False)
             self.curve_graph.race_a = a
             self.curve_graph.race_b = b
             self.curve_graph.update_graph()
@@ -646,6 +807,9 @@ class FormulaVisualizer(QMainWindow):
             if formula.is_valid():
                 self.autopilot_manager.formula_manager.save_formula(formula)
                 logger.info(f"Saved race formula for {self.current_track}/{self.current_vehicle_class}: T={a:.2f}/R+{b:.2f}")
+                # Force a refresh to show the newly saved formula
+                QTimer.singleShot(100, lambda: self.load_current_data())
+                QTimer.singleShot(150, lambda: self.update_all_display())
 
     def on_show_data_toggled(self, session_type: str, show: bool):
         """Handle show/hide data toggles"""
@@ -702,9 +866,11 @@ class FormulaVisualizer(QMainWindow):
             if session_type == "qual":
                 self.last_qual_ratio = new_ratio
                 self.qual_panel.update_ratio(new_ratio)
+                self.qual_panel.update_current_ratio(new_ratio)
             else:
                 self.last_race_ratio = new_ratio
                 self.race_panel.update_ratio(new_ratio)
+                self.race_panel.update_current_ratio(new_ratio)
             
             QMessageBox.information(self, "Success", 
                 f"{ratio_name} updated to {new_ratio:.6f} in {aiw_path.name}")
@@ -753,13 +919,21 @@ class FormulaVisualizer(QMainWindow):
             if session_type == "qual":
                 self.qual_a = a
                 self.qual_b = b
+                self.qual_is_default = False
+                self.qual_panel.set_formula_is_default(False)
                 self.qual_panel.update_formula(a, b)
                 self.qual_panel.set_calc_button_modified(False)
+                if self.curve_graph:
+                    self.curve_graph.set_formula_is_default("qual", False)
             else:
                 self.race_a = a
                 self.race_b = b
+                self.race_is_default = False
+                self.race_panel.set_formula_is_default(False)
                 self.race_panel.update_formula(a, b)
                 self.race_panel.set_calc_button_modified(False)
+                if self.curve_graph:
+                    self.curve_graph.set_formula_is_default("race", False)
             
             if self.curve_graph:
                 self.curve_graph.set_formulas(self.qual_a, self.qual_b, self.race_a, self.race_b)
@@ -844,6 +1018,9 @@ def main():
     if not Path(db_path).exists():
         CurveDatabase(db_path)
 
+    # Configure logging to show INFO level for debugging formula loading
+    logging.getLogger().setLevel(logging.INFO)
+    
     setup_dark_theme(QApplication.instance() or QApplication(sys.argv))
 
     app = QApplication.instance()
