@@ -133,96 +133,13 @@ def find_aiw_file_from_path(relative_path: str, base_path: Path) -> Optional[Pat
     logger.warning(f"AIW file NOT found for path: {relative_path}")
     return None
 
-
 def find_aiw_file_by_track(track_name: str, base_path: Path) -> Optional[Path]:
     """
-    Find AIW file by track name (fallback when no relative path available).
-    
-    Priority order:
-    1. Exact folder name match with AIW file whose stem matches the track name
-    2. Exact folder name match with any AIW file in that folder
-    3. AIW file whose stem matches the track name (in any folder)
-    4. Folder name contains track name (partial match)
-    5. AIW filename contains track name (partial match)
-    
-    Args:
-        track_name: Name of the track (e.g., "Donington", "Monza", "Testtrack2")
-        base_path: Base GTR2 installation path
-    
-    Returns:
-        Full Path to AIW file or None if not found
+    Find AIW file by track name.
+    This is a convenience wrapper around core_track_scanner.find_aiw_file_for_track.
     """
-    if not track_name or not base_path:
-        logger.error(f"find_aiw_file_by_track: missing params - track_name={track_name}, base_path={base_path}")
-        return None
-    
-    logger.debug(f"find_aiw_file_by_track: looking for track '{track_name}'")
-    
-    locations_candidates = [
-        base_path / "GameData" / "Locations",
-        base_path / "GAMEDATA" / "Locations",
-    ]
-    
-    locations_dir = None
-    for candidate in locations_candidates:
-        if candidate.exists():
-            locations_dir = candidate
-            logger.debug(f"Found Locations directory: {locations_dir}")
-            break
-    
-    if not locations_dir:
-        logger.error(f"Locations directory not found. Tried: {locations_candidates}")
-        return None
-    
-    track_lower = track_name.lower()
-    
-    # Priority 1: Exact folder name match with AIW file whose stem matches track name
-    for track_dir in locations_dir.iterdir():
-        if track_dir.is_dir() and track_dir.name.lower() == track_lower:
-            logger.debug(f"Found exact matching track folder: {track_dir}")
-            for ext in ["*.AIW", "*.aiw"]:
-                for aiw_file in track_dir.glob(ext):
-                    if aiw_file.stem.lower() == track_lower:
-                        logger.debug(f"Found AIW via exact folder + exact stem match: {aiw_file}")
-                        return aiw_file
-    
-    # Priority 2: Exact folder name match with any AIW file in that folder
-    for track_dir in locations_dir.iterdir():
-        if track_dir.is_dir() and track_dir.name.lower() == track_lower:
-            for ext in ["*.AIW", "*.aiw"]:
-                aiw_files = list(track_dir.glob(ext))
-                if aiw_files:
-                    logger.debug(f"Found AIW via exact folder match (any AIW): {aiw_files[0]}")
-                    return aiw_files[0]
-    
-    # Priority 3: AIW file whose stem matches the track name (in any folder)
-    for ext in ["*.AIW", "*.aiw"]:
-        for aiw_file in locations_dir.rglob(ext):
-            if aiw_file.stem.lower() == track_lower:
-                logger.debug(f"Found AIW via exact stem match: {aiw_file}")
-                return aiw_file
-    
-    # Priority 4: Folder name contains track name (partial match)
-    for track_dir in locations_dir.iterdir():
-        if track_dir.is_dir() and track_lower in track_dir.name.lower():
-            for ext in ["*.AIW", "*.aiw"]:
-                aiw_files = list(track_dir.glob(ext))
-                if aiw_files:
-                    logger.debug(f"Found AIW via folder name partial match: {aiw_files[0]} (folder={track_dir.name})")
-                    return aiw_files[0]
-    
-    # Priority 5: AIW filename contains track name (partial match)
-    for ext in ["*.AIW", "*.aiw"]:
-        for aiw_file in locations_dir.rglob(ext):
-            if track_lower in aiw_file.stem.lower():
-                folder_name = aiw_file.parent.name.lower()
-                if track_lower in folder_name or folder_name in track_lower:
-                    logger.debug(f"Found AIW via partial stem match: {aiw_file}")
-                    return aiw_file
-    
-    logger.warning(f"AIW file NOT found for track: {track_name}")
-    return None
-
+    from core_track_scanner import find_aiw_file_for_track
+    return find_aiw_file_for_track(track_name, base_path)
 
 def update_aiw_ratio(aiw_path: Path, ratio_name: str, new_ratio: float, backup_dir: Optional[Path] = None) -> bool:
     """

@@ -26,16 +26,17 @@ cp core_common.py ${COMPILEDIR}/
 cp core_config.py ${COMPILEDIR}/
 cp core_data_extraction.py ${COMPILEDIR}/
 cp core_database.py ${COMPILEDIR}/
-cp core_math.py ${COMPILEDIR}/
 cp core_log_manager.py ${COMPILEDIR}/
+cp core_math.py ${COMPILEDIR}/
+cp core_track_scanner.py ${COMPILEDIR}/
 cp core_user_laptimes.py ${COMPILEDIR}/
 cp core_vehicle_scanner.py ${COMPILEDIR}/
 cp gui_base_path_dialog.py ${COMPILEDIR}/
 cp gui_file_monitor.py ${COMPILEDIR}/
 cp gui_main_window.py ${COMPILEDIR}/
 cp gui_pre_run_check.py ${COMPILEDIR}/
-cp gui_track_selector.py ${COMPILEDIR}/
 cp gui_ratio_panel.py ${COMPILEDIR}/
+cp gui_track_selector.py ${COMPILEDIR}/
 cp dyn_ai.py ${COMPILEDIR}/
 
 cd ${COMPILEDIR}
@@ -89,16 +90,17 @@ wine python -m PyInstaller \
     --hidden-import=core_config \
     --hidden-import=core_data_extraction \
     --hidden-import=core_database \
-    --hidden-import=core_math \
     --hidden-import=core_log_manager \
+    --hidden-import=core_math \
+    --hidden-import=core_track_scanner \
     --hidden-import=core_user_laptimes \
     --hidden-import=core_vehicle_scanner \
     --hidden-import=gui_base_path_dialog \
     --hidden-import=gui_file_monitor \
     --hidden-import=gui_main_window \
     --hidden-import=gui_pre_run_check \
-    --hidden-import=gui_track_selector \
     --hidden-import=gui_ratio_panel \
+    --hidden-import=gui_track_selector \
     dyn_ai.py
 
 # Check if build succeeded

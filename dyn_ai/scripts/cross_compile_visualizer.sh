@@ -20,19 +20,20 @@ mkdir -p ${COMPILEDIR}
 # Copy ALL files from current directory
 echo "Copying files to ${COMPILEDIR}..."
 
-cp dyn_ai_visualizer.py ${COMPILEDIR}/
 cp core_aiw_utils.py ${COMPILEDIR}/
 cp core_autopilot.py ${COMPILEDIR}/
 cp core_common.py ${COMPILEDIR}/
 cp core_config.py ${COMPILEDIR}/
-cp core_database.py ${COMPILEDIR}/
 cp core_data_extraction.py ${COMPILEDIR}/
+cp core_database.py ${COMPILEDIR}/
 cp core_math.py ${COMPILEDIR}/
+cp core_track_scanner.py ${COMPILEDIR}/
 cp core_user_laptimes.py ${COMPILEDIR}/
 cp gui_common.py ${COMPILEDIR}/
 cp gui_common_dialogs.py ${COMPILEDIR}/
 cp gui_curve_graph.py ${COMPILEDIR}/
 cp gui_session_panel.py ${COMPILEDIR}/
+cp dyn_ai_visualizer.py ${COMPILEDIR}/
 
 cd ${COMPILEDIR}
 
@@ -65,9 +66,10 @@ wine python -m PyInstaller \
     --hidden-import=core_autopilot \
     --hidden-import=core_common \
     --hidden-import=core_config \
-    --hidden-import=core_database \
     --hidden-import=core_data_extracion \
+    --hidden-import=core_database \
     --hidden-import=core_math \
+    --hidden-import=core_track_scanner \
     --hidden-import=core_user_laptimes \
     --hidden-import=gui_common \
     --hidden-import=gui_common_dialogs \

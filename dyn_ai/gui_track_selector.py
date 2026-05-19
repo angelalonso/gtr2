@@ -10,15 +10,18 @@ from pathlib import Path
 from typing import Optional, List
 import logging
 
+from core_track_scanner import get_available_tracks
+
 logger = logging.getLogger(__name__)
 
 
 class TrackSelectorDialog:
     """Dialog for manually selecting a track from available AIW files - simple click to select"""
     
-    def __init__(self, parent, base_path: Path):
+    def __init__(self, parent, base_path: Path, db_path: str = None):
         self.parent = parent
         self.base_path = base_path
+        self.db_path = db_path
         self.selected_track = None
         self.dialog = None
         self.track_listbox = None
@@ -90,30 +93,17 @@ class TrackSelectorDialog:
         self.status_label.pack(pady=(0, 10))
     
     def scan_tracks(self):
-        """Scan for available tracks in the Locations directory"""
+        """Scan for available tracks using the unified scanner"""
         if not self.base_path or not self.base_path.exists():
             self.status_label.config(text="Base path not configured", fg='#f44336')
             return
         
-        locations_dir = self.base_path / "GameData" / "Locations"
-        if not locations_dir.exists():
-            locations_dir = self.base_path / "GAMEDATA" / "Locations"
+        self.tracks = get_available_tracks(self.base_path, self.db_path)
         
-        if not locations_dir.exists():
-            self.status_label.config(text=f"Locations directory not found", fg='#f44336')
+        if not self.tracks:
+            self.status_label.config(text="No tracks found", fg='#f44336')
             return
         
-        self.tracks = []
-        for track_dir in locations_dir.iterdir():
-            if track_dir.is_dir():
-                # Check for AIW files in the directory
-                for ext in ["*.AIW", "*.aiw"]:
-                    aiw_files = list(track_dir.glob(ext))
-                    if aiw_files:
-                        self.tracks.append(track_dir.name)
-                        break
-        
-        self.tracks.sort()
         self.filtered_tracks = self.tracks.copy()
         self.update_listbox()
         self.status_label.config(text=f"Found {len(self.tracks)} tracks (click to select)")

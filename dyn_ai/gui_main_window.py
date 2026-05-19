@@ -350,7 +350,7 @@ class MainWindowTk:
                 self.on_setup_open()
             return
         
-        dialog = TrackSelectorDialog(self.root, base_path)
+        dialog = TrackSelectorDialog(self.root, base_path, self.db_path)
         selected_track = dialog.show()
         
         if selected_track:
@@ -358,6 +358,14 @@ class MainWindowTk:
             self.current_track = selected_track
             self.track_label.config(text=selected_track)
             self.root.title(f"GTR2 Dynamic AI - {self.current_track}")
+            
+            # Verify AIW file exists
+            from core_track_scanner import find_aiw_file_for_track
+            aiw_path = find_aiw_file_for_track(selected_track, base_path)
+            if aiw_path:
+                logger.info(f"Found AIW file: {aiw_path}")
+            else:
+                logger.warning(f"No AIW file found for track: {selected_track}")
             
             # Load AI times for this track
             self.qual_best_ai, self.qual_worst_ai = self.get_ai_times_for_track(selected_track, "qual")
@@ -481,6 +489,9 @@ class MainWindowTk:
         self.race_read_ratio = race_ratio
     
     def find_aiw_file(self, track_name: str) -> Optional[Path]:
+        """Find AIW file for a track using the shared utility"""
+        from core_track_scanner import find_aiw_file_for_track
+        
         if track_name == '':
             logger.error(f"find_aiw_file: No Track Name provided!")
             return None
@@ -490,31 +501,8 @@ class MainWindowTk:
             logger.error("find_aiw_file: No base path configured")
             return None
         
-        locations_dir = base_path / "GameData" / "Locations"
-        if not locations_dir.exists():
-            locations_dir = base_path / "GAMEDATA" / "Locations"
-        if not locations_dir.exists():
-            logger.error(f"find_aiw_file: Locations directory not found: {locations_dir}")
-            return None
-        
-        track_lower = track_name.lower()
-        for track_dir in locations_dir.iterdir():
-            if track_dir.is_dir() and track_dir.name.lower() == track_lower:
-                for ext in ["*.AIW", "*.aiw"]:
-                    aiw_files = list(track_dir.glob(ext))
-                    if aiw_files:
-                        logger.info(f"find_aiw_file: Found AIW file at {aiw_files[0]}")
-                        return aiw_files[0]
-        
-        for ext in ["*.AIW", "*.aiw"]:
-            for aiw_file in locations_dir.rglob(ext):
-                if aiw_file.stem.lower() == track_lower or track_lower in aiw_file.stem.lower():
-                    logger.info(f"find_aiw_file: Found AIW file via stem match at {aiw_file}")
-                    return aiw_file
-        
-        logger.error(f"find_aiw_file: No AIW file found for track {track_name}")
-        return None
-    
+        return find_aiw_file_for_track(track_name, base_path)
+
     def read_aiw_ratios(self, aiw_path: Path) -> tuple:
         qual_ratio = None
         race_ratio = None

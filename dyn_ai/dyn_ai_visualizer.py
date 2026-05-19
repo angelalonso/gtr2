@@ -45,6 +45,7 @@ class TrackClassSelector(QWidget):
         self.all_classes_for_track = {}
         self.current_track = ""
         self.current_class = ""
+        self.base_path = get_base_path()
         
         self.setup_ui()
         
@@ -99,61 +100,45 @@ class TrackClassSelector(QWidget):
         layout.addWidget(self.refresh_btn)
     
     def load_data(self):
-        """Load available tracks and classes from database"""
+        """Load available tracks and classes from database and filesystem"""
+        from core_track_scanner import get_available_tracks
+        
         if not self.db.database_exists():
-            return
-        
-        conn = sqlite3.connect(self.db.db_path)
-        cursor = conn.cursor()
-        
-        # Get tracks from data_points
-        cursor.execute("SELECT DISTINCT track FROM data_points ORDER BY track")
-        self.all_tracks = [row[0] for row in cursor.fetchall()]
-        
-        # Also get tracks from race_sessions if data_points is empty
-        if not self.all_tracks:
-            cursor.execute("SELECT DISTINCT track_name FROM race_sessions WHERE track_name IS NOT NULL ORDER BY track_name")
-            self.all_tracks = [row[0] for row in cursor.fetchall()]
-        
-        # Also check formulas table for tracks
-        try:
-            cursor.execute("SELECT DISTINCT track FROM formulas WHERE track IS NOT NULL ORDER BY track")
-            formula_tracks = [row[0] for row in cursor.fetchall()]
-            for track in formula_tracks:
-                if track not in self.all_tracks:
-                    self.all_tracks.append(track)
-            self.all_tracks.sort()
-        except sqlite3.OperationalError:
-            pass
+            self.all_tracks = get_available_tracks(self.base_path, None)
+        else:
+            self.all_tracks = get_available_tracks(self.base_path, self.db.db_path)
         
         # Build class mapping for each track
         class_mapping = load_vehicle_classes()
         
-        for track in self.all_tracks:
-            cursor.execute("""
-                SELECT DISTINCT vehicle_class FROM data_points 
-                WHERE track = ? AND vehicle_class IS NOT NULL
-            """, (track,))
-            all_vehicles = [row[0] for row in cursor.fetchall()]
+        if self.db.database_exists():
+            conn = sqlite3.connect(self.db.db_path)
+            cursor = conn.cursor()
             
-            # Also check formulas table for this track
-            try:
+            for track in self.all_tracks:
                 cursor.execute("""
-                    SELECT DISTINCT vehicle_class FROM formulas 
+                    SELECT DISTINCT vehicle_class FROM data_points 
                     WHERE track = ? AND vehicle_class IS NOT NULL
                 """, (track,))
-                formula_vehicles = [row[0] for row in cursor.fetchall()]
-                all_vehicles.extend([v for v in formula_vehicles if v not in all_vehicles])
-            except sqlite3.OperationalError:
-                pass
+                all_vehicles = [row[0] for row in cursor.fetchall()]
+                
+                try:
+                    cursor.execute("""
+                        SELECT DISTINCT vehicle_class FROM formulas 
+                        WHERE track = ? AND vehicle_class IS NOT NULL
+                    """, (track,))
+                    formula_vehicles = [row[0] for row in cursor.fetchall()]
+                    all_vehicles.extend([v for v in formula_vehicles if v not in all_vehicles])
+                except sqlite3.OperationalError:
+                    pass
+                
+                class_set = set()
+                for vehicle in all_vehicles:
+                    vehicle_class = get_vehicle_class(vehicle, class_mapping)
+                    class_set.add(vehicle_class)
+                self.all_classes_for_track[track] = sorted(class_set)
             
-            class_set = set()
-            for vehicle in all_vehicles:
-                vehicle_class = get_vehicle_class(vehicle, class_mapping)
-                class_set.add(vehicle_class)
-            self.all_classes_for_track[track] = sorted(class_set)
-        
-        conn.close()
+            conn.close()
         
         # Set defaults if available
         if self.all_tracks and not self.current_track:
