@@ -9,15 +9,11 @@ from pathlib import Path
 # Add parent directory to path so we can import application modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent))
-
 import shutil
 from pathlib import Path
 
 from test_base import BaseTestCase
-from core_vehicle_scanner import scan_vehicles_from_gtr2, find_missing_vehicles, load_vehicle_classes
+from core_vehicle_scanner import scan_vehicles_from_gtr2, find_missing_vehicles, load_vehicle_classes, get_all_defined_vehicles
 
 
 class TestVehicleScanner(BaseTestCase):
@@ -69,8 +65,6 @@ class TestVehicleScanner(BaseTestCase):
     
     def test_get_all_defined_vehicles(self):
         """Test getting all defined vehicles from classes"""
-        from core_vehicle_scanner import get_all_defined_vehicles
-        
         classes = load_vehicle_classes(self.temp_env.classes_path)
         vehicles = get_all_defined_vehicles(classes)
         

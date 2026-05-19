@@ -12,13 +12,13 @@ Previous release notes are now obsolete since this is to a great extent a new pr
 
 ## Improvements
 
-- I added a pre-run checks to guide the user a bit.
-- I separated configuration/logging/imports screens into a program of its own.
-- I "downgraded" most of the visuals to avoid having a 100M program that takes forever to start
-- I streamlined repeated libraries and cleand up code (still doing that)
-- I cleaned up the wine/cross-compilation to remove unused Libraries.
-  - I also separated files to avoid loading unnecessary libraries (e.g.: PyQt5 on a program that only uses tkinter)
-  - additionally I added compression
+- Added pre-run checks to guide the user.
+- Separated configuration/logging/imports screens into a program of its own.
+- "Downgraded" most of the visuals to avoid having a 100M program that takes forever to start.
+- Streamlined repeated libraries and cleaned up code.
+- Refactored main window into modular components: track selector and ratio panel are now separate files.
+- Cleaned up wine/cross-compilation to remove unused Libraries.
+  - Separated files to avoid loading unnecessary libraries (e.g., PyQt5 on a program that only uses tkinter).
+  - Added compression.
   - All this was done to avoid hitting github/gitlab limits of file size.
-  - only the visualizer is now bigger than 50Mb, because it depends on things like Qt5
-
+  - Only the visualizer is now bigger than 50MB, because it depends on things like Qt5.

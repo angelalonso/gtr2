@@ -14,7 +14,10 @@ import unittest
 import numpy as np
 
 from test_base import BaseTestCase
-from core_formula import hyperbolic, ratio_from_time, fit_curve, DEFAULT_A_VALUE, get_formula_string, calculate_derived_values, OutlierInfo
+from core_math import (
+    time_from_ratio, ratio_from_time, fit_hyperbolic, DEFAULT_A_VALUE, 
+    get_formula_string, FitStats
+)
 
 
 class TestFormula(BaseTestCase):
@@ -34,7 +37,7 @@ class TestFormula(BaseTestCase):
         ]
         
         for R, expected_T in test_cases:
-            T = hyperbolic(R, a, b)
+            T = time_from_ratio(R, a, b)
             self.assertAlmostEqual(T, expected_T, places=5)
     
     def test_ratio_from_time(self):
@@ -60,9 +63,9 @@ class TestFormula(BaseTestCase):
         """Test curve fitting with sample data"""
         a, b = 32.0, 70.0
         ratios = [0.6, 0.8, 1.0, 1.2, 1.4, 1.6]
-        times = [hyperbolic(r, a, b) for r in ratios]
+        times = [time_from_ratio(r, a, b) for r in ratios]
         
-        fitted_a, fitted_b, avg_err, max_err, info = fit_curve(ratios, times, verbose=False)
+        fitted_a, fitted_b, stats = fit_hyperbolic(ratios, times)
         
         self.assertIsNotNone(fitted_a)
         self.assertIsNotNone(fitted_b)
@@ -73,12 +76,12 @@ class TestFormula(BaseTestCase):
         """Test curve fitting with noisy data"""
         a, b = 32.0, 70.0
         ratios = [0.6, 0.8, 1.0, 1.2, 1.4, 1.6]
-        times = [hyperbolic(r, a, b) for r in ratios]
+        times = [time_from_ratio(r, a, b) for r in ratios]
         
         random.seed(42)
         times_noisy = [t + random.uniform(-0.5, 0.5) for t in times]
         
-        fitted_a, fitted_b, avg_err, max_err, info = fit_curve(ratios, times_noisy, verbose=False)
+        fitted_a, fitted_b, stats = fit_hyperbolic(ratios, times_noisy)
         
         self.assertIsNotNone(fitted_a)
         self.assertIsNotNone(fitted_b)
@@ -87,79 +90,71 @@ class TestFormula(BaseTestCase):
     
     def test_fit_curve_insufficient_data(self):
         """Test curve fitting with insufficient data points"""
-        a, b, avg_err, max_err, info = fit_curve([1.0], [100.0], verbose=False)
-        self.assertIsNone(a)
-        self.assertIsNone(b)
+        fitted_a, fitted_b, stats = fit_hyperbolic([1.0], [100.0])
+        self.assertIsNone(fitted_a)
+        self.assertIsNone(fitted_b)
     
     def test_fit_curve_empty_data(self):
         """Test curve fitting with empty data"""
-        a, b, avg_err, max_err, info = fit_curve([], [], verbose=False)
-        self.assertIsNone(a)
-        self.assertIsNone(b)
+        fitted_a, fitted_b, stats = fit_hyperbolic([], [])
+        self.assertIsNone(fitted_a)
+        self.assertIsNone(fitted_b)
     
     def test_get_formula_string(self):
         """Test formula string formatting"""
         formula_str = get_formula_string(32.0, 70.0)
         self.assertEqual(formula_str, "T = 32.0000 / R + 70.0000")
     
-    def test_calculate_derived_values(self):
-        """Test derived values calculation"""
-        M, k = calculate_derived_values(32.0, 70.0)
-        self.assertAlmostEqual(M, 102.0)
-        self.assertAlmostEqual(k, 32.0 / 102.0, places=5)
-    
     def test_fit_curve_with_outlier_filtering_std(self):
         """Test curve fitting with std outlier filtering"""
         a, b = 32.0, 70.0
         ratios = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6]
-        times = [hyperbolic(r, a, b) for r in ratios]
+        times = [time_from_ratio(r, a, b) for r in ratios]
         times_with_outlier = times.copy()
         times_with_outlier[6] = times_with_outlier[6] + 50.0
         
-        fitted_a, fitted_b, avg_err, max_err, info = fit_curve(
-            ratios, times_with_outlier, verbose=False,
+        fitted_a, fitted_b, stats = fit_hyperbolic(
+            ratios, times_with_outlier,
             outlier_method="std", outlier_threshold=2.0
         )
         
         self.assertIsNotNone(fitted_a)
         self.assertIsNotNone(fitted_b)
-        self.assertIsNotNone(info)
-        self.assertEqual(info.outliers_removed, 1)
+        self.assertEqual(stats.outliers_removed, 1)
     
     def test_fit_curve_with_outlier_filtering_percentile(self):
         """Test curve fitting with percentile outlier filtering"""
         a, b = 32.0, 70.0
         ratios = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6]
-        times = [hyperbolic(r, a, b) for r in ratios]
+        times = [time_from_ratio(r, a, b) for r in ratios]
         times_with_outlier = times.copy()
         times_with_outlier[6] = times_with_outlier[6] + 80.0
         
-        fitted_a, fitted_b, avg_err, max_err, info = fit_curve(
-            ratios, times_with_outlier, verbose=False,
+        fitted_a, fitted_b, stats = fit_hyperbolic(
+            ratios, times_with_outlier,
             outlier_method="percentile", outlier_threshold=90.0
         )
         
         self.assertIsNotNone(fitted_a)
         self.assertIsNotNone(fitted_b)
-        self.assertIsNotNone(info)
-        self.assertEqual(info.outliers_removed, 1)
+        self.assertEqual(stats.outliers_removed, 1)
     
     def test_fit_curve_without_outlier_filtering(self):
         """Test curve fitting with outlier but no filtering"""
         a, b = 32.0, 70.0
         ratios = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6]
-        times = [hyperbolic(r, a, b) for r in ratios]
+        times = [time_from_ratio(r, a, b) for r in ratios]
         times_with_outlier = times.copy()
         times_with_outlier[6] = times_with_outlier[6] + 50.0
         
-        fitted_a, fitted_b, avg_err, max_err, info = fit_curve(
-            ratios, times_with_outlier, verbose=False,
+        fitted_a, fitted_b, stats = fit_hyperbolic(
+            ratios, times_with_outlier,
             outlier_method="none"
         )
         
         self.assertIsNotNone(fitted_a)
         self.assertIsNotNone(fitted_b)
-        self.assertIsNone(info)
+        self.assertEqual(stats.outliers_removed, 0)
 
 
 class TestDataQualityWarnings(unittest.TestCase):
@@ -288,44 +283,44 @@ class TestDataQualityWarnings(unittest.TestCase):
 
 
 class TestFitCurveWithQualityTracking(unittest.TestCase):
-    """Test that fit_curve returns data needed for quality assessment"""
+    """Test that fit_hyperbolic returns data needed for quality assessment"""
     
     def setUp(self):
         self.a = 32.0
         self.b = 70.0
     
     def test_fit_returns_avg_error(self):
-        """Test that fit_curve returns average error"""
+        """Test that fit_hyperbolic returns average error"""
         ratios = [0.6, 0.8, 1.0, 1.2, 1.4, 1.6]
-        times = [hyperbolic(r, self.a, self.b) for r in ratios]
+        times = [time_from_ratio(r, self.a, self.b) for r in ratios]
         
-        a, b, avg_err, max_err, info = fit_curve(ratios, times, verbose=False)
+        fitted_a, fitted_b, stats = fit_hyperbolic(ratios, times)
         
-        self.assertIsNotNone(avg_err)
-        self.assertLess(avg_err, 0.01)
+        self.assertIsNotNone(stats.avg_error)
+        self.assertLess(stats.avg_error, 0.01)
     
     def test_fit_returns_max_error(self):
-        """Test that fit_curve returns max error"""
+        """Test that fit_hyperbolic returns max error"""
         ratios = [0.6, 0.8, 1.0, 1.2, 1.4, 1.6]
-        times = [hyperbolic(r, self.a, self.b) for r in ratios]
+        times = [time_from_ratio(r, self.a, self.b) for r in ratios]
         
-        a, b, avg_err, max_err, info = fit_curve(ratios, times, verbose=False)
+        fitted_a, fitted_b, stats = fit_hyperbolic(ratios, times)
         
-        self.assertIsNotNone(max_err)
-        self.assertLess(max_err, 0.01)
+        self.assertIsNotNone(stats.max_error)
+        self.assertLess(stats.max_error, 0.01)
     
     def test_fit_with_noisy_data_returns_meaningful_errors(self):
         """Test that fit returns meaningful error metrics for noisy data"""
         random.seed(42)
         ratios = [0.6, 0.8, 1.0, 1.2, 1.4, 1.6]
-        times = [hyperbolic(r, self.a, self.b) + random.uniform(-1.0, 1.0) for r in ratios]
+        times = [time_from_ratio(r, self.a, self.b) + random.uniform(-1.0, 1.0) for r in ratios]
         
-        a, b, avg_err, max_err, info = fit_curve(ratios, times, verbose=False)
+        fitted_a, fitted_b, stats = fit_hyperbolic(ratios, times)
         
-        self.assertIsNotNone(avg_err)
-        self.assertIsNotNone(max_err)
-        self.assertGreater(avg_err, 0)
-        self.assertGreater(max_err, 0)
+        self.assertIsNotNone(stats.avg_error)
+        self.assertIsNotNone(stats.max_error)
+        self.assertGreater(stats.avg_error, 0)
+        self.assertGreater(stats.max_error, 0)
 
 
 def run_formula_tests():

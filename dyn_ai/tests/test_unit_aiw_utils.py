@@ -9,10 +9,6 @@ from pathlib import Path
 # Add parent directory to path so we can import application modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent))
-
 import os
 import shutil
 
@@ -30,7 +26,8 @@ class TestAIWUtils(BaseTestCase):
         """Test finding AIW file by track name"""
         found = find_aiw_file_by_track("Monza", self.temp_env.base_path)
         self.assertIsNotNone(found)
-        self.assertEqual(found, self.temp_env.mock_aiw_files.get("Monza"))
+        expected = self.temp_env.mock_aiw_files.get("Monza")
+        self.assertEqual(found, expected)
         
         not_found = find_aiw_file_by_track("NonExistentTrack", self.temp_env.base_path)
         self.assertIsNone(not_found)
@@ -105,7 +102,12 @@ class TestAIWUtils(BaseTestCase):
         """Test handling of read-only AIW files"""
         aiw_path = self.temp_env.mock_aiw_files.get("Monza")
         
-        os.chmod(aiw_path, 0o444)
+        # Skip if we can't set read-only
+        try:
+            os.chmod(aiw_path, 0o444)
+        except PermissionError:
+            self.skipTest("Cannot set read-only permission")
+            return
         
         try:
             result = update_aiw_ratio(aiw_path, "QualRatio", 1.5)

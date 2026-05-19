@@ -20,7 +20,7 @@ from unittest.mock import MagicMock, patch
 
 from test_base import BaseTestCase
 from core_database import CurveDatabase
-from core_formula import hyperbolic, ratio_from_time, fit_curve
+from core_math import time_from_ratio, ratio_from_time, fit_hyperbolic
 
 
 @dataclass
@@ -299,7 +299,7 @@ class TestFormulaRatioIntegration(BaseTestCase):
         ]
         
         for ratio, a, b in test_cases:
-            time = hyperbolic(ratio, a, b)
+            time = time_from_ratio(ratio, a, b)
             calculated_ratio = ratio_from_time(time, a, b)
             self.assertIsNotNone(calculated_ratio)
             self.assertAlmostEqual(ratio, calculated_ratio, places=5)
@@ -309,10 +309,10 @@ class TestFormulaRatioIntegration(BaseTestCase):
         # Simulate data points
         ratios = [0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
         actual_a, actual_b = 30.0, 68.0
-        times = [hyperbolic(r, actual_a, actual_b) for r in ratios]
+        times = [time_from_ratio(r, actual_a, actual_b) for r in ratios]
         
         # Fit curve
-        fitted_a, fitted_b, avg_err, max_err, info = fit_curve(ratios, times, verbose=False)
+        fitted_a, fitted_b, stats = fit_hyperbolic(ratios, times)
         
         self.assertIsNotNone(fitted_a)
         self.assertIsNotNone(fitted_b)

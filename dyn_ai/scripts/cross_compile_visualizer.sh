@@ -27,7 +27,7 @@ cp core_common.py ${COMPILEDIR}/
 cp core_config.py ${COMPILEDIR}/
 cp core_database.py ${COMPILEDIR}/
 cp core_data_extraction.py ${COMPILEDIR}/
-cp core_formula.py ${COMPILEDIR}/
+cp core_math.py ${COMPILEDIR}/
 cp core_user_laptimes.py ${COMPILEDIR}/
 cp gui_common.py ${COMPILEDIR}/
 cp gui_common_dialogs.py ${COMPILEDIR}/
@@ -67,7 +67,7 @@ wine python -m PyInstaller \
     --hidden-import=core_config \
     --hidden-import=core_database \
     --hidden-import=core_data_extracion \
-    --hidden-import=core_formula \
+    --hidden-import=core_math \
     --hidden-import=core_user_laptimes \
     --hidden-import=gui_common \
     --hidden-import=gui_common_dialogs \

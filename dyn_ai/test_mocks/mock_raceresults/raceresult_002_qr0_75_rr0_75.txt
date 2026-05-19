@@ -1,0 +1,135 @@
+//[[gMa1.000f (c)2004    ]] [[]]
+[Header]
+Game=GTR2
+Version=1.100
+TimeString=2026/04/25 16:38:22
+Aids=0,0,0,0,0,1,1,0,0
+
+[Race]
+RaceMode=3
+Scene=GAMEDATA\LOCATIONS\Testtrack2\Testtrack2.TRK
+AIDB=GAMEDATA\LOCATIONS\Testtrack2\Testtrack2.AIW
+Race Length=0.040
+Track Length=4966.5918
+
+[Slot000]
+Driver=AngelAlonso
+Vehicle=Formula BMW
+VehicleNumber=6001
+Team=Team Palmera Ebro
+Penalty=0
+QualTime=1:49.512
+Laps=4
+LapDistanceTravelled=4959.104492
+BestLap=1:50.000
+RaceTime=0:12:00.000
+
+[Slot001]
+Driver=Bram Hengeveld
+Vehicle=Formula BMW
+VehicleNumber=6009
+Team=Roaring Pipes Maniacs
+Penalty=0
+QualTime=1:52.128
+Laps=4
+LapDistanceTravelled=4949.503906
+BestLap=1:52.667
+RaceTime=0:13:00.000
+
+[Slot002]
+Driver=Daniel Almeida
+Vehicle=Formula BMW
+VehicleNumber=6004
+Team=Ajira Racing
+Penalty=0
+QualTime=1:54.043
+Laps=4
+LapDistanceTravelled=4944.781738
+BestLap=1:54.667
+RaceTime=0:13:30.000
+
+[Slot003]
+Driver=Attila Domjan
+Vehicle=Formula BMW
+VehicleNumber=6010
+Team=Roaring Pipes Maniacs
+Penalty=0
+QualTime=1:56.297
+Laps=4
+LapDistanceTravelled=4935.175781
+BestLap=1:56.667
+RaceTime=0:14:00.000
+
+[Slot004]
+Driver=Sascha Monig
+Vehicle=Formula BMW
+VehicleNumber=6016
+Team=VPP Werksteam
+Penalty=0
+QualTime=1:58.184
+Laps=4
+LapDistanceTravelled=4925.930176
+BestLap=1:58.667
+RaceTime=0:14:30.000
+
+[Slot005]
+Driver=Richard Towler
+Vehicle=Formula BMW
+VehicleNumber=6007
+Team=Team Redline
+Penalty=0
+QualTime=2:00.379
+Laps=4
+LapDistanceTravelled=4911.619141
+BestLap=2:00.667
+RaceTime=0:15:00.000
+
+[Slot006]
+Driver=Matjaz Plotajs
+Vehicle=Formula BMW
+VehicleNumber=6006
+Team=Ajira Racing
+Penalty=0
+QualTime=2:02.245
+Laps=4
+LapDistanceTravelled=4905.310059
+BestLap=2:02.667
+RaceTime=0:15:30.000
+
+[Slot007]
+Driver=Matteo Ferrara
+Vehicle=Formula BMW
+VehicleNumber=6002
+Team=Team Palmera Ebro
+Penalty=0
+QualTime=2:04.513
+Laps=4
+LapDistanceTravelled=4864.982910
+BestLap=2:04.667
+RaceTime=0:16:00.000
+
+[Slot008]
+Driver=Jaxon Reid
+Vehicle=Formula BMW
+VehicleNumber=6011
+Team=Team Supercheap Hell Energy
+Penalty=0
+QualTime=2:06.428
+Laps=4
+LapDistanceTravelled=4850.965332
+BestLap=2:06.667
+RaceTime=0:16:30.000
+
+[Slot009]
+Driver=James Burgess
+Vehicle=Formula BMW
+VehicleNumber=6013
+Team=vMaxSR
+Penalty=0
+QualTime=2:08.376
+Laps=4
+LapDistanceTravelled=4841.243164
+BestLap=2:08.667
+RaceTime=0:17:00.000
+
+[END]

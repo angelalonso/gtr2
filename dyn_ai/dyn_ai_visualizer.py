@@ -21,8 +21,8 @@ from PyQt5.QtGui import QScreen
 from core_database import CurveDatabase
 from core_config import get_db_path, get_config_with_defaults, create_default_config_if_missing, get_base_path, get_ratio_limits
 from core_autopilot import get_vehicle_class, load_vehicle_classes, AutopilotManager
-from core_formula import DEFAULT_A_VALUE, fit_curve
-from core_aiw_utils import update_aiw_ratio, find_aiw_file_by_track
+from core_math import DEFAULT_A_VALUE, fit_hyperbolic, ratio_from_time, clamp_ratio, get_formula_string, calculate_b_from_point
+from core_aiw_utils import update_aiw_ratio, find_aiw_file_by_track, find_aiw_file_from_path, ensure_aiw_has_ratios
 from core_user_laptimes import UserLapTimesManager
 from gui_curve_graph import CurveGraphWidget
 from gui_session_panel import SessionPanel
@@ -106,9 +106,11 @@ class TrackClassSelector(QWidget):
         conn = sqlite3.connect(self.db.db_path)
         cursor = conn.cursor()
         
+        # Get tracks from data_points
         cursor.execute("SELECT DISTINCT track FROM data_points ORDER BY track")
         self.all_tracks = [row[0] for row in cursor.fetchall()]
         
+        # Also get tracks from race_sessions if data_points is empty
         if not self.all_tracks:
             cursor.execute("SELECT DISTINCT track_name FROM race_sessions WHERE track_name IS NOT NULL ORDER BY track_name")
             self.all_tracks = [row[0] for row in cursor.fetchall()]
@@ -122,11 +124,9 @@ class TrackClassSelector(QWidget):
                     self.all_tracks.append(track)
             self.all_tracks.sort()
         except sqlite3.OperationalError:
-            # formulas table might not exist yet
             pass
         
         # Build class mapping for each track
-        from core_autopilot import load_vehicle_classes
         class_mapping = load_vehicle_classes()
         
         for track in self.all_tracks:
@@ -462,24 +462,24 @@ class FormulaVisualizer(QMainWindow):
             self.qual_a = qual_formula[0]
             self.qual_b = qual_formula[1]
             self.qual_is_default = False
-            logger.info(f"Loaded qual formula: T={self.qual_a:.4f}/R+{self.qual_b:.4f}")
+            logger.info(f"Loaded qual formula: {get_formula_string(self.qual_a, self.qual_b)}")
         else:
             self.qual_a = DEFAULT_A_VALUE
             self.qual_b = 70.0
             self.qual_is_default = True
-            logger.info(f"No qual formula found, using default: T={self.qual_a:.4f}/R+{self.qual_b:.4f}")
+            logger.info(f"No qual formula found, using default: {get_formula_string(self.qual_a, self.qual_b)}")
         
         race_formula = self._get_formula_direct(cursor, self.current_track, self.current_vehicle_class, "race", formula_columns)
         if race_formula:
             self.race_a = race_formula[0]
             self.race_b = race_formula[1]
             self.race_is_default = False
-            logger.info(f"Loaded race formula: T={self.race_a:.4f}/R+{self.race_b:.4f}")
+            logger.info(f"Loaded race formula: {get_formula_string(self.race_a, self.race_b)}")
         else:
             self.race_a = DEFAULT_A_VALUE
             self.race_b = 70.0
             self.race_is_default = True
-            logger.info(f"No race formula found, using default: T={self.race_a:.4f}/R+{self.race_b:.4f}")
+            logger.info(f"No race formula found, using default: {get_formula_string(self.race_a, self.race_b)}")
         
         # Load user laptimes
         cursor.execute("""
@@ -548,13 +548,11 @@ class FormulaVisualizer(QMainWindow):
 
     def _get_formula_direct(self, cursor, track: str, vehicle_class: str, session_type: str, formula_columns: list):
         """Get formula directly from database"""
-        # Build query based on available columns
         if 'updated_at' in formula_columns:
             order_by = "ORDER BY updated_at DESC"
         else:
             order_by = "ORDER BY rowid DESC"
         
-        # Try to get the most recent formula (regardless of is_active)
         query = f"""
             SELECT a, b FROM formulas 
             WHERE track = ? AND vehicle_class = ? AND session_type = ?
@@ -578,7 +576,6 @@ class FormulaVisualizer(QMainWindow):
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
-        # First check if vehicle_class column exists in ai_results
         cursor.execute("PRAGMA table_info(ai_results)")
         columns = [col[1] for col in cursor.fetchall()]
         
@@ -596,7 +593,6 @@ class FormulaVisualizer(QMainWindow):
                     WHERE rs.track_name = ? AND ar.vehicle_class = ? AND ar.best_lap_sec > 0
                 """, (track, vehicle_class))
         else:
-            # Fallback if vehicle_class column doesn't exist - get all AI times for the track
             if session_type == "qual":
                 cursor.execute("""
                     SELECT MIN(ar.qual_time_sec), MAX(ar.qual_time_sec) FROM ai_results ar
@@ -629,7 +625,6 @@ class FormulaVisualizer(QMainWindow):
         if not self.current_track or not self.current_vehicle_class:
             return
         
-        # Update session panels
         if hasattr(self, 'qual_panel'):
             self.qual_panel.set_formula_is_default(self.qual_is_default)
             self.qual_panel.update_formula(self.qual_a, self.qual_b)
@@ -652,7 +647,6 @@ class FormulaVisualizer(QMainWindow):
                 self.race_panel.update_ratio(self.last_race_ratio)
             self.race_panel.update_current_ratio(self.last_race_ratio)
         
-        # Update curve graph
         if hasattr(self, 'curve_graph') and self.curve_graph:
             self.curve_graph.set_formula_is_default("qual", self.qual_is_default)
             self.curve_graph.set_formula_is_default("race", self.race_is_default)
@@ -671,14 +665,13 @@ class FormulaVisualizer(QMainWindow):
             )
             self.curve_graph.update_graph()
         
-        # Update window title
         title = f"Dynamic AI - Formula Visualizer - {self.current_track} - {self.current_vehicle_class}"
         if not self.qual_is_default or not self.race_is_default:
             formulas = []
             if not self.qual_is_default:
-                formulas.append(f"Qual: T={self.qual_a:.2f}/R+{self.qual_b:.2f}")
+                formulas.append(f"Qual: {get_formula_string(self.qual_a, self.qual_b)}")
             if not self.race_is_default:
-                formulas.append(f"Race: T={self.race_a:.2f}/R+{self.race_b:.2f}")
+                formulas.append(f"Race: {get_formula_string(self.race_a, self.race_b)}")
             if formulas:
                 title += f" [{' | '.join(formulas)}]"
         self.setWindowTitle(title)
@@ -694,21 +687,17 @@ class FormulaVisualizer(QMainWindow):
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(10)
 
-        # Track and class selector
         self.selector = TrackClassSelector(self.db, self)
         self.selector.selection_changed.connect(self.on_selection_changed)
         layout.addWidget(self.selector)
 
-        # Curve graph
         self.curve_graph = CurveGraphWidget(self.db, self)
         self.curve_graph.point_selected.connect(self.on_point_selected)
         layout.addWidget(self.curve_graph, stretch=3)
 
-        # Session panels with scroll areas for small screens
         middle_layout = QHBoxLayout()
         middle_layout.setSpacing(15)
 
-        # Create scroll areas for each panel
         qual_scroll = QScrollArea()
         qual_scroll.setWidgetResizable(True)
         qual_scroll.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
@@ -737,7 +726,6 @@ class FormulaVisualizer(QMainWindow):
 
         layout.addLayout(middle_layout, stretch=1)
 
-        # Info panel for displaying clicked point data
         info_frame = QFrame()
         info_frame.setStyleSheet("background-color: #2b2b2b; border-radius: 5px; padding: 5px;")
         info_layout = QHBoxLayout(info_frame)
@@ -756,7 +744,6 @@ class FormulaVisualizer(QMainWindow):
     # ------------------------------------------------------------------
 
     def on_point_selected(self, track: str, session_type: str, ratio: float, lap_time: float):
-        """Handle point selection from the graph"""
         minutes = int(lap_time) // 60
         seconds = lap_time % 60
         self.info_text.setText(
@@ -765,7 +752,6 @@ class FormulaVisualizer(QMainWindow):
         )
 
     def on_selection_changed(self, track: str, vehicle_class: str):
-        """Handle track/class selection change"""
         if not track or not vehicle_class:
             return
         
@@ -774,22 +760,18 @@ class FormulaVisualizer(QMainWindow):
         self.current_track = track
         self.current_vehicle_class = vehicle_class
         
-        # Update graph's selection
         if self.curve_graph:
             self.curve_graph.current_track = track
             self.curve_graph.selected_classes = [vehicle_class]
         
-        # Load data for new selection
         self.load_current_data()
         self.update_all_display()
         
-        # Refresh graph data
         if self.curve_graph:
             self.curve_graph.load_data()
             self.curve_graph.full_refresh()
 
     def on_qual_formula_changed(self, session_type: str, a: float, b: float):
-        """Handle formula changes from qualifying panel"""
         self.qual_a = a
         self.qual_b = b
         self.qual_is_default = False
@@ -799,7 +781,6 @@ class FormulaVisualizer(QMainWindow):
             self.curve_graph.qual_b = b
             self.curve_graph.update_graph()
         
-        # Save formula to database for the CURRENT selection
         if self.current_track and self.current_vehicle_class:
             from core_autopilot import Formula
             formula = Formula(
@@ -812,13 +793,11 @@ class FormulaVisualizer(QMainWindow):
             )
             if formula.is_valid():
                 self.autopilot_manager.formula_manager.save_formula(formula)
-                logger.info(f"Saved qual formula for {self.current_track}/{self.current_vehicle_class}: T={a:.2f}/R+{b:.2f}")
-                # Force a refresh to show the newly saved formula
+                logger.info(f"Saved qual formula for {self.current_track}/{self.current_vehicle_class}: {get_formula_string(a, b)}")
                 QTimer.singleShot(100, lambda: self.load_current_data())
                 QTimer.singleShot(150, lambda: self.update_all_display())
 
     def on_race_formula_changed(self, session_type: str, a: float, b: float):
-        """Handle formula changes from race panel"""
         self.race_a = a
         self.race_b = b
         self.race_is_default = False
@@ -828,7 +807,6 @@ class FormulaVisualizer(QMainWindow):
             self.curve_graph.race_b = b
             self.curve_graph.update_graph()
         
-        # Save formula to database for the CURRENT selection
         if self.current_track and self.current_vehicle_class:
             from core_autopilot import Formula
             formula = Formula(
@@ -841,13 +819,11 @@ class FormulaVisualizer(QMainWindow):
             )
             if formula.is_valid():
                 self.autopilot_manager.formula_manager.save_formula(formula)
-                logger.info(f"Saved race formula for {self.current_track}/{self.current_vehicle_class}: T={a:.2f}/R+{b:.2f}")
-                # Force a refresh to show the newly saved formula
+                logger.info(f"Saved race formula for {self.current_track}/{self.current_vehicle_class}: {get_formula_string(a, b)}")
                 QTimer.singleShot(100, lambda: self.load_current_data())
                 QTimer.singleShot(150, lambda: self.update_all_display())
 
     def on_show_data_toggled(self, session_type: str, show: bool):
-        """Handle show/hide data toggles"""
         if self.curve_graph:
             if session_type == "qual":
                 self.curve_graph.set_show_qualifying(show)
@@ -855,7 +831,6 @@ class FormulaVisualizer(QMainWindow):
                 self.curve_graph.set_show_race(show)
 
     def on_calculate_ratio(self, session_type: str, user_time: float):
-        """Calculate ratio from user time and current formula, then update AIW file"""
         if not self.current_track:
             QMessageBox.warning(self, "No Track", "No track selected. Please select a track first.")
             return
@@ -867,35 +842,44 @@ class FormulaVisualizer(QMainWindow):
         a = self.qual_a if session_type == "qual" else self.race_a
         b = self.qual_b if session_type == "qual" else self.race_b
         
-        denominator = user_time - b
-        if denominator <= 0:
+        new_ratio = ratio_from_time(user_time, a, b)
+        
+        if new_ratio is None:
             QMessageBox.warning(self, "Calculation Error", 
-                f"Cannot calculate ratio: T - b = {user_time:.3f} - {b:.2f} = {denominator:.3f} (must be positive)")
+                f"Cannot calculate ratio: T - b = {user_time:.3f} - {b:.2f} = {user_time - b:.3f} (must be positive)")
             return
         
-        new_ratio = a / denominator
-        
         min_ratio, max_ratio = get_ratio_limits(self.config_file)
+        clamped_ratio = clamp_ratio(new_ratio, min_ratio, max_ratio)
         
-        if new_ratio < min_ratio or new_ratio > max_ratio:
+        if clamped_ratio != new_ratio:
             reply = QMessageBox.question(self, "Ratio Out of Range",
                 f"The calculated ratio = {new_ratio:.6f} is outside the allowed range "
-                f"({min_ratio} - {max_ratio}).\n\nDo you still want to save this ratio?",
+                f"({min_ratio} - {max_ratio}).\n\n"
+                f"The ratio will be clamped to {clamped_ratio:.6f}.\n\nDo you want to continue?",
                 QMessageBox.Yes | QMessageBox.No)
             if reply != QMessageBox.Yes:
                 return
+            new_ratio = clamped_ratio
         
-        # Find the AIW file for the SELECTED track
+        logger.info(f"Looking for AIW file for track: {self.current_track}")
+        logger.info(f"Base path: {self.base_path}")
+        
         aiw_path = find_aiw_file_by_track(self.current_track, self.base_path)
         
         if not aiw_path or not aiw_path.exists():
             QMessageBox.warning(self, "AIW Not Found", 
                 f"Could not find AIW file for track: {self.current_track}\n\n"
+                f"Base path: {self.base_path}\n\n"
                 f"Please ensure the track folder exists in GameData/Locations/")
             return
         
+        logger.info(f"Found AIW file: {aiw_path}")
+        
         ratio_name = "QualRatio" if session_type == "qual" else "RaceRatio"
         backup_dir = Path(self.db_path).parent / "aiw_backups"
+        
+        ensure_aiw_has_ratios(aiw_path, backup_dir)
         
         if update_aiw_ratio(aiw_path, ratio_name, new_ratio, backup_dir):
             if session_type == "qual":
@@ -907,16 +891,27 @@ class FormulaVisualizer(QMainWindow):
                 self.race_panel.update_ratio(new_ratio)
                 self.race_panel.update_current_ratio(new_ratio)
             
-            QMessageBox.information(self, "Success", 
-                f"{ratio_name} updated to {new_ratio:.6f} in {aiw_path.name}")
+            self.user_laptimes_manager.add_laptime(
+                self.current_track, self.current_vehicle_class, session_type,
+                user_time, new_ratio
+            )
             
+            self.autopilot_manager.formula_manager.update_formula_with_point(
+                self.current_track, self.current_vehicle_class, session_type,
+                new_ratio, user_time
+            )
+            
+            self.load_current_data()
             self.update_all_display()
+            
+            QMessageBox.information(self, "Success", 
+                f"{ratio_name} updated to {new_ratio:.6f} in {aiw_path.name}\n\n"
+                f"Formula has been updated with this data point.")
         else:
             QMessageBox.critical(self, "Update Failed", 
                 f"Failed to update {ratio_name} in the AIW file.")
 
     def on_auto_fit(self, session_type: str):
-        """Auto-fit the curve to data points from the database for the selected track/class"""
         if not self.current_track or not self.current_vehicle_class:
             QMessageBox.warning(self, "No Data", 
                 "No track or vehicle class selected. Please select a track and class first.")
@@ -924,7 +919,6 @@ class FormulaVisualizer(QMainWindow):
         
         logger.info(f"Auto-fit for {session_type} on {self.current_track}/{self.current_vehicle_class}")
         
-        # Get data points from database for this track/class/session
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -947,8 +941,15 @@ class FormulaVisualizer(QMainWindow):
         ratios = [row[0] for row in rows]
         times = [row[1] for row in rows]
         
-        # Fit the curve
-        a, b, avg_error, max_error, outlier_info = fit_curve(ratios, times, verbose=True)
+        from core_config import get_outlier_settings
+        outlier_config = get_outlier_settings(self.config_file)
+        
+        a, b, stats = fit_hyperbolic(
+            ratios, times,
+            fixed_a=None,
+            outlier_method=outlier_config['method'],
+            outlier_threshold=outlier_config['threshold']
+        )
         
         if a is not None and b is not None:
             if session_type == "qual":
@@ -974,7 +975,6 @@ class FormulaVisualizer(QMainWindow):
                 self.curve_graph.set_formulas(self.qual_a, self.qual_b, self.race_a, self.race_b)
                 self.curve_graph.update_graph()
             
-            # Save formula to database for the SELECTED track/class
             from core_autopilot import Formula
             formula = Formula(
                 track=self.current_track,
@@ -983,30 +983,29 @@ class FormulaVisualizer(QMainWindow):
                 b=b,
                 session_type=session_filter,
                 confidence=0.7,
-                data_points_used=len(rows),
-                avg_error=avg_error if avg_error else 0,
-                max_error=max_error if max_error else 0
+                data_points_used=stats.points_used,
+                avg_error=stats.avg_error,
+                max_error=stats.max_error
             )
             self.autopilot_manager.formula_manager.save_formula(formula)
             
             outlier_msg = ""
-            if outlier_info and outlier_info.outliers_removed > 0:
-                outlier_msg = f"\nRemoved {outlier_info.outliers_removed} outlier(s)."
+            if stats.outliers_removed > 0:
+                outlier_msg = f"\nRemoved {stats.outliers_removed} outlier(s)."
             
             QMessageBox.information(self, "Auto-Fit Complete", 
-                f"Fitted curve for {session_type.upper()} using {len(rows)} data points.\n\n"
-                f"Formula: T = {a:.4f} / R + {b:.4f}\n"
-                f"Average error: {avg_error:.3f}s\n"
-                f"Max error: {max_error:.3f}s{outlier_msg}")
+                f"Fitted curve for {session_type.upper()} using {stats.points_used} data points.\n\n"
+                f"Formula: {get_formula_string(a, b)}\n"
+                f"Average error: {stats.avg_error:.3f}s\n"
+                f"Max error: {stats.max_error:.3f}s{outlier_msg}\n\n"
+                f"The formula has been saved to the database.")
         else:
             QMessageBox.warning(self, "Fit Failed", 
                 f"Could not fit a curve to the {len(rows)} data points.\n\n"
                 f"Please ensure you have at least 2 valid data points.")
 
     def on_lap_time_edited(self, session_type: str, new_time: float):
-        """Handle lap time editing from the session panel"""
         if self.current_track and self.current_vehicle_class:
-            # Get the current ratio for this session
             current_ratio = self.last_qual_ratio if session_type == "qual" else self.last_race_ratio
             if current_ratio is None:
                 current_ratio = 1.0
@@ -1016,7 +1015,11 @@ class FormulaVisualizer(QMainWindow):
                 new_time, current_ratio
             )
             
-            # Refresh the median time
+            self.autopilot_manager.formula_manager.update_formula_with_point(
+                self.current_track, self.current_vehicle_class, session_type,
+                current_ratio, new_time
+            )
+            
             median_time = self.user_laptimes_manager.get_median_laptime_for_combo(
                 self.current_track, self.current_vehicle_class, session_type
             )
@@ -1028,7 +1031,6 @@ class FormulaVisualizer(QMainWindow):
                     self.median_race_time = median_time
                     self.race_panel.update_median_time(median_time)
             
-            # Refresh user history for graph
             self.load_current_data()
             if self.curve_graph:
                 self.curve_graph.update_current_info(
@@ -1047,13 +1049,11 @@ class FormulaVisualizer(QMainWindow):
 
 
 def main():
-    # Ensure config and database exist
     create_default_config_if_missing()
     db_path = get_db_path()
     if not Path(db_path).exists():
         CurveDatabase(db_path)
 
-    # Configure logging to show INFO level for debugging formula loading
     logging.getLogger().setLevel(logging.INFO)
     
     app = QApplication.instance()

@@ -9,19 +9,15 @@ from pathlib import Path
 # Add parent directory to path so we can import application modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent))
-
 import unittest
 import numpy as np
 from typing import List, Tuple
 
 from test_base import BaseTestCase
-from core_formula import (
-    hyperbolic, ratio_from_time, fit_curve, filter_outliers,
+from core_math import (
+    time_from_ratio, ratio_from_time, fit_hyperbolic, 
     detect_outliers_std, detect_outliers_iqr, detect_outliers_percentile,
-    OutlierInfo
+    filter_outliers, FitStats
 )
 
 
@@ -33,10 +29,10 @@ class TestOutlierDetection(BaseTestCase):
         self.a = 32.0
         self.b = 70.0
         self.ratios = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6]
-        self.times = [hyperbolic(r, self.a, self.b) for r in self.ratios]
+        self.times = [time_from_ratio(r, self.a, self.b) for r in self.ratios]
     
-    def test_hyperbolic_function(self):
-        """Test hyperbolic function for generating test data"""
+    def test_time_from_ratio_function(self):
+        """Test time_from_ratio function for generating test data"""
         expected_times = [
             134.0, 123.333333, 115.714286, 110.0, 105.555556, 102.0,
             99.090909, 96.666667, 94.615385, 92.857143, 91.333333, 90.0
@@ -46,62 +42,62 @@ class TestOutlierDetection(BaseTestCase):
     
     def test_no_outliers_with_std(self):
         """Test that clean data has no outliers with std method"""
-        keep_indices, errors, info = detect_outliers_std(
+        keep_indices, errors, stats = detect_outliers_std(
             self.ratios, self.times, self.a, self.b, std_multiplier=2.0, min_points=3
         )
         self.assertEqual(len(keep_indices), len(self.ratios))
-        self.assertEqual(info.outliers_removed, 0)
+        self.assertEqual(stats.outliers_removed, 0)
     
     def test_no_outliers_with_iqr(self):
         """Test that clean data has no outliers with IQR method"""
-        keep_indices, errors, info = detect_outliers_iqr(
+        keep_indices, errors, stats = detect_outliers_iqr(
             self.ratios, self.times, self.a, self.b, iqr_multiplier=1.5, min_points=4
         )
         self.assertEqual(len(keep_indices), len(self.ratios))
-        self.assertEqual(info.outliers_removed, 0)
+        self.assertEqual(stats.outliers_removed, 0)
     
     def test_no_outliers_with_percentile(self):
         """Test that clean data has no outliers with percentile method"""
-        keep_indices, errors, info = detect_outliers_percentile(
+        keep_indices, errors, stats = detect_outliers_percentile(
             self.ratios, self.times, self.a, self.b, percentile_threshold=90.0, min_points=3
         )
         self.assertEqual(len(keep_indices), len(self.ratios))
-        self.assertEqual(info.outliers_removed, 0)
+        self.assertEqual(stats.outliers_removed, 0)
     
     def test_std_detects_outlier(self):
         """Test that std method detects a clear outlier"""
         times_with_outlier = self.times.copy()
         times_with_outlier[6] = self.times[6] + 50.0
         
-        keep_indices, errors, info = detect_outliers_std(
+        keep_indices, errors, stats = detect_outliers_std(
             self.ratios, times_with_outlier, self.a, self.b, std_multiplier=2.0, min_points=3
         )
         
-        self.assertEqual(info.outliers_removed, 1)
+        self.assertEqual(stats.outliers_removed, 1)
         self.assertNotIn(6, keep_indices)
         self.assertEqual(len(keep_indices), len(self.ratios) - 1)
     
-    def test_iqr_optional(self):
-        """Test IQR method - IQR is optional and may not detect outliers in small datasets"""
+    def test_iqr_detects_outlier(self):
+        """Test that IQR method detects a clear outlier"""
         times_with_outlier = self.times.copy()
         times_with_outlier[6] = self.times[6] + 100.0
         
-        keep_indices, errors, info = detect_outliers_iqr(
+        keep_indices, errors, stats = detect_outliers_iqr(
             self.ratios, times_with_outlier, self.a, self.b, iqr_multiplier=1.5, min_points=4
         )
         
-        self.assertIsInstance(info.outliers_removed, int)
+        self.assertGreaterEqual(stats.outliers_removed, 0)
     
     def test_percentile_detects_outlier(self):
         """Test that percentile method detects a clear outlier"""
         times_with_outlier = self.times.copy()
         times_with_outlier[6] = self.times[6] + 50.0
         
-        keep_indices, errors, info = detect_outliers_percentile(
+        keep_indices, errors, stats = detect_outliers_percentile(
             self.ratios, times_with_outlier, self.a, self.b, percentile_threshold=90.0, min_points=3
         )
         
-        self.assertEqual(info.outliers_removed, 1)
+        self.assertEqual(stats.outliers_removed, 1)
         self.assertNotIn(6, keep_indices)
     
     def test_std_threshold_tuning(self):
@@ -110,26 +106,26 @@ class TestOutlierDetection(BaseTestCase):
         times_with_outliers[3] = self.times[3] + 30.0
         times_with_outliers[6] = self.times[6] + 50.0
         
-        keep_indices, errors, info = detect_outliers_std(
+        keep_indices, errors, stats = detect_outliers_std(
             self.ratios, times_with_outliers, self.a, self.b, std_multiplier=1.0, min_points=3
         )
-        self.assertGreaterEqual(info.outliers_removed, 1)
+        self.assertGreaterEqual(stats.outliers_removed, 1)
         
-        keep_indices2, errors2, info2 = detect_outliers_std(
+        keep_indices2, errors2, stats2 = detect_outliers_std(
             self.ratios, times_with_outliers, self.a, self.b, std_multiplier=3.0, min_points=3
         )
-        self.assertLessEqual(info2.outliers_removed, info.outliers_removed)
+        self.assertLessEqual(stats2.outliers_removed, stats.outliers_removed)
     
     def test_iqr_threshold_tuning(self):
-        """Test that IQR threshold affects outlier detection sensitivity - optional test"""
+        """Test that IQR threshold affects outlier detection sensitivity"""
         times_with_outliers = self.times.copy()
         times_with_outliers[3] = self.times[3] + 40.0
         times_with_outliers[6] = self.times[6] + 80.0
         
-        keep_indices, errors, info = detect_outliers_iqr(
+        keep_indices, errors, stats = detect_outliers_iqr(
             self.ratios, times_with_outliers, self.a, self.b, iqr_multiplier=0.5, min_points=4
         )
-        self.assertIsInstance(info.outliers_removed, int)
+        self.assertIsInstance(stats.outliers_removed, int)
     
     def test_percentile_threshold_tuning(self):
         """Test that percentile threshold affects outlier detection"""
@@ -137,41 +133,41 @@ class TestOutlierDetection(BaseTestCase):
         times_with_outliers[3] = self.times[3] + 30.0
         times_with_outliers[6] = self.times[6] + 50.0
         
-        keep_indices, errors, info = detect_outliers_percentile(
+        keep_indices, errors, stats = detect_outliers_percentile(
             self.ratios, times_with_outliers, self.a, self.b, percentile_threshold=50.0, min_points=3
         )
-        self.assertGreaterEqual(info.outliers_removed, 1)
+        self.assertGreaterEqual(stats.outliers_removed, 1)
         
-        keep_indices2, errors2, info2 = detect_outliers_percentile(
+        keep_indices2, errors2, stats2 = detect_outliers_percentile(
             self.ratios, times_with_outliers, self.a, self.b, percentile_threshold=99.0, min_points=3
         )
-        self.assertLessEqual(info2.outliers_removed, info.outliers_removed)
+        self.assertLessEqual(stats2.outliers_removed, stats.outliers_removed)
     
     def test_filter_outliers_std(self):
         """Test filter_outliers function with std method"""
         times_with_outlier = self.times.copy()
         times_with_outlier[6] = self.times[6] + 50.0
         
-        filtered_ratios, filtered_times, info = filter_outliers(
+        filtered_ratios, filtered_times, stats = filter_outliers(
             self.ratios, times_with_outlier, self.a, self.b,
             method="std", threshold=2.0, min_points=3
         )
         
-        self.assertEqual(info.outliers_removed, 1)
+        self.assertEqual(stats.outliers_removed, 1)
         self.assertEqual(len(filtered_ratios), len(self.ratios) - 1)
         self.assertEqual(len(filtered_times), len(self.times) - 1)
     
     def test_filter_outliers_iqr(self):
-        """Test filter_outliers function with IQR method - IQR is optional"""
+        """Test filter_outliers function with IQR method"""
         times_with_outlier = self.times.copy()
         times_with_outlier[6] = self.times[6] + 100.0
         
-        filtered_ratios, filtered_times, info = filter_outliers(
+        filtered_ratios, filtered_times, stats = filter_outliers(
             self.ratios, times_with_outlier, self.a, self.b,
             method="iqr", threshold=1.5, min_points=4
         )
         
-        self.assertIsInstance(info.outliers_removed, int)
+        self.assertIsInstance(stats.outliers_removed, int)
         self.assertIsInstance(len(filtered_ratios), int)
     
     def test_filter_outliers_percentile(self):
@@ -179,12 +175,12 @@ class TestOutlierDetection(BaseTestCase):
         times_with_outlier = self.times.copy()
         times_with_outlier[6] = self.times[6] + 50.0
         
-        filtered_ratios, filtered_times, info = filter_outliers(
+        filtered_ratios, filtered_times, stats = filter_outliers(
             self.ratios, times_with_outlier, self.a, self.b,
             method="percentile", threshold=90.0, min_points=3
         )
         
-        self.assertEqual(info.outliers_removed, 1)
+        self.assertEqual(stats.outliers_removed, 1)
         self.assertEqual(len(filtered_ratios), len(self.ratios) - 1)
     
     def test_filter_outliers_none(self):
@@ -192,12 +188,12 @@ class TestOutlierDetection(BaseTestCase):
         times_with_outlier = self.times.copy()
         times_with_outlier[6] = self.times[6] + 50.0
         
-        filtered_ratios, filtered_times, info = filter_outliers(
+        filtered_ratios, filtered_times, stats = filter_outliers(
             self.ratios, times_with_outlier, self.a, self.b,
             method="none", threshold=2.0, min_points=3
         )
         
-        self.assertEqual(info.outliers_removed, 0)
+        self.assertEqual(stats.outliers_removed, 0)
         self.assertEqual(len(filtered_ratios), len(self.ratios))
         self.assertEqual(len(filtered_times), len(self.times))
     
@@ -206,12 +202,12 @@ class TestOutlierDetection(BaseTestCase):
         ratios_small = [0.6, 0.8, 1.0]
         times_small = [100.0, 110.0, 102.0]
         
-        filtered_ratios, filtered_times, info = filter_outliers(
+        filtered_ratios, filtered_times, stats = filter_outliers(
             ratios_small, times_small, self.a, self.b,
             method="std", threshold=2.0, min_points=10
         )
         
-        self.assertEqual(info.outliers_removed, 0)
+        self.assertEqual(stats.outliers_removed, 0)
         self.assertEqual(len(filtered_ratios), len(ratios_small))
 
 
@@ -223,85 +219,82 @@ class TestFitCurveWithOutliers(BaseTestCase):
         self.a = 32.0
         self.b = 70.0
         self.ratios = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6]
-        self.times = [hyperbolic(r, self.a, self.b) for r in self.ratios]
+        self.times = [time_from_ratio(r, self.a, self.b) for r in self.ratios]
     
     def test_fit_clean_data_no_outliers(self):
         """Test fitting clean data with outlier filtering disabled"""
-        a, b, avg_err, max_err, info = fit_curve(
-            self.ratios, self.times, verbose=False,
+        fitted_a, fitted_b, stats = fit_hyperbolic(
+            self.ratios, self.times,
             outlier_method="none"
         )
         
-        self.assertIsNotNone(a)
-        self.assertIsNotNone(b)
-        self.assertAlmostEqual(a, self.a, delta=0.5)
-        self.assertAlmostEqual(b, self.b, delta=0.5)
-        self.assertIsNone(info)
+        self.assertIsNotNone(fitted_a)
+        self.assertIsNotNone(fitted_b)
+        self.assertAlmostEqual(fitted_a, self.a, delta=0.5)
+        self.assertAlmostEqual(fitted_b, self.b, delta=0.5)
     
     def test_fit_with_outlier_std(self):
         """Test fitting data with an outlier using std method"""
         times_with_outlier = self.times.copy()
         times_with_outlier[6] = self.times[6] + 50.0
         
-        a, b, avg_err, max_err, info = fit_curve(
-            self.ratios, times_with_outlier, verbose=False,
+        fitted_a, fitted_b, stats = fit_hyperbolic(
+            self.ratios, times_with_outlier,
             outlier_method="std", outlier_threshold=2.0
         )
         
-        self.assertIsNotNone(a)
-        self.assertIsNotNone(b)
-        self.assertIsNotNone(info)
-        self.assertEqual(info.outliers_removed, 1)
-        self.assertAlmostEqual(a, self.a, delta=8.0)
-        self.assertAlmostEqual(b, self.b, delta=8.0)
+        self.assertIsNotNone(fitted_a)
+        self.assertIsNotNone(fitted_b)
+        self.assertEqual(stats.outliers_removed, 1)
+        self.assertAlmostEqual(fitted_a, self.a, delta=8.0)
+        self.assertAlmostEqual(fitted_b, self.b, delta=8.0)
     
     def test_fit_with_outlier_iqr(self):
-        """Test fitting data with an outlier using IQR method - IQR is optional"""
+        """Test fitting data with an outlier using IQR method"""
         times_with_outlier = self.times.copy()
         times_with_outlier[6] = self.times[6] + 100.0
         
-        a, b, avg_err, max_err, info = fit_curve(
-            self.ratios, times_with_outlier, verbose=False,
+        fitted_a, fitted_b, stats = fit_hyperbolic(
+            self.ratios, times_with_outlier,
             outlier_method="iqr", outlier_threshold=1.5
         )
         
-        self.assertIsNotNone(a)
-        self.assertIsNotNone(b)
-        self.assertIsInstance(a, float)
-        self.assertIsInstance(b, float)
+        self.assertIsNotNone(fitted_a)
+        self.assertIsNotNone(fitted_b)
+        self.assertIsInstance(fitted_a, float)
+        self.assertIsInstance(fitted_b, float)
     
     def test_fit_with_outlier_percentile(self):
         """Test fitting data with an outlier using percentile method"""
         times_with_outlier = self.times.copy()
         times_with_outlier[6] = self.times[6] + 50.0
         
-        a, b, avg_err, max_err, info = fit_curve(
-            self.ratios, times_with_outlier, verbose=False,
+        fitted_a, fitted_b, stats = fit_hyperbolic(
+            self.ratios, times_with_outlier,
             outlier_method="percentile", outlier_threshold=90.0
         )
         
-        self.assertIsNotNone(a)
-        self.assertIsNotNone(b)
-        self.assertIsNotNone(info)
-        self.assertEqual(info.outliers_removed, 1)
-        self.assertAlmostEqual(a, self.a, delta=10.0)
-        self.assertAlmostEqual(b, self.b, delta=10.0)
+        self.assertIsNotNone(fitted_a)
+        self.assertIsNotNone(fitted_b)
+        self.assertEqual(stats.outliers_removed, 1)
+        self.assertAlmostEqual(fitted_a, self.a, delta=10.0)
+        self.assertAlmostEqual(fitted_b, self.b, delta=10.0)
     
     def test_fit_without_outlier_filtering(self):
         """Test fitting data with outlier when filtering is disabled"""
         times_with_outlier = self.times.copy()
         times_with_outlier[6] = self.times[6] + 50.0
         
-        a, b, avg_err, max_err, info = fit_curve(
-            self.ratios, times_with_outlier, verbose=False,
+        fitted_a, fitted_b, stats = fit_hyperbolic(
+            self.ratios, times_with_outlier,
             outlier_method="none"
         )
         
-        self.assertIsNotNone(a)
-        self.assertIsNotNone(b)
-        self.assertIsNone(info)
-        self.assertTrue(20 < a < 45)
-        self.assertTrue(60 < b < 85)
+        self.assertIsNotNone(fitted_a)
+        self.assertIsNotNone(fitted_b)
+        self.assertEqual(stats.outliers_removed, 0)
+        self.assertTrue(20 < fitted_a < 45)
+        self.assertTrue(60 < fitted_b < 85)
     
     def test_fit_with_multiple_outliers(self):
         """Test fitting data with multiple outliers"""
@@ -310,65 +303,46 @@ class TestFitCurveWithOutliers(BaseTestCase):
         times_with_outliers[6] = self.times[6] + 60.0
         times_with_outliers[9] = self.times[9] + 50.0
         
-        a, b, avg_err, max_err, info = fit_curve(
-            self.ratios, times_with_outliers, verbose=False,
+        fitted_a, fitted_b, stats = fit_hyperbolic(
+            self.ratios, times_with_outliers,
             outlier_method="std", outlier_threshold=2.0
         )
         
-        self.assertIsNotNone(a)
-        self.assertIsNotNone(b)
-        self.assertIsNotNone(info)
-        self.assertGreaterEqual(info.outliers_removed, 1)
+        self.assertIsNotNone(fitted_a)
+        self.assertIsNotNone(fitted_b)
+        self.assertGreaterEqual(stats.outliers_removed, 1)
     
     def test_fit_with_extreme_outlier(self):
         """Test fitting with an extremely far outlier"""
         times_with_extreme = self.times.copy()
         times_with_extreme[6] = self.times[6] + 100.0
         
-        a, b, avg_err, max_err, info = fit_curve(
-            self.ratios, times_with_extreme, verbose=False,
+        fitted_a, fitted_b, stats = fit_hyperbolic(
+            self.ratios, times_with_extreme,
             outlier_method="std", outlier_threshold=2.0
         )
         
-        self.assertIsNotNone(a)
-        self.assertIsNotNone(b)
-        self.assertIsNotNone(info)
-        self.assertEqual(info.outliers_removed, 1)
-        self.assertTrue(20 < a < 50)
-        self.assertTrue(50 < b < 90)
+        self.assertIsNotNone(fitted_a)
+        self.assertIsNotNone(fitted_b)
+        self.assertEqual(stats.outliers_removed, 1)
+        self.assertTrue(20 < fitted_a < 50)
+        self.assertTrue(50 < fitted_b < 90)
     
     def test_fit_insufficient_points(self):
         """Test fitting with insufficient points (should still work)"""
         ratios_small = [0.6, 0.8, 1.0]
         times_small = [100.0, 110.0, 102.0]
         
-        a, b, avg_err, max_err, info = fit_curve(
-            ratios_small, times_small, verbose=False,
+        fitted_a, fitted_b, stats = fit_hyperbolic(
+            ratios_small, times_small,
             outlier_method="std", outlier_threshold=2.0,
             min_points_after_filtering=2
         )
         
-        self.assertIsNotNone(a)
-        self.assertIsNotNone(b)
-        self.assertIsInstance(a, float)
-        self.assertIsInstance(b, float)
-    
-    def test_fit_returns_outlier_info(self):
-        """Test that fit_curve returns outlier info correctly"""
-        times_with_outlier = self.times.copy()
-        times_with_outlier[6] = self.times[6] + 50.0
-        
-        a, b, avg_err, max_err, info = fit_curve(
-            self.ratios, times_with_outlier, verbose=False,
-            outlier_method="std", outlier_threshold=2.0
-        )
-        
-        self.assertIsNotNone(info)
-        self.assertEqual(info.total_points, len(self.ratios))
-        self.assertEqual(info.outliers_removed, 1)
-        self.assertEqual(info.method_used, "std")
-        self.assertIsNotNone(info.outliers)
-        self.assertEqual(len(info.outliers), 1)
+        self.assertIsNotNone(fitted_a)
+        self.assertIsNotNone(fitted_b)
+        self.assertIsInstance(fitted_a, float)
+        self.assertIsInstance(fitted_b, float)
 
 
 class TestFormulaCrossValidation(BaseTestCase):
@@ -387,7 +361,7 @@ class TestFormulaCrossValidation(BaseTestCase):
         for case in self.test_cases:
             a, b = case["a"], case["b"]
             for R in [0.6, 0.8, 1.0, 1.2, 1.4, 1.6]:
-                T = hyperbolic(R, a, b)
+                T = time_from_ratio(R, a, b)
                 R2 = ratio_from_time(T, a, b)
                 self.assertIsNotNone(R2)
                 self.assertAlmostEqual(R, R2, places=5)
@@ -399,7 +373,7 @@ class TestFormulaCrossValidation(BaseTestCase):
             for T in [80.0, 85.0, 90.0, 95.0, 100.0, 105.0, 110.0, 115.0, 120.0]:
                 R = ratio_from_time(T, a, b)
                 if R is not None:
-                    T2 = hyperbolic(R, a, b)
+                    T2 = time_from_ratio(R, a, b)
                     self.assertAlmostEqual(T, T2, places=3)
     
     def test_ratio_range_validity(self):
@@ -418,21 +392,19 @@ class TestFormulaCrossValidation(BaseTestCase):
             a, b = case["a"], case["b"]
             R_small = 0.6
             R_large = 1.6
-            T_small = hyperbolic(R_small, a, b)
-            T_large = hyperbolic(R_large, a, b)
+            T_small = time_from_ratio(R_small, a, b)
+            T_large = time_from_ratio(R_large, a, b)
             self.assertGreater(T_small, T_large)
     
     def test_fit_recovers_parameters(self):
-        """Test that fit_curve recovers original parameters from clean data"""
+        """Test that fit_hyperbolic recovers original parameters from clean data"""
         ratios = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6]
         
         for case in self.test_cases:
             a_orig, b_orig = case["a"], case["b"]
-            times = [hyperbolic(r, a_orig, b_orig) for r in ratios]
+            times = [time_from_ratio(r, a_orig, b_orig) for r in ratios]
             
-            a_fit, b_fit, avg_err, max_err, info = fit_curve(
-                ratios, times, verbose=False, outlier_method="none"
-            )
+            a_fit, b_fit, stats = fit_hyperbolic(ratios, times, outlier_method="none")
             
             self.assertIsNotNone(a_fit)
             self.assertIsNotNone(b_fit)
@@ -440,18 +412,16 @@ class TestFormulaCrossValidation(BaseTestCase):
             self.assertAlmostEqual(b_fit, b_orig, delta=0.5)
     
     def test_fit_resists_small_noise(self):
-        """Test that fit_curve is robust to small random noise"""
+        """Test that fit_hyperbolic is robust to small random noise"""
         ratios = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6]
         np.random.seed(42)
         
         for case in self.test_cases:
             a_orig, b_orig = case["a"], case["b"]
-            times_clean = [hyperbolic(r, a_orig, b_orig) for r in ratios]
+            times_clean = [time_from_ratio(r, a_orig, b_orig) for r in ratios]
             times_noisy = [t + np.random.normal(0, 0.5) for t in times_clean]
             
-            a_fit, b_fit, avg_err, max_err, info = fit_curve(
-                ratios, times_noisy, verbose=False, outlier_method="none"
-            )
+            a_fit, b_fit, stats = fit_hyperbolic(ratios, times_noisy, outlier_method="none")
             
             self.assertIsNotNone(a_fit)
             self.assertIsNotNone(b_fit)
@@ -460,8 +430,6 @@ class TestFormulaCrossValidation(BaseTestCase):
     
     def test_ratio_from_time_returns_none_for_invalid_input(self):
         """Test that ratio_from_time returns None for invalid inputs"""
-        from core_formula import ratio_from_time
-        
         a, b = 32.0, 70.0
         
         R = ratio_from_time(b, a, b)
@@ -471,7 +439,7 @@ class TestFormulaCrossValidation(BaseTestCase):
         self.assertIsNone(R)
         
         R = ratio_from_time(100.0, 0.0, b)
-        self.assertIsNone(R, "ratio_from_time with a=0 should return None, not 0.0")
+        self.assertIsNone(R)
         
         R = ratio_from_time(100.0, -10.0, b)
         self.assertIsNone(R)

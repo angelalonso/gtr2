@@ -29,6 +29,7 @@ from test_error_injection import TestErrorInjection
 from test_simulation_harness import run_simulation_tests
 from test_resource_paths import run_resource_tests
 from test_pyinstaller_compatibility import run_pyinstaller_tests
+from test_unit_aiw_track_resolution import run_aiw_track_resolution_tests
 from test_unit_gui_dialogs import run_dialog_tests
 from test_unit_user_laptimes import run_user_laptimes_tests
 from test_unit_median_ratio import run_median_ratio_tests
@@ -224,6 +225,8 @@ def run_all_tests():
     user_laptimes_passed = user_laptimes_result.wasSuccessful()
     median_ratio_passed = median_ratio_result.wasSuccessful()
     ratio_calculation_passed = ratio_calculation_result.wasSuccessful()
+    aiw_resolution_result = run_aiw_track_resolution_tests()
+    aiw_resolution_passed = aiw_resolution_result.wasSuccessful()
     
     print(f"Unit Tests: {'PASS' if unit_passed else 'FAIL'}")
     print(f"PLR Tests: {'PASS' if plr_result else 'FAIL'}")
@@ -235,12 +238,13 @@ def run_all_tests():
     print(f"Median Ratio Tests: {'PASS' if median_ratio_passed else 'FAIL'}")
     print(f"Ratio Calculation Tests: {'PASS' if ratio_calculation_passed else 'FAIL'}")
     print(f"Simulation Tests: {'PASS' if sim_passed else 'FAIL'}")
+    print(f"AIW Track Resolution Tests: {'PASS' if aiw_resolution_passed else 'FAIL'}")
     
     all_passed = (unit_passed and plr_result and outlier_result and 
                   resource_result and pyinstaller_result and sim_passed and
                   gui_dialog_result.wasSuccessful() and
                   user_laptimes_passed and median_ratio_passed and
-                  ratio_calculation_passed)
+                  ratio_calculation_passed and aiw_resolution_passed)
     
     if all_passed:
         print("\nALL TESTS PASSED")

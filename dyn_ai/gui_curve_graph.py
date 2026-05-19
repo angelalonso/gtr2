@@ -14,7 +14,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 
-from core_formula import DEFAULT_A_VALUE
+from core_math import DEFAULT_A_VALUE, time_from_ratio, ratio_from_time, get_formula_string
 from core_autopilot import get_vehicle_class, load_vehicle_classes
 
 
@@ -118,11 +118,7 @@ class CurveGraphWidget(QWidget):
             a, b = self.qual_a, self.qual_b
         else:
             a, b = self.race_a, self.race_b
-        denominator = time_sec - b
-        if denominator <= 0:
-            return None
-        ratio = a / denominator
-        return ratio if 0.3 < ratio < 3.0 else None
+        return ratio_from_time(time_sec, a, b)
     
     def select_track(self):
         if not self.all_tracks:
@@ -332,8 +328,12 @@ class CurveGraphWidget(QWidget):
     def update_graph(self):
         ratios = np.linspace(0.4, 2.0, 200)
         points_data = self.get_selected_data()
-        qual_times = self.qual_a / ratios + self.qual_b
-        race_times = self.race_a / ratios + self.race_b
+        qual_times = [time_from_ratio(r, self.qual_a, self.qual_b) for r in ratios]
+        race_times = [time_from_ratio(r, self.race_a, self.race_b) for r in ratios]
+        
+        # Convert to numpy arrays for pyqtgraph
+        qual_times_array = np.array(qual_times)
+        race_times_array = np.array(race_times)
         
         # Determine pen styles based on whether formulas are default
         qual_pen = pg.mkPen(color='#888888', width=2.0, style=Qt.DashLine) if self.qual_is_default else pg.mkPen(color='#FFFF00', width=2.5)
@@ -341,12 +341,12 @@ class CurveGraphWidget(QWidget):
         
         if self.show_qualifying:
             if self.qual_curve is None:
-                self.qual_curve = self.plot.plot(ratios, qual_times, pen=qual_pen)
+                self.qual_curve = self.plot.plot(ratios, qual_times_array, pen=qual_pen)
             else:
                 if self.qual_curve.scene() is None:
-                    self.qual_curve = self.plot.plot(ratios, qual_times, pen=qual_pen)
+                    self.qual_curve = self.plot.plot(ratios, qual_times_array, pen=qual_pen)
                 else:
-                    self.qual_curve.setData(ratios, qual_times)
+                    self.qual_curve.setData(ratios, qual_times_array)
                     self.qual_curve.setPen(qual_pen)
                     self.qual_curve.setVisible(True)
         elif self.qual_curve is not None:
@@ -354,12 +354,12 @@ class CurveGraphWidget(QWidget):
         
         if self.show_race:
             if self.race_curve is None:
-                self.race_curve = self.plot.plot(ratios, race_times, pen=race_pen)
+                self.race_curve = self.plot.plot(ratios, race_times_array, pen=race_pen)
             else:
                 if self.race_curve.scene() is None:
-                    self.race_curve = self.plot.plot(ratios, race_times, pen=race_pen)
+                    self.race_curve = self.plot.plot(ratios, race_times_array, pen=race_pen)
                 else:
-                    self.race_curve.setData(ratios, race_times)
+                    self.race_curve.setData(ratios, race_times_array)
                     self.race_curve.setPen(race_pen)
                     self.race_curve.setVisible(True)
         elif self.race_curve is not None:
@@ -566,11 +566,11 @@ class CurveGraphWidget(QWidget):
         
         self.legend = self.plot.addLegend()
         
-        qual_label = f'Qualifying: T={self.qual_a:.2f}/R+{self.qual_b:.2f}'
+        qual_label = f'Qualifying: {get_formula_string(self.qual_a, self.qual_b)}'
         if self.qual_is_default:
             qual_label += " (default)"
         
-        race_label = f'Race: T={self.race_a:.2f}/R+{self.race_b:.2f}'
+        race_label = f'Race: {get_formula_string(self.race_a, self.race_b)}'
         if self.race_is_default:
             race_label += " (default)"
         

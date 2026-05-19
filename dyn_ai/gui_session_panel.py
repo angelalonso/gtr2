@@ -11,7 +11,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, pyqtSignal
 
 from core_config import get_ratio_limits
-from core_formula import DEFAULT_A_VALUE
+from core_math import DEFAULT_A_VALUE, ratio_from_time, clamp_ratio, get_formula_string
 from gui_common_dialogs import ManualLapTimeDialog
 
 
@@ -120,7 +120,7 @@ class SessionPanel(QWidget):
 
         row2 = QHBoxLayout()
         row2.addWidget(QLabel("Formula:"))
-        self.formula_label = QLabel(f"T = {self.a:.2f} / R + {self.b:.2f}")
+        self.formula_label = QLabel(get_formula_string(self.a, self.b))
         self.formula_label.setStyleSheet("color: #FFA500; font-family: monospace;")
         row2.addWidget(self.formula_label)
 
@@ -215,7 +215,7 @@ class SessionPanel(QWidget):
     def on_param_changed(self):
         self.a = self.a_spin.value()
         self.b = self.b_spin.value()
-        self.formula_label.setText(f"T = {self.a:.2f} / R + {self.b:.2f}")
+        self.formula_label.setText(get_formula_string(self.a, self.b))
         self.formula_changed.emit(self.session_type, self.a, self.b)
         self.set_calc_button_modified(True)
         # When user manually edits parameters, it's no longer the default formula
@@ -232,33 +232,30 @@ class SessionPanel(QWidget):
     
     def on_calculate_ratio(self):
         if self.user_time and self.user_time > 0:
-            denominator = self.user_time - self.b
-            if denominator <= 0:
+            new_ratio = ratio_from_time(self.user_time, self.a, self.b)
+            
+            if new_ratio is None:
                 QMessageBox.warning(self, "Invalid Calculation", 
-                    f"Cannot calculate ratio: T - b = {self.user_time:.3f} - {self.b:.2f} = {denominator:.3f} (must be positive)")
+                    f"Cannot calculate ratio: T - b = {self.user_time:.3f} - {self.b:.2f} = {self.user_time - self.b:.3f} (must be positive)")
                 return
-            
-            ratio = self.a / denominator
-            
-            if not (0.3 < ratio < 3.0):
-                QMessageBox.warning(self, "Ratio Out of Range", 
-                    f"Calculated ratio {ratio:.6f} is outside valid range (0.3 - 3.0)")
-                return
-            
-            self.current_ratio = ratio
-            self.ratio_value_label.setText(f"{ratio:.6f}")
             
             min_ratio, max_ratio = get_ratio_limits()
-            if ratio < min_ratio or ratio > max_ratio:
+            clamped_ratio = clamp_ratio(new_ratio, min_ratio, max_ratio)
+            
+            if clamped_ratio != new_ratio:
                 reply = QMessageBox.question(
                     self, "Ratio Out of Range",
-                    f"The calculated {self.session_type.upper()} Ratio = {ratio:.6f} is outside the allowed range "
+                    f"The calculated {self.session_type.upper()} Ratio = {new_ratio:.6f} is outside the allowed range "
                     f"({min_ratio} - {max_ratio}).\n\n"
-                    f"Do you still want to save this ratio?",
+                    f"The ratio will be clamped to {clamped_ratio:.6f}.\n\nDo you want to continue?",
                     QMessageBox.Yes | QMessageBox.No
                 )
                 if reply != QMessageBox.Yes:
                     return
+                new_ratio = clamped_ratio
+            
+            self.current_ratio = new_ratio
+            self.ratio_value_label.setText(f"{new_ratio:.6f}")
             
             self.calculate_ratio.emit(self.session_type, self.user_time)
             self.set_calc_button_modified(False)
@@ -274,7 +271,7 @@ class SessionPanel(QWidget):
         self.b_spin.setValue(b)
         self.a_spin.blockSignals(False)
         self.b_spin.blockSignals(False)
-        self.formula_label.setText(f"T = {a:.2f} / R + {b:.2f}")
+        self.formula_label.setText(get_formula_string(a, b))
         self.set_calc_button_modified(False)
         self._update_formula_style()
         

@@ -13,7 +13,7 @@ from typing import Optional, Dict, List, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from core_aiw_utils import find_aiw_file_from_path, update_aiw_ratio, ensure_aiw_has_ratios
+from core_aiw_utils import find_aiw_file_from_path, update_aiw_ratio, ensure_aiw_has_ratios, find_aiw_file_by_track
 
 logger = logging.getLogger(__name__)
 
@@ -223,14 +223,21 @@ class DataExtractor:
         logger.info(f"[EXTRACTOR] Resolving AIW path from: {data.aiw_relative_path}")
         logger.info(f"[EXTRACTOR] Base path: {self.base_path}")
         
+        # First try exact path resolution
         aiw_path = find_aiw_file_from_path(data.aiw_relative_path, self.base_path)
+        
+        # If not found, try by track name (fallback)
+        if not aiw_path or not aiw_path.exists():
+            logger.info(f"[EXTRACTOR] Exact path resolution failed, trying by track name: {data.track_name}")
+            if data.track_name:
+                aiw_path = find_aiw_file_by_track(data.track_name, self.base_path)
         
         if aiw_path and aiw_path.exists():
             data.aiw_path = aiw_path
             logger.info(f"[EXTRACTOR] Successfully resolved AIW path: {aiw_path}")
             self._parse_aiw_ratios(data)
         else:
-            error_msg = f"AIW file not found for path: {data.aiw_relative_path}"
+            error_msg = f"AIW file not found for path: {data.aiw_relative_path} or track: {data.track_name}"
             logger.error(f"[EXTRACTOR] {error_msg}")
             logger.error(f"[EXTRACTOR] Full base path: {self.base_path}")
             logger.error(f"[EXTRACTOR] Expected location: {self.base_path / data.aiw_relative_path}")

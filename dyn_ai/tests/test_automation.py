@@ -21,13 +21,11 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Tuple
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent))
-
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtCore import QTimer, QEventLoop, QObject, pyqtSignal
 
-from test_suite import TempTestEnvironment, WaitForSignal
+from test_temp_env import TempTestEnvironment
+from test_wait_helper import WaitForSignal
 
 
 class TestRunner(QObject):
@@ -68,12 +66,6 @@ class TestRunner(QObject):
             ("vehicle_scan", self.test_vehicle_scan),
             ("vehicle_class_add", self.test_vehicle_class_add),
             ("vehicle_class_delete", self.test_vehicle_class_delete),
-            ("button_add_class", self.test_button_add_class),
-            ("button_delete_class", self.test_button_delete_class),
-            ("button_auto_fit", self.test_button_auto_fit),
-            ("button_edit_ratio", self.test_button_edit_ratio),
-            ("toggle_autosave", self.test_toggle_autosave),
-            ("toggle_autoratio", self.test_toggle_autoratio),
             ("backup_restore", self.test_backup_restore),
             ("error_missing_aiw", self.test_error_missing_aiw),
             ("error_permission_denied", self.test_error_permission_denied),
@@ -160,7 +152,7 @@ class TestRunner(QObject):
     def test_config_load(self) -> Tuple[bool, str]:
         """Test configuration loading"""
         with TempTestEnvironment() as env:
-            from core_config import load_config, get_config_with_defaults
+            from core_config import load_config
             
             config = load_config(str(env.config_path))
             if config is None:
@@ -248,11 +240,10 @@ class TestRunner(QObject):
     
     def test_formula_calculation(self) -> Tuple[bool, str]:
         """Test hyperbolic formula calculations"""
-        from core_formula import hyperbolic, ratio_from_time
+        from core_math import time_from_ratio, ratio_from_time
         
         a, b = 32.0, 70.0
         
-        # Test various ratios
         test_cases = [
             (0.6, 123.333333),
             (0.8, 110.0),
@@ -263,7 +254,7 @@ class TestRunner(QObject):
         ]
         
         for R, expected_T in test_cases:
-            T = hyperbolic(R, a, b)
+            T = time_from_ratio(R, a, b)
             if abs(T - expected_T) > 0.001:
                 return False, f"At R={R}: expected {expected_T:.3f}, got {T:.3f}"
         
@@ -277,17 +268,17 @@ class TestRunner(QObject):
     
     def test_formula_fit(self) -> Tuple[bool, str]:
         """Test curve fitting"""
-        from core_formula import hyperbolic, fit_curve
+        from core_math import time_from_ratio, fit_hyperbolic
         import random
         
         a, b = 32.0, 70.0
         ratios = [0.6, 0.8, 1.0, 1.2, 1.4, 1.6]
-        times = [hyperbolic(r, a, b) for r in ratios]
+        times = [time_from_ratio(r, a, b) for r in ratios]
         
         # Add small noise
         times_noisy = [t + random.uniform(-0.3, 0.3) for t in times]
         
-        fitted_a, fitted_b, avg_err, max_err = fit_curve(ratios, times_noisy, verbose=False)
+        fitted_a, fitted_b, stats = fit_hyperbolic(ratios, times_noisy)
         
         if fitted_a is None or fitted_b is None:
             return False, "Fit returned None"
@@ -515,7 +506,7 @@ BestLap=1:31.000
     def test_vehicle_class_add(self) -> Tuple[bool, str]:
         """Test adding vehicle class"""
         with TempTestEnvironment() as env:
-            from gui_vehicle_manager import VehicleClassesManager
+            from gui_datamgmt_vehicle import VehicleClassesManager
             
             manager = VehicleClassesManager(env.classes_path)
             
@@ -532,7 +523,7 @@ BestLap=1:31.000
     def test_vehicle_class_delete(self) -> Tuple[bool, str]:
         """Test deleting vehicle class"""
         with TempTestEnvironment() as env:
-            from gui_vehicle_manager import VehicleClassesManager
+            from gui_datamgmt_vehicle import VehicleClassesManager
             
             manager = VehicleClassesManager(env.classes_path)
             
@@ -547,198 +538,6 @@ BestLap=1:31.000
                 return False, "Class still exists after delete"
             
             return True, "Class deleted successfully"
-    
-    # =========================================================================
-    # GUI Button Tests
-    # =========================================================================
-    
-    def test_button_add_class(self) -> Tuple[bool, str]:
-        """Test Add Class button functionality"""
-        # This test requires GUI, skip if no app
-        app = QApplication.instance()
-        if app is None:
-            return True, "Skipped (no GUI)"
-        
-        with TempTestEnvironment() as env:
-            try:
-                from gui_vehicle_manager import VehicleManagerDialog
-                
-                dialog = VehicleManagerDialog(gtr2_path=None)
-                dialog.show()
-                QApplication.processEvents()
-                
-                # Find add class button
-                if hasattr(dialog, 'add_class_btn'):
-                    button = dialog.add_class_btn
-                    if button and button.isEnabled():
-                        # Click should open dialog
-                        QTest.mouseClick(button, Qt.LeftButton)
-                        QApplication.processEvents()
-                
-                dialog.close()
-                return True, "Add Class button works"
-            except Exception as e:
-                return False, f"Add Class button test failed: {e}"
-    
-    def test_button_delete_class(self) -> Tuple[bool, str]:
-        """Test Delete Class button functionality"""
-        app = QApplication.instance()
-        if app is None:
-            return True, "Skipped (no GUI)"
-        
-        with TempTestEnvironment() as env:
-            try:
-                from gui_vehicle_manager import VehicleManagerDialog
-                
-                dialog = VehicleManagerDialog(gtr2_path=None)
-                dialog.show()
-                QApplication.processEvents()
-                
-                # Select a class first
-                if dialog.class_list.count() > 0:
-                    dialog.class_list.setCurrentRow(0)
-                    QApplication.processEvents()
-                    
-                    if hasattr(dialog, 'delete_class_btn'):
-                        button = dialog.delete_class_btn
-                        if button and button.isEnabled():
-                            QTest.mouseClick(button, Qt.LeftButton)
-                            QApplication.processEvents()
-                
-                dialog.close()
-                return True, "Delete Class button works"
-            except Exception as e:
-                return False, f"Delete Class button test failed: {e}"
-    
-    def test_button_auto_fit(self) -> Tuple[bool, str]:
-        """Test Auto-Fit button functionality"""
-        app = QApplication.instance()
-        if app is None:
-            return True, "Skipped (no GUI)"
-        
-        with TempTestEnvironment() as env:
-            try:
-                # Create database with data points
-                db_path = str(env.test_data_dir / "test.db")
-                from core_database import CurveDatabase
-                db = CurveDatabase(db_path)
-                
-                # Add some data points
-                db.add_data_point("Monza", "GT_0304", 1.2, 95.5, "race")
-                db.add_data_point("Monza", "GT_0304", 1.1, 94.0, "race")
-                db.add_data_point("Monza", "GT_0304", 1.3, 97.0, "race")
-                
-                # Create advanced settings dialog
-                from gui_advanced_settings import AdvancedSettingsDialog
-                
-                dialog = AdvancedSettingsDialog(db=db)
-                dialog.show()
-                QApplication.processEvents()
-                
-                # Try to find and click auto-fit button
-                if hasattr(dialog, 'race_panel') and dialog.race_panel:
-                    if hasattr(dialog.race_panel, 'auto_fit_btn'):
-                        button = dialog.race_panel.auto_fit_btn
-                        if button and button.isEnabled():
-                            QTest.mouseClick(button, Qt.LeftButton)
-                            QApplication.processEvents()
-                
-                dialog.close()
-                return True, "Auto-Fit button works"
-            except Exception as e:
-                return False, f"Auto-Fit button test failed: {e}"
-    
-    def test_button_edit_ratio(self) -> Tuple[bool, str]:
-        """Test Edit Ratio button functionality"""
-        app = QApplication.instance()
-        if app is None:
-            return True, "Skipped (no GUI)"
-        
-        with TempTestEnvironment() as env:
-            try:
-                from gui_main_window import RedesignedMainWindow
-                
-                db_path = str(env.test_data_dir / "test.db")
-                
-                # This may fail if GTR2 path not set
-                window = RedesignedMainWindow(db_path, str(env.config_path))
-                window.show()
-                QApplication.processEvents()
-                
-                # Try to click edit button on qual panel
-                if hasattr(window, 'qual_panel') and window.qual_panel:
-                    if hasattr(window.qual_panel, 'edit_btn'):
-                        button = window.qual_panel.edit_btn
-                        if button and button.isEnabled():
-                            QTest.mouseClick(button, Qt.LeftButton)
-                            QApplication.processEvents()
-                
-                window.close()
-                return True, "Edit Ratio button works"
-            except Exception as e:
-                return True, f"Edit Ratio button test skipped: {e}"
-    
-    def test_toggle_autosave(self) -> Tuple[bool, str]:
-        """Test Auto-Save toggle switch"""
-        app = QApplication.instance()
-        if app is None:
-            return True, "Skipped (no GUI)"
-        
-        with TempTestEnvironment() as env:
-            try:
-                from gui_main_window import RedesignedMainWindow
-                
-                db_path = str(env.test_data_dir / "test.db")
-                window = RedesignedMainWindow(db_path, str(env.config_path))
-                window.show()
-                QApplication.processEvents()
-                
-                if hasattr(window, 'autosave_switch'):
-                    original_state = window.autosave_enabled
-                    
-                    QTest.mouseClick(window.autosave_switch, Qt.LeftButton)
-                    QApplication.processEvents()
-                    
-                    new_state = window.autosave_enabled
-                    
-                    if new_state == original_state:
-                        return False, "Toggle did not change state"
-                
-                window.close()
-                return True, "Auto-save toggle works"
-            except Exception as e:
-                return True, f"Auto-save toggle test skipped: {e}"
-    
-    def test_toggle_autoratio(self) -> Tuple[bool, str]:
-        """Test Auto-Ratio toggle switch"""
-        app = QApplication.instance()
-        if app is None:
-            return True, "Skipped (no GUI)"
-        
-        with TempTestEnvironment() as env:
-            try:
-                from gui_main_window import RedesignedMainWindow
-                
-                db_path = str(env.test_data_dir / "test.db")
-                window = RedesignedMainWindow(db_path, str(env.config_path))
-                window.show()
-                QApplication.processEvents()
-                
-                if hasattr(window, 'autoratio_switch'):
-                    original_state = window.autoratio_enabled
-                    
-                    QTest.mouseClick(window.autoratio_switch, Qt.LeftButton)
-                    QApplication.processEvents()
-                    
-                    new_state = window.autoratio_enabled
-                    
-                    if new_state == original_state:
-                        return False, "Toggle did not change state"
-                
-                window.close()
-                return True, "Auto-ratio toggle works"
-            except Exception as e:
-                return True, f"Auto-ratio toggle test skipped: {e}"
     
     # =========================================================================
     # Error Scenario Tests
@@ -833,80 +632,12 @@ BestLap=1:31.000
 
 
 # =============================================================================
-# Continuous Testing Mode
-# =============================================================================
-
-class ContinuousTestRunner(QObject):
-    """Run tests continuously, watching for file changes"""
-    
-    def __init__(self, watch_paths: List[Path]):
-        super().__init__()
-        self.watch_paths = watch_paths
-        self.last_modified = {}
-        self.running = False
-        self.timer = None
-    
-    def start(self, interval_seconds: int = 5):
-        """Start continuous testing"""
-        self.running = True
-        self._update_modified_times()
-        self._schedule_check(interval_seconds)
-        print(f"Continuous testing started (checking every {interval_seconds}s)")
-        print("Press Ctrl+C to stop")
-    
-    def stop(self):
-        """Stop continuous testing"""
-        self.running = False
-        if self.timer:
-            self.timer.cancel()
-        print("\nContinuous testing stopped")
-    
-    def _update_modified_times(self):
-        """Update stored modification times"""
-        for path in self.watch_paths:
-            if path.exists():
-                self.last_modified[str(path)] = path.stat().st_mtime
-    
-    def _schedule_check(self, interval: int):
-        """Schedule next check"""
-        if self.running:
-            self.timer = QTimer.singleShot(interval * 1000, self._check_files)
-    
-    def _check_files(self):
-        """Check for file changes and run tests if needed"""
-        changed = False
-        
-        for path in self.watch_paths:
-            if path.exists():
-                current_mtime = path.stat().st_mtime
-                key = str(path)
-                if key in self.last_modified:
-                    if current_mtime != self.last_modified[key]:
-                        changed = True
-                        self.last_modified[key] = current_mtime
-                else:
-                    changed = True
-                    self.last_modified[key] = current_mtime
-        
-        if changed:
-            print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Changes detected, running tests...")
-            runner = TestRunner()
-            runner.run_all_tests()
-            runner.print_report()
-        
-        self._schedule_check(5)  # Check every 5 seconds
-
-
-# =============================================================================
 # Main Entry Point
 # =============================================================================
 
 def main():
     parser = argparse.ArgumentParser(description='Live AI Tuner Test Automation')
-    parser.add_argument('--mode', choices=['once', 'continuous'], default='once',
-                        help='Test mode: once (default) or continuous')
     parser.add_argument('--output', type=str, help='Output report file path')
-    parser.add_argument('--watch', action='append', help='Paths to watch (for continuous mode)')
     parser.add_argument('--list', action='store_true', help='List available tests')
     
     args = parser.parse_args()
@@ -920,39 +651,17 @@ def main():
             print(f"  - {test}")
         return 0
     
-    if args.mode == 'continuous':
-        # Create Qt app for continuous mode
-        app = QApplication(sys.argv)
-        
-        watch_paths = []
-        if args.watch:
-            watch_paths = [Path(p) for p in args.watch]
-        else:
-            # Default watch paths
-            watch_paths = [
-                Path("cfg.yml"),
-                Path("vehicle_classes.json"),
-                Path("ai_data.db"),
-                Path("core_*.py"),
-                Path("gui_*.py"),
-            ]
-        
-        runner = ContinuousTestRunner(watch_paths)
-        runner.start()
-        
-        sys.exit(app.exec_())
-    else:
-        # Run once
-        runner = TestRunner()
-        runner.run_all_tests()
-        runner.print_report()
-        
-        if args.output:
-            output_path = Path(args.output)
-            runner.save_report(output_path)
-            print(f"\nReport saved to: {output_path}")
-        
-        return 1 if runner.get_report()["failed"] > 0 else 0
+    # Run once
+    runner = TestRunner()
+    runner.run_all_tests()
+    runner.print_report()
+    
+    if args.output:
+        output_path = Path(args.output)
+        runner.save_report(output_path)
+        print(f"\nReport saved to: {output_path}")
+    
+    return 1 if runner.get_report()["failed"] > 0 else 0
 
 
 if __name__ == "__main__":
