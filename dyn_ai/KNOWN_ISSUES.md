@@ -25,3 +25,4 @@
 - Missing AIW ratios - Some track AIW files lack QualRatio or RaceRatio entries entirely. The program adds them with default 1.0, modifying the original file (though a backup is created first).
 
 - Median calculation edge cases - With nr_last_user_laptimes set to 1, median equals the single value, providing no outlier protection.
+
