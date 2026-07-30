@@ -1,0 +1,79 @@
+// Genstring
+// #1 : Tyres (1-Michelin, 2-Dunlop, 3-Continental)
+// #2 : Rims (1-silver, 2-black)
+// #3 : Winglet (1-no, 2-single, 3-double)
+// #4&5 : int Driver suit
+// #6 : Extra Lights (1-LMP2 WEC, 2-IMSA, 3-no)
+// #7 : Steering Wheel (1-Oreca, 2- Alpine)
+
+HDVehicle=oreca_07.hdc
+Graphics=oreca07.cas
+GenString=113551111
+Sounds=Gibson_GK428.aud
+HeadPhysics=headphysics.hed
+
+Eyepoint=(0.175, 0.360, -0.17)
+CameraTarget=(0.000, 0.67, 0.200)
+MaxSeatrear=0.0
+MaxSeatFront=-0.2
+MaxSeatUp=0.00
+MaxSeatDown=-0.05
+FrontWheelsInCockpit=1
+
+SteeringWheelAxis=(0.175.0,-0.58,-0.093)
+SteeringWheelType=1
+ExternalDriverPosition=(0.170, -0.450, -0.145)
+FirstPersonDriverPosition=(0.175, -0.605, -0.245)
+ClutchPedalPosition=(0.298, -0.135, -0.881)
+BrakePedalPosition=(0.191, -0.135, -0.881)
+AcceleratorPedalPosition=(-0.081, -0.135, -0.881)
+LeftLegBendAngle=12.0
+RightLegBendAngle=-12.0
+
+DigitalDisplays=2
+
+Display1Instance=MOTEC
+Display1RPMLights=7
+Display1RPMLightsRange=(7800,9300)
+Display1SpeedParams=SMALL,CENTER
+Display1SpeedPos=(258,210)
+Display1GearParams=LARGE,CENTER
+Display1GearPos=(260,90)
+Display1FuelParams=SMALL,LEFT
+Display1FuelPos=(110,95)
+Display1LapTimeParams=SMALL,RIGHT
+Display1LapTimePos=(425,120)
+Display1ModesPos=(70,-170)
+Display2Instance=FUELDISPLAY
+Display2GearParams=LARGE,CENTER
+Display2GearPos=(260,90)
+Display2SpeedHeadingParams=SMALL,LEFT
+Display2SpeedHeadingPos=(90,90)
+Display2SessionPractice=(410,141)
+Display2SessionWarmup=(410,128)
+Display2SessionRace=(410,115)
+Display2LapTimeParams=SMALL,RIGHT
+Display2LapTimePos=(150,70)
+Display2FuelHeadingParams=LARGE,LEFT
+Display2FuelHeadingPos=(431,70)
+Display2FuelParams=MEDIUM,RIGHT
+Display2FuelPos=(428,70)
+Display2ModesPos=(14,0)
+
+FuelRigType=1
+FuelCapPositionL=(0.390, 0.287, 0.341)
+FuelCapAngleR=45.0
+
+Number=19044EL
+Team="Just Racing"
+PitGroup="APR"
+Driver="Angel Alonso"
+Driver1="Angel Alonso"
+Driver2="Angel Alonso"
+Driver3="Angel Alonso"
+Description="Oreca 07 - Gibson"
+Engine="Gibson"
+Manufacturer="oreca07"
+classes="EL19, P2_E019, LM19"
+ComparativeTime=100
+

@@ -1,0 +1,14 @@
+shiny? (n/a = does not even work)
+
+alpha - not too shiny, colours are off
+bc1_dxt1 - shiny
+bc2_dxt3 - shiny
+bc3_dxt5 - shiny
+bc3nm... - shiny, colors off
+bc4 - n/a
+bc5ati2 - n/a
+bc7 - n/a
+none - shiny
+rxgb - n/a
+ycoycg - shiny, colors off
+ycocgscaled - shiny, colors off
